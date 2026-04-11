@@ -10,9 +10,12 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@origin-one/schema": "workspace:*"
+    "@origin-one/schema": "workspace:*",
+    "@supabase/ssr": "^0.3.0",
+    "@supabase/supabase-js": "^2.43.1"
   },
   "devDependencies": {
+    "@types/node": "^20",
     "typescript": "^5"
   }
 }
