@@ -1,0 +1,9 @@
+{
+  "name": "@origin-one/config",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.js",
+  "scripts": {
+    "clean": "echo 'nothing to clean'"
+  }
+}

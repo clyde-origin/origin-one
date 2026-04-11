@@ -1,12 +1,14 @@
 {
-  "name": "origin-one",
+  "name": "@origin-one/back-to-one",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "type-check": "tsc --noEmit"
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf .next node_modules"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.6.0",

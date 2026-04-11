@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls -d \"/Users/pawn/Code/origin one/apps/\"*/ \"/Users/pawn/Code/origin one/packages/\"*/)"
+      "Bash(ls -d \"/Users/pawn/Code/origin one/apps/\"*/ \"/Users/pawn/Code/origin one/packages/\"*/)",
+      "Bash(pnpm -v)",
+      "Bash(export PATH=\"/opt/homebrew/bin:$PATH\")",
+      "Bash(pnpm install:*)",
+      "Bash(kill %2)",
+      "Bash(kill %1)",
+      "Bash(pkill -f \"next dev\")"
     ]
   }
 }
