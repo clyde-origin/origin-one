@@ -6,3 +6,8 @@ export { Entity, EntityType } from "./entity";
 export { Scene } from "./scene";
 export { Shot, ShotStatus, ShotSize } from "./shot";
 export { Document, DocumentType } from "./document";
+export { Milestone, MilestonePerson, MilestoneStatus } from "./milestone";
+export { ActionItem, ActionItemStatus } from "./action-item";
+export { Thread, ThreadMessage } from "./thread";
+export { Folder } from "./folder";
+export { Resource, ResourceType } from "./resource";

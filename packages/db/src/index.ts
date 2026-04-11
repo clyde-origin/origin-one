@@ -1,11 +1,17 @@
-// @origin-one/db
-// Database client and schema — Prisma will be configured here.
-// For now, re-exports the schema types that map to database tables.
+// packages/db/src/index.ts
+// Exports the Prisma client as a singleton.
+// All apps and packages import the client from here — never instantiate directly.
 
-export { type Project } from "@origin-one/schema";
-export { type Scene } from "@origin-one/schema";
-export { type Shot } from "@origin-one/schema";
-export { type Entity } from "@origin-one/schema";
-export { type Document } from "@origin-one/schema";
-export { type User } from "@origin-one/schema";
-export { type Team, type TeamMember } from "@origin-one/schema";
+import { PrismaClient } from '@prisma/client'
+
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
+
+export const prisma =
+  globalForPrisma.prisma ?? new PrismaClient()
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma
+}
+
+// Re-export all generated types so consumers get one import
+export * from '@prisma/client'

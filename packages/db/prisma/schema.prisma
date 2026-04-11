@@ -1,0 +1,296 @@
+// packages/db/prisma/schema.prisma
+// Aligned to packages/schema Zod types — do not change enums or field names
+// without a coordinated change to packages/schema.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  director
+  producer
+  coordinator
+  writer
+  crew
+}
+
+enum ProjectStatus {
+  development
+  pre_production
+  production
+  post_production
+  archived
+}
+
+enum ShotStatus {
+  planned
+  in_progress
+  completed
+  omitted
+}
+
+enum ShotSize {
+  extreme_wide
+  wide
+  full
+  medium
+  medium_close_up
+  close_up
+  extreme_close_up
+  insert
+}
+
+enum EntityType {
+  character
+  location
+  prop
+}
+
+enum DocumentType {
+  script
+  scene
+  board
+  lore
+  note
+}
+
+enum MilestoneStatus {
+  upcoming
+  in_progress
+  completed
+}
+
+enum ActionItemStatus {
+  open
+  in_progress
+  done
+}
+
+enum ResourceType {
+  link
+  file
+  image
+  video
+  document
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teamMembers      TeamMember[]
+  documents        Document[]
+  actionItems      ActionItem[]
+  threads          Thread[]
+  threadMessages   ThreadMessage[]
+  milestonePeople  MilestonePerson[]
+  resources        Resource[]
+}
+
+model Team {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members  TeamMember[]
+  projects Project[]
+}
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String
+  userId    String
+  role      Role
+  createdAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+}
+
+model Project {
+  id        String        @id @default(uuid())
+  teamId    String
+  name      String
+  status    ProjectStatus
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  team        Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  scenes      Scene[]
+  entities    Entity[]
+  documents   Document[]
+  milestones  Milestone[]
+  actionItems ActionItem[]
+  threads     Thread[]
+  folders     Folder[]
+  resources   Resource[]
+}
+
+model Scene {
+  id          String   @id @default(uuid())
+  projectId   String
+  sceneNumber String
+  title       String?
+  description String?
+  sortOrder   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shots   Shot[]
+}
+
+model Shot {
+  id          String     @id @default(uuid())
+  sceneId     String
+  shotNumber  String
+  size        ShotSize?
+  description String?
+  status      ShotStatus @default(planned)
+  sortOrder   Int
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  scene Scene @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+}
+
+model Entity {
+  id          String     @id @default(uuid())
+  projectId   String
+  type        EntityType
+  name        String
+  description String?
+  metadata    Json?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Document {
+  id        String       @id @default(uuid())
+  projectId String
+  type      DocumentType
+  title     String
+  content   String
+  version   Int          @default(1)
+  createdBy String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  project       Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdByUser User    @relation(fields: [createdBy], references: [id])
+}
+
+// ─── Milestones ─────────────────────────────────────────────────────────────
+
+model Milestone {
+  id        String          @id @default(uuid())
+  projectId String
+  title     String
+  date      DateTime
+  status    MilestoneStatus @default(upcoming)
+  notes     String?
+  createdAt DateTime        @default(now())
+
+  project Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  people  MilestonePerson[]
+}
+
+model MilestonePerson {
+  id          String @id @default(uuid())
+  milestoneId String
+  userId      String
+
+  milestone Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([milestoneId, userId])
+}
+
+// ─── Action Items ───────────────────────────────────────────────────────────
+
+model ActionItem {
+  id          String           @id @default(uuid())
+  projectId   String
+  title       String
+  description String?
+  status      ActionItemStatus @default(open)
+  assignedTo  String?
+  dueDate     DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User?   @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
+}
+
+// ─── Threads ────────────────────────────────────────────────────────────────
+
+model Thread {
+  id        String   @id @default(uuid())
+  projectId String
+  title     String
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project  Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author   User            @relation(fields: [createdBy], references: [id])
+  messages ThreadMessage[]
+}
+
+model ThreadMessage {
+  id        String   @id @default(uuid())
+  threadId  String
+  content   String
+  createdBy String
+  createdAt DateTime @default(now())
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [createdBy], references: [id])
+}
+
+// ─── Folders & Resources ────────────────────────────────────────────────────
+
+model Folder {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  createdAt DateTime @default(now())
+
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  resources Resource[]
+}
+
+model Resource {
+  id        String       @id @default(uuid())
+  projectId String
+  folderId  String?
+  title     String
+  url       String
+  type      ResourceType
+  createdBy String
+  createdAt DateTime     @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder  Folder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  author  User    @relation(fields: [createdBy], references: [id])
+}
