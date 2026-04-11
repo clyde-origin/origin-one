@@ -1,0 +1,807 @@
+'use client'
+
+import { useState, useMemo } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  useProject, useActionItems, useToggleActionItem, useCreateActionItem, useMilestones, useCreateMilestone, useCrew,
+  useSMVersions, useSMScenes, useSMShots, useMoodboard, useThreads,
+  useLocations, useArtItems, useCastRoles, useWorkflowNodes,
+} from '@/lib/hooks/useOriginOne'
+import { CrewAvatar } from '@/components/ui'
+import { HubSkeleton } from '@/components/hub/HubSkeleton'
+import { CrewPanel } from '@/components/hub/CrewPanel'
+import { CreateTaskSheet, CreateMilestoneSheet, CreateCreativeSheet } from '@/components/create'
+import { haptic } from '@/lib/utils/haptics'
+import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
+import { formatDate, isUrgent, isLate, DEPT_PHASE, getProjectColor, PHASE_HEX, PHASE_LABELS_LONG, PHASE_TEXT, PHASE_DOT as PHASE_DOT_UTIL, DEPT_CLASSES } from '@/lib/utils/phase'
+import type { ActionItem, Milestone, CrewMember, Phase, Project, WorkflowNode } from '@/types'
+
+// ── HELPERS ───────────────────────────────────────────────
+
+function hexToRgb(hex: string): [number, number, number] {
+  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)]
+}
+
+const PHASE_DOT = PHASE_DOT_UTIL
+const PHASE_LABEL = PHASE_LABELS_LONG
+const deptColor = DEPT_CLASSES
+
+const SCENE_GRAD: Record<number, string> = {
+  1: 'linear-gradient(160deg,#0c0810,#1a0c20)',
+  2: 'linear-gradient(160deg,#0a0c10,#161820)',
+  3: 'linear-gradient(160deg,#060c08,#0c1610)',
+}
+
+const WF_ICONS: Record<string, string> = {
+  storage: '💾', software: '🖥', system: '⚙', transfer: '↗', phase: '◆', deliverable: '📦',
+}
+
+// ── MODULE HEADER ─────────────────────────────────────────
+
+function ModuleHeader({ name, meta }: { name: string; meta?: string }) {
+  return (
+    <div className="flex flex-col items-center mb-2.5">
+      <div className="flex items-center gap-1.5">
+        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#dddde8' }}>{name}</span>
+        <svg width="5" height="8" viewBox="0 0 5 8" fill="none" className="opacity-20 flex-shrink-0">
+          <path d="M1 1L4 4L1 7" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+      {meta && (
+        <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>
+          {meta}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function SectionHeader({ name, meta }: { name: string; meta?: string }) {
+  return (
+    <div className="flex flex-col items-center mb-2.5">
+      <div className="flex items-center gap-1.5">
+        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#dddde8' }}>{name}</span>
+        <svg width="5" height="8" viewBox="0 0 5 8" fill="none" className="opacity-20 flex-shrink-0">
+          <path d="M1 1L4 4L1 7" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+      {meta && (
+        <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>
+          {meta}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// Module icons (13x13)
+const ActionItemsIcon = () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5.5" stroke="white" strokeWidth="1.2"/><path d="M4 6.5l1.8 1.8L9 4.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+const TimelineIcon = () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><line x1="1" y1="6.5" x2="12" y2="6.5" stroke="white" strokeWidth="1.2" strokeLinecap="round"/><circle cx="4.5" cy="6.5" r="1.5" fill="white"/><circle cx="9" cy="6.5" r="1.5" fill="white"/></svg>
+const SceneMakerIcon = () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="3" width="11" height="8" rx="1.2" stroke="white" strokeWidth="1.2"/><path d="M1 5.5h11M4 3V1.5M9 3V1.5" stroke="white" strokeWidth="1.2" strokeLinecap="round"/></svg>
+const ToneIcon = () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5.5" stroke="white" strokeWidth="1.2"/><circle cx="6.5" cy="6.5" r="2" fill="white" opacity="0.7"/></svg>
+const LocationsIcon = () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1.5C4.6 1.5 3 3.1 3 5c0 2.5 3.5 6.5 3.5 6.5S10 7.5 10 5c0-1.9-1.6-3.5-3.5-3.5z" stroke="white" strokeWidth="1.2"/><circle cx="6.5" cy="5" r="1.2" fill="white" opacity="0.7"/></svg>
+const ArtIcon = () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 10.5l2.5-2.5 5.5-5.5 1.5 1.5-5.5 5.5L2 10.5z" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/><path d="M8 3l1.5 1.5" stroke="white" strokeWidth="1.2" strokeLinecap="round"/></svg>
+const CastingIcon = () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="4.5" r="2" stroke="white" strokeWidth="1.2"/><path d="M2 11.5c0-2.5 2-4 4.5-4s4.5 1.5 4.5 4" stroke="white" strokeWidth="1.2" strokeLinecap="round"/></svg>
+const WorkflowIcon = () => <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1.5" stroke="white" strokeWidth="1.2"/><circle cx="6.5" cy="6.5" r="1.5" stroke="white" strokeWidth="1.2"/><circle cx="10.5" cy="6.5" r="1.5" stroke="white" strokeWidth="1.2"/><line x1="4" y1="6.5" x2="5" y2="6.5" stroke="white" strokeWidth="1.2" strokeLinecap="round"/><line x1="8" y1="6.5" x2="9" y2="6.5" stroke="white" strokeWidth="1.2" strokeLinecap="round"/></svg>
+
+// Mini card icons for Locations/Art/Casting
+const MINI_ICONS: Record<string, React.ReactNode> = {
+  locations: <LocationsIcon />,
+  art: <ArtIcon />,
+  casting: <CastingIcon />,
+}
+
+// ── DETAIL SHEETS ─────────────────────────────────────────
+
+function AIDetailSheet({ item, crew, onClose }: { item: ActionItem | null; crew: CrewMember[]; onClose: () => void }) {
+  if (!item) return null
+  const assignee = crew.find(c => c.id === item.assigneeId)
+  const late = item.dueDate ? isLate(item.dueDate) : false
+  const urgent = item.dueDate ? isUrgent(item.dueDate) : false
+  const dateLabel = item.dueDate ? formatDate(item.dueDate) : '—'
+  return (
+    <>
+      <SheetHeader title={item.name} onClose={onClose} />
+      <SheetBody>
+        <div className="flex items-center gap-2 mb-4 p-3 bg-surface2 rounded-lg border border-border">
+          <div className={`w-2 h-2 rounded-full ${item.done ? 'bg-post' : 'bg-muted'}`} />
+          <span className="font-mono text-sm text-text2">{item.done ? 'Completed' : 'Open'}</span>
+          <span className={`font-mono text-xs ml-auto ${late ? 'text-red' : urgent ? 'text-pre' : 'text-muted'}`}>{dateLabel}</span>
+        </div>
+        {assignee && (<div className="mb-4"><span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Assigned to</span><div className="flex items-center gap-3 p-3 bg-surface2 rounded-lg border border-border"><CrewAvatar first={assignee.first} last={assignee.last} color1={assignee.color1} color2={assignee.color2} size={32} /><div><div className="text-base font-semibold text-text">{assignee.first} {assignee.last}</div><div className="font-mono text-xs text-muted">{assignee.role}</div></div></div></div>)}
+        <div className="mb-4"><span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Department</span><span className={`font-mono text-xs px-2 py-1 rounded-sm ${deptColor[item.dept] ?? 'text-muted bg-surface2'}`}>{item.dept}</span></div>
+        {item.notes && (<div className="mb-4"><span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Notes</span><div className="text-base text-text2 leading-relaxed p-3 bg-surface2 rounded-lg border border-border">{item.notes}</div></div>)}
+      </SheetBody>
+    </>
+  )
+}
+
+function MSDetailSheet({ milestone, crew, onClose }: { milestone: Milestone | null; crew: CrewMember[]; onClose: () => void }) {
+  if (!milestone) return null
+  const past = isLate(milestone.date)
+  const people = milestone.people.map(id => crew.find(c => c.id === id)).filter(Boolean) as CrewMember[]
+  return (
+    <>
+      <SheetHeader title={milestone.name} onClose={onClose} />
+      <SheetBody>
+        <div className="flex items-center gap-2 mb-4 p-3 bg-surface2 rounded-lg border border-border">
+          <div className={`w-2 h-2 rounded-full ${PHASE_DOT[milestone.phase]}`} />
+          <span className={`font-mono text-[0.5rem] tracking-widest uppercase px-2 py-0.5 rounded-sm ${milestone.phase === 'pre' ? 'bg-pre/10 text-pre' : milestone.phase === 'prod' ? 'bg-prod/10 text-prod' : 'bg-post/10 text-post'}`}>{milestone.phase}</span>
+          <span className={`font-mono text-xs ml-auto ${past ? 'text-red' : 'text-muted'}`}>{formatDate(milestone.date)}</span>
+        </div>
+        <div className="mb-4"><span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Department</span><span className={`font-mono text-xs px-2 py-1 rounded-sm ${deptColor[milestone.dept] ?? 'text-muted bg-surface2'}`}>{milestone.dept}</span></div>
+        {people.length > 0 && (<div className="mb-4"><span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">People</span><div className="flex flex-col gap-2">{people.map(p => (<div key={p.id} className="flex items-center gap-3 p-3 bg-surface2 rounded-lg border border-border"><CrewAvatar first={p.first} last={p.last} color1={p.color1} color2={p.color2} size={32} /><div><div className="text-base font-semibold text-text">{p.first} {p.last}</div><div className="font-mono text-xs text-muted">{p.role}</div></div></div>))}</div></div>)}
+        {milestone.notes && (<div className="mb-4"><span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Notes</span><div className="text-base text-text2 leading-relaxed p-3 bg-surface2 rounded-lg border border-border">{milestone.notes}</div></div>)}
+      </SheetBody>
+    </>
+  )
+}
+
+function CrewDetailSheet({ member, onClose }: { member: CrewMember | null; onClose: () => void }) {
+  if (!member) return null
+  return (
+    <>
+      <SheetHeader title={`${member.first} ${member.last}`} onClose={onClose} />
+      <SheetBody>
+        <div className="flex items-center gap-4 mb-4 p-3 bg-surface2 rounded-lg border border-border">
+          <CrewAvatar first={member.first} last={member.last} color1={member.color1} color2={member.color2} size={48} online={member.online} />
+          <div><div className="text-lg font-semibold text-text">{member.first} {member.last}</div><div className="font-mono text-xs text-muted">{member.role}</div><div className="font-mono text-xs text-muted">{member.dept}</div></div>
+        </div>
+      </SheetBody>
+    </>
+  )
+}
+
+// ── MAIN PAGE ─────────────────────────────────────────────
+
+export default function HubPage({ params }: { params: { projectId: string } }) {
+  const { projectId } = params
+  const router = useRouter()
+  const projectColor = getProjectColor(projectId)
+  const [pr, pg, pb] = hexToRgb(projectColor)
+
+  const { data: project, isLoading: loadingProject } = useProject(projectId)
+  const { data: actionItems, isLoading: loadingAI } = useActionItems(projectId)
+  const { data: milestones, isLoading: loadingMS } = useMilestones(projectId)
+  const { data: crew, isLoading: loadingCrew } = useCrew(projectId)
+  const { data: versions } = useSMVersions(projectId)
+  const currentVersion = versions?.find(v => v.isCurrent) ?? versions?.[0] ?? null
+  const versionId = currentVersion?.id ?? ''
+  const { data: smScenes } = useSMScenes(versionId)
+  const { data: smShots } = useSMShots(versionId)
+  const { data: moodRefs } = useMoodboard(projectId)
+  const { data: threads } = useThreads(projectId)
+  const { data: locations } = useLocations(projectId)
+  const { data: artItems } = useArtItems(projectId)
+  const { data: castRoles } = useCastRoles(projectId)
+  const { data: workflowNodes } = useWorkflowNodes(projectId)
+  const toggle = useToggleActionItem(projectId)
+  const createTask = useCreateActionItem(projectId)
+  const createMilestone = useCreateMilestone(projectId)
+
+  const [fabOpen, setFabOpen] = useState(false)
+  const [showCreateTask, setShowCreateTask] = useState(false)
+  const [showCreateMilestone, setShowCreateMilestone] = useState(false)
+  const [showCreateCreative, setShowCreateCreative] = useState(false)
+  const [selectedAI, setSelectedAI] = useState<ActionItem | null>(null)
+  const [selectedMS, setSelectedMS] = useState<Milestone | null>(null)
+  const [selectedCrew, setSelectedCrew] = useState<CrewMember | null>(null)
+  const [crewPanelOpen, setCrewPanelOpen] = useState(false)
+
+  const allItems = actionItems ?? [], allMS = milestones ?? [], allCrew = crew ?? []
+  const allScenes = smScenes ?? [], allShots = smShots ?? [], allMoodRefs = moodRefs ?? []
+  const allLocations = locations ?? [], allArt = artItems ?? [], allCast = castRoles ?? []
+  const allWorkflow = workflowNodes ?? []
+  const allThreads = threads ?? []
+
+  const openItems = allItems.filter(i => !i.done)
+  const previewTasks = openItems.slice(0, 3)
+  const upcoming3 = allMS.filter(m => new Date(m.date) >= new Date()).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3)
+  const unreadThreads = allThreads.filter(t => t.unread).length
+
+  const shuffledMood = useMemo(() => {
+    const refs = [...allMoodRefs]
+    let seed = 0
+    for (let i = 0; i < projectId.length; i++) seed = ((seed << 5) - seed + projectId.charCodeAt(i)) | 0
+    for (let i = refs.length - 1; i > 0; i--) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; const j = seed % (i + 1); [refs[i], refs[j]] = [refs[j], refs[i]] }
+    return refs.slice(0, 4)
+  }, [allMoodRefs, projectId])
+
+  // Timeline bar computations — must be before early returns (hooks can't be conditional)
+  const { preWidth, prodWidth, todayPct } = useMemo(() => {
+    if (!project) return { preWidth: 0, prodWidth: 0, todayPct: 0 }
+    const start = project.startDate ? new Date(project.startDate).getTime() : Date.now()
+    const shoot = project.shootDate ? new Date(project.shootDate).getTime() : start
+    const shootEnd = project.shootDateEnd ? new Date(project.shootDateEnd).getTime() : shoot
+    const delivery = project.deliveryDate ? new Date(project.deliveryDate).getTime() : shootEnd + 86400000 * 14
+    const totalDays = Math.max((delivery - start) / 86400000, 1)
+    return {
+      preWidth: Math.max((shoot - start) / 86400000, 0) / totalDays * 100,
+      prodWidth: Math.max(((shootEnd - shoot) / 86400000 + 1), 1) / totalDays * 100,
+      todayPct: Math.min(Math.max(((Date.now() - start) / 86400000) / totalDays * 100, 0), 100),
+    }
+  }, [project?.startDate, project?.shootDate, project?.shootDateEnd, project?.deliveryDate, project])
+
+  if (loadingProject) return <HubSkeleton />
+  if (!project) return <div className="screen flex items-center justify-center"><p className="text-muted font-mono text-xs">Project not found</p></div>
+
+  const locConfirmed = allLocations.reduce((n, g) => n + (g.options?.filter(o => o.status === 'Confirmed').length ?? 0), 0)
+  const locTotal = allLocations.reduce((n, g) => n + (g.options?.length ?? 0), 0)
+  const artApproved = allArt.filter(a => a.status === 'Approved').length
+  const castConfirmed = allCast.filter(r => r.status === 'Confirmed').length
+
+  const cardStyle = { background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, overflow: 'hidden' as const }
+
+  return (
+    <div className="screen">
+      {/* ══ CENTER GLOW — 3 stacked radial ellipses ══ */}
+      <div style={{
+        position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
+        background: [
+          `radial-gradient(ellipse 20% 25% at 50% 0%, rgba(${pr},${pg},${pb},0.08) 0%, transparent 100%)`,
+          `radial-gradient(ellipse 35% 45% at 50% 40%, rgba(${pr},${pg},${pb},0.07) 0%, transparent 100%)`,
+          `radial-gradient(ellipse 50% 55% at 50% 90%, rgba(${pr},${pg},${pb},0.09) 0%, transparent 100%)`,
+          `linear-gradient(90deg, #04040a 0%, #04040a 8%, rgba(4,4,10,0.5) 30%, transparent 50%, rgba(4,4,10,0.5) 70%, #04040a 92%, #04040a 100%)`,
+        ].join(', '),
+      }} />
+
+      {/* ══ TOPBAR ══ */}
+      <div className="relative flex flex-col items-center justify-end px-5 flex-shrink-0" style={{
+        minHeight: 100, paddingTop: 'calc(var(--safe-top) + 10px)', paddingBottom: 12,
+        background: 'transparent',
+        zIndex: 10,
+      }}>
+        {/* Client name — centered above project name */}
+        {project.client && (
+          <span className="font-mono uppercase text-muted" style={{ fontSize: '0.38rem', letterSpacing: '0.1em', marginBottom: 4 }}>
+            {project.client}
+          </span>
+        )}
+
+        {/* Project name — centered */}
+        <span className="text-text leading-none text-center" style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
+          {project.name}
+        </span>
+
+        {/* Type + Phase pill — centered */}
+        <div className="flex items-center justify-center gap-2" style={{ marginTop: 4 }}>
+          <span className="font-mono text-text2 uppercase" style={{ fontSize: '0.48rem' }}>{project.type}</span>
+          <span className="text-muted" style={{ fontSize: '0.48rem' }}>&middot;</span>
+          <div className={`w-1.5 h-1.5 rounded-full ${PHASE_DOT[project.phase]}`} />
+          <span className={`font-mono uppercase ${PHASE_TEXT[project.phase]}`} style={{ fontSize: '0.48rem' }}>{PHASE_LABEL[project.phase]}</span>
+        </div>
+
+        {/* Crew avatars — centered */}
+        <div className="flex items-center justify-center cursor-pointer" style={{ marginTop: 8 }}
+          onClick={() => { haptic('light'); setCrewPanelOpen(true) }}>
+          {allCrew.slice(0, 4).map((m, i) => (
+            <div key={m.id} className="relative" style={{ marginLeft: i === 0 ? 0 : -7, zIndex: 4 - i }}>
+              <CrewAvatar first={m.first} last={m.last} color1={m.color1} color2={m.color2} size={28} />
+            </div>
+          ))}
+          {allCrew.length > 4 && (
+            <div className="rounded-full bg-surface2 border border-border flex items-center justify-center" style={{ width: 28, height: 28, marginLeft: -7 }}>
+              <span className="font-mono text-muted" style={{ fontSize: 9 }}>+{allCrew.length - 4}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ══ BODY ══ */}
+      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', padding: '18px 16px 80px' }}>
+        <div className="flex flex-col gap-6">
+
+          {/* 1. TIMELINE (first) */}
+          <div className="cursor-pointer" onClick={() => router.push(`/projects/${projectId}/timeline`)}>
+            {(() => {
+              const shootDaysAway = project.shootDate ? Math.ceil((new Date(project.shootDate).getTime() - Date.now()) / 86400000) : null
+              const meta = shootDaysAway !== null && shootDaysAway > 0 ? `Shoot in ${shootDaysAway} days` : allMS.length > 0 ? `${allMS.length} milestones` : 'Not set'
+              return <ModuleHeader name="Timeline" meta={meta} />
+            })()}
+            {loadingMS ? (
+              <div style={{ ...cardStyle, height: 168, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="w-4 h-4 rounded-full border border-border2 border-t-accent animate-spin" />
+              </div>
+            ) : allMS.length === 0 ? (
+              <div style={{ ...cardStyle, height: 168, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ padding: '12px 12px 0', display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+                  {(['Pre', 'Prod', 'Post'] as const).map((label, i) => {
+                    const color = ['#e8a020', '#6470f3', '#00b894'][i]
+                    return (
+                      <div key={label} className="flex items-center gap-1.5">
+                        <span className="font-mono uppercase text-right flex-shrink-0" style={{ fontSize: '0.42rem', color: '#62627a', width: 26, letterSpacing: '0.06em' }}>{label}</span>
+                        <div className="flex-1 rounded-sm" style={{ height: 4, background: `${color}1a`, animation: `pulse 2.4s ease-in-out infinite ${i * 0.3}s` }} />
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-4">
+                  <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#dddde8', letterSpacing: '-0.01em' }}>The time is now.</div>
+                  <div className="font-mono" style={{ fontSize: '0.47rem', color: '#62627a', letterSpacing: '0.03em', lineHeight: 1.6 }}>No dates set yet.<br />Add milestones to start the clock.</div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ ...cardStyle, height: 168, padding: '12px 12px 0', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10, position: 'relative' }}>
+                  {[
+                    { label: 'Pre', color: '#e8a020', left: 0, width: preWidth },
+                    { label: 'Prod', color: '#6470f3', left: preWidth, width: prodWidth },
+                    { label: 'Post', color: '#00b894', left: preWidth + prodWidth, width: Math.max(100 - preWidth - prodWidth, 0), isTerminal: true },
+                  ].map((t, i) => (
+                    <div key={t.label} className="flex items-center gap-1.5">
+                      <span className="font-mono uppercase text-right flex-shrink-0" style={{ fontSize: '0.42rem', color: '#62627a', width: 26, letterSpacing: '0.06em' }}>{t.label}</span>
+                      <div className="flex-1 relative" style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2 }}>
+                        {t.width > 0 && <div className="absolute top-0 rounded-sm" style={{ left: `${t.left}%`, width: `${t.width}%`, height: '100%', background: t.color, opacity: i === 2 ? 0.45 : 1 }} />}
+                        {t.isTerminal && project.deliveryDate && (
+                          <div className="absolute" style={{ right: '12%', top: -3, bottom: -3, width: 1.5, background: '#e8564a', borderRadius: 1 }}>
+                            <div className="absolute" style={{ top: -2, left: '50%', transform: 'translateX(-50%)', width: 4, height: 4, borderRadius: '50%', background: '#e8564a' }} />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="absolute pointer-events-none" style={{ left: `calc(26px + 6px + ${todayPct}%)`, top: 0, bottom: 0, width: 1.5, background: 'rgba(255,255,255,0.55)', borderRadius: 1 }}>
+                    <span className="absolute font-mono whitespace-nowrap" style={{ top: -13, left: '50%', transform: 'translateX(-50%)', fontSize: '0.37rem', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.05em' }}>today</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                  {upcoming3.map(ms => {
+                    const isNext = ms.id === upcoming3[0]?.id
+                    const isDelivery = ms.name.toLowerCase().includes('delivery')
+                    return (
+                      <div key={ms.id} className="flex items-center cursor-pointer flex-shrink-0" style={{ gap: 8, padding: '6px 0', borderTop: '1px solid rgba(255,255,255,0.05)' }}
+                        onClick={e => { e.stopPropagation(); setSelectedMS(ms) }}>
+                        <div className="rounded-full flex-shrink-0" style={{ width: 6, height: 6, background: isDelivery ? '#e8564a' : PHASE_HEX[ms.phase], boxShadow: isNext && !isDelivery ? `0 0 7px ${PHASE_HEX[ms.phase]}` : undefined }} />
+                        <span className="font-mono flex-shrink-0" style={{ fontSize: '0.48rem', color: '#62627a', letterSpacing: '0.04em', width: 34 }}>{formatDate(ms.date)}</span>
+                        <span className="truncate flex-1" style={{ fontSize: '0.7rem', fontWeight: 600, color: isDelivery ? '#e8564a' : '#dddde8' }}>{ms.name}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 2. ACTION ITEMS (second) */}
+          <div className="cursor-pointer" onClick={() => router.push(`/projects/${projectId}/action-items`)}>
+            <ModuleHeader name="Action Items" meta={openItems.length > 0 ? `${openItems.length} open` : 'All clear'} />
+            {loadingAI ? (
+              <div style={{ ...cardStyle, height: 148, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="w-4 h-4 rounded-full border border-border2 border-t-accent animate-spin" />
+              </div>
+            ) : previewTasks.length === 0 ? (
+              <div style={{ ...cardStyle, height: 148, display: 'flex', flexDirection: 'column' }}>
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-4">
+                  <div className="relative flex-shrink-0" style={{ width: 34, height: 34 }}>
+                    <div className="absolute inset-0 rounded-full" style={{ border: `1px solid rgba(${pr},${pg},${pb},0.3)`, animation: 'ring-pulse 2.4s ease-out infinite' }} />
+                    <div className="absolute inset-0 rounded-full" style={{ background: `rgba(${pr},${pg},${pb},0.08)`, border: `1px solid rgba(${pr},${pg},${pb},0.15)` }} />
+                    <svg className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" width="15" height="15" viewBox="0 0 15 15" fill="none">
+                      <path d="M2.5 7.5L6 11L12.5 4" stroke={projectColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#dddde8', letterSpacing: '-0.01em' }}>All clear, boss.</div>
+                  <div className="font-mono" style={{ fontSize: '0.48rem', color: '#62627a', letterSpacing: '0.03em', lineHeight: 1.6 }}>No open items on this one.<br />Enjoy it while it lasts.</div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ ...cardStyle, height: 148, display: 'flex', flexDirection: 'column' }}>
+                {previewTasks.map((item, i) => {
+                  const isMine = true
+                  const dateLabel = item.dueDate ? formatDate(item.dueDate) : null
+                  const overdue = item.dueDate ? isLate(item.dueDate) : false
+                  return (
+                    <div key={item.id} className="flex items-start cursor-pointer" style={{ gap: 10, padding: '10px 12px', borderBottom: i < previewTasks.length - 1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}
+                      onClick={e => { e.stopPropagation(); setSelectedAI(item) }}>
+                      <div className="flex-shrink-0 rounded-full" style={{ width: 14, height: 14, marginTop: 1, border: `1.5px solid ${isMine ? projectColor : '#62627a'}` }}
+                        onClick={e => { e.stopPropagation(); haptic('success'); toggle.mutate({ id: item.id, done: !item.done }) }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="truncate" style={{ fontSize: '0.72rem', fontWeight: 600, lineHeight: 1.3, color: isMine ? '#dddde8' : '#62627a' }}>{item.name}</div>
+                        {dateLabel && <div className="font-mono" style={{ fontSize: '0.52rem', marginTop: 2, letterSpacing: '0.03em', color: overdue ? '#e8a020' : '#62627a' }}>{dateLabel}</div>}
+                        {!isMine && item.assigneeId && (
+                          <div className="font-mono" style={{ fontSize: '0.48rem', color: '#62627a', opacity: 0.6, marginTop: 1 }}>— {allCrew.find(c => c.id === item.assigneeId)?.first ?? 'Unknown'}</div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 3. CREATIVE SECTION — groups SceneMaker+Tone and Locations/Art/Casting */}
+          <div>
+            <SectionHeader name="Creative" meta={`${allScenes.length > 0 ? `SC.${allScenes[0].num}` : ''}${allMoodRefs.length > 0 ? ' · Tone' : ''}${allLocations.length > 0 ? ` · ${allLocations.length} locations` : ''}`} />
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* SceneMaker + Tone 50/50 */}
+              <div className="flex" style={{ gap: 8 }}>
+                {/* Story label + SceneMaker card */}
+                <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 10 }}>
+                  <div className="font-mono uppercase" style={{ fontSize: 9, color: 'rgba(98,98,122,0.5)', letterSpacing: '0.1em', textAlign: 'center' }}>Story</div>
+                </div>
+                {/* Tone label */}
+                <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 10 }}>
+                  <div className="font-mono uppercase" style={{ fontSize: 9, color: 'rgba(98,98,122,0.5)', letterSpacing: '0.1em', textAlign: 'center' }}>Tone</div>
+                </div>
+              </div>
+              <div className="flex" style={{ gap: 8, height: 130 }}>
+                {/* SceneMaker card */}
+                <div className="flex-1 min-w-0 cursor-pointer" style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+                  onClick={() => router.push(`/projects/${projectId}/scenemaker`)}>
+                  <div style={{ padding: '8px 9px', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                    {allShots.length > 0 && allShots[0]?.images?.length > 0 ? (
+                      <div className="flex flex-1 items-stretch" style={{ gap: 3 }}>
+                        {allShots.slice(0, 3).map(shot => { const sc = allScenes.find(s => s.id === shot.sceneId); return (
+                          <div key={shot.id} className="flex-1 flex flex-col overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 5 }}>
+                            <div className="flex-shrink-0" style={{ height: 46, background: SCENE_GRAD[sc?.num ?? 1] ?? SCENE_GRAD[1] }} />
+                            <div style={{ padding: '3px 4px', flex: 1 }}>
+                              <div className="font-mono" style={{ fontSize: '0.33rem', color: projectColor }}>{shot.id}</div>
+                              <div style={{ fontSize: '0.36rem', color: '#a0a0b8', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{shot.desc}</div>
+                            </div>
+                          </div>
+                        )})}
+                      </div>
+                    ) : allShots.length > 0 ? (
+                      <div className="flex flex-col flex-1 justify-center" style={{ gap: 4 }}>
+                        {allShots.slice(0, 3).map(shot => (
+                          <div key={shot.id} className="flex items-center" style={{ gap: 6 }}>
+                            <div className="flex-shrink-0" style={{ width: 32, height: 22, borderRadius: 4, background: `linear-gradient(90deg, rgba(${pr},${pg},${pb},0.2), rgba(${pr},${pg},${pb},0.1))`, border: '1px solid rgba(255,255,255,0.05)' }} />
+                            <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', color: projectColor, letterSpacing: '0.06em' }}>{shot.id}</span>
+                            <span className="truncate" style={{ fontSize: '0.42rem', color: '#a0a0b8' }}>{shot.desc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : allScenes.length > 0 ? (
+                      <div className="flex flex-col flex-1 justify-center" style={{ gap: 4 }}>
+                        <span className="font-mono uppercase" style={{ fontSize: '0.38rem', color: projectColor, letterSpacing: '0.08em' }}>{allScenes[0].heading}</span>
+                        <div style={{ fontSize: '0.44rem', color: '#a0a0b8', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{allScenes[0].action?.join(' ') ?? ''}</div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center" style={{ gap: 6 }}>
+                        <div className="flex items-center justify-center rounded-full" style={{ width: 28, height: 28, border: `1.5px dashed rgba(${pr},${pg},${pb},0.35)` }}>
+                          <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M5 1V9M1 5H9" stroke={`rgba(${pr},${pg},${pb},0.5)`} strokeWidth="1.3" strokeLinecap="round" /></svg>
+                        </div>
+                        <span className="font-mono" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em' }}>Make a Scene</span>
+                      </div>
+                    )}
+                  </div>
+                  {(allScenes.length > 0 || allShots.length > 0) && (
+                    <div className="flex items-center mt-auto" style={{ gap: 4, padding: '0 9px 6px' }}>
+                      {currentVersion && <span className="font-mono" style={{ fontSize: '0.33rem', color: '#62627a', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 3, padding: '1px 3px', letterSpacing: '0.04em' }}>{currentVersion.label}</span>}
+                      <span className="font-mono" style={{ fontSize: '0.33rem', color: '#62627a', letterSpacing: '0.04em' }}>{allShots.length > 0 ? `${allShots.length} shots` : `${allScenes.length} scenes`}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Tone card — flex:1 (50/50) */}
+                <Link href={`/projects/${projectId}/moodboard`}
+                  className="flex-1 relative overflow-hidden block cursor-pointer active:opacity-90 transition-opacity"
+                  style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9 }}>
+                  {allMoodRefs.length > 0 ? (
+                    <>
+                      <div className="absolute inset-0 grid grid-cols-2 grid-rows-2" style={{ height: '100%' }}>
+                        {shuffledMood.map((ref, i) => <div key={ref.id ?? i} style={{ background: ref.gradient || '#0a0a12' }} />)}
+                        {Array.from({ length: Math.max(0, 4 - shuffledMood.length) }).map((_, i) => <div key={`f-${i}`} style={{ background: '#0a0a12' }} />)}
+                      </div>
+                      <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(4,4,10,0.4), rgba(4,4,10,0.1))' }} />
+                      <svg className="absolute" style={{ top: 7, left: 7, opacity: 0.6 }} width="9" height="9" viewBox="0 0 9 9" fill="none"><circle cx="4.5" cy="4.5" r="3.5" stroke="white" strokeWidth="1"/><circle cx="4.5" cy="4.5" r="1.5" stroke="white" strokeWidth="1"/><circle cx="4.5" cy="4.5" r="0.7" fill="white"/></svg>
+                      <span className="absolute font-mono uppercase" style={{ bottom: 7, left: 7, fontSize: '0.36rem', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.06em' }}>Tone</span>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full" style={{ gap: 6 }}>
+                      <div className="flex items-center justify-center rounded-full" style={{ width: 28, height: 28, border: '1.5px dashed rgba(255,255,255,0.15)' }}>
+                        <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M5 1V9M1 5H9" stroke="rgba(255,255,255,0.25)" strokeWidth="1.3" strokeLinecap="round" /></svg>
+                      </div>
+                      <span className="font-mono" style={{ fontSize: '0.36rem', color: '#62627a', letterSpacing: '0.06em' }}>Tone</span>
+                    </div>
+                  )}
+                </Link>
+              </div>
+
+              {/* Locations / Art / Casting mini row */}
+              <div className="flex" style={{ gap: 8 }}>
+                {[
+                  { id: 'locations', label: 'Locations', count: `${locConfirmed} / ${locTotal} locked`, phase: 'pre' as Phase, ratio: locTotal > 0 ? locConfirmed / locTotal : 0 },
+                  { id: 'art', label: 'Art', count: `${artApproved} / ${allArt.length} done`, phase: 'prod' as Phase, ratio: allArt.length > 0 ? artApproved / allArt.length : 0 },
+                  { id: 'casting', label: 'Casting', count: `${castConfirmed} / ${allCast.length} cast`, phase: 'post' as Phase, ratio: allCast.length > 0 ? castConfirmed / allCast.length : 0 },
+                ].map(mod => (
+                  <Link key={mod.id} href={`/projects/${projectId}/${mod.id}`} className="flex-1 active:opacity-80 transition-opacity" style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, padding: '8px 9px' }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.58rem', color: '#dddde8', marginBottom: 2, textAlign: 'center' }}>{mod.label}</div>
+                    <div className="font-mono" style={{ fontSize: '0.33rem', color: '#62627a', marginBottom: 4, textAlign: 'center' }}>{mod.count}</div>
+                    <div style={{ height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 2 }}>
+                      <div style={{ height: '100%', borderRadius: 2, width: `${mod.ratio * 100}%`, background: PHASE_HEX[mod.phase], transition: 'width 0.5s ease' }} />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 4. WORKFLOW */}
+          <div className="cursor-pointer" style={{ padding: '0 2px' }} onClick={() => router.push(`/projects/${projectId}/workflow`)}>
+            <ModuleHeader name="Workflow" meta={`${allWorkflow.length} nodes`} />
+            {allWorkflow.length > 0 ? (
+              <div className="flex items-start">
+                {allWorkflow.slice(0, 5).map((node, i, arr) => (
+                  <div key={node.id} className="flex items-center" style={{ flex: 1 }}>
+                    <div className="flex flex-col items-center gap-1" style={{ flex: 1 }}>
+                      <div className="flex items-center justify-center border border-border" style={{ width: 36, height: 36, borderRadius: 10, background: '#0f0f1a' }}>
+                        <span style={{ fontSize: 15 }}>{WF_ICONS[node.type] ?? '⚙'}</span>
+                      </div>
+                      <span className="font-mono text-center" style={{ fontSize: 8, color: '#a0a0b8', maxWidth: 48, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{node.label}</span>
+                    </div>
+                    {i < arr.length - 1 && <div style={{ width: 12, height: 1, background: 'linear-gradient(90deg, rgba(100,112,243,0.3), rgba(0,184,148,0.3))', flexShrink: 0, marginBottom: 16 }} />}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 py-3">
+                <div className="flex items-center gap-2">
+                  {[0,1,2,3,4].map(i => <div key={i} className="flex items-center justify-center" style={{ width: 36, height: 36, borderRadius: 10, border: '1.5px dashed rgba(255,255,255,0.09)' }}><div className="rounded-full bg-muted/30" style={{ width: 4, height: 4 }} /></div>)}
+                </div>
+                <span className="font-mono" style={{ fontSize: 9, color: '#62627a' }}>No workflow yet</span>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+
+      {/* ══ FAB SYSTEM (Framer Motion) ══ */}
+      {/* Overlay */}
+      <AnimatePresence>
+        {fabOpen && (
+          <motion.div
+            key="fab-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            onClick={() => setFabOpen(false)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 20,
+              background: 'rgba(4,4,10,0.75)',
+              backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)',
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Branch lines SVG */}
+      <AnimatePresence>
+        {fabOpen && (
+          <motion.svg
+            key="fab-branches"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{
+              position: 'fixed',
+              bottom: 'calc(54px + env(safe-area-inset-bottom, 0px))',
+              left: '50%', x: '-50%',
+              zIndex: 28, pointerEvents: 'none',
+            }}
+            width="220" height="110" viewBox="0 0 220 110"
+          >
+            <line x1="110" y1="98" x2="22" y2="46" stroke={`rgba(${pr},${pg},${pb},0.2)`} strokeWidth="1" strokeDasharray="3 3" />
+            <line x1="110" y1="98" x2="110" y2="8" stroke={`rgba(${pr},${pg},${pb},0.2)`} strokeWidth="1" strokeDasharray="3 3" />
+            <line x1="110" y1="98" x2="198" y2="46" stroke={`rgba(${pr},${pg},${pb},0.2)`} strokeWidth="1" strokeDasharray="3 3" />
+            <circle cx="110" cy="98" r="3" fill={`rgba(${pr},${pg},${pb},0.35)`} />
+          </motion.svg>
+        )}
+      </AnimatePresence>
+
+      {/* Branch options — symmetric fan from center anchor */}
+      <div style={{
+        position: 'fixed',
+        bottom: 'calc(54px + env(safe-area-inset-bottom, 0px))',
+        left: '50%', transform: 'translateX(-50%)',
+        width: 0, height: 0, zIndex: 30, pointerEvents: 'none',
+      }}>
+        {/* Left: Action Item */}
+        <motion.button
+          onClick={() => { setFabOpen(false); haptic('light'); setShowCreateTask(true) }}
+          animate={fabOpen ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 280 }}
+          style={{
+            position: 'absolute', bottom: 26, left: -90,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+            pointerEvents: fabOpen ? 'auto' : 'none',
+          }}
+        >
+          <div style={{
+            width: 48, height: 48, borderRadius: '50%',
+            background: 'rgba(232,160,32,0.1)', border: '1px solid rgba(232,160,32,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <circle cx="9" cy="9" r="7" stroke="#e8a020" strokeWidth="1.3" />
+              <path d="M5.5 9L8 11.5L12.5 6.5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <span className="font-mono uppercase" style={{ fontSize: '0.38rem', letterSpacing: '0.06em', color: '#e8a020', whiteSpace: 'nowrap' }}>Action</span>
+        </motion.button>
+
+        {/* Center: Milestone — rises highest, 0.05s delay */}
+        <motion.button
+          onClick={() => { setFabOpen(false); haptic('light'); setShowCreateMilestone(true) }}
+          animate={fabOpen ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 280, delay: fabOpen ? 0.05 : 0 }}
+          style={{
+            position: 'absolute', bottom: 90, left: -22,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+            pointerEvents: fabOpen ? 'auto' : 'none',
+          }}
+        >
+          <div style={{
+            width: 48, height: 48, borderRadius: '50%',
+            background: `rgba(${pr},${pg},${pb},0.12)`, border: `1px solid rgba(${pr},${pg},${pb},0.35)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <line x1="2" y1="9" x2="16" y2="9" stroke={projectColor} strokeWidth="1.3" />
+              <circle cx="6" cy="9" r="2.5" fill={projectColor} />
+              <circle cx="12" cy="9" r="2.5" fill={projectColor} />
+            </svg>
+          </div>
+          <span className="font-mono uppercase" style={{ fontSize: '0.38rem', letterSpacing: '0.06em', color: projectColor, whiteSpace: 'nowrap' }}>Milestone</span>
+        </motion.button>
+
+        {/* Right: Creative */}
+        <motion.button
+          onClick={() => { setFabOpen(false); haptic('light'); setShowCreateCreative(true) }}
+          animate={fabOpen ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 280 }}
+          style={{
+            position: 'absolute', bottom: 26, left: 46,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+            pointerEvents: fabOpen ? 'auto' : 'none',
+          }}
+        >
+          <div style={{
+            width: 48, height: 48, borderRadius: '50%',
+            background: 'rgba(100,112,243,0.1)', border: '1px solid rgba(100,112,243,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <rect x="2" y="3" width="14" height="12" rx="1.5" stroke="#6470f3" strokeWidth="1.3" />
+              <path d="M2 7.5H16" stroke="#6470f3" strokeWidth="1.3" />
+              <path d="M6.5 3V7.5M11.5 3V7.5" stroke="#6470f3" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          </div>
+          <span className="font-mono uppercase" style={{ fontSize: '0.38rem', letterSpacing: '0.06em', color: '#6470f3', whiteSpace: 'nowrap' }}>Creative</span>
+        </motion.button>
+      </div>
+
+      {/* FAB zone �� main + side FABs + back chevron */}
+      <div style={{
+        position: 'fixed',
+        bottom: 68,
+        left: 0, right: 0, zIndex: 30,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: 52,
+      }}>
+        {/* Back chevron — further left of Chat, slides off-screen when FAB opens */}
+        <motion.div
+          onClick={() => { haptic('light'); router.push('/projects') }}
+          animate={fabOpen ? { x: -200, opacity: 0 } : { x: -128, opacity: 1 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 260 }}
+          style={{
+            position: 'absolute', width: 28, height: 28, borderRadius: '50%',
+            background: `rgba(${pr},${pg},${pb},0.06)`,
+            backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+            border: `1px solid rgba(${pr},${pg},${pb},0.15)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            top: '50%', left: '50%', marginLeft: -14, marginTop: -14,
+            cursor: 'pointer',
+          }}
+        >
+          <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="rgba(255,255,255,0.3)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </motion.div>
+
+        {/* Chat FAB — slides left from center, glass */}
+        <motion.div
+          onClick={() => { haptic('light'); setFabOpen(false); router.push(`/projects/${projectId}/chat`) }}
+          animate={fabOpen ? { x: -78, opacity: 1 } : { x: 0, opacity: 0 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 280 }}
+          style={{
+            position: 'absolute', width: 38, height: 38, borderRadius: '50%',
+            background: `rgba(${pr},${pg},${pb},0.08)`,
+            backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+            border: `1px solid rgba(${pr},${pg},${pb},0.2)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            top: '50%', left: '50%', marginLeft: -19, marginTop: -19,
+            cursor: 'pointer', pointerEvents: fabOpen ? 'auto' : 'none',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M2 2h10a1 1 0 011 1v5.5a1 1 0 01-1 1H5l-3 2.5V3a1 1 0 011-1z" stroke="rgba(255,255,255,0.55)" strokeWidth="1.1" strokeLinejoin="round" />
+          </svg>
+        </motion.div>
+
+        {/* Main FAB — glassmorphism */}
+        <motion.button
+          onClick={() => { haptic('medium'); setFabOpen(prev => !prev) }}
+          animate={{ rotate: fabOpen ? 45 : 0 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 280 }}
+          style={{
+            width: 52, height: 52, borderRadius: '50%',
+            background: `rgba(${pr},${pg},${pb},0.15)`,
+            backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+            border: `1.5px solid rgba(${pr},${pg},${pb},0.45)`,
+            boxShadow: `0 4px 24px rgba(${pr},${pg},${pb},0.25), inset 0 1px 0 rgba(255,255,255,0.1)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', position: 'relative', zIndex: 31, flexShrink: 0,
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M9 3V15M3 9H15" stroke="rgba(255,255,255,0.9)" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </motion.button>
+
+        {/* Threads FAB — slides right from center, glass */}
+        <motion.div
+          onClick={() => { haptic('light'); setFabOpen(false); router.push(`/projects/${projectId}/threads`) }}
+          animate={fabOpen ? { x: 78, opacity: 1 } : { x: 0, opacity: 0 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 280 }}
+          style={{
+            position: 'absolute', width: 38, height: 38, borderRadius: '50%',
+            background: `rgba(${pr},${pg},${pb},0.08)`,
+            backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+            border: `1px solid rgba(${pr},${pg},${pb},0.2)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            top: '50%', left: '50%', marginLeft: -19, marginTop: -19,
+            cursor: 'pointer', pointerEvents: fabOpen ? 'auto' : 'none',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M2.5 2h9a1 1 0 011 1v5a1 1 0 01-1 1H5.5l-3 2.5V3a1 1 0 011-1z" stroke="rgba(255,255,255,0.55)" strokeWidth="1.1" strokeLinejoin="round" />
+          </svg>
+          {unreadThreads > 0 && (
+            <div style={{ position: 'absolute', top: -1, right: -1, width: 7, height: 7, borderRadius: '50%', background: '#4ab8e8', border: '1.5px solid #04040a' }} />
+          )}
+        </motion.div>
+      </div>
+
+      {/* ══ SHEETS ══ */}
+      <Sheet open={!!selectedAI} onClose={() => setSelectedAI(null)}><AIDetailSheet item={selectedAI} crew={allCrew} onClose={() => setSelectedAI(null)} /></Sheet>
+      <Sheet open={!!selectedMS} onClose={() => setSelectedMS(null)}><MSDetailSheet milestone={selectedMS} crew={allCrew} onClose={() => setSelectedMS(null)} /></Sheet>
+      <Sheet open={!!selectedCrew} onClose={() => setSelectedCrew(null)}><CrewDetailSheet member={selectedCrew} onClose={() => setSelectedCrew(null)} /></Sheet>
+
+      {/* ══ CREATION SHEETS ══ */}
+      <CreateTaskSheet
+        open={showCreateTask}
+        projectId={projectId}
+        accent={projectColor}
+        crew={allCrew}
+        onSave={(data) => { createTask.mutate(data as any); setShowCreateTask(false) }}
+        onClose={() => setShowCreateTask(false)}
+      />
+      <CreateMilestoneSheet
+        open={showCreateMilestone}
+        projectId={projectId}
+        accent={projectColor}
+        currentPhase={project.phase as Phase}
+        shootDate={project.shootDate}
+        shootDateEnd={project.shootDateEnd}
+        onSave={(data) => { createMilestone.mutate(data as any); setShowCreateMilestone(false) }}
+        onClose={() => setShowCreateMilestone(false)}
+      />
+      <CreateCreativeSheet
+        open={showCreateCreative}
+        projectId={projectId}
+        accent={projectColor}
+        onSelectScene={() => router.push(`/projects/${projectId}/scenemaker`)}
+        onSelectShot={() => router.push(`/projects/${projectId}/scenemaker`)}
+        onSelectTone={() => router.push(`/projects/${projectId}/moodboard`)}
+        onClose={() => setShowCreateCreative(false)}
+      />
+
+      {/* ══ CREW PANEL ══ */}
+      <CrewPanel open={crewPanelOpen} projectId={projectId} accent={projectColor} onClose={() => setCrewPanelOpen(false)} />
+    </div>
+  )
+}

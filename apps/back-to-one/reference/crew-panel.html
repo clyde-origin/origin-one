@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orbit — Crew Panel Revised</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+body {
+  background:#080810;
+  display:flex; gap:28px; padding:40px 28px;
+  flex-wrap:wrap; justify-content:center;
+  font-family:'Manrope',sans-serif; min-height:100vh; align-items:flex-start;
+}
+:root {
+  --bg:#04040a; --text:#dddde8; --text2:#a0a0b8; --muted:#62627a;
+  --accent:#c45adc; --accent-dim:rgba(196,90,220,0.15); --accent-border:rgba(196,90,220,0.35);
+  --pre:#e8a020; --prod:#6470f3; --post:#00b894;
+  --border:rgba(255,255,255,0.05);
+  --glass-bg:rgba(10,10,18,0.42); --glass-border:rgba(255,255,255,0.07);
+
+  /* ── FAB UNIVERSAL POSITION ──────────────────────────────────
+   * Sits at iPhone dock icon level.
+   * Production: bottom: max(16px, env(safe-area-inset-bottom, 0px))
+   * The FAB center is at --fab-bottom + 26px from screen bottom
+   * Reference frames use 50px as a visual approximation
+   * ──────────────────────────────────────────────────────────── */
+  --fab-bottom: 50px;
+
+  /* ── PANEL BOUNDS ────────────────────────────────────────────
+   * Top: just below Back to One header (selection) ≈ 130px
+   * Bottom when FAB closed: FAB top - 12px gap = 50+52+12 = 114px
+   * Bottom when FAB open:  above expanded options = 50+52+130+16 = 248px
+   * ──────────────────────────────────────────────────────────── */
+  --panel-top: 130px;
+  --panel-btm-closed: 114px;
+  --panel-btm-open: 248px;
+}
+
+.phone { width:390px; height:844px; background:var(--bg); border-radius:44px; border:1px solid rgba(255,255,255,0.08); overflow:hidden; position:relative; flex-shrink:0; box-shadow:0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04); display:flex; flex-direction:column; }
+.phone-label { color:var(--muted); font-family:'DM Mono',monospace; font-size:11px; text-align:center; margin-bottom:12px; letter-spacing:0.08em; text-transform:uppercase; }
+.phone-wrap { display:flex; flex-direction:column; align-items:center; }
+.glow-bg { position:absolute; inset:0; background:radial-gradient(ellipse 40% 30% at 50% 0%, rgba(196,90,220,0.09) 0%, transparent 100%); pointer-events:none; z-index:0; }
+
+.page-hdr { padding:56px 20px 14px; text-align:center; position:relative; z-index:2; flex-shrink:0; }
+.back-btn { position:absolute; left:16px; top:52px; width:36px; height:36px; border-radius:50%; background:rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:center; color:var(--text2); font-size:18px; border:1px solid rgba(255,255,255,0.07); }
+.hdr-client { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:4px; }
+.hdr-title { font-family:'Manrope',sans-serif; font-weight:800; font-size:20px; color:var(--text); letter-spacing:-0.02em; }
+.hdr-meta { font-family:'DM Mono',monospace; font-size:11px; color:var(--muted); margin-top:5px; }
+.hdr-divider { height:1px; background:var(--border); margin-top:14px; }
+
+.tab-bar { display:flex; border-bottom:1px solid var(--border); position:relative; z-index:2; flex-shrink:0; }
+.tab { flex:1; padding:12px 0; text-align:center; font-family:'DM Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:0.06em; text-transform:uppercase; position:relative; }
+.tab.active { color:var(--text); }
+.tab.active::after { content:''; position:absolute; bottom:-1px; left:20%; right:20%; height:1.5px; background:var(--accent); border-radius:1px; }
+
+.scroll { flex:1; overflow-y:auto; scrollbar-width:none; position:relative; z-index:2; }
+.scroll::-webkit-scrollbar { display:none; }
+.dept-hdr { display:flex; align-items:center; justify-content:space-between; padding:14px 20px 8px; }
+.dept-label { display:flex; align-items:center; gap:8px; font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; }
+.dept-dot { width:6px; height:6px; border-radius:50%; }
+.crew-row { display:flex; align-items:center; padding:10px 20px; gap:14px; cursor:pointer; position:relative; }
+.crew-row::after { content:''; position:absolute; bottom:0; left:68px; right:20px; height:1px; background:var(--border); }
+.c-ava { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Manrope',sans-serif; font-weight:700; font-size:13px; color:var(--bg); flex-shrink:0; position:relative; }
+.online-dot { position:absolute; bottom:1px; right:1px; width:8px; height:8px; border-radius:50%; background:#00b894; border:1.5px solid var(--bg); }
+.c-name { font-family:'Manrope',sans-serif; font-weight:600; font-size:14px; color:var(--text); display:flex; align-items:center; gap:6px; }
+.you-pill { font-family:'DM Mono',monospace; font-size:9px; color:var(--accent); background:var(--accent-dim); border:1px solid var(--accent-border); border-radius:20px; padding:1px 6px; }
+.c-role { font-family:'DM Mono',monospace; font-size:11px; color:var(--text2); margin-top:2px; }
+.d-dir { background:rgba(196,90,220,0.18); color:#c45adc; }
+.d-cam { background:rgba(100,112,243,0.18); color:#6470f3; }
+.d-art { background:rgba(74,232,160,0.18); color:#4ae8a0; }
+.d-snd { background:rgba(74,184,232,0.18); color:#4ab8e8; }
+.d-prod { background:rgba(232,122,74,0.18); color:#e87a4a; }
+.dot-dir { background:#c45adc; } .dot-cam { background:#6470f3; }
+.dot-art { background:#4ae8a0; } .dot-snd { background:#4ab8e8; }
+.dot-prod { background:#e87a4a; }
+
+/* Avatar strip — anchored just above FAB */
+.avatar-strip-wrap {
+  position:absolute; left:0; right:0;
+  bottom:calc(var(--fab-bottom) + 60px);
+  z-index:6;
+  padding:12px 20px 10px;
+  background:linear-gradient(transparent, rgba(4,4,10,0.96) 28%);
+}
+.strip-label { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:8px; }
+.strip-row { display:flex; gap:10px; overflow-x:auto; scrollbar-width:none; }
+.strip-row::-webkit-scrollbar { display:none; }
+.strip-item { display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; flex-shrink:0; }
+.strip-ava { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Manrope',sans-serif; font-weight:700; font-size:13px; color:var(--bg); transition:transform 0.15s; }
+.strip-ava.ring { outline:2.5px solid var(--accent); outline-offset:2px; box-shadow:0 0 12px rgba(196,90,220,0.4); }
+.strip-lbl { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); }
+.strip-lbl.on { color:var(--accent); }
+
+/* Member detail — slides from top, bottom stays above avatar strip */
+.member-panel {
+  position:absolute; left:0; right:0; top:0; z-index:8;
+  background:#0d0d1a;
+  border-radius:0 0 22px 22px;
+  border-bottom:1px solid rgba(255,255,255,0.07);
+  box-shadow:0 12px 48px rgba(0,0,0,0.7);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.mp-handle { width:36px; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; margin:10px auto 0; flex-shrink:0; }
+.mp-top { display:flex; align-items:center; gap:14px; padding:12px 20px 14px; border-bottom:1px solid rgba(255,255,255,0.05); flex-shrink:0; }
+.mp-ava { width:50px; height:50px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Manrope',sans-serif; font-weight:700; font-size:16px; color:var(--bg); flex-shrink:0; }
+.mp-name { font-family:'Manrope',sans-serif; font-weight:700; font-size:17px; color:var(--text); }
+.mp-role { font-family:'DM Mono',monospace; font-size:11px; color:var(--text2); margin-top:2px; }
+.mp-close { width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; cursor:pointer; flex-shrink:0; }
+.mp-fields { overflow-y:auto; scrollbar-width:none; }
+.mp-fields::-webkit-scrollbar { display:none; }
+.mp-field { display:flex; align-items:flex-start; justify-content:space-between; padding:11px 20px; border-bottom:1px solid rgba(255,255,255,0.04); }
+.mp-lbl { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; padding-top:1px; flex-shrink:0; }
+.mp-val { font-family:'Manrope',sans-serif; font-size:13px; color:var(--text2); text-align:right; max-width:220px; }
+.mp-val.link { color:var(--accent); }
+.mp-notes-wrap { padding:11px 20px; display:flex; flex-direction:column; gap:5px; }
+.mp-notes { width:100%; font-family:'Manrope',sans-serif; font-size:13px; color:var(--text2); background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:8px; padding:9px 12px; resize:none; outline:none; line-height:1.5; min-height:60px; }
+.autosave { font-family:'DM Mono',monospace; font-size:9px; color:rgba(0,184,148,0.5); text-align:right; }
+
+/* FAB — universal new position */
+.fab-zone { position:absolute; bottom:var(--fab-bottom); left:50%; transform:translateX(-50%); z-index:10; }
+.fab-main { width:52px; height:52px; border-radius:50%; background:rgba(196,90,220,0.15); backdrop-filter:blur(16px); border:1.5px solid rgba(196,90,220,0.45); box-shadow:0 4px 20px rgba(196,90,220,0.25), inset 0 1px 0 rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; color:rgba(196,90,220,0.8); font-size:22px; margin:0 auto; position:relative; }
+.fab-s { position:absolute; width:40px; height:40px; border-radius:50%; background:rgba(196,90,220,0.08); backdrop-filter:blur(12px); border:1px solid rgba(196,90,220,0.18); display:flex; align-items:center; justify-content:center; font-size:15px; top:50%; left:50%; }
+.fc { transform:translate(calc(-50% - 44px),-50%); color:rgba(255,255,255,0.5); }
+.ft { transform:translate(calc(-50% + 44px),-50%); color:rgba(255,255,255,0.5); }
+.fab-dot { position:absolute; top:4px; right:4px; width:7px; height:7px; border-radius:50%; background:#4ab8e8; border:1.5px solid var(--bg); }
+
+/* FAB options — remain until + tapped again */
+.fab-opts {
+  position:absolute;
+  bottom:calc(var(--fab-bottom) + 64px);
+  left:50%; transform:translateX(-50%);
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  z-index:10;
+}
+.fab-opt { display:flex; align-items:center; gap:10px; background:rgba(10,10,18,0.9); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.08); border-radius:22px; padding:9px 16px 9px 10px; white-space:nowrap; cursor:pointer; box-shadow:0 4px 20px rgba(0,0,0,0.5); }
+.fab-opt-icon { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; }
+.fab-opt-label { font-family:'Manrope',sans-serif; font-weight:600; font-size:13px; color:var(--text); }
+.fab-opt-sub { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); margin-top:1px; }
+
+/* Sheets */
+.sheet-overlay { position:absolute; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(3px); z-index:12; display:flex; align-items:flex-end; }
+.sheet { width:100%; background:#0e0e1a; border-radius:20px 20px 0 0; display:flex; flex-direction:column; max-height:90%; padding-bottom:28px; }
+.sheet-handle { width:36px; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; margin:12px auto 0; flex-shrink:0; }
+.sheet-hdr { padding:14px 24px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.sheet-title { font-family:'Manrope',sans-serif; font-weight:700; font-size:16px; color:var(--text); }
+.sheet-sub { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); margin-top:3px; }
+.r-tabs { display:flex; padding:0 16px; border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:none; flex-shrink:0; }
+.r-tabs::-webkit-scrollbar { display:none; }
+.r-tab { padding:10px 12px; font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; white-space:nowrap; position:relative; cursor:pointer; flex-shrink:0; }
+.r-tab.active { color:var(--text); }
+.r-tab.active::after { content:''; position:absolute; bottom:-1px; left:10%; right:10%; height:1.5px; background:var(--accent); border-radius:1px; }
+.r-scroll { flex:1; overflow-y:auto; scrollbar-width:none; }
+.r-scroll::-webkit-scrollbar { display:none; }
+.r-row { display:flex; align-items:center; gap:12px; padding:10px 20px; cursor:pointer; border-bottom:1px solid rgba(255,255,255,0.04); }
+.r-ava { width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Manrope',sans-serif; font-weight:700; font-size:12px; color:var(--bg); flex-shrink:0; }
+.r-info { flex:1; min-width:0; }
+.r-name { font-family:'Manrope',sans-serif; font-weight:600; font-size:13px; color:var(--text); }
+.r-rlbl { font-family:'DM Mono',monospace; font-size:10px; color:var(--text2); margin-top:2px; }
+.r-proj { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); }
+.r-add { width:28px; height:28px; border-radius:50%; background:var(--accent-dim); border:1px solid var(--accent-border); display:flex; align-items:center; justify-content:center; color:var(--accent); font-size:16px; flex-shrink:0; }
+.form-field { display:flex; align-items:center; justify-content:space-between; padding:13px 24px; border-bottom:1px solid var(--border); }
+.form-label { font-family:'DM Mono',monospace; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; }
+.form-input { font-family:'Manrope',sans-serif; font-size:13px; color:var(--text); background:none; border:none; outline:none; text-align:right; max-width:200px; }
+.form-input::placeholder { color:var(--muted); }
+.dept-row { display:flex; gap:6px; flex-wrap:wrap; padding:12px 24px; border-bottom:1px solid var(--border); }
+.d-chip { font-family:'DM Mono',monospace; font-size:10px; padding:4px 12px; border-radius:20px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:var(--muted); cursor:pointer; }
+.d-chip.sel { background:var(--accent-dim); border-color:var(--accent-border); color:var(--accent); }
+.btn-row { display:flex; gap:10px; padding:18px 24px 0; }
+.btn-s { flex:1; height:44px; border-radius:9px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); color:var(--text2); font-family:'Manrope',sans-serif; font-weight:600; font-size:14px; cursor:pointer; }
+.btn-a { flex:2; height:44px; border-radius:9px; background:var(--accent-dim); border:1px solid var(--accent-border); color:var(--accent); font-family:'Manrope',sans-serif; font-weight:600; font-size:14px; cursor:pointer; }
+
+/* Annotation */
+.note { position:absolute; z-index:20; font-family:'DM Mono',monospace; font-size:9px; color:rgba(232,196,74,0.85); background:rgba(16,12,2,0.92); border:1px solid rgba(232,196,74,0.25); border-radius:4px; padding:3px 8px; white-space:nowrap; pointer-events:none; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ PHONE 1 — LIST + STRIP + NEW FAB POSITION ═══════════════════════════ -->
+<div class="phone-wrap">
+<div class="phone-label">crew · list + avatar strip + fab position</div>
+<div class="phone">
+  <div class="glow-bg"></div>
+  <div class="page-hdr">
+    <div class="back-btn">‹</div>
+    <div class="hdr-client">Drifting · Fracture</div>
+    <div class="hdr-title">Crew</div>
+    <div class="hdr-meta">8 members · 5 departments</div>
+    <div class="hdr-divider"></div>
+  </div>
+  <div class="tab-bar">
+    <div class="tab active">All</div><div class="tab">Direction</div><div class="tab">Camera</div><div class="tab">Art</div><div class="tab">Sound</div>
+  </div>
+  <div class="scroll" style="padding-bottom:200px;">
+    <div class="dept-hdr"><div class="dept-label"><div class="dept-dot dot-dir"></div>Direction</div><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">2</span></div>
+    <div class="crew-row"><div class="c-ava d-dir">CL<div class="online-dot"></div></div><div><div class="c-name">Clyde <span class="you-pill">You</span></div><div class="c-role">Director</div></div></div>
+    <div class="crew-row"><div class="c-ava d-cam">JR</div><div><div class="c-name">Jordan R.</div><div class="c-role">DP</div></div></div>
+    <div class="dept-hdr"><div class="dept-label"><div class="dept-dot dot-cam"></div>Camera</div><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">2</span></div>
+    <div class="crew-row"><div class="c-ava d-cam">DP</div><div><div class="c-name">Dev P.</div><div class="c-role">1st AC</div></div></div>
+    <div class="dept-hdr"><div class="dept-label"><div class="dept-dot dot-art"></div>Art</div><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">1</span></div>
+    <div class="crew-row"><div class="c-ava d-art">MT</div><div><div class="c-name">Mia T.</div><div class="c-role">Art Director</div></div></div>
+    <div class="dept-hdr"><div class="dept-label"><div class="dept-dot dot-snd"></div>Sound</div><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">1</span></div>
+    <div class="crew-row"><div class="c-ava d-snd">SK</div><div><div class="c-name">Sam K.</div><div class="c-role">Sound Mixer</div></div></div>
+    <div class="dept-hdr"><div class="dept-label"><div class="dept-dot dot-prod"></div>Production</div><span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">2</span></div>
+    <div class="crew-row"><div class="c-ava d-prod">AL</div><div><div class="c-name">Alex L.</div><div class="c-role">Line Producer</div></div></div>
+    <div class="crew-row"><div class="c-ava d-prod">RN</div><div><div class="c-name">Rosa N.</div><div class="c-role">Prod Coordinator</div></div></div>
+  </div>
+
+  <!-- Avatar strip, sits just above FAB -->
+  <div class="avatar-strip-wrap">
+    <div class="strip-label">Tap to view</div>
+    <div class="strip-row">
+      <div class="strip-item"><div class="strip-ava d-dir">CL</div><div class="strip-lbl">Clyde</div></div>
+      <div class="strip-item"><div class="strip-ava d-cam">JR</div><div class="strip-lbl">Jordan</div></div>
+      <div class="strip-item"><div class="strip-ava d-cam">DP</div><div class="strip-lbl">Dev</div></div>
+      <div class="strip-item"><div class="strip-ava d-art">MT</div><div class="strip-lbl">Mia</div></div>
+      <div class="strip-item"><div class="strip-ava d-snd">SK</div><div class="strip-lbl">Sam</div></div>
+      <div class="strip-item"><div class="strip-ava d-prod">AL</div><div class="strip-lbl">Alex</div></div>
+      <div class="strip-item"><div class="strip-ava d-prod">RN</div><div class="strip-lbl">Rosa</div></div>
+    </div>
+  </div>
+
+  <div class="fab-zone">
+    <div class="fab-main">+<div class="fab-s fc">💬</div><div class="fab-s ft">🧵<div class="fab-dot"></div></div></div>
+  </div>
+
+  <!-- Home indicator reference -->
+  <div style="position:absolute; bottom:14px; left:50%; transform:translateX(-50%); width:120px; height:5px; background:rgba(255,255,255,0.12); border-radius:3px; z-index:1;"></div>
+  <!-- Annotation -->
+  <div class="note" style="right:14px; bottom:calc(var(--fab-bottom) + 62px);">FAB at dock level</div>
+  <div class="note" style="right:14px; bottom:10px;">home indicator</div>
+</div>
+</div>
+
+
+<!-- ═══════════════════════════ PHONE 2 — MEMBER DETAIL (top panel) ═══════════════════════════ -->
+<div class="phone-wrap">
+<div class="phone-label">crew · member detail open</div>
+<div class="phone">
+  <div class="glow-bg"></div>
+
+  <!-- Member detail panel — max-height stops it above the strip -->
+  <div class="member-panel" style="max-height:calc(100% - 180px);">
+    <div class="mp-handle"></div>
+    <div class="mp-top">
+      <div class="mp-ava d-cam">JR</div>
+      <div style="flex:1;"><div class="mp-name">Jordan R.</div><div class="mp-role">Director of Photography · Camera</div></div>
+      <div class="mp-close">×</div>
+    </div>
+    <div class="mp-fields">
+      <div class="mp-field"><div class="mp-lbl">Phone</div><div class="mp-val link">+1 (310) 555-0182</div></div>
+      <div class="mp-field"><div class="mp-lbl">Email</div><div class="mp-val link">jordan@rfilm.co</div></div>
+      <div class="mp-field"><div class="mp-lbl">Days On</div><div class="mp-val">Apr 17 – May 1</div></div>
+      <div class="mp-field"><div class="mp-lbl">Deal Memo</div><div class="mp-val" style="color:#00b894;">Signed ✓</div></div>
+      <div class="mp-field"><div class="mp-lbl">Allergies</div><div class="mp-val">None known</div></div>
+      <div class="mp-notes-wrap">
+        <div class="mp-lbl" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;">Notes</div>
+        <textarea class="mp-notes">Bringing own B camera kit. Prefers golden hour calls. Worked with Clyde on 3 prior projects.</textarea>
+        <div class="autosave">Saved ✓</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Strip stays visible, tappable, swap between members -->
+  <div class="avatar-strip-wrap">
+    <div class="strip-label">Tap to view</div>
+    <div class="strip-row">
+      <div class="strip-item"><div class="strip-ava d-dir">CL</div><div class="strip-lbl">Clyde</div></div>
+      <div class="strip-item"><div class="strip-ava d-cam ring">JR</div><div class="strip-lbl on">Jordan</div></div>
+      <div class="strip-item"><div class="strip-ava d-cam">DP</div><div class="strip-lbl">Dev</div></div>
+      <div class="strip-item"><div class="strip-ava d-art">MT</div><div class="strip-lbl">Mia</div></div>
+      <div class="strip-item"><div class="strip-ava d-snd">SK</div><div class="strip-lbl">Sam</div></div>
+      <div class="strip-item"><div class="strip-ava d-prod">AL</div><div class="strip-lbl">Alex</div></div>
+      <div class="strip-item"><div class="strip-ava d-prod">RN</div><div class="strip-lbl">Rosa</div></div>
+    </div>
+  </div>
+
+  <div class="fab-zone">
+    <div class="fab-main">+<div class="fab-s fc">💬</div><div class="fab-s ft">🧵<div class="fab-dot"></div></div></div>
+  </div>
+</div>
+</div>
+
+
+<!-- ═══════════════════════════ PHONE 3 — FAB EXPANDED (stays open) ═══════════════════════════ -->
+<div class="phone-wrap">
+<div class="phone-label">crew · fab expanded · stays open</div>
+<div class="phone">
+  <div class="glow-bg"></div>
+  <div class="page-hdr">
+    <div class="back-btn">‹</div>
+    <div class="hdr-client">Drifting · Fracture</div>
+    <div class="hdr-title">Crew</div>
+    <div class="hdr-meta">8 members</div>
+    <div class="hdr-divider"></div>
+  </div>
+  <div class="tab-bar">
+    <div class="tab active">All</div><div class="tab">Direction</div><div class="tab">Camera</div><div class="tab">Art</div><div class="tab">Sound</div>
+  </div>
+  <div style="flex:1; opacity:0.18; pointer-events:none; padding:20px; display:flex; flex-direction:column; gap:8px;">
+    <div style="height:48px; background:rgba(255,255,255,0.03); border-radius:6px;"></div>
+    <div style="height:48px; background:rgba(255,255,255,0.03); border-radius:6px;"></div>
+    <div style="height:48px; background:rgba(255,255,255,0.03); border-radius:6px;"></div>
+  </div>
+
+  <!-- Backdrop -->
+  <div style="position:absolute; inset:0; background:rgba(4,4,10,0.6); z-index:7;"></div>
+
+  <!-- Strip — slides up when FAB expanded to clear options -->
+  <div class="avatar-strip-wrap" style="bottom:calc(var(--panel-btm-open) - 60px);">
+    <div class="strip-row">
+      <div class="strip-item"><div class="strip-ava d-dir">CL</div><div class="strip-lbl">Clyde</div></div>
+      <div class="strip-item"><div class="strip-ava d-cam">JR</div><div class="strip-lbl">Jordan</div></div>
+      <div class="strip-item"><div class="strip-ava d-cam">DP</div><div class="strip-lbl">Dev</div></div>
+      <div class="strip-item"><div class="strip-ava d-art">MT</div><div class="strip-lbl">Mia</div></div>
+      <div class="strip-item"><div class="strip-ava d-snd">SK</div><div class="strip-lbl">Sam</div></div>
+    </div>
+  </div>
+
+  <!-- Options: remain until + is tapped again -->
+  <div class="fab-opts">
+    <div class="fab-opt">
+      <div class="fab-opt-icon" style="background:rgba(196,90,220,0.15);border:1px solid rgba(196,90,220,0.3);">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1V12M1 6.5H12" stroke="#c45adc" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div><div class="fab-opt-label">Add New</div><div class="fab-opt-sub">Create a new crew member</div></div>
+    </div>
+    <div class="fab-opt">
+      <div class="fab-opt-icon" style="background:rgba(100,112,243,0.15);border:1px solid rgba(100,112,243,0.3);">👥</div>
+      <div><div class="fab-opt-label">Add Existing</div><div class="fab-opt-sub">From past projects</div></div>
+    </div>
+  </div>
+
+  <!-- FAB = × while open, tap to close -->
+  <div class="fab-zone" style="z-index:11;">
+    <div class="fab-main" style="background:rgba(196,90,220,0.22);border-color:rgba(196,90,220,0.6);box-shadow:0 0 28px rgba(196,90,220,0.35);font-size:28px;">
+      ×
+      <div class="fab-s fc">💬</div>
+      <div class="fab-s ft">🧵</div>
+    </div>
+  </div>
+
+  <div class="note" style="left:14px; bottom:calc(var(--fab-bottom) + 56px);">tap × to dismiss</div>
+</div>
+</div>
+
+
+<!-- ═══════════════════════════ PHONE 4 — ADD NEW ═══════════════════════════ -->
+<div class="phone-wrap">
+<div class="phone-label">crew · add new member</div>
+<div class="phone">
+  <div class="glow-bg"></div>
+  <div style="position:absolute;inset:0;background:rgba(4,4,10,0.35);z-index:1;"></div>
+  <div class="sheet-overlay">
+    <div class="sheet" style="max-height:88%;">
+      <div class="sheet-handle"></div>
+      <div class="sheet-hdr"><div class="sheet-title">New Crew Member</div><div class="sheet-sub">Drifting · Fracture Films</div></div>
+      <div style="flex:1;overflow-y:auto;scrollbar-width:none;">
+        <div style="display:flex;flex-direction:column;align-items:center;padding:18px 24px 14px;border-bottom:1px solid var(--border);">
+          <div style="width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,0.05);border:1.5px dashed rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--muted);margin-bottom:5px;">👤</div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);">Tap to set photo</div>
+        </div>
+        <div class="form-field"><div class="form-label">Name</div><input class="form-input" placeholder="Full name"/></div>
+        <div class="form-field"><div class="form-label">Role</div><input class="form-input" placeholder="e.g. 1st AC"/></div>
+        <div style="padding:12px 24px 8px;border-bottom:1px solid var(--border);">
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Department</div>
+          <div class="dept-row" style="padding:0;">
+            <div class="d-chip sel">Direction</div><div class="d-chip">Camera</div><div class="d-chip">Art</div>
+            <div class="d-chip">Sound</div><div class="d-chip">Production</div><div class="d-chip">Post</div>
+          </div>
+        </div>
+        <div class="form-field"><div class="form-label">Phone</div><input class="form-input" placeholder="+1 (000) 000-0000" type="tel"/></div>
+        <div class="form-field"><div class="form-label">Email</div><input class="form-input" placeholder="email@domain.com" type="email"/></div>
+        <div class="form-field"><div class="form-label">Allergies</div><input class="form-input" placeholder="None"/></div>
+        <div class="form-field" style="border:none;"><div class="form-label">Deal Memo</div><div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);background:rgba(255,255,255,0.04);border:1px dashed rgba(255,255,255,0.1);padding:4px 10px;border-radius:6px;">+ Attach</div></div>
+      </div>
+      <div class="btn-row"><button class="btn-s">Cancel</button><button class="btn-a">Add to Crew</button></div>
+    </div>
+  </div>
+</div>
+</div>
+
+
+<!-- ═══════════════════════════ PHONE 5 — ADD EXISTING ═══════════════════════════ -->
+<div class="phone-wrap">
+<div class="phone-label">crew · add existing roster</div>
+<div class="phone">
+  <div class="glow-bg"></div>
+  <div style="position:absolute;inset:0;background:rgba(4,4,10,0.35);z-index:1;"></div>
+  <div class="sheet-overlay">
+    <div class="sheet" style="max-height:88%;">
+      <div class="sheet-handle"></div>
+      <div class="sheet-hdr"><div class="sheet-title">Add Existing Crew</div><div class="sheet-sub">From your past projects · 14 people</div></div>
+      <div class="r-tabs">
+        <div class="r-tab active">All</div><div class="r-tab">Direction</div><div class="r-tab">Camera</div>
+        <div class="r-tab">Art</div><div class="r-tab">Sound</div><div class="r-tab">Production</div><div class="r-tab">Post</div>
+      </div>
+      <div class="r-scroll">
+        <div style="padding:9px 20px 3px;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">On this project</div>
+        <div class="r-row" style="opacity:0.35;pointer-events:none;"><div class="r-ava d-dir">CL</div><div class="r-info"><div class="r-name">Clyde</div><div class="r-rlbl">Director</div></div><div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--post);padding:3px 8px;border-radius:20px;background:rgba(0,184,148,0.1);border:1px solid rgba(0,184,148,0.2);">Added ✓</div></div>
+        <div class="r-row" style="opacity:0.35;pointer-events:none;"><div class="r-ava d-cam">JR</div><div class="r-info"><div class="r-name">Jordan R.</div><div class="r-rlbl">DP</div></div><div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--post);padding:3px 8px;border-radius:20px;background:rgba(0,184,148,0.1);border:1px solid rgba(0,184,148,0.2);">Added ✓</div></div>
+        <div style="padding:9px 20px 3px;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Available</div>
+        <div class="r-row"><div class="r-ava d-cam">KM</div><div class="r-info"><div class="r-name">Kira M.</div><div class="r-rlbl">2nd AC</div><div class="r-proj">Hollow Ground · Fragment</div></div><div class="r-add">+</div></div>
+        <div class="r-row"><div class="r-ava d-art">TL</div><div class="r-info"><div class="r-name">Tom L.</div><div class="r-rlbl">Set Decorator</div><div class="r-proj">Hollow Ground</div></div><div class="r-add">+</div></div>
+        <div class="r-row"><div class="r-ava d-snd">PW</div><div class="r-info"><div class="r-name">Paul W.</div><div class="r-rlbl">Boom Operator</div><div class="r-proj">Fragment · Vessel</div></div><div class="r-add">+</div></div>
+        <div class="r-row"><div class="r-ava d-prod">SB</div><div class="r-info"><div class="r-name">Sara B.</div><div class="r-rlbl">Script Supervisor</div><div class="r-proj">Hollow Ground · Drifting S1</div></div><div class="r-add">+</div></div>
+        <div class="r-row"><div class="r-ava d-dir">NG</div><div class="r-info"><div class="r-name">Nina G.</div><div class="r-rlbl">1st AD</div><div class="r-proj">Fragment</div></div><div class="r-add">+</div></div>
+        <div class="r-row" style="border:none;"><div class="r-ava d-cam">BR</div><div class="r-info"><div class="r-name">Ben R.</div><div class="r-rlbl">Gaffer</div><div class="r-proj">Hollow Ground · Vessel</div></div><div class="r-add">+</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+</body>
+</html>

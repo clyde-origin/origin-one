@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -d \"/Users/pawn/Code/origin one/apps/\"*/ \"/Users/pawn/Code/origin one/packages/\"*/)"
+    ]
+  }
+}
