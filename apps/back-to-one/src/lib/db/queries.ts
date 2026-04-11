@@ -1,4 +1,4 @@
-import { createClient } from './client'
+import { createBrowserAuthClient as createClient } from '@origin-one/auth'
 import type {
   Project, Folder, CrewMember, ActionItem, Milestone,
   SceneMakerVersion, Scene, Shot, MoodboardRef,
