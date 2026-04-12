@@ -82,6 +82,13 @@ enum ResourceType {
   document
 }
 
+enum MoodCategory {
+  tone
+  visual
+  product
+  music
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -157,8 +164,9 @@ model Project {
   milestones  Milestone[]
   actionItems ActionItem[]
   threads     Thread[]
-  folders     Folder[]
-  resources   Resource[]
+  folders       Folder[]
+  resources     Resource[]
+  moodboardRefs MoodboardRef[]
 }
 
 model Scene {
@@ -284,6 +292,21 @@ model ThreadMessage {
 
   thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   author User   @relation(fields: [createdBy], references: [id])
+}
+
+// ─── Moodboard ──────────────────────────────────────────────────────────────
+
+model MoodboardRef {
+  id        String       @id @default(uuid())
+  projectId String
+  cat       MoodCategory
+  title     String
+  note      String?
+  imageUrl  String?
+  gradient  String?
+  createdAt DateTime     @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 // ─── Folders & Resources ────────────────────────────────────────────────────

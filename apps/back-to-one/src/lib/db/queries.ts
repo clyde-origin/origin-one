@@ -1,5 +1,17 @@
 import { createBrowserAuthClient as createClient } from '@origin-one/auth'
 
+// ── STORAGE ───────────────────────────────────────────────
+
+export async function uploadMoodboardImage(file: File, projectId: string): Promise<string> {
+  const db = createClient()
+  const ext = file.name.split('.').pop() ?? 'jpg'
+  const path = `${projectId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+  const { error } = await db.storage.from('moodboard').upload(path, file, { upsert: true })
+  if (error) { console.error('uploadMoodboardImage failed:', error); throw error }
+  const { data } = db.storage.from('moodboard').getPublicUrl(path)
+  return data.publicUrl
+}
+
 // ── PROJECTS ───────────────────────────────────────────────
 
 export async function getProjects() {
@@ -472,8 +484,39 @@ export async function getSceneMakerVersions(_projectId: string): Promise<any[]> 
 export async function getSMScenes(_versionId: string): Promise<any[]> { return [] }
 export async function getSMShots(_versionId: string): Promise<any[]> { return [] }
 export async function updateShotImages(_shotId: string, _images: string[]) {}
-export async function getMoodboardRefs(_projectId: string): Promise<any[]> { return [] }
-export async function createMoodboardRef(_ref: any) { return _ref }
+export async function getMoodboardRefs(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('MoodboardRef')
+    .select('*')
+    .eq('projectId', projectId)
+    .order('createdAt', { ascending: true })
+  if (error) {
+    console.error('getMoodboardRefs failed:', error)
+    return []
+  }
+  return data ?? []
+}
+
+export async function createMoodboardRef(
+  ref: { projectId: string; cat: string; title: string; note?: string; imageUrl?: string | null; gradient?: string | null }
+) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('MoodboardRef')
+    .insert({
+      projectId: ref.projectId,
+      cat: ref.cat,
+      title: ref.title,
+      note: ref.note ?? null,
+      imageUrl: ref.imageUrl ?? null,
+      gradient: ref.gradient ?? null,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createMoodboardRef failed:', error); throw error }
+  return data
+}
 export async function getLocationGroups(_projectId: string): Promise<any[]> { return [] }
 export async function updateLocationStatus(_optionId: string, _status: string) {}
 export async function getCastRoles(_projectId: string): Promise<any[]> { return [] }

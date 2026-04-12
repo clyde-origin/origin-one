@@ -141,7 +141,7 @@ export function CrewAvatar({
           width: size,
           height: size,
           background: '#0a0a12',
-          border: `1px solid ${c1}`,
+          border: `0.5px solid ${c1}`,
           color: c1,
           fontSize: size * 0.26,
         }}

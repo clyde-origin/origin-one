@@ -20,26 +20,9 @@ export function PageHeader({ projectId, title, meta, right, noBorder }: PageHead
         ...(!noBorder && { borderBottom: '1px solid rgba(255,255,255,0.05)' }),
       }}
     >
-      {/* Back button — absolute top-left */}
-      <Link
-        href={`/projects/${projectId}`}
-        className="absolute flex items-center justify-center flex-shrink-0 active:opacity-60 transition-opacity"
-        style={{
-          top: 'calc(var(--safe-top) + 10px)',
-          left: 20,
-          width: 32, height: 32, borderRadius: '50%',
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.05)',
-        }}
-      >
-        <svg width="7" height="12" viewBox="0 0 7 12" fill="none">
-          <path d="M6 1L1 6L6 11" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </Link>
-
       {/* Title + meta — centered */}
       <div className="flex flex-col items-center text-center" style={{ maxWidth: '70%' }}>
-        <div className="text-text leading-none truncate" style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
+        <div className="text-text leading-none truncate" style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
           {title}
         </div>
         {meta && (
