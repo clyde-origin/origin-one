@@ -93,6 +93,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   teamMembers      TeamMember[]
+  projectMembers   ProjectMember[]
   documents        Document[]
   actionItems      ActionItem[]
   threads          Thread[]
@@ -124,6 +125,19 @@ model TeamMember {
   @@unique([teamId, userId])
 }
 
+model ProjectMember {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  role      Role
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
 model Project {
   id        String        @id @default(uuid())
   teamId    String
@@ -135,7 +149,8 @@ model Project {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  team        Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team        Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  members     ProjectMember[]
   scenes      Scene[]
   entities    Entity[]
   documents   Document[]

@@ -159,9 +159,9 @@ function MemberPanel({ member, onClose }: {
 
 const ROLE_OPTIONS: Role[] = ['director', 'producer', 'coordinator', 'writer', 'crew']
 
-function NewMemberSheet({ teamId, onClose, onCreate }: {
-  teamId: string; onClose: () => void
-  onCreate: (data: { teamId: string; userId: string; role: string }) => void
+function NewMemberSheet({ projectId, onClose, onCreate }: {
+  projectId: string; onClose: () => void
+  onCreate: (data: { projectId: string; userId: string; role: string }) => void
 }) {
   const [name, setName] = useState('')
   const [role, setRole] = useState<Role>('crew')
@@ -211,7 +211,7 @@ function NewMemberSheet({ teamId, onClose, onCreate }: {
               background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
               color: '#a0a0b8', fontWeight: 600, fontSize: 14, cursor: 'pointer',
             }}>Cancel</button>
-          <button onClick={() => { if (name.trim()) { onCreate({ teamId, userId: '', role }); onClose() } }} disabled={!name.trim()}
+          <button onClick={() => { if (name.trim()) { onCreate({ projectId, userId: '', role }); onClose() } }} disabled={!name.trim()}
             style={{
               flex: 2, height: 44, borderRadius: 9,
               background: 'rgba(196,90,220,0.15)', border: '1px solid rgba(196,90,220,0.35)',
@@ -324,7 +324,7 @@ export default function CrewPage({ params }: { params: { projectId: string } }) 
 
       <Sheet open={showNewSheet} onClose={() => setShowNewSheet(false)}>
         <NewMemberSheet
-          teamId={projectId}
+          projectId={projectId}
           onClose={() => setShowNewSheet(false)}
           onCreate={(data) => { addMember.mutate(data); setShowNewSheet(false) }}
         />

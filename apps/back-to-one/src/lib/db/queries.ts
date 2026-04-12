@@ -124,37 +124,37 @@ export async function deleteFolder(folderId: string): Promise<void> {
   if (error) { console.error('deleteFolder failed:', error); throw error }
 }
 
-// ── CREW (User + TeamMember) ──────────────────────────────
+// ── CREW (ProjectMember + User) ───────────────────────────
 
 export async function getAllCrew() {
   const db = createClient()
   const { data, error } = await db
-    .from('TeamMember')
+    .from('ProjectMember')
     .select('*, User(*)')
     .order('createdAt', { ascending: true })
   if (error) throw error
   return data
 }
 
-export async function getCrew(teamId: string) {
+export async function getCrew(projectId: string) {
   const db = createClient()
   const { data, error } = await db
-    .from('TeamMember')
+    .from('ProjectMember')
     .select('*, User(*)')
-    .eq('teamId', teamId)
+    .eq('projectId', projectId)
     .order('createdAt', { ascending: true })
   if (error) throw error
   return data
 }
 
 export async function addCrewMember(
-  member: { teamId: string; userId: string; role: string }
+  member: { projectId: string; userId: string; role: string }
 ) {
   const db = createClient()
   const { data, error } = await db
-    .from('TeamMember')
+    .from('ProjectMember')
     .insert({
-      teamId: member.teamId,
+      projectId: member.projectId,
       userId: member.userId,
       role: member.role,
     })
@@ -166,7 +166,7 @@ export async function addCrewMember(
 
 export async function removeCrewMember(id: string): Promise<void> {
   const db = createClient()
-  const { error } = await db.from('TeamMember').delete().eq('id', id)
+  const { error } = await db.from('ProjectMember').delete().eq('id', id)
   if (error) { console.error('removeCrewMember failed:', error); throw error }
 }
 
@@ -175,7 +175,7 @@ export async function updateCrewMember(
   fields: { role?: string }
 ): Promise<void> {
   const db = createClient()
-  const { error } = await db.from('TeamMember').update(fields).eq('id', id)
+  const { error } = await db.from('ProjectMember').update(fields).eq('id', id)
   if (error) { console.error('updateCrewMember failed:', error); throw error }
 }
 

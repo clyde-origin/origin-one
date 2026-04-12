@@ -38,12 +38,28 @@ async function upsertCrew(
   return user
 }
 
+async function assignProjectCrew(
+  projectId: string,
+  userId: string,
+  role: Role,
+): Promise<void> {
+  await prisma.projectMember.upsert({
+    where: { projectId_userId: { projectId, userId } },
+    update: {},
+    create: { projectId, userId, role },
+  })
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
   console.log('Seeding — Origin Point projects...\n')
 
   // ── Wipe in reverse-dependency order ──────────────────────────────────────
+  await prisma.actionItem.deleteMany()
+  await prisma.milestonePerson.deleteMany()
+  await prisma.milestone.deleteMany()
+  await prisma.projectMember.deleteMany()
   await prisma.document.deleteMany()
   await prisma.shot.deleteMany()
   await prisma.scene.deleteMany()
@@ -63,30 +79,30 @@ async function main() {
   // 3 scenes  14 shots  24 crew
   // ══════════════════════════════════════════════════════════════════════════
 
-  const sofiaReyes = await upsertCrew(team.id, 'Sofia Reyes',    'director')
-  await upsertCrew(team.id, 'Marcus Webb',    'producer')
-  await upsertCrew(team.id, 'Dana Park',      'producer')
-  await upsertCrew(team.id, 'James Calloway', 'crew')
-  await upsertCrew(team.id, 'Theo Hartmann',  'crew')
-  await upsertCrew(team.id, 'Priya Nair',     'crew')
-  await upsertCrew(team.id, 'Carlos Vega',    'crew')
-  await upsertCrew(team.id, 'Sam Okafor',     'crew')
-  await upsertCrew(team.id, 'Rick Souza',     'crew')
-  await upsertCrew(team.id, 'Tanya Mills',    'crew')
-  await upsertCrew(team.id, 'Derek Huang',    'crew')
-  await upsertCrew(team.id, 'Luis Fernandez', 'crew')
-  await upsertCrew(team.id, 'Claire Renault', 'crew')
-  await upsertCrew(team.id, 'Nina Osei',      'crew')
-  await upsertCrew(team.id, 'Brendan Walsh',  'crew')
-  await upsertCrew(team.id, 'Isabel Torres',  'crew')
-  await upsertCrew(team.id, 'Jasmine Bell',   'crew')
-  await upsertCrew(team.id, 'Fiona Drake',    'crew')
-  await upsertCrew(team.id, 'Pete Larsson',   'crew')
-  await upsertCrew(team.id, 'Andre Kim',      'crew')
-  await upsertCrew(team.id, 'Mia Chen',       'coordinator')
-  await upsertCrew(team.id, 'Aria Stone',     'crew')
-  await upsertCrew(team.id, 'Vera Hastings',  'crew')
-  await upsertCrew(team.id, 'Lena Farrow',    'crew')
+  const sofiaReyes    = await upsertCrew(team.id, 'Sofia Reyes',    'director')
+  const marcusWebb    = await upsertCrew(team.id, 'Marcus Webb',    'producer')
+  const danaPark      = await upsertCrew(team.id, 'Dana Park',      'producer')
+  const jamesCalloway = await upsertCrew(team.id, 'James Calloway', 'crew')
+  const theoHartmann  = await upsertCrew(team.id, 'Theo Hartmann',  'crew')
+  const priyaNair     = await upsertCrew(team.id, 'Priya Nair',     'crew')
+  const carlosVega    = await upsertCrew(team.id, 'Carlos Vega',    'crew')
+  const samOkafor     = await upsertCrew(team.id, 'Sam Okafor',     'crew')
+  const rickSouza     = await upsertCrew(team.id, 'Rick Souza',     'crew')
+  const tanyaMills    = await upsertCrew(team.id, 'Tanya Mills',    'crew')
+  const derekHuang    = await upsertCrew(team.id, 'Derek Huang',    'crew')
+  const luisFernandez = await upsertCrew(team.id, 'Luis Fernandez', 'crew')
+  const claireRenault = await upsertCrew(team.id, 'Claire Renault', 'crew')
+  const ninaOsei      = await upsertCrew(team.id, 'Nina Osei',      'crew')
+  const brendanWalsh  = await upsertCrew(team.id, 'Brendan Walsh',  'crew')
+  const isabelTorres  = await upsertCrew(team.id, 'Isabel Torres',  'crew')
+  const jasmineBell   = await upsertCrew(team.id, 'Jasmine Bell',   'crew')
+  const fionaDrake    = await upsertCrew(team.id, 'Fiona Drake',    'crew')
+  const peteLarsson   = await upsertCrew(team.id, 'Pete Larsson',   'crew')
+  const andreKim      = await upsertCrew(team.id, 'Andre Kim',      'crew')
+  const miaChen       = await upsertCrew(team.id, 'Mia Chen',       'coordinator')
+  const ariaStone     = await upsertCrew(team.id, 'Aria Stone',     'crew')
+  const veraHastings  = await upsertCrew(team.id, 'Vera Hastings',  'crew')
+  const lenaFarrow    = await upsertCrew(team.id, 'Lena Farrow',    'crew')
 
   const p1 = await prisma.project.create({
     data: { teamId: team.id, name: 'Simple Skin Promo', status: 'pre_production', client: 'Lumière Skincare', type: 'commercial', color: '#D4A847' },
@@ -187,6 +203,66 @@ FADE TO BLACK.`,
 
   console.log('  P1: Simple Skin Promo — 3 scenes, 14 shots, 24 crew')
 
+  // P1 — ProjectMembers (24 crew)
+  // Role mapping: director→director, producer→producer, coordinator→coordinator, crew→crew
+  await assignProjectCrew(p1.id, sofiaReyes.id,    'director')
+  await assignProjectCrew(p1.id, marcusWebb.id,    'producer')
+  await assignProjectCrew(p1.id, danaPark.id,      'producer')
+  await assignProjectCrew(p1.id, jamesCalloway.id, 'coordinator')
+  await assignProjectCrew(p1.id, theoHartmann.id,  'crew')
+  await assignProjectCrew(p1.id, priyaNair.id,     'crew')
+  await assignProjectCrew(p1.id, carlosVega.id,    'crew')
+  await assignProjectCrew(p1.id, samOkafor.id,     'crew')
+  await assignProjectCrew(p1.id, rickSouza.id,     'crew')
+  await assignProjectCrew(p1.id, tanyaMills.id,    'crew')
+  await assignProjectCrew(p1.id, derekHuang.id,    'crew')
+  await assignProjectCrew(p1.id, luisFernandez.id, 'crew')
+  await assignProjectCrew(p1.id, claireRenault.id, 'crew')
+  await assignProjectCrew(p1.id, ninaOsei.id,      'crew')
+  await assignProjectCrew(p1.id, brendanWalsh.id,  'crew')
+  await assignProjectCrew(p1.id, isabelTorres.id,  'crew')
+  await assignProjectCrew(p1.id, jasmineBell.id,   'crew')
+  await assignProjectCrew(p1.id, fionaDrake.id,    'crew')
+  await assignProjectCrew(p1.id, peteLarsson.id,   'crew')
+  await assignProjectCrew(p1.id, andreKim.id,      'crew')
+  await assignProjectCrew(p1.id, miaChen.id,       'coordinator')
+  await assignProjectCrew(p1.id, ariaStone.id,     'crew')
+  await assignProjectCrew(p1.id, veraHastings.id,  'crew')
+  await assignProjectCrew(p1.id, lenaFarrow.id,    'crew')
+
+  // P1 — Milestones (13)
+  await prisma.milestone.createMany({ data: [
+    { projectId: p1.id, title: 'Creative brief approved',                    date: new Date('2026-04-04'), status: 'completed' },
+    { projectId: p1.id, title: 'Director and DP attached',                   date: new Date('2026-04-05'), status: 'completed' },
+    { projectId: p1.id, title: 'Talent confirmed — Aria Stone',              date: new Date('2026-04-08'), status: 'completed' },
+    { projectId: p1.id, title: 'Location shortlist submitted to client',     date: new Date('2026-04-07'), status: 'completed' },
+    { projectId: p1.id, title: 'Location scout walk-through — Bel Air estate', date: new Date('2026-04-12'), status: 'in_progress' },
+    { projectId: p1.id, title: 'Tech scout with all department heads',       date: new Date('2026-04-13'), status: 'upcoming' },
+    { projectId: p1.id, title: 'All department heads locked and confirmed',  date: new Date('2026-04-14'), status: 'upcoming' },
+    { projectId: p1.id, title: 'Call sheet v1 issued to full crew',          date: new Date('2026-04-16'), status: 'upcoming' },
+    { projectId: p1.id, title: 'Shoot Day — Bel Air Estate',                 date: new Date('2026-04-17'), status: 'upcoming' },
+    { projectId: p1.id, title: 'Selects to client for approval',             date: new Date('2026-04-20'), status: 'upcoming' },
+    { projectId: p1.id, title: 'Rough cut v1 delivered',                     date: new Date('2026-04-24'), status: 'upcoming' },
+    { projectId: p1.id, title: 'Client review — round 1',                   date: new Date('2026-04-26'), status: 'upcoming' },
+    { projectId: p1.id, title: 'Final delivery — all cuts + formats',        date: new Date('2026-05-03'), status: 'upcoming' },
+  ]})
+
+  // P1 — Action Items (12)
+  await prisma.actionItem.createMany({ data: [
+    { projectId: p1.id, title: 'Confirm estate permit + production insurance',  assignedTo: danaPark.id,      dueDate: new Date('2026-04-12'), status: 'in_progress' },
+    { projectId: p1.id, title: "Issue talent rider to Aria's team",             assignedTo: veraHastings.id,  dueDate: new Date('2026-04-12'), status: 'open' },
+    { projectId: p1.id, title: 'Compile department head contact sheet',         assignedTo: miaChen.id,       dueDate: new Date('2026-04-12'), status: 'in_progress' },
+    { projectId: p1.id, title: "Create shot list from director's boards",       assignedTo: theoHartmann.id,  dueDate: new Date('2026-04-13'), status: 'in_progress' },
+    { projectId: p1.id, title: 'Submit art department breakdown',               assignedTo: claireRenault.id, dueDate: new Date('2026-04-13'), status: 'open' },
+    { projectId: p1.id, title: 'Tech scout attendance confirmed — all depts',   assignedTo: jamesCalloway.id, dueDate: new Date('2026-04-13'), status: 'done' },
+    { projectId: p1.id, title: 'Confirm hair + MUA kit lists and prep day',     assignedTo: jasmineBell.id,   dueDate: new Date('2026-04-13'), status: 'open' },
+    { projectId: p1.id, title: 'Book production trucks and basecamp',           assignedTo: danaPark.id,      dueDate: new Date('2026-04-13'), status: 'open' },
+    { projectId: p1.id, title: 'Submit catering order — 50 person count',       assignedTo: miaChen.id,       dueDate: new Date('2026-04-14'), status: 'open' },
+    { projectId: p1.id, title: 'Draft call sheet v1',                           assignedTo: jamesCalloway.id, dueDate: new Date('2026-04-15'), status: 'open' },
+    { projectId: p1.id, title: 'Talent pickup and transport logistics',         assignedTo: danaPark.id,      dueDate: new Date('2026-04-15'), status: 'open' },
+    { projectId: p1.id, title: 'Insurance certificate delivered to estate owner', assignedTo: marcusWebb.id,  dueDate: new Date('2026-04-12'), status: 'in_progress' },
+  ]})
+
   // ══════════════════════════════════════════════════════════════════════════
   // PROJECT 2 — FULL SEND
   // Client: Vanta  Status: Production  Day 2 of 3  Run-and-gun
@@ -194,12 +270,12 @@ FADE TO BLACK.`,
   // ══════════════════════════════════════════════════════════════════════════
 
   const jakeMorales = await upsertCrew(team.id, 'Jake Morales', 'director')
-  await upsertCrew(team.id, 'Casey Lin',   'producer')
-  await upsertCrew(team.id, 'Dani Reeves', 'crew')
-  await upsertCrew(team.id, 'Tyler Green', 'crew')
-  await upsertCrew(team.id, 'Marco Silva', 'crew')
-  await upsertCrew(team.id, 'Zoe Park',    'crew')
-  await upsertCrew(team.id, 'Dev Okafor',  'crew')
+  const caseyLin    = await upsertCrew(team.id, 'Casey Lin',   'producer')
+  const daniReeves  = await upsertCrew(team.id, 'Dani Reeves', 'crew')
+  const tylerGreen  = await upsertCrew(team.id, 'Tyler Green', 'crew')
+  const marcoSilva  = await upsertCrew(team.id, 'Marco Silva', 'crew')
+  const zoePark     = await upsertCrew(team.id, 'Zoe Park',    'crew')
+  const devOkafor   = await upsertCrew(team.id, 'Dev Okafor',  'crew')
 
   const p2 = await prisma.project.create({
     data: { teamId: team.id, name: 'Full Send', status: 'production', client: 'Vanta', type: 'commercial', color: '#E84225' },
@@ -316,6 +392,41 @@ CUT TO BLACK.`,
 
   console.log('  P2: Full Send — 3 scenes, 15 shots, 7 crew')
 
+  // P2 — ProjectMembers (7 crew)
+  await assignProjectCrew(p2.id, jakeMorales.id, 'director')
+  await assignProjectCrew(p2.id, caseyLin.id,    'producer')
+  await assignProjectCrew(p2.id, daniReeves.id,  'crew')
+  await assignProjectCrew(p2.id, tylerGreen.id,  'crew')
+  await assignProjectCrew(p2.id, marcoSilva.id,  'crew')
+  await assignProjectCrew(p2.id, zoePark.id,     'crew')
+  await assignProjectCrew(p2.id, devOkafor.id,   'crew')
+
+  // P2 — Milestones (10)
+  await prisma.milestone.createMany({ data: [
+    { projectId: p2.id, title: 'Creative approved',                       date: new Date('2026-04-01'), status: 'completed' },
+    { projectId: p2.id, title: 'Athlete agreements signed',               date: new Date('2026-04-03'), status: 'completed' },
+    { projectId: p2.id, title: 'Location permits cleared — all 3 sites',  date: new Date('2026-04-05'), status: 'completed' },
+    { projectId: p2.id, title: 'Day 1 — Surf · Malibu Point',            date: new Date('2026-04-10'), status: 'completed' },
+    { projectId: p2.id, title: 'Day 2 — Trail Run · Griffith Park Ridge', date: new Date('2026-04-11'), status: 'in_progress' },
+    { projectId: p2.id, title: 'Day 3 — Skate · DTLA Memorial Skatepark', date: new Date('2026-04-12'), status: 'upcoming' },
+    { projectId: p2.id, title: 'All footage transferred and logged',      date: new Date('2026-04-13'), status: 'upcoming' },
+    { projectId: p2.id, title: 'Cut v1 delivered to Vanta',              date: new Date('2026-04-17'), status: 'upcoming' },
+    { projectId: p2.id, title: 'Client review',                          date: new Date('2026-04-19'), status: 'upcoming' },
+    { projectId: p2.id, title: 'Final delivery — all formats',           date: new Date('2026-04-23'), status: 'upcoming' },
+  ]})
+
+  // P2 — Action Items (8)
+  await prisma.actionItem.createMany({ data: [
+    { projectId: p2.id, title: 'Transfer Day 1 footage to Vanta shared drive',   assignedTo: tylerGreen.id,  dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p2.id, title: 'Confirm skatepark permit for Apr 12',            assignedTo: caseyLin.id,    dueDate: new Date('2026-04-11'), status: 'in_progress' },
+    { projectId: p2.id, title: 'Athlete release forms — all three signed',       assignedTo: caseyLin.id,    dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p2.id, title: 'Trail rig setup — helmet + chest mounts tested', assignedTo: daniReeves.id,  dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p2.id, title: 'Backup Vanta units charged and tested',          assignedTo: jakeMorales.id, dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p2.id, title: 'Day 1 selects log created for editor',           assignedTo: jakeMorales.id, dueDate: new Date('2026-04-12'), status: 'open' },
+    { projectId: p2.id, title: 'Book edit suite for post',                       assignedTo: caseyLin.id,    dueDate: new Date('2026-04-12'), status: 'open' },
+    { projectId: p2.id, title: 'Confirm music license direction with Vanta',     assignedTo: caseyLin.id,    dueDate: new Date('2026-04-14'), status: 'open' },
+  ]})
+
   // ══════════════════════════════════════════════════════════════════════════
   // PROJECT 3 — IN VINO VERITAS
   // Client: Napa Collective  Status: Production  Day 2 of 3  Doc pilot
@@ -323,13 +434,13 @@ CUT TO BLACK.`,
   // ══════════════════════════════════════════════════════════════════════════
 
   const eliseMarchetti = await upsertCrew(team.id, 'Elise Marchetti', 'director')
-  await upsertCrew(team.id, 'Owen Blakely',   'crew')
-  await upsertCrew(team.id, 'Tom Vega',       'crew')
-  await upsertCrew(team.id, 'Lucia Fontaine', 'producer')
-  await upsertCrew(team.id, 'Ryan Cole',      'crew')
-  await upsertCrew(team.id, 'Paul Navarro',   'crew')
-  await upsertCrew(team.id, 'Marcus Trent',   'crew')
-  await upsertCrew(team.id, 'Jin Ho',         'crew')
+  const owenBlakely    = await upsertCrew(team.id, 'Owen Blakely',   'crew')
+  const tomVega        = await upsertCrew(team.id, 'Tom Vega',       'crew')
+  const luciaFontaine  = await upsertCrew(team.id, 'Lucia Fontaine', 'producer')
+  const ryanCole       = await upsertCrew(team.id, 'Ryan Cole',      'crew')
+  const paulNavarro    = await upsertCrew(team.id, 'Paul Navarro',   'crew')
+  const marcusTrent    = await upsertCrew(team.id, 'Marcus Trent',   'crew')
+  const jinHo          = await upsertCrew(team.id, 'Jin Ho',         'crew')
 
   const p3 = await prisma.project.create({
     data: { teamId: team.id, name: 'In Vino Veritas', status: 'production', client: 'Napa Collective', type: 'documentary', color: '#5B2333' },
@@ -447,6 +558,42 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
 
   console.log('  P3: In Vino Veritas — 3 sequences, 14 shots, 8 crew')
 
+  // P3 — ProjectMembers (8 crew)
+  await assignProjectCrew(p3.id, eliseMarchetti.id, 'director')
+  await assignProjectCrew(p3.id, owenBlakely.id,    'crew')
+  await assignProjectCrew(p3.id, tomVega.id,        'crew')
+  await assignProjectCrew(p3.id, luciaFontaine.id,  'producer')
+  await assignProjectCrew(p3.id, ryanCole.id,       'crew')
+  await assignProjectCrew(p3.id, paulNavarro.id,    'crew')
+  await assignProjectCrew(p3.id, marcusTrent.id,    'crew')
+  await assignProjectCrew(p3.id, jinHo.id,          'crew')
+
+  // P3 — Milestones (10)
+  await prisma.milestone.createMany({ data: [
+    { projectId: p3.id, title: 'Concept approved by Napa Collective',        date: new Date('2026-04-03'), status: 'completed' },
+    { projectId: p3.id, title: 'All three subjects confirmed and briefed',   date: new Date('2026-04-07'), status: 'completed' },
+    { projectId: p3.id, title: 'Day 1 — Vineyard Estate, Oakville',         date: new Date('2026-04-10'), status: 'completed' },
+    { projectId: p3.id, title: 'Day 2 — Barrel Cellar, St. Helena',         date: new Date('2026-04-11'), status: 'in_progress' },
+    { projectId: p3.id, title: 'Day 3 — Valley Road + Vista Points',        date: new Date('2026-04-12'), status: 'upcoming' },
+    { projectId: p3.id, title: 'Interview pickup day — Paul Navarro solo',  date: new Date('2026-04-15'), status: 'upcoming' },
+    { projectId: p3.id, title: 'Assembly cut',                              date: new Date('2026-04-20'), status: 'upcoming' },
+    { projectId: p3.id, title: "Director's cut delivered",                  date: new Date('2026-04-25'), status: 'upcoming' },
+    { projectId: p3.id, title: 'Client screening — Napa Collective',        date: new Date('2026-04-28'), status: 'upcoming' },
+    { projectId: p3.id, title: 'Pilot delivery + series pitch package',     date: new Date('2026-05-05'), status: 'upcoming' },
+  ]})
+
+  // P3 — Action Items (8)
+  await prisma.actionItem.createMany({ data: [
+    { projectId: p3.id, title: 'Log and sync Day 1 footage',                        assignedTo: owenBlakely.id,   dueDate: new Date('2026-04-11'), status: 'in_progress' },
+    { projectId: p3.id, title: 'Interview questions refined for cellar session',    assignedTo: eliseMarchetti.id, dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p3.id, title: 'Barrel room winery access confirmed',              assignedTo: ryanCole.id,      dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p3.id, title: 'Day 3 road route mapped + vista permits',          assignedTo: luciaFontaine.id, dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p3.id, title: 'Transcription service booked for all interviews',  assignedTo: luciaFontaine.id, dueDate: new Date('2026-04-13'), status: 'open' },
+    { projectId: p3.id, title: 'Cut structure outline — paper edit from Day 1',    assignedTo: eliseMarchetti.id, dueDate: new Date('2026-04-16'), status: 'open' },
+    { projectId: p3.id, title: 'Temp music selects for assembly',                  assignedTo: eliseMarchetti.id, dueDate: new Date('2026-04-19'), status: 'open' },
+    { projectId: p3.id, title: 'Archival wine footage licensing',                  assignedTo: luciaFontaine.id, dueDate: new Date('2026-04-18'), status: 'open' },
+  ]})
+
   // ══════════════════════════════════════════════════════════════════════════
   // PROJECT 4 — FLEXIBILITY COURSE A
   // Client: Kaia Mori  Status: Pre-Production  Episode 1 of 6
@@ -454,10 +601,10 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
   // ══════════════════════════════════════════════════════════════════════════
 
   const simonePark = await upsertCrew(team.id, 'Simone Park', 'director')
-  await upsertCrew(team.id, 'Alex Drum',  'crew')
-  await upsertCrew(team.id, 'Hana Liu',   'crew')
-  await upsertCrew(team.id, 'Tyler Moss', 'crew')
-  await upsertCrew(team.id, 'Kaia Mori',  'crew')
+  const alexDrum   = await upsertCrew(team.id, 'Alex Drum',  'crew')
+  const hanaLiu    = await upsertCrew(team.id, 'Hana Liu',   'crew')
+  const tylerMoss  = await upsertCrew(team.id, 'Tyler Moss', 'crew')
+  const kaiaMori   = await upsertCrew(team.id, 'Kaia Mori',  'crew')
 
   const p4 = await prisma.project.create({
     data: { teamId: team.id, name: 'Flexibility Course A', status: 'pre_production', client: 'Kaia Mori', type: 'educational', color: '#7AACB3' },
@@ -585,6 +732,40 @@ END EPISODE 1.`,
 
   console.log('  P4: Flexibility Course A — 3 sequences, 11 shots, 5 crew')
 
+  // P4 — ProjectMembers (5 crew)
+  await assignProjectCrew(p4.id, simonePark.id, 'director')
+  await assignProjectCrew(p4.id, alexDrum.id,   'crew')
+  await assignProjectCrew(p4.id, hanaLiu.id,    'crew')
+  await assignProjectCrew(p4.id, tylerMoss.id,  'crew')
+  await assignProjectCrew(p4.id, kaiaMori.id,   'crew')
+
+  // P4 — Milestones (11)
+  await prisma.milestone.createMany({ data: [
+    { projectId: p4.id, title: 'Series outline approved by Kaia',            date: new Date('2026-04-01'), status: 'completed' },
+    { projectId: p4.id, title: 'Episode 1 practice sequence locked',         date: new Date('2026-04-07'), status: 'completed' },
+    { projectId: p4.id, title: 'Studio booked — cyc space, downtown LA',     date: new Date('2026-04-08'), status: 'completed' },
+    { projectId: p4.id, title: 'Shot list v1 complete',                      date: new Date('2026-04-09'), status: 'completed' },
+    { projectId: p4.id, title: 'Gear prep and two-camera test',              date: new Date('2026-04-13'), status: 'in_progress' },
+    { projectId: p4.id, title: 'Studio Shoot Day — Ep 1 interior sequences', date: new Date('2026-04-16'), status: 'upcoming' },
+    { projectId: p4.id, title: 'Outdoor Shoot Day — Will Rogers State Park', date: new Date('2026-04-17'), status: 'upcoming' },
+    { projectId: p4.id, title: 'Episode 1 rough cut',                        date: new Date('2026-04-25'), status: 'upcoming' },
+    { projectId: p4.id, title: 'Kaia review + notes',                        date: new Date('2026-04-27'), status: 'upcoming' },
+    { projectId: p4.id, title: 'Episode 1 delivery',                         date: new Date('2026-05-02'), status: 'upcoming' },
+    { projectId: p4.id, title: 'Episode 2 pre-production begins',            date: new Date('2026-05-05'), status: 'upcoming' },
+  ]})
+
+  // P4 — Action Items (8)
+  await prisma.actionItem.createMany({ data: [
+    { projectId: p4.id, title: 'Finalize Ep 1 practice sequence with Kaia',       assignedTo: simonePark.id, dueDate: new Date('2026-04-12'), status: 'done' },
+    { projectId: p4.id, title: 'Wardrobe direction sent to Kaia',                 assignedTo: simonePark.id, dueDate: new Date('2026-04-12'), status: 'done' },
+    { projectId: p4.id, title: 'Talent release form signed',                      assignedTo: hanaLiu.id,    dueDate: new Date('2026-04-12'), status: 'done' },
+    { projectId: p4.id, title: 'Confirm studio lighting setup — two-cam positions', assignedTo: alexDrum.id,  dueDate: new Date('2026-04-13'), status: 'in_progress' },
+    { projectId: p4.id, title: 'Outdoor location confirmed — Will Rogers',         assignedTo: tylerMoss.id,  dueDate: new Date('2026-04-13'), status: 'done' },
+    { projectId: p4.id, title: 'Music licensing direction for series',             assignedTo: tylerMoss.id,  dueDate: new Date('2026-04-14'), status: 'open' },
+    { projectId: p4.id, title: 'Episode 2 outline draft',                         assignedTo: simonePark.id, dueDate: new Date('2026-04-20'), status: 'open' },
+    { projectId: p4.id, title: 'Series template locked after Ep 1 review',        assignedTo: simonePark.id, dueDate: new Date('2026-04-28'), status: 'open' },
+  ]})
+
   // ══════════════════════════════════════════════════════════════════════════
   // PROJECT 5 — NATURAL ORDER
   // Client: Meridian Climate  Status: Post-Production  Post-only sizzle
@@ -592,9 +773,9 @@ END EPISODE 1.`,
   // ══════════════════════════════════════════════════════════════════════════
 
   const rafiTorres = await upsertCrew(team.id, 'Rafi Torres', 'crew')
-  await upsertCrew(team.id, 'Cleo Strand', 'crew')
-  await upsertCrew(team.id, 'James North', 'crew')
-  await upsertCrew(team.id, 'Sarah Osei',  'crew')
+  const cleoStrand = await upsertCrew(team.id, 'Cleo Strand', 'crew')
+  const jamesNorth = await upsertCrew(team.id, 'James North', 'crew')
+  const sarahOsei  = await upsertCrew(team.id, 'Sarah Osei',  'crew')
 
   const p5 = await prisma.project.create({
     data: { teamId: team.id, name: 'Natural Order', status: 'post_production', client: 'Meridian Climate', type: 'branded', color: '#6B7F3B' },
@@ -712,27 +893,59 @@ FADE TO BLACK.`,
 
   console.log('  P5: Natural Order — 3 sequences, 14 elements, 4 team')
 
+  // P5 — ProjectMembers (4 crew)
+  await assignProjectCrew(p5.id, rafiTorres.id, 'crew')
+  await assignProjectCrew(p5.id, cleoStrand.id, 'crew')
+  await assignProjectCrew(p5.id, jamesNorth.id, 'crew')
+  await assignProjectCrew(p5.id, sarahOsei.id,  'crew')
+
+  // P5 — Milestones (10)
+  await prisma.milestone.createMany({ data: [
+    { projectId: p5.id, title: 'VO script approved by Dr. Osei',             date: new Date('2026-04-05'), status: 'completed' },
+    { projectId: p5.id, title: 'Stock footage selects locked — 42 clips',    date: new Date('2026-04-08'), status: 'completed' },
+    { projectId: p5.id, title: 'VO recording session — James North, remote', date: new Date('2026-04-10'), status: 'completed' },
+    { projectId: p5.id, title: 'GFX v1 — data visualization sequences',     date: new Date('2026-04-13'), status: 'in_progress' },
+    { projectId: p5.id, title: 'Assembly cut with VO synced',                date: new Date('2026-04-14'), status: 'upcoming' },
+    { projectId: p5.id, title: 'Client review round 1 — Dr. Osei',          date: new Date('2026-04-18'), status: 'upcoming' },
+    { projectId: p5.id, title: 'GFX revisions v2',                          date: new Date('2026-04-21'), status: 'upcoming' },
+    { projectId: p5.id, title: 'Color grade',                               date: new Date('2026-04-23'), status: 'upcoming' },
+    { projectId: p5.id, title: 'Final mix',                                 date: new Date('2026-04-24'), status: 'upcoming' },
+    { projectId: p5.id, title: 'Final delivery — all formats',              date: new Date('2026-04-25'), status: 'upcoming' },
+  ]})
+
+  // P5 — Action Items (8)
+  await prisma.actionItem.createMany({ data: [
+    { projectId: p5.id, title: 'VO file QC and sync to Premiere timeline',      assignedTo: rafiTorres.id, dueDate: new Date('2026-04-11'), status: 'in_progress' },
+    { projectId: p5.id, title: 'Stock clip licensing confirmation — all 42',    assignedTo: rafiTorres.id, dueDate: new Date('2026-04-12'), status: 'in_progress' },
+    { projectId: p5.id, title: 'GFX style frame approval — Dr. Osei',          assignedTo: cleoStrand.id, dueDate: new Date('2026-04-12'), status: 'open' },
+    { projectId: p5.id, title: 'Temp score confirmed for assembly',             assignedTo: rafiTorres.id, dueDate: new Date('2026-04-12'), status: 'done' },
+    { projectId: p5.id, title: 'GFX Sequence 1 — global data map build',       assignedTo: cleoStrand.id, dueDate: new Date('2026-04-13'), status: 'in_progress' },
+    { projectId: p5.id, title: 'Lower thirds and supers design',               assignedTo: cleoStrand.id, dueDate: new Date('2026-04-14'), status: 'open' },
+    { projectId: p5.id, title: 'End card and Meridian logo lockup',            assignedTo: cleoStrand.id, dueDate: new Date('2026-04-14'), status: 'open' },
+    { projectId: p5.id, title: 'Export specs confirmed with Meridian team',    assignedTo: rafiTorres.id, dueDate: new Date('2026-04-20'), status: 'open' },
+  ]})
+
   // ══════════════════════════════════════════════════════════════════════════
   // PROJECT 6 — THE WEAVE
   // Client: B Story  Status: Production  Day 3 of 3  Night shoot tonight
   // 3 scenes  16 shots  15 crew  Sundance target
   // ══════════════════════════════════════════════════════════════════════════
 
-  const nVale = await upsertCrew(team.id, 'N Vale',      'director')
-  await upsertCrew(team.id, 'Jess Huang',  'producer')
-  await upsertCrew(team.id, 'Caleb Stone', 'crew')
-  await upsertCrew(team.id, 'Maya Lin',    'crew')
-  await upsertCrew(team.id, 'Dario Reyes', 'crew')
-  await upsertCrew(team.id, 'Sam Park',    'crew')
-  await upsertCrew(team.id, 'Petra Walsh', 'crew')
-  await upsertCrew(team.id, 'Omar Rashid', 'crew')
-  await upsertCrew(team.id, 'Chris Tan',   'crew')
-  await upsertCrew(team.id, 'Rina Cole',   'crew')
-  await upsertCrew(team.id, 'Leo Marsh',   'crew')
-  await upsertCrew(team.id, 'Vera Koss',   'crew')
-  await upsertCrew(team.id, 'Dana Vance',  'crew')
-  await upsertCrew(team.id, 'Tyler Reed',  'crew')
-  await upsertCrew(team.id, 'Sofia Avila', 'crew')
+  const nVale      = await upsertCrew(team.id, 'N Vale',      'director')
+  const jessHuang  = await upsertCrew(team.id, 'Jess Huang',  'producer')
+  const calebStone = await upsertCrew(team.id, 'Caleb Stone', 'crew')
+  const mayaLin    = await upsertCrew(team.id, 'Maya Lin',    'crew')
+  const darioReyes = await upsertCrew(team.id, 'Dario Reyes', 'crew')
+  const samPark    = await upsertCrew(team.id, 'Sam Park',    'crew')
+  const petraWalsh = await upsertCrew(team.id, 'Petra Walsh', 'crew')
+  const omarRashid = await upsertCrew(team.id, 'Omar Rashid', 'crew')
+  const chrisTan   = await upsertCrew(team.id, 'Chris Tan',   'crew')
+  const rinaCole   = await upsertCrew(team.id, 'Rina Cole',   'crew')
+  const leoMarsh   = await upsertCrew(team.id, 'Leo Marsh',   'crew')
+  const veraKoss   = await upsertCrew(team.id, 'Vera Koss',   'crew')
+  const danaVance  = await upsertCrew(team.id, 'Dana Vance',  'crew')
+  const tylerReed  = await upsertCrew(team.id, 'Tyler Reed',  'crew')
+  const sofiaAvila = await upsertCrew(team.id, 'Sofia Avila', 'crew')
 
   const p6 = await prisma.project.create({
     data: { teamId: team.id, name: 'The Weave', status: 'production', client: 'B Story', type: 'narrative', color: '#6B3FA0' },
@@ -926,25 +1139,75 @@ FADE TO BLACK.`,
 
   console.log('  P6: The Weave — 3 scenes, 16 shots, 15 crew\n')
 
+  // P6 — ProjectMembers (15 crew)
+  await assignProjectCrew(p6.id, nVale.id,      'director')
+  await assignProjectCrew(p6.id, jessHuang.id,  'producer')
+  await assignProjectCrew(p6.id, calebStone.id, 'crew')
+  await assignProjectCrew(p6.id, mayaLin.id,    'crew')
+  await assignProjectCrew(p6.id, darioReyes.id, 'crew')
+  await assignProjectCrew(p6.id, samPark.id,    'crew')
+  await assignProjectCrew(p6.id, petraWalsh.id, 'crew')
+  await assignProjectCrew(p6.id, omarRashid.id, 'crew')
+  await assignProjectCrew(p6.id, chrisTan.id,   'crew')
+  await assignProjectCrew(p6.id, rinaCole.id,   'coordinator')
+  await assignProjectCrew(p6.id, leoMarsh.id,   'crew')
+  await assignProjectCrew(p6.id, veraKoss.id,   'crew')
+  await assignProjectCrew(p6.id, danaVance.id,  'crew')
+  await assignProjectCrew(p6.id, tylerReed.id,  'crew')
+  await assignProjectCrew(p6.id, sofiaAvila.id, 'crew')
+
+  // P6 — Milestones (11)
+  await prisma.milestone.createMany({ data: [
+    { projectId: p6.id, title: 'Script locked',                                date: new Date('2026-03-28'), status: 'completed' },
+    { projectId: p6.id, title: 'Full crew deals closed',                      date: new Date('2026-04-01'), status: 'completed' },
+    { projectId: p6.id, title: 'All location permits cleared',                date: new Date('2026-04-05'), status: 'completed' },
+    { projectId: p6.id, title: 'Day 1 — Desert Flats, Mojave',               date: new Date('2026-04-09'), status: 'completed' },
+    { projectId: p6.id, title: 'Day 2 — Ravine, Malibu Creek',               date: new Date('2026-04-10'), status: 'completed' },
+    { projectId: p6.id, title: 'Day 3 — Night Exterior, Joshua Tree',        date: new Date('2026-04-11'), status: 'in_progress' },
+    { projectId: p6.id, title: 'Company wrap',                               date: new Date('2026-04-12'), status: 'upcoming' },
+    { projectId: p6.id, title: 'Assembly cut',                               date: new Date('2026-04-26'), status: 'upcoming' },
+    { projectId: p6.id, title: "Director's cut delivered",                   date: new Date('2026-05-05'), status: 'upcoming' },
+    { projectId: p6.id, title: 'Sound design + original score complete',     date: new Date('2026-05-15'), status: 'upcoming' },
+    { projectId: p6.id, title: 'Picture lock',                               date: new Date('2026-05-20'), status: 'upcoming' },
+  ]})
+
+  // P6 — Action Items (8)
+  await prisma.actionItem.createMany({ data: [
+    { projectId: p6.id, title: 'Night shoot equipment check — full lighting rig',    assignedTo: darioReyes.id, dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p6.id, title: 'Generator fuel and placement confirmed',             assignedTo: tylerReed.id,  dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p6.id, title: 'Night location walk — DP + Director + AD',          assignedTo: calebStone.id, dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p6.id, title: 'Continuity notes Days 1+2 compiled',               assignedTo: danaVance.id,  dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p6.id, title: 'Night location permit confirmed — Joshua Tree NPS', assignedTo: jessHuang.id,  dueDate: new Date('2026-04-10'), status: 'done' },
+    { projectId: p6.id, title: 'Assembly cut editor confirmed and booked',          assignedTo: jessHuang.id,  dueDate: new Date('2026-04-12'), status: 'in_progress' },
+    { projectId: p6.id, title: 'Score composer brief',                              assignedTo: nVale.id,      dueDate: new Date('2026-04-20'), status: 'open' },
+    { projectId: p6.id, title: 'Festival delivery specs — DCP + digital',          assignedTo: jessHuang.id,  dueDate: new Date('2026-05-25'), status: 'open' },
+  ]})
+
   // ── Final count ───────────────────────────────────────────────────────────
   const counts = {
-    projects:    await prisma.project.count(),
-    scenes:      await prisma.scene.count(),
-    shots:       await prisma.shot.count(),
-    entities:    await prisma.entity.count(),
-    documents:   await prisma.document.count(),
-    users:       await prisma.user.count(),
-    teamMembers: await prisma.teamMember.count(),
+    projects:       await prisma.project.count(),
+    scenes:         await prisma.scene.count(),
+    shots:          await prisma.shot.count(),
+    entities:       await prisma.entity.count(),
+    documents:      await prisma.document.count(),
+    users:          await prisma.user.count(),
+    teamMembers:    await prisma.teamMember.count(),
+    projectMembers: await prisma.projectMember.count(),
+    milestones:     await prisma.milestone.count(),
+    actionItems:    await prisma.actionItem.count(),
   }
 
   console.log('  ─────────────────────────────')
-  console.log(`  Projects:     ${counts.projects}`)
-  console.log(`  Scenes:       ${counts.scenes}`)
-  console.log(`  Shots:        ${counts.shots}`)
-  console.log(`  Entities:     ${counts.entities}`)
-  console.log(`  Documents:    ${counts.documents}`)
-  console.log(`  Users:        ${counts.users}`)
-  console.log(`  TeamMembers:  ${counts.teamMembers}`)
+  console.log(`  Projects:        ${counts.projects}`)
+  console.log(`  Scenes:          ${counts.scenes}`)
+  console.log(`  Shots:           ${counts.shots}`)
+  console.log(`  Entities:        ${counts.entities}`)
+  console.log(`  Documents:       ${counts.documents}`)
+  console.log(`  Users:           ${counts.users}`)
+  console.log(`  TeamMembers:     ${counts.teamMembers}`)
+  console.log(`  ProjectMembers:  ${counts.projectMembers}`)
+  console.log(`  Milestones:      ${counts.milestones}`)
+  console.log(`  ActionItems:     ${counts.actionItems}`)
   console.log('  ─────────────────────────────')
   console.log('  Done.\n')
 }

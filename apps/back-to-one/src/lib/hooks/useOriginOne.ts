@@ -125,36 +125,36 @@ export function useAllCrew() {
   })
 }
 
-export function useCrew(teamId: string) {
+export function useCrew(projectId: string) {
   return useQuery({
-    queryKey: keys.crew(teamId),
-    queryFn:  () => db.getCrew(teamId),
-    enabled:  !!teamId,
+    queryKey: keys.crew(projectId),
+    queryFn:  () => db.getCrew(projectId),
+    enabled:  !!projectId,
   })
 }
 
-export function useAddCrewMember(teamId: string) {
+export function useAddCrewMember(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: db.addCrewMember,
-    onSuccess:  () => qc.invalidateQueries({ queryKey: keys.crew(teamId) }),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: keys.crew(projectId) }),
   })
 }
 
-export function useRemoveCrewMember(teamId: string) {
+export function useRemoveCrewMember(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: db.removeCrewMember,
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.crew(teamId) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.crew(projectId) }),
   })
 }
 
-export function useUpdateCrewMember(teamId: string) {
+export function useUpdateCrewMember(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, fields }: { id: string; fields: { role?: string } }) =>
       db.updateCrewMember(id, fields),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.crew(teamId) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.crew(projectId) }),
   })
 }
 
