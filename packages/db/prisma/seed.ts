@@ -89,7 +89,7 @@ async function main() {
   await upsertCrew(team.id, 'Lena Farrow',    'crew')
 
   const p1 = await prisma.project.create({
-    data: { teamId: team.id, name: 'Simple Skin Promo', status: 'pre_production' },
+    data: { teamId: team.id, name: 'Simple Skin Promo', status: 'pre_production', client: 'Lumière Skincare', type: 'commercial', color: '#D4A847' },
   })
 
   const p1s1 = await prisma.scene.create({ data: {
@@ -202,7 +202,7 @@ FADE TO BLACK.`,
   await upsertCrew(team.id, 'Dev Okafor',  'crew')
 
   const p2 = await prisma.project.create({
-    data: { teamId: team.id, name: 'Full Send', status: 'production' },
+    data: { teamId: team.id, name: 'Full Send', status: 'production', client: 'Vanta', type: 'commercial', color: '#E84225' },
   })
 
   // Scene 01 — The Drop. EXT. Dawn. Malibu Point. DONE.
@@ -332,7 +332,7 @@ CUT TO BLACK.`,
   await upsertCrew(team.id, 'Jin Ho',         'crew')
 
   const p3 = await prisma.project.create({
-    data: { teamId: team.id, name: 'In Vino Veritas', status: 'production' },
+    data: { teamId: team.id, name: 'In Vino Veritas', status: 'production', client: 'Napa Collective', type: 'documentary', color: '#5B2333' },
   })
 
   // Sequence 01 — The Vine. EXT. Golden Hour. Oakville Estate. DONE.
@@ -460,7 +460,7 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
   await upsertCrew(team.id, 'Kaia Mori',  'crew')
 
   const p4 = await prisma.project.create({
-    data: { teamId: team.id, name: 'Flexibility Course A', status: 'pre_production' },
+    data: { teamId: team.id, name: 'Flexibility Course A', status: 'pre_production', client: 'Kaia Mori', type: 'educational', color: '#7AACB3' },
   })
 
   // Sequence 01 — The Welcome. INT. Studio. White Cyc.
@@ -597,7 +597,7 @@ END EPISODE 1.`,
   await upsertCrew(team.id, 'Sarah Osei',  'crew')
 
   const p5 = await prisma.project.create({
-    data: { teamId: team.id, name: 'Natural Order', status: 'post_production' },
+    data: { teamId: team.id, name: 'Natural Order', status: 'post_production', client: 'Meridian Climate', type: 'branded', color: '#6B7F3B' },
   })
 
   // Sequence 01 — The Problem. 0:00-0:45.
@@ -735,7 +735,7 @@ FADE TO BLACK.`,
   await upsertCrew(team.id, 'Sofia Avila', 'crew')
 
   const p6 = await prisma.project.create({
-    data: { teamId: team.id, name: 'The Weave', status: 'production' },
+    data: { teamId: team.id, name: 'The Weave', status: 'production', client: 'B Story', type: 'narrative', color: '#6B3FA0' },
   })
 
   // Scene 01 — Apogee: Eli. EXT. Day. Desert Flats, Mojave. DONE.

@@ -1,42 +1,23 @@
 import { createBrowserAuthClient as createClient } from '@origin-one/auth'
-import type {
-  Project, Folder, CrewMember, ActionItem, Milestone,
-  SceneMakerVersion, Scene, Shot, MoodboardRef,
-  LocationGroup, CastRole, ArtItem,
-  Thread, ThreadMessage, Resource, WorkflowNode,
-} from '@/types'
-
-function genId(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36)
-}
 
 // ── PROJECTS ───────────────────────────────────────────────
 
-export async function getProjects(): Promise<Project[]> {
+export async function getProjects() {
   const db = createClient()
-  // Try filtering out archived; fall back if column doesn't exist yet
   const { data, error } = await db
-    .from('projects')
+    .from('Project')
     .select('*')
-    .neq('archived', true)
-    .order('created_at', { ascending: false })
-  if (error) {
-    // Column may not exist — retry without filter
-    const { data: fallback, error: err2 } = await db
-      .from('projects')
-      .select('*')
-      .order('created_at', { ascending: false })
-    if (err2) throw err2
-    return fallback
-  }
+    .neq('status', 'archived')
+    .order('createdAt', { ascending: false })
+  if (error) throw error
   return data
 }
 
 export async function archiveProject(projectId: string): Promise<void> {
   const db = createClient()
   const { error } = await db
-    .from('projects')
-    .update({ archived: true })
+    .from('Project')
+    .update({ status: 'archived' })
     .eq('id', projectId)
   if (error) { console.error('archiveProject failed:', error); throw error }
 }
@@ -44,16 +25,16 @@ export async function archiveProject(projectId: string): Promise<void> {
 export async function deleteProject(projectId: string): Promise<void> {
   const db = createClient()
   const { error } = await db
-    .from('projects')
+    .from('Project')
     .delete()
     .eq('id', projectId)
   if (error) { console.error('deleteProject failed:', error); throw error }
 }
 
-export async function getProject(id: string): Promise<Project> {
+export async function getProject(id: string) {
   const db = createClient()
   const { data, error } = await db
-    .from('projects')
+    .from('Project')
     .select('*')
     .eq('id', id)
     .single()
@@ -62,20 +43,18 @@ export async function getProject(id: string): Promise<Project> {
 }
 
 export async function createProject(
-  project: Omit<Project, 'sceneCount' | 'shotCount' | 'createdAt' | 'updatedAt'>
-): Promise<Project> {
+  project: { name: string; teamId: string; status?: string; color?: string; client?: string; type?: string }
+) {
   const db = createClient()
-  const now = new Date().toISOString()
   const { data, error } = await db
-    .from('projects')
+    .from('Project')
     .insert({
-      id: project.id, name: project.name, type: project.type, client: project.client,
-      company: project.company, phase: project.phase, status: project.status, logline: project.logline,
-      runtime_target: project.runtimeTarget, aspect_ratio: project.aspectRatio,
-      capture_format: project.captureFormat, start_date: project.startDate,
-      shoot_date: project.shootDate, shoot_date_end: project.shootDateEnd,
-      delivery_date: project.deliveryDate, scene_count: 0, shot_count: 0,
-      created_at: now, updated_at: now,
+      name: project.name,
+      teamId: project.teamId,
+      status: project.status ?? 'development',
+      color: project.color ?? null,
+      client: project.client ?? null,
+      type: project.type ?? null,
     })
     .select()
     .single()
@@ -85,40 +64,39 @@ export async function createProject(
 
 export async function updateProject(
   projectId: string,
-  fields: { name?: string; client?: string; accent_color?: string; folder_id?: string | null; display_order?: number }
+  fields: { name?: string; status?: string; color?: string; client?: string; type?: string }
 ): Promise<void> {
   const db = createClient()
   const { error } = await db
-    .from('projects')
-    .update({ ...fields, updated_at: new Date().toISOString() })
+    .from('Project')
+    .update(fields)
     .eq('id', projectId)
   if (error) { console.error('updateProject failed:', error); throw error }
 }
 
 // ── FOLDERS ───────────────────────────────────────────────
 
-export async function getFolders(): Promise<Folder[]> {
+export async function getFolders(projectId: string) {
   const db = createClient()
   const { data, error } = await db
-    .from('folders')
+    .from('Folder')
     .select('*')
-    .order('order', { ascending: true })
+    .eq('projectId', projectId)
+    .order('name', { ascending: true })
   if (error) {
-    // Table may not exist yet — return empty
-    console.warn('getFolders: table may not exist yet', error.message)
+    console.warn('getFolders failed:', error.message)
     return []
   }
   return data
 }
 
 export async function createFolder(
-  folder: { id: string; name: string; color: string; logo_url?: string | null; order: number }
-): Promise<Folder> {
+  folder: { projectId: string; name: string }
+) {
   const db = createClient()
-  const now = new Date().toISOString()
   const { data, error } = await db
-    .from('folders')
-    .insert({ ...folder, created_at: now, updated_at: now })
+    .from('Folder')
+    .insert({ projectId: folder.projectId, name: folder.name })
     .select()
     .single()
   if (error) { console.error('createFolder failed:', error); throw error }
@@ -127,12 +105,12 @@ export async function createFolder(
 
 export async function updateFolder(
   folderId: string,
-  fields: { name?: string; color?: string; logo_url?: string | null; order?: number }
+  fields: { name?: string }
 ): Promise<void> {
   const db = createClient()
   const { error } = await db
-    .from('folders')
-    .update({ ...fields, updated_at: new Date().toISOString() })
+    .from('Folder')
+    .update(fields)
     .eq('id', folderId)
   if (error) { console.error('updateFolder failed:', error); throw error }
 }
@@ -140,65 +118,47 @@ export async function updateFolder(
 export async function deleteFolder(folderId: string): Promise<void> {
   const db = createClient()
   const { error } = await db
-    .from('folders')
+    .from('Folder')
     .delete()
     .eq('id', folderId)
   if (error) { console.error('deleteFolder failed:', error); throw error }
 }
 
-export async function updateProjectOrder(
-  projectId: string,
-  fields: { display_order?: number; folder_id?: string | null }
-): Promise<void> {
-  const db = createClient()
-  const { error } = await db
-    .from('projects')
-    .update({ ...fields, updated_at: new Date().toISOString() })
-    .eq('id', projectId)
-  if (error) { console.error('updateProjectOrder failed:', error); throw error }
-}
+// ── CREW (User + TeamMember) ──────────────────────────────
 
-// ── CREW ───────────────────────────────────────────────────
-
-export async function getAllCrew(): Promise<(CrewMember & { projectName?: string })[]> {
+export async function getAllCrew() {
   const db = createClient()
   const { data, error } = await db
-    .from('crew_members')
-    .select('*, projects(name)')
-    .order('first', { ascending: true })
+    .from('TeamMember')
+    .select('*, User(*)')
+    .order('createdAt', { ascending: true })
   if (error) throw error
-  return data.map((c: any) => ({ ...c, projectName: c.projects?.name }))
+  return data
 }
 
-
-export async function getCrew(projectId: string): Promise<CrewMember[]> {
+export async function getCrew(teamId: string) {
   const db = createClient()
   const { data, error } = await db
-    .from('crew_members')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: true })
+    .from('TeamMember')
+    .select('*, User(*)')
+    .eq('teamId', teamId)
+    .order('createdAt', { ascending: true })
   if (error) throw error
   return data
 }
 
 export async function addCrewMember(
-  member: Omit<CrewMember, 'id' | 'online'>
-): Promise<CrewMember> {
+  member: { teamId: string; userId: string; role: string }
+) {
   const db = createClient()
-  const id = genId()
   const { data, error } = await db
-    .from('crew_members')
+    .from('TeamMember')
     .insert({
-      id, project_id: member.projectId,
-      first: member.first, last: member.last, role: member.role, dept: member.dept,
-      color1: member.color1, color2: member.color2, online: false,
-      phone: member.phone || '', email: member.email || '',
-      allergies: member.allergies || '', deal_memo_url: member.dealMemoUrl || '',
-      notes: member.notes || '', avatar_url: member.avatarUrl || '',
-      display_order: member.displayOrder ?? 0,
+      teamId: member.teamId,
+      userId: member.userId,
+      role: member.role,
     })
-    .select()
+    .select('*, User(*)')
     .single()
   if (error) { console.error('addCrewMember failed:', error); throw error }
   return data
@@ -206,49 +166,55 @@ export async function addCrewMember(
 
 export async function removeCrewMember(id: string): Promise<void> {
   const db = createClient()
-  const { error } = await db.from('crew_members').delete().eq('id', id)
+  const { error } = await db.from('TeamMember').delete().eq('id', id)
   if (error) { console.error('removeCrewMember failed:', error); throw error }
 }
 
 export async function updateCrewMember(
   id: string,
-  fields: Partial<Pick<CrewMember, 'first' | 'last' | 'role' | 'dept' | 'phone' | 'email' | 'allergies' | 'notes'>> & { deal_memo_url?: string; avatar_url?: string; display_order?: number }
+  fields: { role?: string }
 ): Promise<void> {
   const db = createClient()
-  const { error } = await db.from('crew_members').update(fields).eq('id', id)
+  const { error } = await db.from('TeamMember').update(fields).eq('id', id)
   if (error) { console.error('updateCrewMember failed:', error); throw error }
 }
 
 // ── ACTION ITEMS ───────────────────────────────────────────
 
-export async function getActionItems(projectId: string): Promise<ActionItem[]> {
+export async function getActionItems(projectId: string) {
   const db = createClient()
   const { data, error } = await db
-    .from('action_items')
+    .from('ActionItem')
     .select('*')
-    .eq('project_id', projectId)
-    .order('due_date', { ascending: true, nullsFirst: false })
+    .eq('projectId', projectId)
+    .order('dueDate', { ascending: true, nullsFirst: false })
   if (error) throw error
   return data
 }
 
 export async function toggleActionItem(id: string, done: boolean): Promise<void> {
   const db = createClient()
+  const status = done ? 'done' : 'open'
   const { error } = await db
-    .from('action_items')
-    .update({ done, updated_at: new Date().toISOString() })
+    .from('ActionItem')
+    .update({ status })
     .eq('id', id)
   if (error) { console.error('toggleActionItem failed:', error); throw error }
 }
 
 export async function createActionItem(
-  item: Omit<ActionItem, 'id' | 'createdAt' | 'updatedAt'>
-): Promise<ActionItem> {
+  item: { projectId: string; title: string; description?: string; assignedTo?: string | null; dueDate?: string | null }
+) {
   const db = createClient()
-  const id = genId()
   const { data, error } = await db
-    .from('action_items')
-    .insert({ id, project_id: item.projectId, name: item.name, dept: item.dept, assignee_id: item.assigneeId, due_date: item.dueDate, notes: item.notes, done: item.done })
+    .from('ActionItem')
+    .insert({
+      projectId: item.projectId,
+      title: item.title,
+      description: item.description ?? null,
+      assignedTo: item.assignedTo ?? null,
+      dueDate: item.dueDate ?? null,
+    })
     .select()
     .single()
   if (error) { console.error('createActionItem failed:', error); throw error }
@@ -257,392 +223,249 @@ export async function createActionItem(
 
 // ── MILESTONES ─────────────────────────────────────────────
 
-export async function getMilestones(projectId: string): Promise<Milestone[]> {
+export async function getMilestones(projectId: string) {
   const db = createClient()
   const { data, error } = await db
-    .from('milestones')
-    .select(`*, milestone_people(crew_id)`)
-    .eq('project_id', projectId)
+    .from('Milestone')
+    .select('*, MilestonePerson(userId)')
+    .eq('projectId', projectId)
     .order('date', { ascending: true })
   if (error) throw error
-  return data.map(m => ({
+  return data.map((m: any) => ({
     ...m,
-    people: m.milestone_people.map((p: { crew_id: string }) => p.crew_id),
+    people: (m.MilestonePerson ?? []).map((p: { userId: string }) => p.userId),
   }))
 }
 
 export async function createMilestone(
-  milestone: Omit<Milestone, 'id' | 'createdAt' | 'isNext'> & { people: string[] }
-): Promise<Milestone> {
+  milestone: { projectId: string; title: string; date: string; status?: string; notes?: string; people?: string[] }
+) {
   const db = createClient()
-  const { people, projectId, ...fields } = milestone
-  const id = genId()
+  const { people = [], ...fields } = milestone
   const { data, error } = await db
-    .from('milestones')
-    .insert({ id, project_id: projectId, name: fields.name, phase: fields.phase, dept: fields.dept, date: fields.date, notes: fields.notes })
+    .from('Milestone')
+    .insert({
+      projectId: fields.projectId,
+      title: fields.title,
+      date: fields.date,
+      status: fields.status ?? 'upcoming',
+      notes: fields.notes ?? null,
+    })
     .select()
     .single()
   if (error) { console.error('createMilestone failed:', error); throw error }
   if (people.length > 0) {
     const { error: pErr } = await db
-      .from('milestone_people')
-      .insert(people.map(crew_id => ({ milestone_id: id, crew_id })))
+      .from('MilestonePerson')
+      .insert(people.map(userId => ({ milestoneId: data.id, userId })))
     if (pErr) { console.error('createMilestone people failed:', pErr); throw pErr }
   }
   return { ...data, people }
 }
 
-// ── SCENEMAKER ─────────────────────────────────────────────
+// ── SCENES (was sm_scenes) ────────────────────────────────
 
-export async function getSceneMakerVersions(projectId: string): Promise<SceneMakerVersion[]> {
+export async function getScenes(projectId: string) {
   const db = createClient()
   const { data, error } = await db
-    .from('sm_versions')
+    .from('Scene')
     .select('*')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: true })
+    .eq('projectId', projectId)
+    .order('sortOrder', { ascending: true })
   if (error) throw error
-  return (data ?? []).map((v: any) => ({
-    ...v,
-    projectId: v.project_id ?? v.projectId,
-    isCurrent: v.is_current ?? v.isCurrent,
-    createdAt: v.created_at ?? v.createdAt,
-  }))
+  return data
 }
 
-export async function getSMScenes(versionId: string): Promise<Scene[]> {
+// ── SHOTS (was sm_shots) ──────────────────────────────────
+
+export async function getShots(sceneId: string) {
   const db = createClient()
   const { data, error } = await db
-    .from('sm_scenes')
+    .from('Shot')
     .select('*')
-    .eq('version_id', versionId)
-    .order('num', { ascending: true })
+    .eq('sceneId', sceneId)
+    .order('sortOrder', { ascending: true })
   if (error) throw error
-  return (data ?? []).map((s: any) => ({
-    ...s,
-    projectId: s.project_id ?? s.projectId,
-    versionId: s.version_id ?? s.versionId,
-    createdAt: s.created_at ?? s.createdAt,
-  }))
+  return data
 }
 
-export async function getSMShots(versionId: string): Promise<Shot[]> {
+export async function getShotsByProject(projectId: string) {
   const db = createClient()
   const { data, error } = await db
-    .from('sm_shots')
-    .select('*')
-    .eq('version_id', versionId)
-    .order('story_order', { ascending: true })
+    .from('Scene')
+    .select('*, Shot(*)')
+    .eq('projectId', projectId)
+    .order('sortOrder', { ascending: true })
   if (error) throw error
-  // Map snake_case DB columns to camelCase type fields
-  return (data ?? []).map((s: any) => ({
-    ...s,
-    desc: s.description ?? s.desc ?? '',
-    sceneId: s.scene_id ?? s.sceneId,
-    versionId: s.version_id ?? s.versionId,
-    projectId: s.project_id ?? s.projectId,
-    storyOrder: s.story_order ?? s.storyOrder,
-    shootOrder: s.shoot_order ?? s.shootOrder,
-    dirNotes: s.dir_notes ?? s.dirNotes ?? '',
-    prodNotes: s.prod_notes ?? s.prodNotes ?? '',
-    createdAt: s.created_at ?? s.createdAt,
-    updatedAt: s.updated_at ?? s.updatedAt,
-  }))
+  return data
 }
 
 export async function updateShotOrder(
   shotId: string,
-  fields: { story_order?: number; shoot_order?: number; scene_id?: string }
+  fields: { sortOrder?: number; sceneId?: string }
 ): Promise<void> {
   const db = createClient()
   const { error } = await db
-    .from('sm_shots')
-    .update({ ...fields, updated_at: new Date().toISOString() })
-    .eq('id', shotId)
-  if (error) throw error
-}
-
-export async function updateShotImages(
-  shotId: string,
-  images: string[]
-): Promise<void> {
-  const db = createClient()
-  const { error } = await db
-    .from('sm_shots')
-    .update({ images, updated_at: new Date().toISOString() })
+    .from('Shot')
+    .update(fields)
     .eq('id', shotId)
   if (error) throw error
 }
 
 export async function createShot(shot: {
-  id: string
-  projectId: string
-  versionId: string
   sceneId: string
-  storyOrder: number
-  shootOrder: number
-  desc: string
-  framing: string
-  movement: string
-  lens: string
-  dirNotes: string
-}): Promise<Shot> {
+  shotNumber: string
+  size?: string | null
+  description?: string
+  status?: string
+  sortOrder: number
+}) {
   const db = createClient()
   const { data, error } = await db
-    .from('sm_shots')
+    .from('Shot')
     .insert({
-      id: shot.id,
-      project_id: shot.projectId,
-      version_id: shot.versionId,
-      scene_id: shot.sceneId,
-      story_order: shot.storyOrder,
-      shoot_order: shot.shootOrder,
-      description: shot.desc,
-      framing: shot.framing,
-      movement: shot.movement,
-      lens: shot.lens,
-      dir_notes: shot.dirNotes,
-      prod_notes: '',
-      elements: [],
-      images: [],
-      status: 'planned',
+      sceneId: shot.sceneId,
+      shotNumber: shot.shotNumber,
+      size: shot.size ?? null,
+      description: shot.description ?? '',
+      status: shot.status ?? 'planned',
+      sortOrder: shot.sortOrder,
     })
     .select()
     .single()
-  if (error) throw error
-  return {
-    ...data,
-    desc: data.description ?? '',
-    sceneId: data.scene_id,
-    versionId: data.version_id,
-    projectId: data.project_id,
-    storyOrder: data.story_order,
-    shootOrder: data.shoot_order,
-    dirNotes: data.dir_notes ?? '',
-    prodNotes: data.prod_notes ?? '',
-    createdAt: data.created_at,
-    updatedAt: data.updated_at,
-  }
-}
-
-// ── MOODBOARD ──────────────────────────────────────────────
-
-export async function getMoodboardRefs(projectId: string): Promise<MoodboardRef[]> {
-  const db = createClient()
-  const { data, error } = await db
-    .from('moodboard_refs')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: true })
-  if (error) throw error
-  return data
-}
-
-export async function createMoodboardRef(
-  ref: Omit<MoodboardRef, 'id' | 'createdAt'>
-): Promise<MoodboardRef> {
-  const db = createClient()
-  const id = genId()
-  const { data, error } = await db
-    .from('moodboard_refs')
-    .insert({ id, project_id: ref.projectId, cat: ref.cat, title: ref.title, note: ref.note, image_url: ref.imageUrl, gradient: ref.gradient })
-    .select()
-    .single()
-  if (error) { console.error('createMoodboardRef failed:', error); throw error }
-  return data
-}
-
-// ── LOCATIONS ──────────────────────────────────────────────
-
-export async function getLocationGroups(projectId: string): Promise<LocationGroup[]> {
-  const db = createClient()
-  const { data, error } = await db
-    .from('location_groups')
-    .select(`*, location_options(*)`)
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: true })
-  if (error) throw error
-  return data
-}
-
-export async function updateLocationStatus(
-  optionId: string,
-  status: string
-): Promise<void> {
-  const db = createClient()
-  const { error } = await db
-    .from('location_options')
-    .update({ status })
-    .eq('id', optionId)
-  if (error) throw error
-}
-
-// ── CASTING ────────────────────────────────────────────────
-
-export async function getCastRoles(projectId: string): Promise<CastRole[]> {
-  const db = createClient()
-  const { data, error } = await db
-    .from('cast_roles')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('created_at', { ascending: true })
-  if (error) throw error
-  return data
-}
-
-export async function updateCastRole(
-  id: string,
-  updates: Partial<CastRole>
-): Promise<void> {
-  const db = createClient()
-  const { error } = await db
-    .from('cast_roles')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id)
-  if (error) throw error
-}
-
-// ── ART ────────────────────────────────────────────────────
-
-export async function getArtItems(projectId: string): Promise<ArtItem[]> {
-  const db = createClient()
-  const { data, error } = await db
-    .from('art_items')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('cat', { ascending: true })
   if (error) throw error
   return data
 }
 
 // ── THREADS ────────────────────────────────────────────────
 
-export async function getThreads(projectId: string): Promise<Thread[]> {
+export async function getThreads(projectId: string) {
   const db = createClient()
   const { data, error } = await db
-    .from('threads')
-    .select(`*, thread_messages(*)`)
-    .eq('project_id', projectId)
-    .order('updated_at', { ascending: false })
+    .from('Thread')
+    .select('*, ThreadMessage(*)')
+    .eq('projectId', projectId)
+    .order('updatedAt', { ascending: false })
   if (error) throw error
-  return data.map(t => ({
+  return data.map((t: any) => ({
     ...t,
-    unread: false, // computed client-side against last-read timestamp
-    messages: t.thread_messages,
+    messages: t.ThreadMessage ?? [],
   }))
 }
 
 export async function createThread(
   projectId: string,
-  subject: string,
-  contextType: string = 'general',
-  contextLabel: string = '',
-  contextRef: string = '',
-): Promise<Thread> {
+  title: string,
+  createdBy: string,
+) {
   const db = createClient()
-  const id = genId()
-  const now = new Date().toISOString()
   const { data, error } = await db
-    .from('threads')
-    .insert({ id, project_id: projectId, subject, context_type: contextType, context_label: contextLabel, context_ref: contextRef, created_at: now, updated_at: now })
+    .from('Thread')
+    .insert({ projectId, title, createdBy })
     .select()
     .single()
   if (error) { console.error('createThread failed:', error); throw error }
-  return { ...data, unread: false, messages: [] }
+  return { ...data, messages: [] }
 }
 
 export async function postMessage(
   threadId: string,
-  authorId: string,
-  tagged: string[],
-  text: string
-): Promise<ThreadMessage> {
+  createdBy: string,
+  content: string,
+) {
   const db = createClient()
-  const id = genId()
   const { data, error } = await db
-    .from('thread_messages')
-    .insert({ id, thread_id: threadId, author_id: authorId || null, tagged, text })
+    .from('ThreadMessage')
+    .insert({ threadId, createdBy, content })
     .select()
     .single()
   if (error) { console.error('postMessage failed:', error); throw error }
-  // Bump thread updated_at
-  const { error: updateErr } = await db.from('threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId)
-  if (updateErr) console.error('postMessage thread bump failed:', updateErr)
   return data
 }
 
 // ── RESOURCES ──────────────────────────────────────────────
 
-export async function getResources(projectId: string): Promise<Resource[]> {
+export async function getResources(projectId: string) {
   const db = createClient()
   const { data, error } = await db
-    .from('resources')
+    .from('Resource')
     .select('*')
-    .eq('project_id', projectId)
-    .order('pinned', { ascending: false })
+    .eq('projectId', projectId)
+    .order('createdAt', { ascending: false })
   if (error) throw error
   return data
 }
 
 export async function createResource(
-  resource: Omit<Resource, 'id' | 'createdAt'>
-): Promise<Resource> {
+  resource: { projectId: string; folderId?: string | null; title: string; url: string; type: string; createdBy: string }
+) {
   const db = createClient()
-  const id = genId()
   const { data, error } = await db
-    .from('resources')
-    .insert({ id, project_id: resource.projectId, cat: resource.cat, type: resource.type, title: resource.title, meta: resource.meta, url: resource.url, pinned: resource.pinned })
+    .from('Resource')
+    .insert({
+      projectId: resource.projectId,
+      folderId: resource.folderId ?? null,
+      title: resource.title,
+      url: resource.url,
+      type: resource.type,
+      createdBy: resource.createdBy,
+    })
     .select()
     .single()
   if (error) { console.error('createResource failed:', error); throw error }
   return data
 }
 
-// ── WORKFLOW ───────────────────────────────────────────────
-
-export async function getWorkflowNodes(projectId: string): Promise<WorkflowNode[]> {
-  const db = createClient()
-  const { data, error } = await db
-    .from('workflow_nodes')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('order', { ascending: true })
-  if (error) throw error
-  return data
-}
-
 // ── GLOBAL QUERIES (cross-project) ────────────────────────
 
-export async function getAllActionItems(): Promise<ActionItem[]> {
+export async function getAllActionItems() {
   const db = createClient()
   const { data, error } = await db
-    .from('action_items')
+    .from('ActionItem')
     .select('*')
-    .order('due_date', { ascending: true, nullsFirst: false })
+    .order('dueDate', { ascending: true, nullsFirst: false })
   if (error) throw error
   return data
 }
 
-export async function getAllMilestones(): Promise<Milestone[]> {
+export async function getAllMilestones() {
   const db = createClient()
   const { data, error } = await db
-    .from('milestones')
+    .from('Milestone')
     .select('*')
     .order('date', { ascending: true })
   if (error) throw error
   return data
 }
 
-export async function getAllThreads(): Promise<Thread[]> {
+export async function getAllThreads() {
   const db = createClient()
   const { data, error } = await db
-    .from('threads')
-    .select(`*, thread_messages(*)`)
-    .order('updated_at', { ascending: false })
+    .from('Thread')
+    .select('*, ThreadMessage(*)')
+    .order('updatedAt', { ascending: false })
   if (error) throw error
-  return data.map(t => ({
+  return data.map((t: any) => ({
     ...t,
-    unread: false,
-    messages: t.thread_messages,
+    messages: t.ThreadMessage ?? [],
   }))
 }
+
+// ── NOT YET IN SCHEMA (stubs) ─────────────────────────────
+// These tables were removed from the old schema and have no
+// equivalent in the new Prisma schema yet. Functions return
+// empty data so consuming code doesn't crash.
+
+export async function getSceneMakerVersions(_projectId: string) { return [] }
+export async function getSMScenes(_versionId: string) { return [] }
+export async function getSMShots(_versionId: string) { return [] }
+export async function updateShotImages(_shotId: string, _images: string[]) {}
+export async function getMoodboardRefs(_projectId: string) { return [] }
+export async function createMoodboardRef(_ref: any) { return _ref }
+export async function getLocationGroups(_projectId: string) { return [] }
+export async function updateLocationStatus(_optionId: string, _status: string) {}
+export async function getCastRoles(_projectId: string) { return [] }
+export async function updateCastRole(_id: string, _updates: any) {}
+export async function getArtItems(_projectId: string) { return [] }
+export async function getWorkflowNodes(_projectId: string) { return [] }
+export async function updateProjectOrder(_projectId: string, _fields: any) {}

@@ -129,6 +129,9 @@ model Project {
   teamId    String
   name      String
   status    ProjectStatus
+  color     String?
+  client    String?
+  type      String?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 

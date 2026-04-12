@@ -18,7 +18,12 @@
       "Bash(jobs -l)",
       "Bash(pnpm db:generate)",
       "Bash(pnpm db:push)",
-      "Bash(grep -n \"use\\(\" /Users/pawn/Code/origin-one/apps/back-to-one/src/app/projects/[projectId]/crew/page.tsx)"
+      "Bash(grep -n \"use\\(\" /Users/pawn/Code/origin-one/apps/back-to-one/src/app/projects/[projectId]/crew/page.tsx)",
+      "Bash(pnpm db:push -- --accept-data-loss)",
+      "Bash(npx prisma:*)",
+      "Bash(pnpm db:seed)",
+      "Bash(npx tsx -e ':*)",
+      "Bash(npx tsx:*)"
     ]
   }
 }

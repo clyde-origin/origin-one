@@ -15,6 +15,9 @@ export const Project = z.object({
   teamId: z.string().uuid(),
   name: z.string().min(1),
   status: ProjectStatus,
+  color: z.string().nullable(),
+  client: z.string().nullable(),
+  type: z.string().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
