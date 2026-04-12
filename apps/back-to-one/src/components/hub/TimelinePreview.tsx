@@ -1,4 +1,4 @@
-import { formatDate, isUrgent } from '@/lib/utils/phase'
+import { formatDate, isUrgent, MILESTONE_STATUS_HEX } from '@/lib/utils/phase'
 import type { Milestone, Project } from '@/types'
 
 interface TimelinePreviewProps {
@@ -13,18 +13,24 @@ export function TimelinePreview({ milestones, project }: TimelinePreviewProps) {
 
   return (
     <div className="flex flex-col gap-2.5">
-      {/* Phase bar */}
+      {/* Status bar */}
       <div className="flex rounded-sm overflow-hidden h-5 gap-px">
-        {(['pre', 'prod', 'post'] as const).map(phase => (
+        {(['development', 'pre_production', 'production', 'post_production'] as const).map(s => (
           <div
-            key={phase}
-            className={`flex-1 flex items-center justify-center font-mono text-[0.44rem] tracking-widest uppercase font-medium
-              ${phase === 'pre'  ? 'bg-pre/20 text-pre' : ''}
-              ${phase === 'prod' ? `text-prod ${project.phase === 'prod' ? 'bg-prod/30' : 'bg-prod/15'}` : ''}
-              ${phase === 'post' ? 'bg-post/15 text-post' : ''}
-            `}
+            key={s}
+            className="flex-1 flex items-center justify-center font-mono text-[0.44rem] tracking-widest uppercase font-medium"
+            style={{
+              background: project.status === s
+                ? `${MILESTONE_STATUS_HEX[s] ?? '#62627a'}30`
+                : 'rgba(255,255,255,0.04)',
+              color: project.status === s
+                ? (MILESTONE_STATUS_HEX[s] ?? '#62627a')
+                : '#62627a',
+            }}
           >
-            {phase}
+            {s === 'development' ? 'dev' :
+             s === 'pre_production' ? 'pre' :
+             s === 'production' ? 'prod' : 'post'}
           </div>
         ))}
       </div>
@@ -36,16 +42,15 @@ export function TimelinePreview({ milestones, project }: TimelinePreviewProps) {
         ) : (
           upcoming.map(ms => {
             const urgent = isUrgent(ms.date)
+            const dotColor = MILESTONE_STATUS_HEX[ms.status] ?? '#62627a'
             return (
               <div key={ms.id} className="flex items-center gap-2">
-                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                  ms.phase === 'pre' ? 'bg-pre' :
-                  ms.phase === 'prod' ? 'bg-prod' : 'bg-post'
-                }`} />
-                <span className="text-[0.72rem] text-text flex-1 truncate">{ms.name}</span>
-                <span className={`font-mono text-[0.52rem] flex-shrink-0 ${
-                  urgent ? 'text-pre' : 'text-muted'
-                }`}>
+                <div
+                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                  style={{ background: dotColor }}
+                />
+                <span className="text-[0.72rem] text-text flex-1 truncate">{ms.title}</span>
+                <span className={`font-mono text-[0.52rem] flex-shrink-0 ${urgent ? 'text-pre' : 'text-muted'}`}>
                   {formatDate(ms.date)}
                 </span>
               </div>

@@ -456,16 +456,16 @@ export async function getAllThreads() {
 // equivalent in the new Prisma schema yet. Functions return
 // empty data so consuming code doesn't crash.
 
-export async function getSceneMakerVersions(_projectId: string) { return [] }
-export async function getSMScenes(_versionId: string) { return [] }
-export async function getSMShots(_versionId: string) { return [] }
+export async function getSceneMakerVersions(_projectId: string): Promise<any[]> { return [] }
+export async function getSMScenes(_versionId: string): Promise<any[]> { return [] }
+export async function getSMShots(_versionId: string): Promise<any[]> { return [] }
 export async function updateShotImages(_shotId: string, _images: string[]) {}
-export async function getMoodboardRefs(_projectId: string) { return [] }
+export async function getMoodboardRefs(_projectId: string): Promise<any[]> { return [] }
 export async function createMoodboardRef(_ref: any) { return _ref }
-export async function getLocationGroups(_projectId: string) { return [] }
+export async function getLocationGroups(_projectId: string): Promise<any[]> { return [] }
 export async function updateLocationStatus(_optionId: string, _status: string) {}
-export async function getCastRoles(_projectId: string) { return [] }
+export async function getCastRoles(_projectId: string): Promise<any[]> { return [] }
 export async function updateCastRole(_id: string, _updates: any) {}
-export async function getArtItems(_projectId: string) { return [] }
-export async function getWorkflowNodes(_projectId: string) { return [] }
+export async function getArtItems(_projectId: string): Promise<any[]> { return [] }
+export async function getWorkflowNodes(_projectId: string): Promise<any[]> { return [] }
 export async function updateProjectOrder(_projectId: string, _fields: any) {}

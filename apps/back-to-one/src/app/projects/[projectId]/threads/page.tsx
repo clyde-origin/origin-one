@@ -1,16 +1,15 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import Link from 'next/link'
 import { useThreads, useCreateThread, usePostMessage, useCrew } from '@/lib/hooks/useOriginOne'
-import { LoadingState, EmptyState, CrewAvatar } from '@/components/ui'
+import { LoadingState, CrewAvatar } from '@/components/ui'
 import { GhostRect, GhostPill, GhostCircle, SectionLabel, EmptyCTA } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { FAB } from '@/components/ui/FAB'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor } from '@/lib/utils/phase'
-import type { Thread, ThreadMessage, CrewMember } from '@/types'
+import type { Thread, ThreadMessage, TeamMember } from '@/types'
 
 // ── Helpers ───────────────────────────────────────────────
 
@@ -25,18 +24,6 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`
 }
 
-const contextColors: Record<string, string> = {
-  shot:      'text-prod bg-prod/10',
-  milestone: 'text-pre bg-pre/10',
-  task:      'text-post bg-post/10',
-  location:  'text-accent-soft bg-accent/10',
-  general:   'text-muted bg-surface2',
-  role:      'text-pre bg-pre/10',
-  art:       'text-post bg-post/10',
-  workflow:  'text-prod bg-prod/10',
-  sequence:  'text-accent-soft bg-accent/10',
-}
-
 // ── Thread List Item ──────────────────────────────────────
 
 function ThreadRow({ thread, onTap }: { thread: Thread; onTap: (t: Thread) => void }) {
@@ -49,7 +36,7 @@ function ThreadRow({ thread, onTap }: { thread: Thread; onTap: (t: Thread) => vo
       className="flex items-start gap-3 px-4 py-3 border-b border-border cursor-pointer transition-colors active:bg-surface2"
       onClick={() => onTap(thread)}
     >
-      {/* Context icon */}
+      {/* Thread icon */}
       <div className="w-9 h-9 rounded-lg bg-surface2 border border-border flex items-center justify-center flex-shrink-0 mt-0.5">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-muted">
           <path d="M2 4a2 2 0 012-2h8a2 2 0 012 2v6a2 2 0 01-2 2H6l-3 2V12a2 2 0 01-1-1.73V4z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
@@ -59,17 +46,11 @@ function ThreadRow({ thread, onTap }: { thread: Thread; onTap: (t: Thread) => vo
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-base leading-snug text-text truncate font-medium">{thread.subject}</span>
-          {thread.unread && <div className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />}
+          <span className="text-base leading-snug text-text truncate font-medium">{thread.title}</span>
         </div>
         <div className="flex items-center gap-2">
-          {thread.contextType !== 'general' && (
-            <span className={`font-mono text-[0.5rem] tracking-widest uppercase px-1.5 py-0.5 rounded-sm ${contextColors[thread.contextType] ?? 'text-muted bg-surface2'}`}>
-              {thread.contextLabel || thread.contextType}
-            </span>
-          )}
           {lastMsg ? (
-            <span className="font-mono text-xs text-muted truncate">{lastMsg.text.slice(0, 60)}{lastMsg.text.length > 60 ? '...' : ''}</span>
+            <span className="font-mono text-xs text-muted truncate">{lastMsg.content.slice(0, 60)}{lastMsg.content.length > 60 ? '...' : ''}</span>
           ) : (
             <span className="font-mono text-xs text-muted">No messages yet</span>
           )}
@@ -89,14 +70,15 @@ function ThreadRow({ thread, onTap }: { thread: Thread; onTap: (t: Thread) => vo
 
 // ── Message Bubble ────────────────────────────────────────
 
-function MessageBubble({ message, crew }: { message: ThreadMessage; crew: CrewMember[] }) {
-  const author = message.authorId ? crew.find(c => c.id === message.authorId) : null
+function MessageBubble({ message, crew }: { message: ThreadMessage; crew: TeamMember[] }) {
+  const author = message.createdBy ? crew.find(c => c.userId === message.createdBy) : null
+  const authorName = author ? author.User.name : null
 
   return (
     <div className="px-4 py-2.5">
       <div className="flex items-start gap-2.5">
-        {author ? (
-          <CrewAvatar first={author.first} last={author.last} color1={author.color1} color2={author.color2} size={28} />
+        {authorName ? (
+          <CrewAvatar name={authorName} size={28} />
         ) : (
           <div className="w-7 h-7 rounded-full bg-surface3 border border-border flex items-center justify-center flex-shrink-0">
             <span className="font-mono text-[0.45rem] text-muted">?</span>
@@ -105,11 +87,11 @@ function MessageBubble({ message, crew }: { message: ThreadMessage; crew: CrewMe
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
             <span className="font-mono text-xs font-medium text-text">
-              {author ? `${author.first} ${author.last}` : 'Anonymous'}
+              {authorName ?? 'Anonymous'}
             </span>
             <span className="font-mono text-[0.5rem] text-muted">{timeAgo(message.createdAt)}</span>
           </div>
-          <div className="text-sm text-text2 leading-relaxed">{message.text}</div>
+          <div className="text-sm text-text2 leading-relaxed">{message.content}</div>
         </div>
       </div>
     </div>
@@ -119,7 +101,7 @@ function MessageBubble({ message, crew }: { message: ThreadMessage; crew: CrewMe
 // ── Thread Detail Sheet ───────────────────────────────────
 
 function ThreadSheet({ thread, crew, projectId, onClose }: {
-  thread: Thread | null; crew: CrewMember[]; projectId: string; onClose: () => void
+  thread: Thread | null; crew: TeamMember[]; projectId: string; onClose: () => void
 }) {
   const [reply, setReply] = useState('')
   const postMessage = usePostMessage(projectId)
@@ -136,7 +118,7 @@ function ThreadSheet({ thread, crew, projectId, onClose }: {
 
   const handleSend = () => {
     if (!reply.trim()) return
-    postMessage.mutate({ threadId: thread.id, authorId: '', tagged: [], text: reply.trim() })
+    postMessage.mutate({ threadId: thread.id, createdBy: '', content: reply.trim() })
     setReply('')
   }
 
@@ -149,15 +131,7 @@ function ThreadSheet({ thread, crew, projectId, onClose }: {
 
   return (
     <>
-      <SheetHeader title={thread.subject} onClose={onClose} />
-      {/* Context bar */}
-      {thread.contextType !== 'general' && (
-        <div className="px-4 pt-2 pb-0">
-          <span className={`font-mono text-[0.5rem] tracking-widest uppercase px-1.5 py-0.5 rounded-sm ${contextColors[thread.contextType] ?? 'text-muted bg-surface2'}`}>
-            {thread.contextLabel || thread.contextType}
-          </span>
-        </div>
-      )}
+      <SheetHeader title={thread.title} onClose={onClose} />
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-0 pt-3 pb-2" style={{ maxHeight: '50vh' }}>
         {thread.messages.length === 0 ? (
@@ -205,13 +179,13 @@ function ThreadSheet({ thread, crew, projectId, onClose }: {
 function NewThreadSheet({ projectId, onClose, onCreate }: {
   projectId: string
   onClose: () => void
-  onCreate: (data: { subject: string }) => void
+  onCreate: (data: { title: string; createdBy: string }) => void
 }) {
-  const [subject, setSubject] = useState('')
+  const [title, setTitle] = useState('')
 
   const handleSubmit = () => {
-    if (!subject.trim()) return
-    onCreate({ subject: subject.trim() })
+    if (!title.trim()) return
+    onCreate({ title: title.trim(), createdBy: '' })
     onClose()
   }
 
@@ -221,12 +195,12 @@ function NewThreadSheet({ projectId, onClose, onCreate }: {
       <SheetBody>
         <div className="flex flex-col gap-4">
           <div>
-            <label className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Subject</label>
-            <input autoFocus value={subject} onChange={e => setSubject(e.target.value)} placeholder="What's this about?"
+            <label className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Title</label>
+            <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="What's this about?"
               onKeyDown={e => { if (e.key === 'Enter') handleSubmit() }}
               className="w-full bg-surface2 border border-border2 rounded-lg px-3 py-2.5 text-text text-base outline-none focus:border-accent transition-colors" />
           </div>
-          <button onClick={handleSubmit} disabled={!subject.trim()}
+          <button onClick={handleSubmit} disabled={!title.trim()}
             className="w-full py-3 rounded-lg bg-accent text-white font-semibold text-base transition-opacity disabled:opacity-40 active:opacity-80">
             Create Thread
           </button>
@@ -262,7 +236,7 @@ export default function ThreadsPage({ params }: { params: { projectId: string } 
         {loadingThreads || loadingCrew ? <LoadingState /> : (
           allThreads.length === 0 ? (
             <>
-              <SectionLabel>Unread</SectionLabel>
+              <SectionLabel>Threads</SectionLabel>
               <div style={{ margin: '0 16px 8px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.06)', borderRadius: 9, padding: 14 }}>
                 <GhostPill w={64} h={18} />
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 8 }}>

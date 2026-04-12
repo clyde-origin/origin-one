@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   useProjects, useAllActionItems, useAllMilestones, useAllThreads, useToggleActionItem,
 } from '@/lib/hooks/useOriginOne'
-import { getProjectColor } from '@/lib/utils/phase'
+import { getProjectColor, MILESTONE_STATUS_HEX, STATUS_HEX } from '@/lib/utils/phase'
 import { GhostCircle, GhostRect, GhostPill } from '@/components/ui/EmptyState'
 import { haptic } from '@/lib/utils/haptics'
 import type { ActionItem, Milestone, Thread, Project } from '@/types'
@@ -25,10 +25,11 @@ const PANEL_TITLES: Record<PanelId, string> = {
 
 // ── HELPERS ──────────────────────────────────────────────────
 
-function hexToRgba(hex: string, a: number) {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
+function hexToRgba(hex: string | null | undefined, a: number) {
+  const h = hex || '#444444'
+  const r = parseInt(h.slice(1, 3), 16)
+  const g = parseInt(h.slice(3, 5), 16)
+  const b = parseInt(h.slice(5, 7), 16)
   return `rgba(${r},${g},${b},${a})`
 }
 
@@ -124,12 +125,12 @@ function EmptyPanelRows() {
 // ══════════════════════════════════════════════════════════════
 
 function ActionItemsPanel({ items, projects }: { items: ActionItem[]; projects: Project[] }) {
-  const overdue = items.filter(i => !i.done && i.dueDate && daysUntil(i.dueDate) < 0)
-  const today = items.filter(i => !i.done && i.dueDate && isToday(i.dueDate))
-  const upcoming = items.filter(i => !i.done && i.dueDate && daysUntil(i.dueDate) > 0)
-  const undated = items.filter(i => !i.done && !i.dueDate)
-  const done = items.filter(i => i.done)
-  const openCount = items.filter(i => !i.done).length
+  const overdue  = items.filter(i => i.status !== 'done' && i.dueDate && daysUntil(i.dueDate) < 0)
+  const today    = items.filter(i => i.status !== 'done' && i.dueDate && isToday(i.dueDate))
+  const upcoming = items.filter(i => i.status !== 'done' && i.dueDate && daysUntil(i.dueDate) > 0)
+  const undated  = items.filter(i => i.status !== 'done' && !i.dueDate)
+  const done     = items.filter(i => i.status === 'done')
+  const openCount = items.filter(i => i.status !== 'done').length
 
   if (items.length === 0) return <EmptyPanelRows />
 
@@ -198,7 +199,7 @@ function ActionRow({ item, pName, variant }: { item: ActionItem; pName: string; 
   return (
     <div style={{ padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
       <div
-        onClick={() => { haptic('light'); toggle.mutate({ id: item.id, done: !item.done }) }}
+        onClick={() => { haptic('light'); toggle.mutate({ id: item.id, done: item.status !== 'done' }) }}
         style={{
           width: 17, height: 17, borderRadius: '50%', flexShrink: 0, marginTop: 1, cursor: 'pointer',
           border: `1.5px solid ${chkColors[variant].border}`, background: chkColors[variant].bg,
@@ -214,7 +215,7 @@ function ActionRow({ item, pName, variant }: { item: ActionItem; pName: string; 
           textDecoration: variant === 'done' ? 'line-through' : 'none',
           textDecorationColor: '#62627a',
         }}>
-          {item.name}
+          {item.title}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
           <ProjPill name={pName} />
@@ -237,8 +238,6 @@ function MilestonesPanel({ milestones, projects }: { milestones: Milestone[]; pr
 
   if (milestones.length === 0) return <EmptyPanelRows />
 
-  const phaseColors: Record<string, string> = { pre: '#e8a020', prod: '#6470f3', post: '#00b894' }
-
   return (
     <>
       <div className="font-mono" style={{ fontSize: 10, color: '#62627a', padding: '0 0 4px' }}>
@@ -250,12 +249,12 @@ function MilestonesPanel({ milestones, projects }: { milestones: Milestone[]; pr
           {upcoming.map(ms => {
             const days = daysUntil(ms.date)
             const cdColor = days <= 7 ? '#e8564a' : days <= 14 ? '#e8a020' : '#62627a'
-            const dotColor = phaseColors[ms.phase] || '#c45adc'
+            const dotColor = MILESTONE_STATUS_HEX[ms.status] ?? '#c45adc'
             return (
               <div key={ms.id} style={{ padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: '#dddde8' }}>{ms.name}</div>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: '#dddde8' }}>{ms.title}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
                     <ProjPill name={projectName(projects, ms.projectId)} />
                     <span className="font-mono" style={{ fontSize: 9, color: days <= 14 ? '#e8a020' : '#62627a' }}>{formatDate(ms.date)}</span>
@@ -276,7 +275,7 @@ function MilestonesPanel({ milestones, projects }: { milestones: Milestone[]; pr
             <div key={ms.id} style={{ padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: 10, opacity: 0.5 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00b894', flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 13, color: '#62627a' }}>{ms.name}</div>
+                <div style={{ fontWeight: 600, fontSize: 13, color: '#62627a' }}>{ms.title}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
                   <ProjPill name={projectName(projects, ms.projectId)} />
                 </div>
@@ -307,8 +306,8 @@ function SchedulePanel({ milestones, projects }: { milestones: Milestone[]; proj
     milestones.forEach(ms => {
       evts.push({
         date: ms.date,
-        title: `Milestone: ${ms.name}`,
-        sub: `${projectName(projects, ms.projectId)} · ${ms.phase} milestone`,
+        title: `Milestone: ${ms.title}`,
+        sub: `${projectName(projects, ms.projectId)} · ${ms.status}`,
         type: 'Milestone',
         color: '#e8564a',
         projectName: projectName(projects, ms.projectId),
@@ -317,9 +316,9 @@ function SchedulePanel({ milestones, projects }: { milestones: Milestone[]; proj
     })
     // Shoot date ranges from projects
     projects.forEach(p => {
-      if (p.shootDate) {
-        const start = new Date(p.shootDate)
-        const end = p.shootDateEnd ? new Date(p.shootDateEnd) : start
+      if ((p as any).shootDate) {
+        const start = new Date((p as any).shootDate)
+        const end = (p as any).shootDateEnd ? new Date((p as any).shootDateEnd) : start
         const cur = new Date(start)
         let dayNum = 1
         while (cur <= end) {
@@ -410,7 +409,7 @@ function SchedulePanel({ milestones, projects }: { milestones: Milestone[]; proj
             ))}
             {/* Day cells */}
             {cells.map((c, i) => {
-              const isToday = c.dateStr === todayStr
+              const isTodayCell = c.dateStr === todayStr
               const isSelected = c.dateStr === selectedDate
               const dayEvents = events.filter(e => e.date === c.dateStr)
               const dotColors = Array.from(new Set(dayEvents.map(e => e.color)))
@@ -423,8 +422,8 @@ function SchedulePanel({ milestones, projects }: { milestones: Milestone[]; proj
                   }}>
                   <div className="font-mono" style={{
                     fontSize: 11, lineHeight: 1,
-                    color: isToday ? '#c45adc' : isSelected ? '#c45adc' : c.isOther ? 'rgba(98,98,122,0.3)' : '#a0a0b8',
-                    fontWeight: isToday ? 700 : 400,
+                    color: isTodayCell ? '#c45adc' : isSelected ? '#c45adc' : c.isOther ? 'rgba(98,98,122,0.3)' : '#a0a0b8',
+                    fontWeight: isTodayCell ? 700 : 400,
                   }}>
                     {c.day}
                   </div>
@@ -484,11 +483,6 @@ function SchedulePanel({ milestones, projects }: { milestones: Milestone[]; proj
 // ══════════════════════════════════════════════════════════════
 
 function ThreadsPanel({ threads, projects }: { threads: Thread[]; projects: Project[] }) {
-  // For now unread is always false from DB; show all as "Recent"
-  // Once we have real unread tracking this will split properly
-  const unread = threads.filter(t => t.unread)
-  const recent = threads.filter(t => !t.unread)
-
   if (threads.length === 0) return <EmptyPanelRows />
 
   const avatarColors = [
@@ -499,31 +493,20 @@ function ThreadsPanel({ threads, projects }: { threads: Thread[]; projects: Proj
     { bg: 'rgba(196,90,220,0.2)', text: '#c45adc' },
   ]
 
-  const renderThread = (t: Thread, i: number, isUnread: boolean) => {
+  const renderThread = (t: Thread, i: number) => {
     const ac = avatarColors[i % avatarColors.length]
     const lastMsg = t.messages[t.messages.length - 1]
-    const preview = lastMsg?.text ?? ''
+    const preview = lastMsg?.content ?? ''
     const timeAgo = t.updatedAt ? formatDate(t.updatedAt) : ''
-    const initials = t.subject.slice(0, 2).toUpperCase()
-
-    const ctxChipStyles: Record<string, { bg: string; border: string; text: string }> = {
-      shot: { bg: 'rgba(196,90,220,0.1)', border: 'rgba(196,90,220,0.2)', text: 'rgba(196,90,220,0.85)' },
-      art: { bg: 'rgba(74,232,160,0.1)', border: 'rgba(74,232,160,0.2)', text: '#4ae8a0' },
-      milestone: { bg: 'rgba(100,112,243,0.1)', border: 'rgba(100,112,243,0.2)', text: '#6470f3' },
-      location: { bg: 'rgba(0,184,148,0.1)', border: 'rgba(0,184,148,0.2)', text: '#00b894' },
-    }
-    const ctxStyle = ctxChipStyles[t.contextType] || ctxChipStyles.shot
+    const initials = t.title.slice(0, 2).toUpperCase()
 
     return (
       <div key={t.id} style={{
-        padding: '9px 0', paddingLeft: isUnread ? 8 : 0,
+        padding: '9px 0',
         borderBottom: '1px solid rgba(255,255,255,0.04)',
         display: 'flex', alignItems: 'flex-start', gap: 10,
-        position: 'relative', opacity: isUnread ? 1 : 0.6,
+        position: 'relative', opacity: 0.85,
       }}>
-        {isUnread && (
-          <div style={{ position: 'absolute', left: 0, top: 12, bottom: 12, width: 2, background: '#c45adc', borderRadius: '0 2px 2px 0', boxShadow: '0 0 6px rgba(196,90,220,0.5)' }} />
-        )}
         <div style={{
           width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontWeight: 700, fontSize: 9, flexShrink: 0, marginTop: 1,
@@ -533,7 +516,7 @@ function ThreadsPanel({ threads, projects }: { threads: Thread[]; projects: Proj
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-            <div style={{ fontWeight: 600, fontSize: 12, color: '#dddde8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.subject}</div>
+            <div style={{ fontWeight: 600, fontSize: 12, color: '#dddde8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</div>
             <span className="font-mono" style={{ fontSize: 9, color: '#62627a', flexShrink: 0 }}>{timeAgo}</span>
           </div>
           {preview && (
@@ -545,24 +528,9 @@ function ThreadsPanel({ threads, projects }: { threads: Thread[]; projects: Proj
             </div>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
-            {t.contextLabel && (
-              <span className="font-mono" style={{
-                fontSize: 9, padding: '1px 6px', borderRadius: 20,
-                background: ctxStyle.bg, border: `1px solid ${ctxStyle.border}`, color: ctxStyle.text,
-              }}>
-                {t.contextLabel}
-              </span>
-            )}
             <ProjPill name={projectName(projects, t.projectId)} />
-            {isUnread && t.messages.length > 0 && (
-              <span style={{
-                minWidth: 16, height: 16, borderRadius: 8, background: '#c45adc',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: "'DM Mono', monospace", fontSize: 9, color: 'white',
-                padding: '0 4px', marginLeft: 'auto', flexShrink: 0,
-              }}>
-                {t.messages.length}
-              </span>
+            {t.messages.length > 0 && (
+              <span className="font-mono" style={{ fontSize: 9, color: '#62627a' }}>{t.messages.length} msg{t.messages.length !== 1 ? 's' : ''}</span>
             )}
           </div>
         </div>
@@ -573,16 +541,10 @@ function ThreadsPanel({ threads, projects }: { threads: Thread[]; projects: Proj
   return (
     <>
       <div className="font-mono" style={{ fontSize: 10, color: '#62627a', padding: '0 0 4px' }}>
-        {unread.length > 0 ? `${unread.length} unread · ` : ''}all projects
+        {threads.length} thread{threads.length !== 1 ? 's' : ''} · all projects
       </div>
-      {unread.length > 0 && (
-        <>
-          <Sec label="Unread" count={unread.length} countColor="#c45adc" />
-          {unread.map((t, i) => renderThread(t, i, true))}
-        </>
-      )}
       <Sec label="Recent" />
-      {recent.map((t, i) => renderThread(t, i + unread.length, false))}
+      {threads.map((t, i) => renderThread(t, i))}
     </>
   )
 }
@@ -699,8 +661,8 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
     if (!activePanel) return ''
     switch (activePanel) {
       case 'tasks': {
-        const open = allItems.filter(i => !i.done).length
-        const overdue = allItems.filter(i => !i.done && i.dueDate && daysUntil(i.dueDate) < 0).length
+        const open = allItems.filter(i => i.status !== 'done').length
+        const overdue = allItems.filter(i => i.status !== 'done' && i.dueDate && daysUntil(i.dueDate) < 0).length
         return `${open} open${overdue > 0 ? ` · ${overdue} overdue` : ''}`
       }
       case 'milestones': {
@@ -713,8 +675,7 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
         return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
       }
       case 'threads': {
-        const ur = allThreads.filter(t => t.unread).length
-        return `${ur > 0 ? `${ur} unread · ` : ''}all projects`
+        return `${allThreads.length} thread${allThreads.length !== 1 ? 's' : ''} · all projects`
       }
       case 'activity': return 'all projects · today'
     }

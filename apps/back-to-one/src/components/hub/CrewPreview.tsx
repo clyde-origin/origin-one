@@ -1,8 +1,8 @@
 import { CrewAvatar } from '@/components/ui'
-import type { CrewMember } from '@/types'
+import type { TeamMember } from '@/types'
 
 interface CrewPreviewProps {
-  crew: CrewMember[]
+  crew: TeamMember[]
 }
 
 export function CrewPreview({ crew }: CrewPreviewProps) {
@@ -14,15 +14,11 @@ export function CrewPreview({ crew }: CrewPreviewProps) {
       {visible.map(member => (
         <div key={member.id} className="flex flex-col items-center gap-1 flex-shrink-0">
           <CrewAvatar
-            first={member.first}
-            last={member.last}
-            color1={member.color1}
-            color2={member.color2}
+            name={member.User.name}
             size={38}
-            online={member.online}
           />
           <span className="font-sans text-[0.58rem] text-text2 w-10 text-center truncate">
-            {member.first}
+            {member.User.name.split(' ')[0]}
           </span>
           <span className="font-mono text-[0.44rem] text-muted truncate w-10 text-center">
             {member.role.split(' ')[0]}

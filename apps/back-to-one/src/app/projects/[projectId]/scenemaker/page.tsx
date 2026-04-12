@@ -2,9 +2,9 @@
 
 import { useState, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { useQueryClient } from '@tanstack/react-query'
-import { useProject, useSMVersions, useSMScenes, useSMShots, useCreateShot } from '@/lib/hooks/useOriginOne'
-import { updateShotOrder } from '@/lib/db/queries'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useProject, useScenes } from '@/lib/hooks/useOriginOne'
+import { getShotsByProject, updateShotOrder, createShot } from '@/lib/db/queries'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Sheet } from '@/components/ui/Sheet'
@@ -12,7 +12,7 @@ import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, getSceneColor } from '@/lib/utils/phase'
 import { ScriptView, type ScriptViewHandle } from './components/ScriptView'
 import { ShotDetailSheet } from './components/ShotDetailSheet'
-import type { SceneMakerVersion, Scene, Shot, SceneMakerMode, ShotOrderMode } from '@/types'
+import type { Scene, Shot, SceneMakerMode } from '@/types'
 
 // ── PILL SELECTOR ─────────────────────────────────────────
 
@@ -40,20 +40,15 @@ function PillSelector({ label, options, value, onChange, accent }: {
 
 // ── NEW SHOT SHEET ────────────────────────────────────────
 
-const SHOT_TYPES = ['CU', 'MS', 'WS', 'ECU', 'POV', 'MCU']
-const LENSES = ['24mm', '35mm', '50mm', '85mm', '100mm']
-const MOVEMENTS = ['Static', 'Handheld', 'Pan', 'Tilt', 'Dolly', 'Slow push', 'Slow pull']
+const SHOT_SIZES = ['CU', 'MS', 'WS', 'ECU', 'POV', 'MCU']
 
 function NewShotSheet({ autoId, accent, onSave, onClose }: {
   autoId: string; accent: string
-  onSave: (data: { desc: string; framing: string; lens: string; movement: string; notes: string }) => void
+  onSave: (data: { description: string; size: string }) => void
   onClose: () => void
 }) {
-  const [desc, setDesc] = useState('')
-  const [framing, setFraming] = useState('')
-  const [lens, setLens] = useState('')
-  const [movement, setMovement] = useState('')
-  const [notes, setNotes] = useState('')
+  const [description, setDescription] = useState('')
+  const [size, setSize] = useState('')
 
   return (
     <>
@@ -65,25 +60,17 @@ function NewShotSheet({ autoId, accent, onSave, onClose }: {
       <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '60vh', overflowY: 'auto' }}>
         <div>
           <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Description</span>
-          <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Shot description..."
+          <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Shot description..."
             autoFocus
             className="w-full outline-none focus:border-white/20"
             style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '8px 12px', fontSize: '0.76rem', color: '#dddde8' }} />
         </div>
-        <PillSelector label="Type" options={SHOT_TYPES} value={framing} onChange={setFraming} accent={accent} />
-        <PillSelector label="Lens" options={LENSES} value={lens} onChange={setLens} accent={accent} />
-        <PillSelector label="Movement" options={MOVEMENTS} value={movement} onChange={setMovement} accent={accent} />
-        <div>
-          <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Notes</span>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes..."
-            className="w-full outline-none focus:border-white/20 resize-none"
-            style={{ minHeight: 56, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', fontSize: '0.74rem', color: '#dddde8', lineHeight: 1.5 }} />
-        </div>
+        <PillSelector label="Size" options={SHOT_SIZES} value={size} onChange={setSize} accent={accent} />
       </div>
       <div style={{ padding: '14px 20px 0', display: 'flex', gap: 10 }}>
         <button className="flex-1 font-bold cursor-pointer transition-all"
           style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: `${accent}1f`, border: `1px solid ${accent}40`, color: accent }}
-          onClick={() => { haptic('medium'); onSave({ desc, framing, lens, movement, notes }) }}>
+          onClick={() => { haptic('medium'); onSave({ description, size }) }}>
           Save
         </button>
         <button className="flex-1 font-bold cursor-pointer transition-all"
@@ -98,14 +85,12 @@ function NewShotSheet({ autoId, accent, onSave, onClose }: {
 
 // ── SHOTLIST VIEW ─────────────────────────────────────────
 
-function ShotlistView({ scenes, shots, orderMode, accent, onTapShot, onInsert, onReorder }: {
-  scenes: Scene[]; shots: Shot[]; orderMode: ShotOrderMode; accent: string
+function ShotlistView({ scenes, shots, accent, onTapShot, onInsert, onReorder }: {
+  scenes: Scene[]; shots: Shot[]; accent: string
   onTapShot: (s: Shot) => void; onInsert: (index: number, sceneId: string) => void
   onReorder: (shotId: string, newIndex: number) => void
 }) {
-  // Track collapsed scenes/days — empty set = all expanded (default open)
   const [collapsedScenes, setCollapsedScenes] = useState<Set<string>>(new Set())
-  const [collapsedDays, setCollapsedDays] = useState<Set<number>>(new Set())
   const totalScenes = scenes.length
 
   // ── Drag state ──
@@ -115,12 +100,10 @@ function ShotlistView({ scenes, shots, orderMode, accent, onTapShot, onInsert, o
   const dragTargetIdxRef = useRef(-1)
   const dragElRef = useRef<HTMLDivElement | null>(null)
   const dragOriginY = useRef(0)
-  // Ordered flat list of shot IDs for the current view (for hit testing)
   const flatShotOrder = useRef<string[]>([])
   const shotRectsRef = useRef<Map<string, DOMRect>>(new Map())
   const headerRectsRef = useRef<Map<string, DOMRect>>(new Map())
 
-  // Snapshot all row and header rects when drag starts
   const snapshotRects = useCallback(() => {
     const map = new Map<string, DOMRect>()
     flatShotOrder.current.forEach(id => {
@@ -137,10 +120,7 @@ function ShotlistView({ scenes, shots, orderMode, accent, onTapShot, onInsert, o
   }, [])
 
   const handleDragStart = useCallback((shotId: string, touchY: number, el: HTMLDivElement) => {
-    // Build flat order — pure global sort, same as StoryboardView
-    const allFlat = orderMode === 'story'
-      ? [...shots].sort((a, b) => a.storyOrder - b.storyOrder).map(s => s.id)
-      : [...shots].sort((a, b) => a.shootOrder - b.shootOrder).map(s => s.id)
+    const allFlat = [...shots].sort((a, b) => a.sortOrder - b.sortOrder).map(s => s.id)
     flatShotOrder.current = allFlat
     dragElRef.current = el
     dragOriginY.current = touchY
@@ -149,18 +129,15 @@ function ShotlistView({ scenes, shots, orderMode, accent, onTapShot, onInsert, o
     dragTargetIdxRef.current = allFlat.indexOf(shotId)
     setDragTargetIdx(dragTargetIdxRef.current)
     haptic('medium')
-    // Wait a frame for React to render the dragging state, then snapshot
     requestAnimationFrame(snapshotRects)
-  }, [scenes, shots, orderMode, collapsedScenes, snapshotRects])
+  }, [shots, snapshotRects])
 
   const handleDragMove = useCallback((touchY: number) => {
     if (!dragShotIdRef.current || !dragElRef.current) return
-    // Move the dragged element visually
     const dy = touchY - dragOriginY.current
     dragElRef.current.style.transform = `translateY(${dy}px)`
     dragElRef.current.style.transition = 'none'
 
-    // Find which row the touch is over
     let targetIdx = dragTargetIdxRef.current
     const order = flatShotOrder.current
     let closest = { dist: Infinity, idx: targetIdx }
@@ -185,22 +162,15 @@ function ShotlistView({ scenes, shots, orderMode, accent, onTapShot, onInsert, o
     if (firstRect && touchY < firstRect.top + firstRect.height / 2) {
       targetIdx = 0
     }
-    // Check if touch is over a scene/day header — drop at start of that section
     headerRectsRef.current.forEach((rect, headerId) => {
       if (touchY >= rect.top && touchY <= rect.bottom) {
-        // Find first shot belonging to this scene/day in flat order
         const headerShots = order.filter(id => {
-          const shotEl = document.querySelector(`[data-shot-id="${id}"]`)
-          if (!shotEl) return false
-          // Check if this shot is rendered under this header's section
           const shotRect = shotRectsRef.current.get(id)
           return shotRect && shotRect.top >= rect.bottom
         })
         if (headerShots.length > 0) {
           targetIdx = order.indexOf(headerShots[0])
         } else {
-          // Empty scene — find insertion point based on header position
-          // Look for the next shot that appears after this header vertically
           let insertIdx = order.length
           for (let i = 0; i < order.length; i++) {
             const shotRect = shotRectsRef.current.get(order[i])
@@ -218,7 +188,6 @@ function ShotlistView({ scenes, shots, orderMode, accent, onTapShot, onInsert, o
   }, [])
 
   const handleDragEnd = useCallback(() => {
-    console.log('handleDragEnd fired', { shotId: dragShotIdRef.current, targetIdx: dragTargetIdxRef.current })
     if (dragElRef.current) {
       dragElRef.current.style.transform = ''
       dragElRef.current.style.transition = ''
@@ -235,7 +204,6 @@ function ShotlistView({ scenes, shots, orderMode, accent, onTapShot, onInsert, o
     dragElRef.current = null
   }, [onReorder])
 
-  // Compute drag state per shot
   const getDragState = useCallback((shotId: string): 'idle' | 'dragging' | 'displaced-down' | 'displaced-up' => {
     if (!dragShotId) return 'idle'
     if (shotId === dragShotId) return 'dragging'
@@ -243,9 +211,7 @@ function ShotlistView({ scenes, shots, orderMode, accent, onTapShot, onInsert, o
     const fromIdx = order.indexOf(dragShotId)
     const myIdx = order.indexOf(shotId)
     if (fromIdx < 0 || myIdx < 0) return 'idle'
-    // If dragging down: items between from+1..target shift up
     if (dragTargetIdx > fromIdx && myIdx > fromIdx && myIdx <= dragTargetIdx) return 'displaced-up'
-    // If dragging up: items between target..from-1 shift down
     if (dragTargetIdx < fromIdx && myIdx >= dragTargetIdx && myIdx < fromIdx) return 'displaced-down'
     return 'idle'
   }, [dragShotId, dragTargetIdx])
@@ -254,14 +220,6 @@ function ShotlistView({ scenes, shots, orderMode, accent, onTapShot, onInsert, o
     setCollapsedScenes(prev => {
       const next = new Set(prev)
       if (next.has(sceneId)) next.delete(sceneId); else next.add(sceneId)
-      return next
-    })
-  }
-
-  const toggleDay = (day: number) => {
-    setCollapsedDays(prev => {
-      const next = new Set(prev)
-      if (next.has(day)) next.delete(day); else next.add(day)
       return next
     })
   }
@@ -287,93 +245,14 @@ function ShotlistView({ scenes, shots, orderMode, accent, onTapShot, onInsert, o
     </div>
   )
 
-  if (orderMode === 'shooting') {
-    const sorted = [...shots].sort((a, b) => a.shootOrder - b.shootOrder)
-    // Group shots into days — each chunk of consecutive shootOrder values
-    // For now, split into days of ~5 shots each (placeholder until real shootDay field)
-    const SHOTS_PER_DAY = 5
-    const days: { day: number; date: string; shots: Shot[] }[] = []
-    sorted.forEach((shot, i) => {
-      const dayIdx = Math.floor(i / SHOTS_PER_DAY)
-      if (!days[dayIdx]) {
-        days[dayIdx] = { day: dayIdx + 1, date: '', shots: [] }
-      }
-      days[dayIdx].shots.push(shot)
-    })
-
-    return (
-      <div>
-        {/* Add shoot date button */}
-        <div className="flex items-center cursor-pointer" style={{ gap: 7, padding: '9px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M5 1V9M1 5H9" stroke="rgba(196,90,220,0.45)" strokeWidth="1.3" strokeLinecap="round" />
-          </svg>
-          <span className="font-mono uppercase" style={{ fontSize: '0.42rem', color: 'rgba(196,90,220,0.45)', letterSpacing: '0.06em' }}>Add shoot date</span>
-        </div>
-
-        {days.map(({ day, date, shots: dayShots }) => {
-          const isDayOpen = !collapsedDays.has(day)
-          const dayStr = String(day).padStart(2, '0')
-          return (
-            <div key={day}>
-              {/* Day divider header */}
-              <div className="flex items-center select-none cursor-pointer"
-                data-scene-header={`day-${day}`}
-                style={{ gap: 8, padding: '11px 14px 7px', marginTop: day > 1 ? 6 : 0 }}
-                onClick={() => toggleDay(day)}>
-                {/* Drag handle */}
-                <div className="flex flex-col flex-shrink-0" style={{ gap: 2.5, opacity: 0.2 }}>
-                  <div style={{ width: 12, height: 1.5, background: 'white', borderRadius: 1 }} />
-                  <div style={{ width: 12, height: 1.5, background: 'white', borderRadius: 1 }} />
-                  <div style={{ width: 12, height: 1.5, background: 'white', borderRadius: 1 }} />
-                </div>
-                <span className="font-mono flex-1" style={{ fontSize: '0.52rem', fontWeight: 600, color: '#dddde8', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  Day {dayStr}
-                </span>
-                {date && (
-                  <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', color: '#62627a' }}>{date}</span>
-                )}
-                <svg width="5" height="9" viewBox="0 0 5 9" fill="none" className="flex-shrink-0"
-                  style={{ opacity: 0.25, transition: 'transform 0.2s', transform: isDayOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>
-                  <path d="M1 1L4 4.5L1 8" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-              <div style={{ height: 1, margin: '0 14px 4px', background: 'rgba(255,255,255,0.07)' }} />
-
-              {isDayOpen && dayShots.map((shot, i) => {
-                const scene = scenes.find(s => s.id === shot.sceneId)
-                const sceneColor = scene ? getSceneColor(scene.num, totalScenes) : accent
-                return (
-                  <div key={shot.id}>
-                    <InsertRow index={i} sceneId={shot.sceneId} />
-                    <ShotRow shot={shot} sceneColor={sceneColor}
-                      dragState={getDragState(shot.id)}
-                      onTapDetail={() => onTapShot(shot)}
-                      onSwipeThread={() => { /* TODO: open thread sheet */ }}
-                      onDescChange={(desc) => { console.log('Shot desc update:', shot.id, desc) }}
-                      onDragStart={(y, el) => handleDragStart(shot.id, y, el)}
-                      onDragMove={handleDragMove}
-                      onDragEnd={handleDragEnd} />
-                  </div>
-                )
-              })}
-              {isDayOpen && <InsertRow index={dayShots.length} sceneId={dayShots[dayShots.length - 1]?.sceneId ?? ''} />}
-            </div>
-          )
-        })}
-  
-      </div>
-    )
-  }
-
-  // Story order — grouped by scene, collapsed by default
+  // Story order — grouped by scene
   return (
     <div>
       {scenes.map(scene => {
-        const sceneShots = shots.filter(s => s.sceneId === scene.id).sort((a, b) => a.storyOrder - b.storyOrder)
-        const sceneColor = getSceneColor(scene.num, totalScenes)
+        const sceneShots = shots.filter(s => s.sceneId === scene.id).sort((a, b) => a.sortOrder - b.sortOrder)
+        const sceneColor = getSceneColor(parseInt(scene.sceneNumber), totalScenes)
         const isOpen = !collapsedScenes.has(scene.id)
-        const numStr = String(scene.num).padStart(2, '0')
+        const numStr = scene.sceneNumber
 
         return (
           <div key={scene.id}>
@@ -392,9 +271,9 @@ function ShotlistView({ scenes, shots, orderMode, accent, onTapShot, onInsert, o
               <span className="font-mono flex-shrink-0" style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', color: sceneColor, minWidth: 20 }}>
                 {numStr}
               </span>
-              {/* Scene slug */}
+              {/* Scene title */}
               <span className="flex-1 truncate" style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '0.52rem', letterSpacing: '0.02em', color: sceneColor, opacity: 0.7 }}>
-                {scene.heading}
+                {scene.title ?? ''}
               </span>
               {/* Shot count */}
               <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', color: '#62627a', opacity: 0.55 }}>
@@ -431,7 +310,6 @@ function ShotlistView({ scenes, shots, orderMode, accent, onTapShot, onInsert, o
           </div>
         )
       })}
-
     </div>
   )
 }
@@ -448,14 +326,13 @@ function ShotRow({ shot, sceneColor, dragState, onTapDetail, onDescChange, onSwi
 }) {
   const [swipeX, setSwipeX] = useState(0)
   const [editing, setEditing] = useState(false)
-  const [editValue, setEditValue] = useState(shot.desc)
+  const [editValue, setEditValue] = useState(shot.description ?? '')
   const swipeStart = useRef<{ x: number; y: number } | null>(null)
   const rowElRef = useRef<HTMLDivElement>(null)
   const dragCardRef = useRef<HTMLDivElement>(null)
   const dragHandleActive = useRef(false)
   const dragMoved = useRef(false)
   const dragStartY = useRef(0)
-  const hasImage = shot.images && shot.images.length > 0
 
   // Swipe on row body
   const handleRowTouchStart = (e: React.TouchEvent) => {
@@ -500,11 +377,9 @@ function ShotRow({ shot, sceneColor, dragState, onTapDetail, onDescChange, onSwi
       }
     }
     const onEnd = () => {
-      console.log('onEnd fired, activated:', activated)
       if (activated) {
         onDragEnd()
       } else {
-        // Short tap on handle → open detail
         onTapDetail()
       }
       dragHandleActive.current = false
@@ -519,10 +394,9 @@ function ShotRow({ shot, sceneColor, dragState, onTapDetail, onDescChange, onSwi
 
   const commitEdit = () => {
     setEditing(false)
-    if (editValue !== shot.desc) onDescChange?.(editValue)
+    if (editValue !== (shot.description ?? '')) onDescChange?.(editValue)
   }
 
-  // Compute transform from drag state
   const transform = dragState === 'displaced-down' ? 'translateY(60px)'
     : dragState === 'displaced-up' ? 'translateY(-60px)'
     : 'translateY(0)'
@@ -570,10 +444,10 @@ function ShotRow({ shot, sceneColor, dragState, onTapDetail, onDescChange, onSwi
           <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
         </div>
 
-        {/* Shot ID — tap opens detail */}
+        {/* Shot number — tap opens detail */}
         <span className="font-mono flex-shrink-0 cursor-pointer" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
           onClick={onTapDetail}>
-          {shot.id}
+          {shot.shotNumber}
         </span>
 
         {/* Description — tap to edit inline */}
@@ -586,18 +460,21 @@ function ShotRow({ shot, sceneColor, dragState, onTapDetail, onDescChange, onSwi
         ) : (
           <span className="flex-1 min-w-0 truncate cursor-text" style={{ fontSize: '0.58rem', fontWeight: 500, color: '#a0a0b8', lineHeight: 1.35 }}
             onClick={() => setEditing(true)}>
-            {shot.desc}
+            {shot.description}
           </span>
         )}
 
-        {/* Thumbnail — tap opens detail */}
+        {/* Size badge */}
+        {shot.size && (
+          <span className="font-mono flex-shrink-0" style={{ fontSize: '0.42rem', letterSpacing: '0.04em', color: sceneColor, opacity: 0.7 }}>
+            {shot.size}
+          </span>
+        )}
+
+        {/* Thumbnail placeholder */}
         <div className="flex-shrink-0 overflow-hidden cursor-pointer" style={{ width: 52, height: 34, borderRadius: 5, marginLeft: 'auto' }}
           onClick={onTapDetail}>
-          {hasImage ? (
-            <img src={shot.images[0]} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full" style={{ background: `linear-gradient(135deg, ${sceneColor}18, ${sceneColor}08)` }} />
-          )}
+          <div className="w-full h-full" style={{ background: `linear-gradient(135deg, ${sceneColor}18, ${sceneColor}08)` }} />
         </div>
       </div>
     </div>
@@ -606,14 +483,12 @@ function ShotRow({ shot, sceneColor, dragState, onTapDetail, onDescChange, onSwi
 
 // ── STORYBOARD VIEW ──────────────────────────────────────
 
-function StoryboardView({ scenes, shots, orderMode, onTapShot, onReorder }: {
-  scenes: Scene[]; shots: Shot[]; orderMode: ShotOrderMode; onTapShot: (s: Shot) => void
+function StoryboardView({ scenes, shots, onTapShot, onReorder }: {
+  scenes: Scene[]; shots: Shot[]; onTapShot: (s: Shot) => void
   onReorder: (shotId: string, newIndex: number) => void
 }) {
   const totalScenes = scenes.length
-  const sorted = orderMode === 'shooting'
-    ? [...shots].sort((a, b) => a.shootOrder - b.shootOrder)
-    : [...shots].sort((a, b) => a.storyOrder - b.storyOrder)
+  const sorted = [...shots].sort((a, b) => a.sortOrder - b.sortOrder)
 
   const [dragId, setDragId] = useState<string | null>(null)
   const dragIdRef = useRef<string | null>(null)
@@ -624,7 +499,6 @@ function StoryboardView({ scenes, shots, orderMode, onTapShot, onReorder }: {
   const dragOrigIdx = useRef(-1)
   const cardRectsRef = useRef<Map<string, DOMRect>>(new Map())
 
-  // Snapshot card positions when drag starts
   const snapshotCardRects = useCallback(() => {
     const map = new Map<string, DOMRect>()
     sorted.forEach(s => {
@@ -640,7 +514,6 @@ function StoryboardView({ scenes, shots, orderMode, onTapShot, onReorder }: {
     const fromIdx = sorted.findIndex(s => s.id === dragId)
     const myIdx = sorted.findIndex(s => s.id === shotId)
     if (fromIdx < 0 || myIdx < 0) return 'idle'
-    // Items between from and target should visually swap into the vacated slot
     if (dragTargetIdx > fromIdx && myIdx > fromIdx && myIdx <= dragTargetIdx) return 'shift'
     if (dragTargetIdx < fromIdx && myIdx >= dragTargetIdx && myIdx < fromIdx) return 'shift'
     return 'idle'
@@ -659,25 +532,13 @@ function StoryboardView({ scenes, shots, orderMode, onTapShot, onReorder }: {
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, padding: '8px 10px' }}>
       {sorted.map((shot, idx) => {
         const scene = scenes.find(s => s.id === shot.sceneId)
-        const sceneColor = scene ? getSceneColor(scene.num, totalScenes) : '#c45adc'
-        const hasImage = shot.images && shot.images.length > 0
+        const sceneColor = scene ? getSceneColor(parseInt(scene.sceneNumber), totalScenes) : '#c45adc'
         const state = getBoardDragState(shot.id)
 
-        // Compute shift offset for displaced cards
-        let shiftTransform = ''
-        if (state === 'shift' && dragId) {
-          const fromIdx = sorted.findIndex(s => s.id === dragId)
-          if (dragTargetIdx > fromIdx) {
-            // Dragging down/right → shift these items backward (toward fromIdx)
-            shiftTransform = 'translate(0, 0)' // CSS grid handles visual swap
-          }
-        }
-
         return (
-          <BoardCard key={shot.id} shot={shot} sceneColor={sceneColor} hasImage={hasImage}
+          <BoardCard key={shot.id} shot={shot} sceneColor={sceneColor}
             isDragging={state === 'dragging'}
             isShifted={state === 'shift'}
-            dragOffset={state === 'dragging' ? undefined : undefined}
             onTap={() => onTapShot(shot)}
             onDragStart={(x, y, innerEl) => {
               haptic('light')
@@ -697,7 +558,6 @@ function StoryboardView({ scenes, shots, orderMode, onTapShot, onReorder }: {
                 dragElRef.current.style.transform = `translate(${dx}px, ${dy}px) scale(1.05)`
                 dragElRef.current.style.transition = 'none'
               }
-              // Find target index: closest card center to touch point
               const currentDragId = dragIdRef.current
               let nearest = sorted.findIndex(s => s.id === currentDragId)
               let minDist = Infinity
@@ -737,8 +597,8 @@ function StoryboardView({ scenes, shots, orderMode, onTapShot, onReorder }: {
   )
 }
 
-function BoardCard({ shot, sceneColor, hasImage, isDragging, isShifted, onTap, onDragStart, onDragMove, onDragEnd }: {
-  shot: Shot; sceneColor: string; hasImage: boolean; isDragging: boolean; isShifted: boolean; dragOffset?: { x: number; y: number }
+function BoardCard({ shot, sceneColor, isDragging, isShifted, onTap, onDragStart, onDragMove, onDragEnd }: {
+  shot: Shot; sceneColor: string; isDragging: boolean; isShifted: boolean
   onTap: () => void; onDragStart: (x: number, y: number, el: HTMLDivElement | null) => void; onDragMove: (x: number, y: number) => void; onDragEnd: () => void
 }) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -755,7 +615,6 @@ function BoardCard({ shot, sceneColor, hasImage, isDragging, isShifted, onTap, o
       if (!movedRef.current) {
         dragActive.current = true
         onDragStart(e.touches[0].clientX, e.touches[0].clientY, cardInnerRef.current)
-        // Attach global listeners for drag tracking
         const onMove = (ev: TouchEvent) => {
           ev.preventDefault()
           onDragMove(ev.touches[0].clientX, ev.touches[0].clientY)
@@ -774,7 +633,7 @@ function BoardCard({ shot, sceneColor, hasImage, isDragging, isShifted, onTap, o
     }, 500)
   }
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (dragActive.current) return // Global handler takes over
+    if (dragActive.current) return
     const dx = Math.abs(e.touches[0].clientX - startPos.current.x)
     const dy = Math.abs(e.touches[0].clientY - startPos.current.y)
     if (dx > 8 || dy > 8) {
@@ -814,17 +673,13 @@ function BoardCard({ shot, sceneColor, hasImage, isDragging, isShifted, onTap, o
         }}>
         {/* 16:9 image area */}
         <div className="relative" style={{ aspectRatio: '16/9' }}>
-          {hasImage ? (
-            <img src={shot.images[0]} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full" style={{ background: `linear-gradient(135deg, ${sceneColor}15, ${sceneColor}08)` }} />
-          )}
+          <div className="w-full h-full" style={{ background: `linear-gradient(135deg, ${sceneColor}15, ${sceneColor}08)` }} />
           <div className="absolute top-1 left-1 font-mono" style={{
             fontSize: '0.38rem', fontWeight: 700, letterSpacing: '0.04em',
             color: sceneColor, background: 'rgba(4,4,10,0.7)',
             borderRadius: 4, padding: '1px 4px',
           }}>
-            {shot.id}
+            {shot.shotNumber}
           </div>
         </div>
         {/* Description */}
@@ -834,7 +689,7 @@ function BoardCard({ shot, sceneColor, hasImage, isDragging, isShifted, onTap, o
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
           overflow: 'hidden',
         }}>
-          {shot.desc}
+          {shot.description}
         </div>
       </div>
     </div>
@@ -849,7 +704,6 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const accent = getProjectColor(projectId)
 
   const [mode, setMode] = useState<SceneMakerMode>('script')
-  const [orderMode, setOrderMode] = useState<ShotOrderMode>('story')
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null)
   const [newShotAt, setNewShotAt] = useState<{ index: number; sceneId: string } | null>(null)
   const [fabOpen, setFabOpen] = useState(false)
@@ -860,115 +714,72 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
   const qc = useQueryClient()
   const { data: project } = useProject(projectId)
-  const { data: versions, isLoading: loadingVer } = useSMVersions(projectId)
-  const currentVersion = versions?.find(v => v.isCurrent) ?? versions?.[0] ?? null
-  const versionId = currentVersion?.id ?? ''
-  const { data: scenes, isLoading: loadingSc } = useSMScenes(versionId)
-  const { data: shots, isLoading: loadingSh } = useSMShots(versionId)
+  const { data: scenes, isLoading: loadingScenes } = useScenes(projectId)
+  const { data: scenesWithShots, isLoading: loadingShots } = useQuery({
+    queryKey: ['shotsByProject', projectId],
+    queryFn: () => getShotsByProject(projectId),
+    enabled: !!projectId,
+  })
 
-  const allScenes = scenes ?? []
-  const allShots = shots ?? []
-  const loading = loadingVer || loadingSc || loadingSh
-  const createShot = useCreateShot(versionId)
+  const allScenes: Scene[] = scenes ?? []
+  const allShots: Shot[] = useMemo(() => {
+    if (!scenesWithShots) return []
+    return scenesWithShots.flatMap((s: any) => s.Shot ?? [])
+  }, [scenesWithShots])
 
-  const showOrderBar = mode === 'shotlist' || mode === 'storyboard'
+  const loading = loadingScenes || loadingShots
 
-  // ── REORDER HANDLERS ──────────────────────────────────────
+  // ── REORDER HANDLER ──────────────────────────────────────
 
-  const handleShotlistReorder = useCallback((shotId: string, newIndex: number) => {
-    console.log('handleShotlistReorder called', shotId, newIndex)
-    const orderField = orderMode === 'story' ? 'storyOrder' : 'shootOrder'
-    const dbField = orderMode === 'story' ? 'story_order' : 'shoot_order'
-
-    // Build flat order — pure global sort, same as StoryboardView
-    const flatOrder = orderMode === 'story'
-      ? [...allShots].sort((a, b) => a.storyOrder - b.storyOrder).map(s => s.id)
-      : [...allShots].sort((a, b) => a.shootOrder - b.shootOrder).map(s => s.id)
-
-    // Remove the dragged shot and insert at new position in flat order
-    const without = flatOrder.filter(id => id !== shotId)
-    const clamped = Math.max(0, Math.min(newIndex, without.length))
-    without.splice(clamped, 0, shotId)
-
-    // Derive the target sceneId: look at neighbors at newIndex position
-    // The shot takes the sceneId of the shot it landed next to
-    const neighborId = without[clamped === 0 ? 1 : clamped - 1]
-    const neighbor = allShots.find(s => s.id === neighborId)
-    const targetSceneId = neighbor?.sceneId ?? allShots.find(s => s.id === shotId)?.sceneId
-
-    // Reassign order globally based on new flat order
-    const updates = without.map((id, i) => {
-      const shot = allShots.find(s => s.id === id)
-      const isMovedShot = id === shotId
-      const sceneId = isMovedShot ? targetSceneId! : shot?.sceneId
-      return {
-        id,
-        order: i,
-        ...(isMovedShot && sceneId !== shot?.sceneId ? { sceneId } : {})
-      }
-    })
-
-    // Optimistic local update
-    qc.setQueryData(['smShots', versionId], (old: Shot[] | undefined) => {
-      if (!old) return old
-      return old.map(s => {
-        const u = updates.find(u => u.id === s.id)
-        if (!u) return s
-        return { ...s, [orderField]: u.order, ...(u.sceneId ? { sceneId: u.sceneId } : {}) }
-      })
-    })
-
-    // Persist to Supabase
-    Promise.all(updates.map(u =>
-      updateShotOrder(u.id, {
-        [dbField]: u.order,
-        ...(u.sceneId ? { scene_id: u.sceneId } : {}),
-      })
-    )).catch(err => console.error('Failed to persist shotlist reorder:', err))
-  }, [allShots, allScenes, orderMode, versionId, qc])
-
-  const handleBoardReorder = useCallback((shotId: string, newIndex: number) => {
-    const orderField = orderMode === 'story' ? 'storyOrder' : 'shootOrder'
-    const dbField = orderMode === 'story' ? 'story_order' : 'shoot_order'
-
-    // All shots sorted by current order
-    const sorted = [...allShots].sort((a, b) => a[orderField] - b[orderField])
-
-    // Remove the dragged shot and insert at new position
+  const handleReorder = useCallback((shotId: string, newIndex: number) => {
+    const sorted = [...allShots].sort((a, b) => a.sortOrder - b.sortOrder)
     const without = sorted.filter(s => s.id !== shotId)
     const moved = sorted.find(s => s.id === shotId)
     if (!moved) return
     const clamped = Math.max(0, Math.min(newIndex, without.length))
     without.splice(clamped, 0, moved)
 
-    // Build updates: reassign 0, 1, 2...
-    const updates = without.map((s, i) => ({ id: s.id, order: i }))
+    // Derive sceneId from neighbor
+    const neighborId = without[clamped === 0 ? 1 : clamped - 1]?.id
+    const neighbor = allShots.find(s => s.id === neighborId)
+    const targetSceneId = neighbor?.sceneId ?? moved.sceneId
+
+    const updates = without.map((s, i) => ({
+      id: s.id,
+      order: i,
+      sceneId: s.id === shotId ? targetSceneId : s.sceneId,
+    }))
 
     // Optimistic local update
-    qc.setQueryData(['smShots', versionId], (old: Shot[] | undefined) => {
+    qc.setQueryData(['shotsByProject', projectId], (old: any[] | undefined) => {
       if (!old) return old
-      return old.map(s => {
-        const u = updates.find(u => u.id === s.id)
-        return u ? { ...s, [orderField]: u.order } : s
-      })
+      return old.map((scene: any) => ({
+        ...scene,
+        Shot: (scene.Shot ?? []).map((s: Shot) => {
+          const u = updates.find(u => u.id === s.id)
+          if (!u) return s
+          return { ...s, sortOrder: u.order, sceneId: u.sceneId }
+        }),
+      }))
     })
 
-    // Persist to Supabase
-    Promise.all(updates.map(u => updateShotOrder(u.id, { [dbField]: u.order })))
-      .catch(err => console.error('Failed to persist board reorder:', err))
-  }, [allShots, orderMode, versionId, qc])
+    // Persist
+    Promise.all(updates.map(u =>
+      updateShotOrder(u.id, { sortOrder: u.order, ...(u.id === shotId && u.sceneId !== moved.sceneId ? { sceneId: u.sceneId } : {}) })
+    )).catch(err => console.error('Failed to persist reorder:', err))
+  }, [allShots, projectId, qc])
 
-  /** Auto-generate next shot ID for a scene (e.g. if scene 2 has 2A-2C, returns "2D") */
-  const nextShotId = useCallback((sceneId: string) => {
+  /** Auto-generate next shot number for a scene (e.g. if scene 2 has 2A-2C, returns "2D") */
+  const nextShotNumber = useCallback((sceneId: string) => {
     const scene = allScenes.find(s => s.id === sceneId)
-    const prefix = scene?.num ?? 1
+    const prefix = scene?.sceneNumber ?? '1'
     const sceneShots = allShots.filter(s => s.sceneId === sceneId)
-    const letters = sceneShots.map(s => { const m = s.id.match(/[A-Z]$/); return m ? m[0] : '' }).filter(Boolean)
-    const nextLetter = letters.length > 0 ? String.fromCharCode(Math.max(...letters.map(l => l.charCodeAt(0))) + 1) : 'A'
+    const letters = sceneShots.map(s => { const m = s.shotNumber.match(/[A-Z]$/); return m ? m[0] : '' }).filter(Boolean)
+    const nextLetter = letters.length > 0 ? String.fromCharCode(Math.max(...letters.map((l: string) => l.charCodeAt(0))) + 1) : 'A'
     return `${prefix}${nextLetter}`
   }, [allScenes, allShots])
 
-  // Contextual branch options per mode/order
+  // Contextual branch options per mode
   type BranchDef = { label: string; color: string; icon: React.ReactNode; action: () => void }
   const branches: BranchDef[] = useMemo(() => {
     if (mode === 'script') {
@@ -978,21 +789,9 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         { label: 'Add Dialogue', color: accent, icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4h8M5 7h6M4 10h8" stroke={accent} strokeWidth="1.3" strokeLinecap="round" /></svg>, action: () => { scriptRef.current?.addDialogue() } },
       ]
     }
-    if (mode === 'shotlist' && orderMode === 'story') {
+    if (mode === 'shotlist') {
       return [
         { label: 'New Scene', color: '#e8a020', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" /><path d="M13 10v4M11 12h4" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" /></svg>, action: () => { /* TODO */ } },
-        { label: 'New Shot', color: accent, icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="8" height="6" rx="1" stroke={accent} strokeWidth="1.3" /><path d="M10 7L14 9L10 11V7Z" fill={accent} opacity="0.8" /></svg>, action: () => {
-          const firstScene = allScenes[0]
-          if (firstScene) {
-            const sceneShots = allShots.filter(s => s.sceneId === firstScene.id)
-            setNewShotAt({ index: sceneShots.length, sceneId: firstScene.id })
-          }
-        }},
-      ]
-    }
-    if (mode === 'shotlist' && orderMode === 'shooting') {
-      return [
-        { label: 'New Day', color: '#e8a020', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.2" stroke="#e8a020" strokeWidth="1.3" /><path d="M2 6.5H14" stroke="#e8a020" strokeWidth="1.3" /><path d="M5.5 3V6.5M10.5 3V6.5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" /></svg>, action: () => { /* TODO */ } },
         { label: 'New Shot', color: accent, icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="8" height="6" rx="1" stroke={accent} strokeWidth="1.3" /><path d="M10 7L14 9L10 11V7Z" fill={accent} opacity="0.8" /></svg>, action: () => {
           const firstScene = allScenes[0]
           if (firstScene) {
@@ -1014,7 +813,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       { label: 'Add Scene', color: accent, icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke={accent} strokeWidth="1.3" strokeLinecap="round" /><path d="M13 10v4M11 12h4" stroke={accent} strokeWidth="1.3" strokeLinecap="round" /></svg>, action: () => { /* TODO */ } },
     ]
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, orderMode, accent, allScenes.length, allShots.length])
+  }, [mode, accent, allScenes.length, allShots.length])
 
   return (
     <div className="screen" style={{ overflow: 'hidden' }}>
@@ -1023,13 +822,8 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         <PageHeader
           projectId={projectId}
           title="SceneMaker"
-          meta={`${project?.name ?? ''} · SC.${allScenes[0]?.num ?? '—'}`}
+          meta={`${project?.name ?? ''} · SC.${allScenes[0]?.sceneNumber ?? '—'}`}
           noBorder
-          right={currentVersion ? (
-            <span className="font-mono" style={{ fontSize: '0.44rem', color: '#62627a', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 4, padding: '3px 7px', whiteSpace: 'nowrap' }}>
-              {currentVersion.label}
-            </span>
-          ) : undefined}
         />
 
         {/* Mode tabs */}
@@ -1045,22 +839,12 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         </div>
       </div>
 
-      {/* Order bar (shotlist/storyboard only) */}
-      {showOrderBar && (
-        <div className="flex items-center justify-between flex-shrink-0" style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      {/* Shot count bar (shotlist/storyboard only) */}
+      {(mode === 'shotlist' || mode === 'storyboard') && (
+        <div className="flex items-center flex-shrink-0" style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <span className="font-mono" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.06em' }}>
             {allShots.length} shots
           </span>
-          <div className="flex items-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 20, padding: 2, gap: 1 }}>
-            {(['story', 'shooting'] as ShotOrderMode[]).map(o => (
-              <button key={o} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
-                style={{ fontSize: '0.42rem', letterSpacing: '0.05em', padding: '3px 8px', borderRadius: 16, transition: 'all 0.15s',
-                  ...(orderMode === o ? { background: 'rgba(255,255,255,0.08)', color: '#dddde8' } : { color: '#62627a' }) }}
-                onClick={() => setOrderMode(o)}>
-                {o === 'story' ? 'Story' : 'Shoot'}
-              </button>
-            ))}
-          </div>
         </div>
       )}
 
@@ -1069,8 +853,8 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         {loading ? <LoadingState /> : (
           <>
             {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} />}
-            {mode === 'shotlist' && <ShotlistView scenes={allScenes} shots={allShots} orderMode={orderMode} accent={accent} onTapShot={setSelectedShot} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleShotlistReorder} />}
-            {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} orderMode={orderMode} onTapShot={setSelectedShot} onReorder={handleBoardReorder} />}
+            {mode === 'shotlist' && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} onTapShot={setSelectedShot} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} />}
+            {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} onTapShot={setSelectedShot} onReorder={handleReorder} />}
           </>
         )}
       </div>
@@ -1218,25 +1002,22 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       {/* New shot sheet */}
       <Sheet open={!!newShotAt} onClose={() => setNewShotAt(null)}>
         <NewShotSheet
-          autoId={newShotAt ? nextShotId(newShotAt.sceneId) : ''}
+          autoId={newShotAt ? nextShotNumber(newShotAt.sceneId) : ''}
           accent={accent}
           onSave={(data) => {
             if (!newShotAt) return
-            const shotId = nextShotId(newShotAt.sceneId)
-            const sceneShots = allShots.filter(s => s.sceneId === newShotAt.sceneId)
-            createShot.mutate({
-              id: shotId,
-              projectId,
-              versionId,
+            const shotNumber = nextShotNumber(newShotAt.sceneId)
+            const sortOrder = allShots.length + 1
+            createShot({
               sceneId: newShotAt.sceneId,
-              storyOrder: sceneShots.length + 1,
-              shootOrder: allShots.length + 1,
-              desc: data.desc,
-              framing: data.framing,
-              movement: data.movement,
-              lens: data.lens,
-              dirNotes: data.notes,
-            })
+              shotNumber,
+              size: data.size || null,
+              description: data.description,
+              status: 'planned',
+              sortOrder,
+            }).then(() => {
+              qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
+            }).catch(err => console.error('Failed to create shot:', err))
             setNewShotAt(null)
           }}
           onClose={() => setNewShotAt(null)}

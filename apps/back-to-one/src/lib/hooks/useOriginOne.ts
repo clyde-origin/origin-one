@@ -4,10 +4,9 @@ import * as db from '@/lib/db/queries'
 // ── QUERY KEYS — one place, no magic strings ───────────────
 
 export const keys = {
-  folders:            () => ['folders'] as const,
   projects:           () => ['projects'] as const,
   project:            (id: string) => ['projects', id] as const,
-  crew:               (projectId: string) => ['crew', projectId] as const,
+  crew:               (teamId: string) => ['crew', teamId] as const,
   actionItems:        (projectId: string) => ['actionItems', projectId] as const,
   milestones:         (projectId: string) => ['milestones', projectId] as const,
   allActionItems:     () => ['allActionItems'] as const,
@@ -16,11 +15,14 @@ export const keys = {
   smVersions:     (projectId: string) => ['smVersions', projectId] as const,
   smScenes:       (versionId: string) => ['smScenes', versionId] as const,
   smShots:        (versionId: string) => ['smShots', versionId] as const,
+  scenes:         (projectId: string) => ['scenes', projectId] as const,
+  shots:          (sceneId: string) => ['shots', sceneId] as const,
   moodboard:      (projectId: string) => ['moodboard', projectId] as const,
   locations:      (projectId: string) => ['locations', projectId] as const,
   castRoles:      (projectId: string) => ['castRoles', projectId] as const,
   artItems:       (projectId: string) => ['artItems', projectId] as const,
   threads:        (projectId: string) => ['threads', projectId] as const,
+  folders:        (projectId: string) => ['folders', projectId] as const,
   resources:      (projectId: string) => ['resources', projectId] as const,
   workflowNodes:  (projectId: string) => ['workflowNodes', projectId] as const,
   allCrew:        () => ['allCrew'] as const,
@@ -70,7 +72,7 @@ export function useDeleteProject() {
 export function useUpdateProject() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: { name?: string; client?: string; accent_color?: string; folder_id?: string | null; display_order?: number } }) =>
+    mutationFn: ({ id, fields }: { id: string; fields: { name?: string; status?: string; color?: string; client?: string; type?: string } }) =>
       db.updateProject(id, fields),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.projects() }),
   })
@@ -78,10 +80,11 @@ export function useUpdateProject() {
 
 // ── FOLDERS ───────────────────────────────────────────────
 
-export function useFolders() {
+export function useFolders(projectId: string) {
   return useQuery({
-    queryKey: keys.folders(),
-    queryFn:  db.getFolders,
+    queryKey: keys.folders(projectId),
+    queryFn:  () => db.getFolders(projectId),
+    enabled:  !!projectId,
   })
 }
 
@@ -89,17 +92,16 @@ export function useCreateFolder() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: db.createFolder,
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.folders() }),
-    onError: (err) => console.error('useCreateFolder failed:', err),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['folders'] }),
   })
 }
 
 export function useUpdateFolder() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: { name?: string; color?: string; logo_url?: string | null; order?: number } }) =>
+    mutationFn: ({ id, fields }: { id: string; fields: { name?: string } }) =>
       db.updateFolder(id, fields),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.folders() }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['folders'] }),
   })
 }
 
@@ -108,18 +110,9 @@ export function useDeleteFolder() {
   return useMutation({
     mutationFn: db.deleteFolder,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: keys.folders() })
+      qc.invalidateQueries({ queryKey: ['folders'] })
       qc.invalidateQueries({ queryKey: keys.projects() })
     },
-  })
-}
-
-export function useUpdateProjectOrder() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: { display_order?: number; folder_id?: string | null } }) =>
-      db.updateProjectOrder(id, fields),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.projects() }),
   })
 }
 
@@ -132,36 +125,36 @@ export function useAllCrew() {
   })
 }
 
-export function useCrew(projectId: string) {
+export function useCrew(teamId: string) {
   return useQuery({
-    queryKey: keys.crew(projectId),
-    queryFn:  () => db.getCrew(projectId),
-    enabled:  !!projectId,
+    queryKey: keys.crew(teamId),
+    queryFn:  () => db.getCrew(teamId),
+    enabled:  !!teamId,
   })
 }
 
-export function useAddCrewMember(projectId: string) {
+export function useAddCrewMember(teamId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: db.addCrewMember,
-    onSuccess:  () => qc.invalidateQueries({ queryKey: keys.crew(projectId) }),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: keys.crew(teamId) }),
   })
 }
 
-export function useRemoveCrewMember(projectId: string) {
+export function useRemoveCrewMember(teamId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: db.removeCrewMember,
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.crew(projectId) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.crew(teamId) }),
   })
 }
 
-export function useUpdateCrewMember(projectId: string) {
+export function useUpdateCrewMember(teamId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: Parameters<typeof db.updateCrewMember>[1] }) =>
+    mutationFn: ({ id, fields }: { id: string; fields: { role?: string } }) =>
       db.updateCrewMember(id, fields),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.crew(projectId) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.crew(teamId) }),
   })
 }
 
@@ -180,12 +173,11 @@ export function useToggleActionItem(projectId: string) {
   return useMutation({
     mutationFn: ({ id, done }: { id: string; done: boolean }) =>
       db.toggleActionItem(id, done),
-    // Optimistic update — check/uncheck feels instant
     onMutate: async ({ id, done }) => {
       await qc.cancelQueries({ queryKey: keys.actionItems(projectId) })
       const prev = qc.getQueryData(keys.actionItems(projectId))
       qc.setQueryData(keys.actionItems(projectId), (old: any[]) =>
-        old?.map(item => item.id === id ? { ...item, done } : item)
+        old?.map(item => item.id === id ? { ...item, status: done ? 'done' : 'open' } : item)
       )
       return { prev }
     },
@@ -224,7 +216,25 @@ export function useCreateMilestone(projectId: string) {
   })
 }
 
-// ── SCENEMAKER ─────────────────────────────────────────────
+// ── SCENES + SHOTS ────────────────────────────────────────
+
+export function useScenes(projectId: string) {
+  return useQuery({
+    queryKey: keys.scenes(projectId),
+    queryFn:  () => db.getScenes(projectId),
+    enabled:  !!projectId,
+  })
+}
+
+export function useShots(sceneId: string) {
+  return useQuery({
+    queryKey: keys.shots(sceneId),
+    queryFn:  () => db.getShots(sceneId),
+    enabled:  !!sceneId,
+  })
+}
+
+// ── SCENEMAKER (stubs) ────────────────────────────────────
 
 export function useSMVersions(projectId: string) {
   return useQuery({
@@ -271,8 +281,8 @@ export function useThreads(projectId: string) {
 export function useCreateThread(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ subject }: { subject: string }) =>
-      db.createThread(projectId, subject),
+    mutationFn: ({ title, createdBy }: { title: string; createdBy?: string }) =>
+      db.createThread(projectId, title, createdBy ?? ''),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.threads(projectId) }),
   })
 }
@@ -282,15 +292,13 @@ export function usePostMessage(projectId: string) {
   return useMutation({
     mutationFn: ({
       threadId,
-      authorId,
-      tagged,
-      text,
+      createdBy,
+      content,
     }: {
       threadId: string
-      authorId: string
-      tagged: string[]
-      text: string
-    }) => db.postMessage(threadId, authorId, tagged, text),
+      createdBy: string
+      content: string
+    }) => db.postMessage(threadId, createdBy, content),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.threads(projectId) }),
   })
 }

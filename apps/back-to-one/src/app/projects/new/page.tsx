@@ -6,27 +6,26 @@ import { useRouter } from 'next/navigation'
 import { useCreateProject, useAllCrew, useAddCrewMember } from '@/lib/hooks/useOriginOne'
 import { CrewAvatar } from '@/components/ui'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
-import { getProjectColor } from '@/lib/utils/phase'
+import { getProjectColor, statusLabel } from '@/lib/utils/phase'
 import { haptic } from '@/lib/utils/haptics'
 import { useKeyboardOffset } from '@/lib/hooks/useKeyboardOffset'
-import type { Phase, ProjectType, CrewMember } from '@/types'
+import type { CrewMember } from '@/types'
+
+type ProjectStatus = 'development' | 'pre_production' | 'production' | 'post_production' | 'archived'
+type ProjectType = 'Commercial' | 'Narrative Short' | 'Feature' | 'Documentary' | 'Branded Documentary' | 'Music Video'
 
 function genId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
 const TYPES: ProjectType[] = ['Commercial', 'Narrative Short', 'Feature', 'Documentary', 'Branded Documentary', 'Music Video']
-const PHASES: { key: Phase; label: string; color: string }[] = [
-  { key: 'pre', label: 'Pre-Production', color: '#e8a020' },
-  { key: 'prod', label: 'Production', color: '#6470f3' },
-  { key: 'post', label: 'Post-Production', color: '#00b894' },
-]
 
-const STATUS_MAP: Record<Phase, string> = {
-  pre: 'In Pre-Production',
-  prod: 'In Production',
-  post: 'In Post-Production',
-}
+const STATUSES: { key: ProjectStatus; label: string; color: string }[] = [
+  { key: 'development', label: 'Dev', color: '#9b6bf2' },
+  { key: 'pre_production', label: 'Pre', color: '#e8a020' },
+  { key: 'production', label: 'Prod', color: '#6470f3' },
+  { key: 'post_production', label: 'Post', color: '#00b894' },
+]
 
 export default function NewProjectPage() {
   const router = useRouter()
@@ -36,10 +35,7 @@ export default function NewProjectPage() {
   const [name, setName] = useState('')
   const [client, setClient] = useState('')
   const [type, setType] = useState<ProjectType>('Commercial')
-  const [phase, setPhase] = useState<Phase>('pre')
-  const [startDate, setStartDate] = useState('')
-  const [shootDate, setShootDate] = useState('')
-  const [deliveryDate, setDeliveryDate] = useState('')
+  const [status, setStatus] = useState<ProjectStatus>('pre_production')
   const [crewSheet, setCrewSheet] = useState(false)
   const [selectedCrew, setSelectedCrew] = useState<CrewMember[]>([])
 
@@ -47,29 +43,23 @@ export default function NewProjectPage() {
   const { data: allCrewData } = useAllCrew()
   const allCrew = allCrewData ?? []
 
-  // Deduplicate crew by first+last
+  // Deduplicate crew by User name
   const seen = new Set<string>()
   const uniqueCrew = allCrew.filter(c => {
-    const key = `${c.first}-${c.last}`
+    const key = c.User?.name ?? c.id
     if (seen.has(key)) return false
     seen.add(key)
     return true
   })
 
-  // Group by dept
-  const depts = Array.from(new Set(uniqueCrew.map(c => c.dept)))
-
   const toggleCrew = (member: CrewMember) => {
-    const key = `${member.first}-${member.last}`
     setSelectedCrew(prev => {
-      const exists = prev.find(c => `${c.first}-${c.last}` === key)
-      return exists ? prev.filter(c => `${c.first}-${c.last}` !== key) : [...prev, member]
+      const exists = prev.find(c => c.id === member.id)
+      return exists ? prev.filter(c => c.id !== member.id) : [...prev, member]
     })
   }
 
-  const isCrewSelected = (member: CrewMember) => {
-    return selectedCrew.some(c => `${c.first}-${c.last}` === `${member.first}-${member.last}`)
-  }
+  const isCrewSelected = (member: CrewMember) => selectedCrew.some(c => c.id === member.id)
 
   const handleCreate = async () => {
     if (!name.trim()) return
@@ -80,26 +70,14 @@ export default function NewProjectPage() {
         name: name.trim(),
         type,
         client: client.trim(),
-        company: 'Origin Point',
-        phase,
-        status: STATUS_MAP[phase] as any,
-        logline: '',
-        runtimeTarget: null,
-        aspectRatio: null,
-        captureFormat: null,
-        startDate: startDate || null,
-        shootDate: shootDate || null,
-        shootDateEnd: null,
-        deliveryDate: deliveryDate || null,
-        folderId: null,
-        displayOrder: 0,
-      })
+        status,
+      } as any)
       // Add selected crew
       for (const member of selectedCrew) {
         await addCrew.mutateAsync({
-          projectId: id, first: member.first, last: member.last,
-          role: member.role, dept: member.dept,
-          color1: member.color1, color2: member.color2,
+          projectId: id,
+          userId: member.userId,
+          role: member.role,
           createdAt: new Date().toISOString(),
         } as any)
       }
@@ -157,41 +135,22 @@ export default function NewProjectPage() {
             </div>
           </div>
 
-          {/* Phase */}
+          {/* Status */}
           <div>
-            <label className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Phase</label>
+            <label className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Status</label>
             <div className="flex gap-2">
-              {PHASES.map(p => (
-                <button key={p.key} onClick={() => setPhase(p.key)}
+              {STATUSES.map(s => (
+                <button key={s.key} onClick={() => setStatus(s.key)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg border transition-colors"
                   style={{
-                    background: phase === p.key ? `${p.color}22` : undefined,
-                    borderColor: phase === p.key ? `${p.color}55` : 'rgba(255,255,255,0.05)',
-                    color: phase === p.key ? p.color : '#62627a',
+                    background: status === s.key ? `${s.color}22` : undefined,
+                    borderColor: status === s.key ? `${s.color}55` : 'rgba(255,255,255,0.05)',
+                    color: status === s.key ? s.color : '#62627a',
                   }}>
-                  <div className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-                  <span className="font-mono text-xs">{p.key === 'pre' ? 'Pre' : p.key === 'prod' ? 'Prod' : 'Post'}</span>
+                  <div className="w-2 h-2 rounded-full" style={{ background: s.color }} />
+                  <span className="font-mono text-xs">{s.label}</span>
                 </button>
               ))}
-            </div>
-          </div>
-
-          {/* Dates */}
-          <div>
-            <label className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Dates <span className="text-muted/50">(optional)</span></label>
-            <div className="flex flex-col gap-2">
-              <div>
-                <span className="font-mono text-xs text-muted block mb-1">Start</span>
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputClass} />
-              </div>
-              <div>
-                <span className="font-mono text-xs text-muted block mb-1">Shoot</span>
-                <input type="date" value={shootDate} onChange={e => setShootDate(e.target.value)} className={inputClass} />
-              </div>
-              <div>
-                <span className="font-mono text-xs text-muted block mb-1">Delivery</span>
-                <input type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} className={inputClass} />
-              </div>
             </div>
           </div>
 
@@ -204,7 +163,7 @@ export default function NewProjectPage() {
                 <div className="flex items-center">
                   {selectedCrew.slice(0, 4).map((c, i) => (
                     <div key={i} style={{ marginLeft: i === 0 ? 0 : -6 }}>
-                      <CrewAvatar first={c.first} last={c.last} color1={c.color1} color2={c.color2} size={24} />
+                      <CrewAvatar name={c.User?.name ?? 'Unknown'} size={24} />
                     </div>
                   ))}
                   {selectedCrew.length > 4 && (
@@ -232,33 +191,29 @@ export default function NewProjectPage() {
       <Sheet open={crewSheet} onClose={() => setCrewSheet(false)} maxHeight="75vh">
         <SheetHeader title="Add Crew" onClose={() => setCrewSheet(false)} />
         <SheetBody>
-          {depts.map(dept => (
-            <div key={dept} className="mb-4">
-              <div className="font-mono text-sm text-muted tracking-widest uppercase mb-2">{dept}</div>
-              <div className="flex flex-col gap-1">
-                {uniqueCrew.filter(c => c.dept === dept).map(member => {
-                  const selected = isCrewSelected(member)
-                  return (
-                    <button key={member.id} onClick={() => toggleCrew(member)}
-                      className={`flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
-                        selected ? 'border-accent/30 bg-accent/10' : 'border-border bg-surface2'
-                      }`}>
-                      <CrewAvatar first={member.first} last={member.last} color1={member.color1} color2={member.color2} size={28} />
-                      <div className="flex-1 text-left min-w-0">
-                        <div className="text-base text-text">{member.first} {member.last}</div>
-                        <div className="font-mono text-xs text-muted">{member.role}</div>
-                      </div>
-                      {selected && (
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                          <path d="M3 7l3 3 5-5" stroke="#6470f3" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+          <div className="flex flex-col gap-1">
+            {uniqueCrew.map(member => {
+              const selected = isCrewSelected(member)
+              const name = member.User?.name ?? 'Unknown'
+              return (
+                <button key={member.id} onClick={() => toggleCrew(member)}
+                  className={`flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
+                    selected ? 'border-accent/30 bg-accent/10' : 'border-border bg-surface2'
+                  }`}>
+                  <CrewAvatar name={name} size={28} />
+                  <div className="flex-1 text-left min-w-0">
+                    <div className="text-base text-text">{name}</div>
+                    <div className="font-mono text-xs text-muted">{member.role}</div>
+                  </div>
+                  {selected && (
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M3 7l3 3 5-5" stroke="#6470f3" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+              )
+            })}
+          </div>
           {selectedCrew.length > 0 && (
             <button onClick={() => setCrewSheet(false)}
               className="w-full py-3 rounded-lg bg-accent text-white font-semibold text-base mt-2 active:opacity-80">

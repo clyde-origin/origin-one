@@ -6,30 +6,30 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   useProjects, useCrew, useMilestones, useArchiveProject, useDeleteProject, useUpdateProject,
-  useFolders, useCreateFolder, useUpdateProjectOrder,
 } from '@/lib/hooks/useOriginOne'
 import { SkeletonLine, CrewAvatar } from '@/components/ui'
-import { getProjectColor, PHASE_LABELS_MID, PHASE_HEX } from '@/lib/utils/phase'
+import { getProjectColor, statusHex, STATUS_LABELS_SHORT } from '@/lib/utils/phase'
 import { haptic } from '@/lib/utils/haptics'
 import { useLongPress } from '@/lib/hooks/useLongPress'
 import { ProjectActionSheet } from '@/components/projects/ProjectActionSheet'
 import { GlobalPanels, type PanelId } from '@/components/projects/GlobalPanels'
-import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
-import type { Phase, Project, Folder } from '@/types'
+import type { Project } from '@/types'
 
 // ── HELPERS ──────────────────────────────────────────────────
 
-function hexToRgba(hex: string, a: number) {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
+function hexToRgba(hex: string | null | undefined, a: number) {
+  const h = hex || '#444444'
+  const r = parseInt(h.slice(1, 3), 16)
+  const g = parseInt(h.slice(3, 5), 16)
+  const b = parseInt(h.slice(5, 7), 16)
   return `rgba(${r},${g},${b},${a})`
 }
 
-function slateBodyBg(color: string): string {
-  const r = parseInt(color.slice(1, 3), 16)
-  const g = parseInt(color.slice(3, 5), 16)
-  const b = parseInt(color.slice(5, 7), 16)
+function slateBodyBg(color: string | null | undefined): string {
+  const c = color || '#444444'
+  const r = parseInt(c.slice(1, 3), 16)
+  const g = parseInt(c.slice(3, 5), 16)
+  const b = parseInt(c.slice(5, 7), 16)
   const dr = Math.round(r * 0.07)
   const dg = Math.round(g * 0.07)
   const db = Math.round(b * 0.07)
@@ -38,26 +38,10 @@ function slateBodyBg(color: string): string {
   return `linear-gradient(135deg,${c1},${c2})`
 }
 
-function genId(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36)
-}
-
 // ── COLORED LINES (replaces clapper SVG) ─────────────────────
 
 function SlateLines({ color }: { color: string }) {
-  // 6 lines, every other one transparent (alternating pattern)
   const opacities = [0.28, 0, 0.15, 0, 0.07, 0]
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 18, overflow: 'hidden' }}>
-      {opacities.map((o, i) => (
-        <div key={i} style={{ flex: 1, background: o > 0 ? hexToRgba(color, o) : 'transparent' }} />
-      ))}
-    </div>
-  )
-}
-
-function FolderLines({ color }: { color: string }) {
-  const opacities = [0.25, 0, 0.14, 0, 0.07, 0]
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 18, overflow: 'hidden' }}>
       {opacities.map((o, i) => (
@@ -106,7 +90,7 @@ function SlateCard({ project, color, dimmed, editMode, isGhost, isDragging, wigg
   editMode: boolean; isGhost: boolean; isDragging: boolean; wiggleDelay?: number
   onLongPress: () => void; onClick: () => void
 }) {
-  const phaseColor = PHASE_HEX[project.phase as Phase]
+  const phaseColor = statusHex(project.status)
   const { data: crew } = useCrew(project.id)
   const { data: milestones } = useMilestones(project.id)
   const allCrew = crew ?? []
@@ -114,7 +98,7 @@ function SlateCard({ project, color, dimmed, editMode, isGhost, isDragging, wigg
   const daysToNext = nextMs ? Math.ceil((new Date(nextMs.date).getTime() - Date.now()) / 86400000) : null
   const isUrgentMs = daysToNext !== null && daysToNext <= 14
   const longPressHandlers = useLongPress(onLongPress, 500)
-  const milestoneText = nextMs ? (daysToNext === 0 ? `${nextMs.name} · Today` : `${nextMs.name} · ${daysToNext}d`) : null
+  const milestoneText = nextMs ? (daysToNext === 0 ? `${nextMs.title} · Today` : `${nextMs.title} · ${daysToNext}d`) : null
 
   if (isGhost) {
     return (
@@ -170,13 +154,13 @@ function SlateCard({ project, color, dimmed, editMode, isGhost, isDragging, wigg
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 20, background: hexToRgba(phaseColor, 0.12), border: `1px solid ${hexToRgba(phaseColor, 0.2)}` }}>
               <div style={{ width: 3, height: 3, borderRadius: '50%', background: phaseColor, boxShadow: `0 0 3px ${phaseColor}` }} />
-              <span className="font-mono uppercase" style={{ fontSize: '0.34rem', letterSpacing: '0.04em', color: phaseColor }}>{PHASE_LABELS_MID[project.phase as Phase]}</span>
+              <span className="font-mono uppercase" style={{ fontSize: '0.34rem', letterSpacing: '0.04em', color: phaseColor }}>{STATUS_LABELS_SHORT[project.status] ?? project.status}</span>
             </div>
             {!editMode && allCrew.length > 0 && (
               <div style={{ display: 'flex' }}>
                 {allCrew.slice(0, 3).map((c, i) => (
                   <div key={c.id} style={{ marginLeft: i === 0 ? 0 : -4 }}>
-                    <CrewAvatar first={c.first} last={c.last} color1={c.color1 || color} color2={c.color2 || color} size={16} />
+                    <CrewAvatar name={c.User?.name ?? 'Unknown'} size={16} />
                   </div>
                 ))}
                 {allCrew.length > 3 && (
@@ -191,125 +175,6 @@ function SlateCard({ project, color, dimmed, editMode, isGhost, isDragging, wigg
         </div>
       </div>
     </div>
-  )
-}
-
-// ── FOLDER CARD ──────────────────────────────────────────────
-
-function FolderCard({ folder, projects, expanded, editMode, isDropTarget, onToggle, getColor }: {
-  folder: Folder; projects: Project[]; expanded: boolean; editMode: boolean
-  isDropTarget: boolean; onToggle: () => void; getColor: (id: string) => string
-}) {
-  const router = useRouter()
-  const count = projects.length
-  const activeCount = projects.filter(p => p.phase === 'prod').length
-
-  return (
-    <div
-      data-folder-id={folder.id}
-      style={{
-        gridColumn: 'span 2', borderRadius: 10, overflow: 'hidden', position: 'relative',
-        background: 'rgba(10,10,18,0.55)', cursor: 'pointer',
-        border: `1px solid ${isDropTarget ? 'rgba(196,90,220,0.5)' : 'rgba(255,255,255,0.06)'}`,
-        boxShadow: isDropTarget ? '0 0 20px rgba(196,90,220,0.15), inset 0 0 0 1px rgba(196,90,220,0.2)' : 'none',
-        transition: 'border-color 0.2s, box-shadow 0.2s',
-      }}
-      onClick={() => !editMode && onToggle()}
-    >
-      <FolderLines color={folder.color} />
-      <div style={{ display: 'flex', alignItems: 'center', padding: '12px 14px 13px', gap: 12, position: 'relative' }}>
-        <div style={{ width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: hexToRgba(folder.color, 0.15), color: folder.color, fontWeight: 800, fontSize: 13, fontFamily: "'Manrope',sans-serif" }}>
-          {folder.name.slice(0, 2).toUpperCase()}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: '#dddde8' }}>{folder.name}</div>
-          <div className="font-mono" style={{ fontSize: 10, color: '#62627a', marginTop: 2 }}>
-            {isDropTarget ? 'drop to add' : `${count} project${count !== 1 ? 's' : ''}${activeCount > 0 ? ` · ${activeCount} active` : ''}`}
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          {!editMode && (
-            <div style={{ display: 'flex', gap: 4 }}>
-              {projects.slice(0, 4).map(p => (
-                <div key={p.id} style={{ width: 6, height: 6, borderRadius: '50%', background: getColor(p.id) }} />
-              ))}
-            </div>
-          )}
-          <div style={{ color: '#62627a', fontSize: 14, opacity: 0.4, transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>›</div>
-        </div>
-        {/* Drop overlay */}
-        {isDropTarget && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(4,4,10,0.55)', backdropFilter: 'blur(6px)', borderRadius: '0 0 10px 10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(196,90,220,0.2)', border: '1.5px solid rgba(196,90,220,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>⊞</div>
-              <div className="font-mono" style={{ fontSize: 11, color: 'rgba(196,90,220,0.8)', letterSpacing: '0.08em' }}>Add to {folder.name}</div>
-            </div>
-          </div>
-        )}
-      </div>
-      {/* Expanded folder contents */}
-      {expanded && !editMode && (
-        <div style={{ padding: '0 10px 12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {projects.map(p => (
-            <SlateCard key={p.id} project={p} color={getColor(p.id)} dimmed={false} editMode={false} isGhost={false} isDragging={false} onLongPress={() => {}} onClick={() => router.push(`/projects/${p.id}`)} />
-          ))}
-          <Link href="/projects/new" className="block">
-            <div style={{ borderRadius: 9, border: '1.5px dashed rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 60, gap: 6, cursor: 'pointer' }} className="active:scale-[0.96] transition-transform">
-              <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M5 1V9M1 5H9" stroke="rgba(255,255,255,0.2)" strokeWidth="1.3" strokeLinecap="round" /></svg>
-              <span className="font-mono uppercase" style={{ fontSize: '0.34rem', color: 'rgba(255,255,255,0.2)', letterSpacing: '0.08em' }}>Add</span>
-            </div>
-          </Link>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── NEW FOLDER SHEET ─────────────────────────────────────────
-
-const FOLDER_COLORS = ['#c45adc', '#6470f3', '#00b894', '#e8a020', '#e85a5a', '#4ab8e8', '#e8c44a', '#a855f7']
-
-function NewFolderSheet({ onClose, onCreate }: { onClose: () => void; onCreate: (data: { id: string; name: string; color: string; order: number }) => void }) {
-  const [name, setName] = useState('')
-  const [color, setColor] = useState(FOLDER_COLORS[0])
-
-  const handleSubmit = () => {
-    if (!name.trim()) return
-    onCreate({ id: genId(), name: name.trim(), color, order: 0 })
-    onClose()
-  }
-
-  return (
-    <>
-      <SheetHeader title="New Folder" onClose={onClose} />
-      <SheetBody>
-        <div className="flex flex-col gap-4">
-          <div>
-            <label className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Client / Name</label>
-            <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Fracture Films"
-              onKeyDown={e => { if (e.key === 'Enter') handleSubmit() }}
-              className="w-full bg-surface2 border border-border2 rounded-lg px-3 py-2.5 text-text text-base outline-none focus:border-accent transition-colors" />
-          </div>
-          <div>
-            <label className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Color</label>
-            <div className="flex gap-2">
-              {FOLDER_COLORS.map(c => (
-                <button key={c} onClick={() => setColor(c)} style={{
-                  width: 32, height: 32, borderRadius: '50%', background: hexToRgba(c, 0.2), border: color === c ? `2px solid ${c}` : '2px solid transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'border-color 0.15s',
-                }}>
-                  <div style={{ width: 16, height: 16, borderRadius: '50%', background: c }} />
-                </button>
-              ))}
-            </div>
-          </div>
-          <button onClick={handleSubmit} disabled={!name.trim()}
-            className="w-full py-3 rounded-lg bg-accent text-white font-semibold text-base transition-opacity disabled:opacity-40 active:opacity-80">
-            Create Folder
-          </button>
-        </div>
-      </SheetBody>
-    </>
   )
 }
 
@@ -333,38 +198,32 @@ function WiggleStyle() {
 export default function ProjectsPage() {
   const router = useRouter()
   const { data: projects, isLoading: loadingProjects } = useProjects()
-  const { data: folders } = useFolders()
   const allProjects = projects ?? []
-  const allFolders = folders ?? []
   const archiveMutation = useArchiveProject()
   const deleteMutation = useDeleteProject()
   const updateMutation = useUpdateProject()
-  const createFolderMutation = useCreateFolder()
-  const updateOrderMutation = useUpdateProjectOrder()
 
   const [actionProject, setActionProject] = useState<{
     id: string; name: string; client: string; type: string; projectColor: string
   } | null>(null)
   const [colorOverrides, setColorOverrides] = useState<Record<string, string>>({})
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
-  const [creatingFolder, setCreatingFolder] = useState(false)
 
   // ── Edit mode (drag) state ──
   const [editMode, setEditMode] = useState(false)
   const [dragProjectId, setDragProjectId] = useState<string | null>(null)
   const [dragTargetIdx, setDragTargetIdx] = useState<number>(-1)
-  const [dropFolderId, setDropFolderId] = useState<string | null>(null)
 
   // Refs to avoid stale closures in touch handlers
   const dragProjectIdRef = useRef<string | null>(null)
   const dragTargetIdxRef = useRef<number>(-1)
-  const dropFolderIdRef = useRef<string | null>(null)
   const dragStartRef = useRef<{ x: number; y: number; elX: number; elY: number; w: number } | null>(null)
   const dragElRef = useRef<HTMLDivElement>(null)
   const lastSlotIdxRef = useRef<number>(-1)
   const dragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingDragRef = useRef<{ projectId: string; x: number; y: number; elX: number; elY: number; w: number } | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+
+  const sortedProjects = [...allProjects].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
 
   function getColor(projectId: string) {
     return colorOverrides[projectId] || getProjectColor(projectId)
@@ -386,25 +245,8 @@ export default function ProjectsPage() {
     if (!actionProject) return
     setColorOverrides(prev => ({ ...prev, [actionProject.id]: color }))
     setActionProject(prev => prev ? { ...prev, projectColor: color } : null)
-    updateMutation.mutate({ id: actionProject.id, fields: { accent_color: color } })
+    updateMutation.mutate({ id: actionProject.id, fields: { color } })
   }
-
-  function toggleFolder(folderId: string) {
-    setExpandedFolders(prev => {
-      const next = new Set(prev)
-      if (next.has(folderId)) next.delete(folderId)
-      else next.add(folderId)
-      return next
-    })
-  }
-
-  // Group projects
-  const unfiledProjects = allProjects
-    .filter(p => !p.folderId)
-    .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
-
-  const folderProjects = (folderId: string) =>
-    allProjects.filter(p => p.folderId === folderId).sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
 
   // ── Touch drag handlers (ref-based, direct DOM transform) ──
   const activateDrag = useCallback((projectId: string, x: number, y: number, elX: number, elY: number, w: number) => {
@@ -458,31 +300,12 @@ export default function ProjectsPage() {
     const cardCx = touch.clientX - dragStartRef.current.elX + dragStartRef.current.w / 2
     const cardCy = touch.clientY - dragStartRef.current.elY + 54 // approx half card height
 
-    // Check if over a folder — snapshot rects live
-    const folderEls = document.querySelectorAll<HTMLElement>('[data-folder-id]')
-    let overFolder: string | null = null
-    folderEls.forEach(el => {
-      const rect = el.getBoundingClientRect()
-      if (cardCx >= rect.left && cardCx <= rect.right && cardCy >= rect.top && cardCy <= rect.bottom) {
-        overFolder = el.dataset.folderId!
-      }
-    })
-    dropFolderIdRef.current = overFolder
-    setDropFolderId(overFolder)
-
-    if (overFolder) {
-      dragTargetIdxRef.current = -1
-      setDragTargetIdx(-1)
-      return
-    }
-
     // Snapshot slot rects live on every move (grid shifts as items displace)
     const slotEls = document.querySelectorAll<HTMLElement>('[data-project-id]')
     let closest = -1
     let closestDist = Infinity
     const slots: { id: string; cx: number; cy: number }[] = []
     slotEls.forEach(el => {
-      if (el.closest('[data-folder-id]')) return // skip folder-nested
       if (el.dataset.projectId === dragProjectIdRef.current) return // skip self
       const rect = el.getBoundingClientRect()
       slots.push({ id: el.dataset.projectId!, cx: rect.left + rect.width / 2, cy: rect.top + rect.height / 2 })
@@ -512,40 +335,26 @@ export default function ProjectsPage() {
     pendingDragRef.current = null
 
     const projectId = dragProjectIdRef.current
-    const folderId = dropFolderIdRef.current
     const targetIdx = dragTargetIdxRef.current
 
-    if (projectId && folderId) {
-      // Move project into folder — optimistic + persist
-      updateOrderMutation.mutate(
-        { id: projectId, fields: { folder_id: folderId } },
-        { onError: (err) => console.error('Failed to move project into folder:', err) },
-      )
-    } else if (projectId && targetIdx >= 0) {
-      // Reorder unfiled projects
-      const ordered = [...unfiledProjects.filter(p => p.id !== projectId)]
+    if (projectId && targetIdx >= 0) {
+      const ordered = [...sortedProjects.filter(p => p.id !== projectId)]
       const movedProject = allProjects.find(p => p.id === projectId)
       if (movedProject) {
         const insertAt = Math.min(targetIdx, ordered.length)
         ordered.splice(insertAt, 0, movedProject)
-        ordered.forEach((p, i) => {
-          if (p.displayOrder !== i) {
-            updateOrderMutation.mutate({ id: p.id, fields: { display_order: i, folder_id: null } })
-          }
-        })
+        // Display order no longer stored in DB — drag is visual-only for now
       }
     }
 
     // Reset
     dragProjectIdRef.current = null
     dragTargetIdxRef.current = -1
-    dropFolderIdRef.current = null
     dragStartRef.current = null
     lastSlotIdxRef.current = -1
     setDragProjectId(null)
     setDragTargetIdx(-1)
-    setDropFolderId(null)
-  }, [allProjects, unfiledProjects, updateOrderMutation])
+  }, [allProjects, sortedProjects, updateMutation])
 
   // Global touch listeners for drag
   useEffect(() => {
@@ -625,28 +434,8 @@ export default function ProjectsPage() {
                 </div>
               )}
 
-              {/* Folders */}
-              {allFolders.length > 0 && (
-                <>
-                  <div style={{ gridColumn: 'span 2', padding: '4px 2px 2px' }}>
-                    <span className="font-mono uppercase" style={{ fontSize: 10, color: 'rgba(98,98,122,0.45)', letterSpacing: '0.1em', opacity: editMode ? 0.4 : 1 }}>Clients</span>
-                  </div>
-                  {allFolders.map(f => (
-                    <FolderCard key={f.id} folder={f} projects={folderProjects(f.id)}
-                      expanded={expandedFolders.has(f.id)} editMode={editMode}
-                      isDropTarget={dropFolderId === f.id} onToggle={() => toggleFolder(f.id)}
-                      getColor={getColor} />
-                  ))}
-                </>
-              )}
-
-              {/* Projects label */}
-              <div style={{ gridColumn: 'span 2', padding: '4px 2px 2px', marginTop: allFolders.length > 0 ? 4 : 0 }}>
-                <span className="font-mono uppercase" style={{ fontSize: 10, color: 'rgba(98,98,122,0.45)', letterSpacing: '0.1em', opacity: editMode ? 0.4 : 1 }}>Projects</span>
-              </div>
-
-              {/* Unfiled projects */}
-              {unfiledProjects.map((p, i) => {
+              {/* Flat project grid */}
+              {sortedProjects.map((p, i) => {
                 const isDragging = dragProjectId === p.id
                 const isGhost = isDragging
                 return (
@@ -671,24 +460,15 @@ export default function ProjectsPage() {
                 )
               })}
 
-              {/* Add buttons */}
+              {/* Add / reorder buttons */}
               <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8, padding: '4px 2px 2px' }}>
                 {!editMode && (
-                  <>
-                    <Link href="/projects/new" className="block active:opacity-70 transition-opacity">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 20, border: '1px dashed rgba(196,90,220,0.2)', background: 'rgba(196,90,220,0.03)', cursor: 'pointer' }}>
-                        <span style={{ color: 'rgba(196,90,220,0.4)', fontSize: 13 }}>+</span>
-                        <span className="font-mono uppercase" style={{ fontSize: 10, color: 'rgba(196,90,220,0.4)', letterSpacing: '0.08em' }}>New Project</span>
-                      </div>
-                    </Link>
-                    <div onClick={() => { haptic('light'); setCreatingFolder(true) }} style={{
-                      display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 20,
-                      border: '1px dashed rgba(196,90,220,0.2)', background: 'rgba(196,90,220,0.03)', cursor: 'pointer',
-                    }} className="active:opacity-70 transition-opacity">
-                      <span style={{ color: 'rgba(196,90,220,0.4)', fontSize: 13 }}>⊞</span>
-                      <span className="font-mono uppercase" style={{ fontSize: 10, color: 'rgba(196,90,220,0.4)', letterSpacing: '0.08em' }}>New Folder</span>
+                  <Link href="/projects/new" className="block active:opacity-70 transition-opacity">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 20, border: '1px dashed rgba(196,90,220,0.2)', background: 'rgba(196,90,220,0.03)', cursor: 'pointer' }}>
+                      <span style={{ color: 'rgba(196,90,220,0.4)', fontSize: 13 }}>+</span>
+                      <span className="font-mono uppercase" style={{ fontSize: 10, color: 'rgba(196,90,220,0.4)', letterSpacing: '0.08em' }}>New Project</span>
                     </div>
-                  </>
+                  </Link>
                 )}
                 <div onClick={() => { haptic('light'); setEditMode(prev => !prev); if (editMode) { setDragProjectId(null) } }} style={{
                   display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 20,
@@ -834,12 +614,6 @@ export default function ProjectsPage() {
         onColorChange={handleColorChange}
         onClose={() => setActionProject(null)}
       />
-
-      {/* New Folder sheet */}
-      <Sheet open={creatingFolder} onClose={() => setCreatingFolder(false)}>
-        <NewFolderSheet onClose={() => setCreatingFolder(false)}
-          onCreate={(data) => createFolderMutation.mutate(data)} />
-      </Sheet>
     </div>
   )
 }

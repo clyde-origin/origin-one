@@ -1,43 +1,106 @@
-import type { Phase } from '@/types'
+import type { ProjectStatus, MilestoneStatus } from '@/types'
 
-export const PHASE_LABELS: Record<Phase, string> = {
-  pre:  'Pre',
-  prod: 'Prod',
-  post: 'Post',
+// ── STATUS-BASED LOOKUPS (new schema) ───────────────────
+
+export const STATUS_HEX: Record<string, string> = {
+  development:     '#e8a020',
+  pre_production:  '#e8a020',
+  production:      '#6470f3',
+  post_production: '#00b894',
+  archived:        '#62627a',
 }
 
-export const PHASE_COLORS: Record<Phase, string> = {
-  pre:  'text-pre',
-  prod: 'text-prod',
-  post: 'text-post',
+export const STATUS_LABELS: Record<string, string> = {
+  development:     'Development',
+  pre_production:  'Pre-Production',
+  production:      'Production',
+  post_production: 'Post-Production',
+  archived:        'Archived',
 }
 
-export const PHASE_BG: Record<Phase, string> = {
-  pre:  'bg-pre/10',
-  prod: 'bg-prod/10',
-  post: 'bg-post/10',
+export const STATUS_LABELS_SHORT: Record<string, string> = {
+  development:     'Dev',
+  pre_production:  'Pre-Prod',
+  production:      'Production',
+  post_production: 'Post-Prod',
+  archived:        'Archived',
 }
 
-export const PHASE_DOT: Record<Phase, string> = {
-  pre:  'bg-pre',
-  prod: 'bg-prod',
-  post: 'bg-post',
+export const STATUS_DOT: Record<string, string> = {
+  development:     'bg-pre',
+  pre_production:  'bg-pre',
+  production:      'bg-prod',
+  post_production: 'bg-post',
+  archived:        'bg-muted',
 }
 
-export const PHASE_HEX: Record<Phase, string> = {
+export const STATUS_TEXT: Record<string, string> = {
+  development:     'text-pre',
+  pre_production:  'text-pre',
+  production:      'text-prod',
+  post_production: 'text-post',
+  archived:        'text-muted',
+}
+
+export const MILESTONE_STATUS_HEX: Record<string, string> = {
+  upcoming:    '#e8a020',
+  in_progress: '#6470f3',
+  completed:   '#00b894',
+}
+
+export const MILESTONE_STATUS_LABEL: Record<string, string> = {
+  upcoming:    'Upcoming',
+  in_progress: 'In Progress',
+  completed:   'Completed',
+}
+
+// Keep Phase type for backwards compat in components that haven't migrated yet
+export type Phase = 'pre' | 'prod' | 'post'
+
+export const PHASE_HEX: Record<string, string> = {
   pre: '#e8a020', prod: '#6470f3', post: '#00b894',
+  ...STATUS_HEX,
 }
 
-export const PHASE_LABELS_LONG: Record<Phase, string> = {
+export const PHASE_LABELS: Record<string, string> = {
+  pre: 'Pre', prod: 'Prod', post: 'Post',
+}
+
+export const PHASE_LABELS_LONG: Record<string, string> = {
   pre: 'In Pre-Production', prod: 'In Production', post: 'In Post-Production',
+  ...STATUS_LABELS,
 }
 
-export const PHASE_LABELS_MID: Record<Phase, string> = {
+export const PHASE_LABELS_MID: Record<string, string> = {
   pre: 'Pre-prod', prod: 'Production', post: 'Post-prod',
+  ...STATUS_LABELS_SHORT,
 }
 
-export const PHASE_TEXT: Record<Phase, string> = {
+export const PHASE_DOT: Record<string, string> = {
+  pre: 'bg-pre', prod: 'bg-prod', post: 'bg-post',
+  ...STATUS_DOT,
+}
+
+export const PHASE_TEXT: Record<string, string> = {
   pre: 'text-pre', prod: 'text-prod', post: 'text-post',
+  ...STATUS_TEXT,
+}
+
+export const PHASE_COLORS: Record<string, string> = {
+  pre: 'text-pre', prod: 'text-prod', post: 'text-post',
+  ...STATUS_TEXT,
+}
+
+export const PHASE_BG: Record<string, string> = {
+  pre: 'bg-pre/10', prod: 'bg-prod/10', post: 'bg-post/10',
+}
+
+export function statusHex(status: string | undefined): string {
+  return STATUS_HEX[status ?? ''] ?? '#62627a'
+}
+
+export function statusLabel(status: string | undefined): string {
+  return STATUS_LABELS[status ?? ''] ?? status ?? ''
 }
 
 export const DEPT_COLORS: Record<string, string> = {

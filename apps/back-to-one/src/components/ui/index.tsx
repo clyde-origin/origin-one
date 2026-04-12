@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils/cn'
-import type { Phase } from '@/types'
+import type { Phase } from '@/lib/utils/phase'
 
 export { Sigil } from './Sigil'
 export { DestructiveSheet } from './DestructiveSheet'
@@ -105,22 +105,34 @@ export function SectionLabel({ children, className }: {
 
 // ── CREW AVATAR ──────────────────────────────────────────────
 
+const AVATAR_COLORS = [
+  ['#e8a020', '#d4782c'], ['#6470f3', '#8b5cf6'], ['#00b894', '#00857a'],
+  ['#c45adc', '#9b4dca'], ['#e87060', '#d35448'], ['#3b82f6', '#2563eb'],
+  ['#f59e0b', '#d97706'], ['#10b981', '#059669'],
+]
+
+function avatarGradient(name: string): [string, string] {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  const pair = AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+  return [pair[0], pair[1]]
+}
+
+function avatarInitials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+  return (name[0] ?? '?').toUpperCase()
+}
+
 export function CrewAvatar({
-  first,
-  last,
-  color1,
-  color2,
+  name,
   size = 38,
-  online,
 }: {
-  first: string
-  last: string
-  color1: string
-  color2: string
+  name: string
   size?: number
-  online?: boolean
 }) {
-  const initials = `${first[0]}${last[0]}`
+  const [c1, c2] = avatarGradient(name)
+  const initials = avatarInitials(name)
   return (
     <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
       <div
@@ -128,18 +140,12 @@ export function CrewAvatar({
         style={{
           width: size,
           height: size,
-          background: `linear-gradient(135deg, ${color1}, ${color2})`,
+          background: `linear-gradient(135deg, ${c1}, ${c2})`,
           fontSize: size * 0.26,
         }}
       >
         {initials}
       </div>
-      {online && (
-        <div
-          className="absolute bottom-0 right-0 rounded-full bg-green border-2 border-bg"
-          style={{ width: size * 0.3, height: size * 0.3 }}
-        />
-      )}
     </div>
   )
 }

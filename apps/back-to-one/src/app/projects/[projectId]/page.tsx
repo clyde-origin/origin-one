@@ -15,18 +15,19 @@ import { CrewPanel } from '@/components/hub/CrewPanel'
 import { CreateTaskSheet, CreateMilestoneSheet, CreateCreativeSheet } from '@/components/create'
 import { haptic } from '@/lib/utils/haptics'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
-import { formatDate, isUrgent, isLate, DEPT_PHASE, getProjectColor, PHASE_HEX, PHASE_LABELS_LONG, PHASE_TEXT, PHASE_DOT as PHASE_DOT_UTIL, DEPT_CLASSES } from '@/lib/utils/phase'
-import type { ActionItem, Milestone, CrewMember, Phase, Project, WorkflowNode } from '@/types'
+import {
+  formatDate, isUrgent, isLate, getProjectColor,
+  PHASE_HEX, STATUS_DOT, STATUS_TEXT, MILESTONE_STATUS_HEX,
+  statusLabel,
+} from '@/lib/utils/phase'
+import type { ActionItem, Milestone, CrewMember, Project, WorkflowNode } from '@/types'
 
 // ── HELPERS ───────────────────────────────────────────────
 
-function hexToRgb(hex: string): [number, number, number] {
-  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)]
+function hexToRgb(hex: string | null | undefined): [number, number, number] {
+  const h = hex || '#444444'
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
 }
-
-const PHASE_DOT = PHASE_DOT_UTIL
-const PHASE_LABEL = PHASE_LABELS_LONG
-const deptColor = DEPT_CLASSES
 
 const SCENE_GRAD: Record<number, string> = {
   1: 'linear-gradient(160deg,#0c0810,#1a0c20)',
@@ -97,22 +98,38 @@ const MINI_ICONS: Record<string, React.ReactNode> = {
 
 function AIDetailSheet({ item, crew, onClose }: { item: ActionItem | null; crew: CrewMember[]; onClose: () => void }) {
   if (!item) return null
-  const assignee = crew.find(c => c.id === item.assigneeId)
+  const assignee = crew.find(c => c.id === item.assignedTo)
   const late = item.dueDate ? isLate(item.dueDate) : false
   const urgent = item.dueDate ? isUrgent(item.dueDate) : false
   const dateLabel = item.dueDate ? formatDate(item.dueDate) : '—'
+  const isDone = item.status === 'done'
   return (
     <>
-      <SheetHeader title={item.name} onClose={onClose} />
+      <SheetHeader title={item.title} onClose={onClose} />
       <SheetBody>
         <div className="flex items-center gap-2 mb-4 p-3 bg-surface2 rounded-lg border border-border">
-          <div className={`w-2 h-2 rounded-full ${item.done ? 'bg-post' : 'bg-muted'}`} />
-          <span className="font-mono text-sm text-text2">{item.done ? 'Completed' : 'Open'}</span>
+          <div className={`w-2 h-2 rounded-full ${isDone ? 'bg-post' : 'bg-muted'}`} />
+          <span className="font-mono text-sm text-text2">{isDone ? 'Completed' : 'Open'}</span>
           <span className={`font-mono text-xs ml-auto ${late ? 'text-red' : urgent ? 'text-pre' : 'text-muted'}`}>{dateLabel}</span>
         </div>
-        {assignee && (<div className="mb-4"><span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Assigned to</span><div className="flex items-center gap-3 p-3 bg-surface2 rounded-lg border border-border"><CrewAvatar first={assignee.first} last={assignee.last} color1={assignee.color1} color2={assignee.color2} size={32} /><div><div className="text-base font-semibold text-text">{assignee.first} {assignee.last}</div><div className="font-mono text-xs text-muted">{assignee.role}</div></div></div></div>)}
-        <div className="mb-4"><span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Department</span><span className={`font-mono text-xs px-2 py-1 rounded-sm ${deptColor[item.dept] ?? 'text-muted bg-surface2'}`}>{item.dept}</span></div>
-        {item.notes && (<div className="mb-4"><span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Notes</span><div className="text-base text-text2 leading-relaxed p-3 bg-surface2 rounded-lg border border-border">{item.notes}</div></div>)}
+        {assignee && (
+          <div className="mb-4">
+            <span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Assigned to</span>
+            <div className="flex items-center gap-3 p-3 bg-surface2 rounded-lg border border-border">
+              <CrewAvatar name={assignee.User?.name ?? 'Unknown'} size={32} />
+              <div>
+                <div className="text-base font-semibold text-text">{assignee.User?.name ?? 'Unknown'}</div>
+                <div className="font-mono text-xs text-muted">{assignee.role}</div>
+              </div>
+            </div>
+          </div>
+        )}
+        {item.description && (
+          <div className="mb-4">
+            <span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Notes</span>
+            <div className="text-base text-text2 leading-relaxed p-3 bg-surface2 rounded-lg border border-border">{item.description}</div>
+          </div>
+        )}
       </SheetBody>
     </>
   )
@@ -121,19 +138,39 @@ function AIDetailSheet({ item, crew, onClose }: { item: ActionItem | null; crew:
 function MSDetailSheet({ milestone, crew, onClose }: { milestone: Milestone | null; crew: CrewMember[]; onClose: () => void }) {
   if (!milestone) return null
   const past = isLate(milestone.date)
-  const people = milestone.people.map(id => crew.find(c => c.id === id)).filter(Boolean) as CrewMember[]
+  const people = (milestone.people ?? []).map(id => crew.find(c => c.id === id)).filter(Boolean) as CrewMember[]
+  const statusColor = MILESTONE_STATUS_HEX[milestone.status] ?? '#62627a'
   return (
     <>
-      <SheetHeader title={milestone.name} onClose={onClose} />
+      <SheetHeader title={milestone.title} onClose={onClose} />
       <SheetBody>
         <div className="flex items-center gap-2 mb-4 p-3 bg-surface2 rounded-lg border border-border">
-          <div className={`w-2 h-2 rounded-full ${PHASE_DOT[milestone.phase]}`} />
-          <span className={`font-mono text-[0.5rem] tracking-widest uppercase px-2 py-0.5 rounded-sm ${milestone.phase === 'pre' ? 'bg-pre/10 text-pre' : milestone.phase === 'prod' ? 'bg-prod/10 text-prod' : 'bg-post/10 text-post'}`}>{milestone.phase}</span>
+          <div className="w-2 h-2 rounded-full" style={{ background: statusColor }} />
+          <span className="font-mono text-[0.5rem] tracking-widest uppercase px-2 py-0.5 rounded-sm" style={{ background: `${statusColor}1a`, color: statusColor }}>{milestone.status}</span>
           <span className={`font-mono text-xs ml-auto ${past ? 'text-red' : 'text-muted'}`}>{formatDate(milestone.date)}</span>
         </div>
-        <div className="mb-4"><span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Department</span><span className={`font-mono text-xs px-2 py-1 rounded-sm ${deptColor[milestone.dept] ?? 'text-muted bg-surface2'}`}>{milestone.dept}</span></div>
-        {people.length > 0 && (<div className="mb-4"><span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">People</span><div className="flex flex-col gap-2">{people.map(p => (<div key={p.id} className="flex items-center gap-3 p-3 bg-surface2 rounded-lg border border-border"><CrewAvatar first={p.first} last={p.last} color1={p.color1} color2={p.color2} size={32} /><div><div className="text-base font-semibold text-text">{p.first} {p.last}</div><div className="font-mono text-xs text-muted">{p.role}</div></div></div>))}</div></div>)}
-        {milestone.notes && (<div className="mb-4"><span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Notes</span><div className="text-base text-text2 leading-relaxed p-3 bg-surface2 rounded-lg border border-border">{milestone.notes}</div></div>)}
+        {people.length > 0 && (
+          <div className="mb-4">
+            <span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">People</span>
+            <div className="flex flex-col gap-2">
+              {people.map(p => (
+                <div key={p.id} className="flex items-center gap-3 p-3 bg-surface2 rounded-lg border border-border">
+                  <CrewAvatar name={p.User?.name ?? 'Unknown'} size={32} />
+                  <div>
+                    <div className="text-base font-semibold text-text">{p.User?.name ?? 'Unknown'}</div>
+                    <div className="font-mono text-xs text-muted">{p.role}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {milestone.notes && (
+          <div className="mb-4">
+            <span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Notes</span>
+            <div className="text-base text-text2 leading-relaxed p-3 bg-surface2 rounded-lg border border-border">{milestone.notes}</div>
+          </div>
+        )}
       </SheetBody>
     </>
   )
@@ -141,13 +178,17 @@ function MSDetailSheet({ milestone, crew, onClose }: { milestone: Milestone | nu
 
 function CrewDetailSheet({ member, onClose }: { member: CrewMember | null; onClose: () => void }) {
   if (!member) return null
+  const name = member.User?.name ?? 'Unknown'
   return (
     <>
-      <SheetHeader title={`${member.first} ${member.last}`} onClose={onClose} />
+      <SheetHeader title={name} onClose={onClose} />
       <SheetBody>
         <div className="flex items-center gap-4 mb-4 p-3 bg-surface2 rounded-lg border border-border">
-          <CrewAvatar first={member.first} last={member.last} color1={member.color1} color2={member.color2} size={48} online={member.online} />
-          <div><div className="text-lg font-semibold text-text">{member.first} {member.last}</div><div className="font-mono text-xs text-muted">{member.role}</div><div className="font-mono text-xs text-muted">{member.dept}</div></div>
+          <CrewAvatar name={name} size={48} />
+          <div>
+            <div className="text-lg font-semibold text-text">{name}</div>
+            <div className="font-mono text-xs text-muted">{member.role}</div>
+          </div>
         </div>
       </SheetBody>
     </>
@@ -196,7 +237,7 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
   const allWorkflow = workflowNodes ?? []
   const allThreads = threads ?? []
 
-  const openItems = allItems.filter(i => !i.done)
+  const openItems = allItems.filter(i => i.status !== 'done')
   const previewTasks = openItems.slice(0, 3)
   const upcoming3 = allMS.filter(m => new Date(m.date) >= new Date()).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3)
   const unreadThreads = allThreads.filter(t => t.unread).length
@@ -209,26 +250,11 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
     return refs.slice(0, 4)
   }, [allMoodRefs, projectId])
 
-  // Timeline bar computations — must be before early returns (hooks can't be conditional)
-  const { preWidth, prodWidth, todayPct } = useMemo(() => {
-    if (!project) return { preWidth: 0, prodWidth: 0, todayPct: 0 }
-    const start = project.startDate ? new Date(project.startDate).getTime() : Date.now()
-    const shoot = project.shootDate ? new Date(project.shootDate).getTime() : start
-    const shootEnd = project.shootDateEnd ? new Date(project.shootDateEnd).getTime() : shoot
-    const delivery = project.deliveryDate ? new Date(project.deliveryDate).getTime() : shootEnd + 86400000 * 14
-    const totalDays = Math.max((delivery - start) / 86400000, 1)
-    return {
-      preWidth: Math.max((shoot - start) / 86400000, 0) / totalDays * 100,
-      prodWidth: Math.max(((shootEnd - shoot) / 86400000 + 1), 1) / totalDays * 100,
-      todayPct: Math.min(Math.max(((Date.now() - start) / 86400000) / totalDays * 100, 0), 100),
-    }
-  }, [project?.startDate, project?.shootDate, project?.shootDateEnd, project?.deliveryDate, project])
-
   if (loadingProject) return <HubSkeleton />
   if (!project) return <div className="screen flex items-center justify-center"><p className="text-muted font-mono text-xs">Project not found</p></div>
 
-  const locConfirmed = allLocations.reduce((n, g) => n + (g.options?.filter(o => o.status === 'Confirmed').length ?? 0), 0)
-  const locTotal = allLocations.reduce((n, g) => n + (g.options?.length ?? 0), 0)
+  const locConfirmed = allLocations.reduce((n: number, g: any) => n + (g.options?.filter((o: any) => o.status === 'Confirmed').length ?? 0), 0)
+  const locTotal = allLocations.reduce((n: number, g: any) => n + (g.options?.length ?? 0), 0)
   const artApproved = allArt.filter(a => a.status === 'Approved').length
   const castConfirmed = allCast.filter(r => r.status === 'Confirmed').length
 
@@ -265,12 +291,12 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
           {project.name}
         </span>
 
-        {/* Type + Phase pill — centered */}
+        {/* Type + Status pill — centered */}
         <div className="flex items-center justify-center gap-2" style={{ marginTop: 4 }}>
           <span className="font-mono text-text2 uppercase" style={{ fontSize: '0.48rem' }}>{project.type}</span>
           <span className="text-muted" style={{ fontSize: '0.48rem' }}>&middot;</span>
-          <div className={`w-1.5 h-1.5 rounded-full ${PHASE_DOT[project.phase]}`} />
-          <span className={`font-mono uppercase ${PHASE_TEXT[project.phase]}`} style={{ fontSize: '0.48rem' }}>{PHASE_LABEL[project.phase]}</span>
+          <div className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[project.status]}`} />
+          <span className={`font-mono uppercase ${STATUS_TEXT[project.status]}`} style={{ fontSize: '0.48rem' }}>{statusLabel(project.status)}</span>
         </div>
 
         {/* Crew avatars — centered */}
@@ -278,7 +304,7 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
           onClick={() => { haptic('light'); setCrewPanelOpen(true) }}>
           {allCrew.slice(0, 4).map((m, i) => (
             <div key={m.id} className="relative" style={{ marginLeft: i === 0 ? 0 : -7, zIndex: 4 - i }}>
-              <CrewAvatar first={m.first} last={m.last} color1={m.color1} color2={m.color2} size={28} />
+              <CrewAvatar name={m.User?.name ?? 'Unknown'} size={28} />
             </div>
           ))}
           {allCrew.length > 4 && (
@@ -296,8 +322,7 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
           {/* 1. TIMELINE (first) */}
           <div className="cursor-pointer" onClick={() => router.push(`/projects/${projectId}/timeline`)}>
             {(() => {
-              const shootDaysAway = project.shootDate ? Math.ceil((new Date(project.shootDate).getTime() - Date.now()) / 86400000) : null
-              const meta = shootDaysAway !== null && shootDaysAway > 0 ? `Shoot in ${shootDaysAway} days` : allMS.length > 0 ? `${allMS.length} milestones` : 'Not set'
+              const meta = allMS.length > 0 ? `${allMS.length} milestones` : 'Not set'
               return <ModuleHeader name="Timeline" meta={meta} />
             })()}
             {loadingMS ? (
@@ -307,11 +332,11 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
             ) : allMS.length === 0 ? (
               <div style={{ ...cardStyle, height: 168, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ padding: '12px 12px 0', display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
-                  {(['Pre', 'Prod', 'Post'] as const).map((label, i) => {
+                  {(['Upcoming', 'In Progress', 'Done'] as const).map((label, i) => {
                     const color = ['#e8a020', '#6470f3', '#00b894'][i]
                     return (
                       <div key={label} className="flex items-center gap-1.5">
-                        <span className="font-mono uppercase text-right flex-shrink-0" style={{ fontSize: '0.42rem', color: '#62627a', width: 26, letterSpacing: '0.06em' }}>{label}</span>
+                        <span className="font-mono uppercase text-right flex-shrink-0" style={{ fontSize: '0.42rem', color: '#62627a', width: 52, letterSpacing: '0.06em' }}>{label}</span>
                         <div className="flex-1 rounded-sm" style={{ height: 4, background: `${color}1a`, animation: `pulse 2.4s ease-in-out infinite ${i * 0.3}s` }} />
                       </div>
                     )
@@ -319,43 +344,22 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
                 </div>
                 <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-4">
                   <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#dddde8', letterSpacing: '-0.01em' }}>The time is now.</div>
-                  <div className="font-mono" style={{ fontSize: '0.47rem', color: '#62627a', letterSpacing: '0.03em', lineHeight: 1.6 }}>No dates set yet.<br />Add milestones to start the clock.</div>
+                  <div className="font-mono" style={{ fontSize: '0.47rem', color: '#62627a', letterSpacing: '0.03em', lineHeight: 1.6 }}>No milestones yet.<br />Add milestones to start the clock.</div>
                 </div>
               </div>
             ) : (
               <div style={{ ...cardStyle, height: 168, padding: '12px 12px 0', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10, position: 'relative' }}>
-                  {[
-                    { label: 'Pre', color: '#e8a020', left: 0, width: preWidth },
-                    { label: 'Prod', color: '#6470f3', left: preWidth, width: prodWidth },
-                    { label: 'Post', color: '#00b894', left: preWidth + prodWidth, width: Math.max(100 - preWidth - prodWidth, 0), isTerminal: true },
-                  ].map((t, i) => (
-                    <div key={t.label} className="flex items-center gap-1.5">
-                      <span className="font-mono uppercase text-right flex-shrink-0" style={{ fontSize: '0.42rem', color: '#62627a', width: 26, letterSpacing: '0.06em' }}>{t.label}</span>
-                      <div className="flex-1 relative" style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2 }}>
-                        {t.width > 0 && <div className="absolute top-0 rounded-sm" style={{ left: `${t.left}%`, width: `${t.width}%`, height: '100%', background: t.color, opacity: i === 2 ? 0.45 : 1 }} />}
-                        {t.isTerminal && project.deliveryDate && (
-                          <div className="absolute" style={{ right: '12%', top: -3, bottom: -3, width: 1.5, background: '#e8564a', borderRadius: 1 }}>
-                            <div className="absolute" style={{ top: -2, left: '50%', transform: 'translateX(-50%)', width: 4, height: 4, borderRadius: '50%', background: '#e8564a' }} />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  <div className="absolute pointer-events-none" style={{ left: `calc(26px + 6px + ${todayPct}%)`, top: 0, bottom: 0, width: 1.5, background: 'rgba(255,255,255,0.55)', borderRadius: 1 }}>
-                    <span className="absolute font-mono whitespace-nowrap" style={{ top: -13, left: '50%', transform: 'translateX(-50%)', fontSize: '0.37rem', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.05em' }}>today</span>
-                  </div>
-                </div>
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
                   {upcoming3.map(ms => {
                     const isNext = ms.id === upcoming3[0]?.id
-                    const isDelivery = ms.name.toLowerCase().includes('delivery')
+                    const isDelivery = ms.title.toLowerCase().includes('delivery')
+                    const msColor = isDelivery ? '#e8564a' : (MILESTONE_STATUS_HEX[ms.status] ?? '#62627a')
                     return (
                       <div key={ms.id} className="flex items-center cursor-pointer flex-shrink-0" style={{ gap: 8, padding: '6px 0', borderTop: '1px solid rgba(255,255,255,0.05)' }}
                         onClick={e => { e.stopPropagation(); setSelectedMS(ms) }}>
-                        <div className="rounded-full flex-shrink-0" style={{ width: 6, height: 6, background: isDelivery ? '#e8564a' : PHASE_HEX[ms.phase], boxShadow: isNext && !isDelivery ? `0 0 7px ${PHASE_HEX[ms.phase]}` : undefined }} />
+                        <div className="rounded-full flex-shrink-0" style={{ width: 6, height: 6, background: msColor, boxShadow: isNext && !isDelivery ? `0 0 7px ${msColor}` : undefined }} />
                         <span className="font-mono flex-shrink-0" style={{ fontSize: '0.48rem', color: '#62627a', letterSpacing: '0.04em', width: 34 }}>{formatDate(ms.date)}</span>
-                        <span className="truncate flex-1" style={{ fontSize: '0.7rem', fontWeight: 600, color: isDelivery ? '#e8564a' : '#dddde8' }}>{ms.name}</span>
+                        <span className="truncate flex-1" style={{ fontSize: '0.7rem', fontWeight: 600, color: isDelivery ? '#e8564a' : '#dddde8' }}>{ms.title}</span>
                       </div>
                     )
                   })}
@@ -395,12 +399,12 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
                     <div key={item.id} className="flex items-start cursor-pointer" style={{ gap: 10, padding: '10px 12px', borderBottom: i < previewTasks.length - 1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}
                       onClick={e => { e.stopPropagation(); setSelectedAI(item) }}>
                       <div className="flex-shrink-0 rounded-full" style={{ width: 14, height: 14, marginTop: 1, border: `1.5px solid ${isMine ? projectColor : '#62627a'}` }}
-                        onClick={e => { e.stopPropagation(); haptic('success'); toggle.mutate({ id: item.id, done: !item.done }) }} />
+                        onClick={e => { e.stopPropagation(); haptic('success'); toggle.mutate({ id: item.id, done: item.status !== 'done' }) }} />
                       <div className="flex-1 min-w-0">
-                        <div className="truncate" style={{ fontSize: '0.72rem', fontWeight: 600, lineHeight: 1.3, color: isMine ? '#dddde8' : '#62627a' }}>{item.name}</div>
+                        <div className="truncate" style={{ fontSize: '0.72rem', fontWeight: 600, lineHeight: 1.3, color: isMine ? '#dddde8' : '#62627a' }}>{item.title}</div>
                         {dateLabel && <div className="font-mono" style={{ fontSize: '0.52rem', marginTop: 2, letterSpacing: '0.03em', color: overdue ? '#e8a020' : '#62627a' }}>{dateLabel}</div>}
-                        {!isMine && item.assigneeId && (
-                          <div className="font-mono" style={{ fontSize: '0.48rem', color: '#62627a', opacity: 0.6, marginTop: 1 }}>— {allCrew.find(c => c.id === item.assigneeId)?.first ?? 'Unknown'}</div>
+                        {!isMine && item.assignedTo && (
+                          <div className="font-mono" style={{ fontSize: '0.48rem', color: '#62627a', opacity: 0.6, marginTop: 1 }}>— {allCrew.find(c => c.id === item.assignedTo)?.User?.name ?? 'Unknown'}</div>
                         )}
                       </div>
                     </div>
@@ -503,15 +507,15 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
               {/* Locations / Art / Casting mini row */}
               <div className="flex" style={{ gap: 8 }}>
                 {[
-                  { id: 'locations', label: 'Locations', count: `${locConfirmed} / ${locTotal} locked`, phase: 'pre' as Phase, ratio: locTotal > 0 ? locConfirmed / locTotal : 0 },
-                  { id: 'art', label: 'Art', count: `${artApproved} / ${allArt.length} done`, phase: 'prod' as Phase, ratio: allArt.length > 0 ? artApproved / allArt.length : 0 },
-                  { id: 'casting', label: 'Casting', count: `${castConfirmed} / ${allCast.length} cast`, phase: 'post' as Phase, ratio: allCast.length > 0 ? castConfirmed / allCast.length : 0 },
+                  { id: 'locations', label: 'Locations', count: `${locConfirmed} / ${locTotal} locked`, color: '#e8a020', ratio: locTotal > 0 ? locConfirmed / locTotal : 0 },
+                  { id: 'art', label: 'Art', count: `${artApproved} / ${allArt.length} done`, color: '#6470f3', ratio: allArt.length > 0 ? artApproved / allArt.length : 0 },
+                  { id: 'casting', label: 'Casting', count: `${castConfirmed} / ${allCast.length} cast`, color: '#00b894', ratio: allCast.length > 0 ? castConfirmed / allCast.length : 0 },
                 ].map(mod => (
                   <Link key={mod.id} href={`/projects/${projectId}/${mod.id}`} className="flex-1 active:opacity-80 transition-opacity" style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, padding: '8px 9px' }}>
                     <div style={{ fontWeight: 700, fontSize: '0.58rem', color: '#dddde8', marginBottom: 2, textAlign: 'center' }}>{mod.label}</div>
                     <div className="font-mono" style={{ fontSize: '0.33rem', color: '#62627a', marginBottom: 4, textAlign: 'center' }}>{mod.count}</div>
                     <div style={{ height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 2 }}>
-                      <div style={{ height: '100%', borderRadius: 2, width: `${mod.ratio * 100}%`, background: PHASE_HEX[mod.phase], transition: 'width 0.5s ease' }} />
+                      <div style={{ height: '100%', borderRadius: 2, width: `${mod.ratio * 100}%`, background: mod.color, transition: 'width 0.5s ease' }} />
                     </div>
                   </Link>
                 ))}
@@ -676,7 +680,7 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
         </motion.button>
       </div>
 
-      {/* FAB zone �� main + side FABs + back chevron */}
+      {/* FAB zone — main + side FABs + back chevron */}
       <div style={{
         position: 'fixed',
         bottom: 68,
@@ -784,9 +788,6 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
         open={showCreateMilestone}
         projectId={projectId}
         accent={projectColor}
-        currentPhase={project.phase as Phase}
-        shootDate={project.shootDate}
-        shootDateEnd={project.shootDateEnd}
         onSave={(data) => { createMilestone.mutate(data as any); setShowCreateMilestone(false) }}
         onClose={() => setShowCreateMilestone(false)}
       />

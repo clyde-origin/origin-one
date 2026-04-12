@@ -104,7 +104,7 @@ export default function LocationsPage({ params }: { params: { projectId: string 
                   </span>
                   <span className="ml-auto text-muted">{group.options.length}</span>
                 </div>
-                {group.options.map(opt => (
+                {group.options.map((opt: any) => (
                   <OptionRow key={opt.id} option={opt} onTap={setSelected} />
                 ))}
               </div>

@@ -1,47 +1,31 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/utils/haptics'
-import { PHASE_HEX, PHASE_LABELS } from '@/lib/utils/phase'
-import type { Phase } from '@/types'
+import { MILESTONE_STATUS_HEX, MILESTONE_STATUS_LABEL } from '@/lib/utils/phase'
+import type { MilestoneStatus } from '@/types'
 
 interface CreateMilestoneSheetProps {
   open: boolean
   projectId: string
   accent: string
-  /** Current project phase — used as default */
-  currentPhase: Phase
-  /** Project date ranges for auto-suggesting phase */
-  shootDate?: string | null
-  shootDateEnd?: string | null
-  onSave: (data: { projectId: string; name: string; phase: Phase; dept: string; date: string; notes: string; people: string[] }) => void
+  onSave: (data: { projectId: string; title: string; status: MilestoneStatus; date: string; notes: string; people: string[] }) => void
   onClose: () => void
 }
 
-export function CreateMilestoneSheet({ open, projectId, accent, currentPhase, shootDate, shootDateEnd, onSave, onClose }: CreateMilestoneSheetProps) {
-  const [name, setName] = useState('')
-  const [msPhase, setMsPhase] = useState<Phase>(currentPhase)
+export function CreateMilestoneSheet({ open, projectId, accent, onSave, onClose }: CreateMilestoneSheetProps) {
+  const [title, setTitle] = useState('')
+  const [status, setStatus] = useState<MilestoneStatus>('upcoming')
   const [date, setDate] = useState('')
   const [notes, setNotes] = useState('')
 
-  // Auto-suggest phase based on date vs shoot dates
-  useEffect(() => {
-    if (!date || !shootDate) return
-    const d = new Date(date).getTime()
-    const shoot = new Date(shootDate).getTime()
-    const shootEnd = shootDateEnd ? new Date(shootDateEnd).getTime() : shoot
-    if (d < shoot) setMsPhase('pre')
-    else if (d <= shootEnd) setMsPhase('prod')
-    else setMsPhase('post')
-  }, [date, shootDate, shootDateEnd])
-
-  const canSave = name.trim().length > 0 && date.length > 0
+  const canSave = title.trim().length > 0 && date.length > 0
 
   function handleSave() {
     if (!canSave) return
     haptic('light')
-    onSave({ projectId, name: name.trim(), phase: msPhase, dept: '', date, notes, people: [] })
+    onSave({ projectId, title: title.trim(), status, date, notes, people: [] })
     resetForm()
   }
 
@@ -51,7 +35,7 @@ export function CreateMilestoneSheet({ open, projectId, accent, currentPhase, sh
   }
 
   function resetForm() {
-    setName(''); setMsPhase(currentPhase); setDate(''); setNotes('')
+    setTitle(''); setStatus('upcoming'); setDate(''); setNotes('')
   }
 
   function handleDragEnd(_: unknown, info: { offset: { y: number } }) {
@@ -109,8 +93,8 @@ export function CreateMilestoneSheet({ open, projectId, accent, currentPhase, sh
             {/* Fields */}
             <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Milestone name</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Rough cut review"
+                <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Milestone title</label>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Rough cut review"
                   autoFocus autoComplete="off" spellCheck={false}
                   className="w-full outline-none focus:border-white/20"
                   style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', color: '#dddde8', fontSize: '0.82rem' }}
@@ -126,18 +110,18 @@ export function CreateMilestoneSheet({ open, projectId, accent, currentPhase, sh
               </div>
 
               <div>
-                <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Phase</label>
+                <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Status</label>
                 <div style={{ display: 'flex', gap: 5 }}>
-                  {(['pre', 'prod', 'post'] as Phase[]).map(p => (
-                    <button key={p} onClick={() => setMsPhase(p)}
+                  {(['upcoming', 'in_progress', 'completed'] as MilestoneStatus[]).map(s => (
+                    <button key={s} onClick={() => setStatus(s)}
                       className="font-mono uppercase cursor-pointer flex-1"
                       style={{
                         fontSize: '0.44rem', letterSpacing: '0.05em', padding: '7px 9px', borderRadius: 20, textAlign: 'center',
-                        background: msPhase === p ? `${PHASE_HEX[p]}1a` : 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${msPhase === p ? `${PHASE_HEX[p]}40` : 'rgba(255,255,255,0.05)'}`,
-                        color: msPhase === p ? PHASE_HEX[p] : '#62627a',
+                        background: status === s ? `${MILESTONE_STATUS_HEX[s]}1a` : 'rgba(255,255,255,0.04)',
+                        border: `1px solid ${status === s ? `${MILESTONE_STATUS_HEX[s]}40` : 'rgba(255,255,255,0.05)'}`,
+                        color: status === s ? MILESTONE_STATUS_HEX[s] : '#62627a',
                       }}
-                    >{PHASE_LABELS[p]}</button>
+                    >{MILESTONE_STATUS_LABEL[s]}</button>
                   ))}
                 </div>
               </div>

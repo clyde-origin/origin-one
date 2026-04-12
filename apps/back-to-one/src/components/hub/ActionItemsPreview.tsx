@@ -5,34 +5,25 @@ interface ActionItemsPreviewProps {
 }
 
 export function ActionItemsPreview({ items }: ActionItemsPreviewProps) {
-  const open = items.filter(i => !i.done)
+  const open = items.filter(i => i.status !== 'done')
 
-  // Count by phase (derived from dept)
-  const deptPhase: Record<string, string> = {
-    Production: 'prod', Direction: 'prod', Camera: 'prod', 'G&E': 'prod',
-    Casting: 'pre', Art: 'pre', Wardrobe: 'pre', HMU: 'pre',
-    Sound: 'post', Post: 'post',
-    Client: 'prod', Other: 'prod',
-  }
-
-  const counts = { pre: 0, prod: 0, post: 0 }
+  const counts = { open: 0, in_progress: 0, done: 0 }
   open.forEach(item => {
-    const phase = deptPhase[item.dept] ?? 'prod'
-    counts[phase as keyof typeof counts]++
+    if (item.status === 'in_progress') counts.in_progress++
+    else counts.open++
   })
 
   const total = open.length
-  const maxCount = Math.max(...Object.values(counts), 1)
+  const maxCount = Math.max(counts.open, counts.in_progress, 1)
 
   const phases = [
-    { key: 'pre',  label: 'Pre',  color: 'bg-pre',  textColor: 'text-pre',  count: counts.pre  },
-    { key: 'prod', label: 'Prod', color: 'bg-prod', textColor: 'text-prod', count: counts.prod },
-    { key: 'post', label: 'Post', color: 'bg-post', textColor: 'text-post', count: counts.post },
+    { key: 'open',        label: 'Open',    color: 'bg-pre',  textColor: 'text-pre',  count: counts.open        },
+    { key: 'in_progress', label: 'Active',  color: 'bg-prod', textColor: 'text-prod', count: counts.in_progress },
   ]
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Phase bars */}
+      {/* Bars */}
       <div className="flex gap-2 items-end h-10">
         {phases.map(p => (
           <div key={p.key} className="flex-1 flex flex-col items-center gap-1">
@@ -58,6 +49,14 @@ export function ActionItemsPreview({ items }: ActionItemsPreviewProps) {
             </span>
           </div>
         ))}
+        <div className="flex-1 flex flex-col items-center gap-0.5">
+          <span className="font-bold text-base leading-none text-text2">
+            {total}
+          </span>
+          <span className="font-mono text-[0.44rem] tracking-widest uppercase text-muted font-light">
+            Total
+          </span>
+        </div>
       </div>
     </div>
   )

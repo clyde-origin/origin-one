@@ -23,10 +23,11 @@ interface ProjectActionSheetProps {
 
 type SubSheet = null | 'rename' | 'archive-confirm' | 'delete-confirm'
 
-function hexToRgba(hex: string, a: number) {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
+function hexToRgba(hex: string | null | undefined, a: number) {
+  const h = hex || '#444444'
+  const r = parseInt(h.slice(1, 3), 16)
+  const g = parseInt(h.slice(3, 5), 16)
+  const b = parseInt(h.slice(5, 7), 16)
   return `rgba(${r},${g},${b},${a})`
 }
 

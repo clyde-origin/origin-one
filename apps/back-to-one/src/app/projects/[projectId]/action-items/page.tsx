@@ -8,27 +8,22 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { FAB } from '@/components/ui/FAB'
 import { CreateTaskSheet } from '@/components/create'
 import { haptic } from '@/lib/utils/haptics'
-import { formatDate, isUrgent, isLate, getProjectColor, DEPARTMENTS, PHASE_HEX, PHASE_LABELS_LONG, DEPT_COLORS } from '@/lib/utils/phase'
+import { formatDate, isLate, getProjectColor, statusLabel, statusHex } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
-import type { ActionItem, CrewMember, Phase } from '@/types'
+import type { ActionItem, TeamMember } from '@/types'
 
-// ── CONSTANTS ─────────────────────────────────────────────
-
-const PHASE_LABEL = PHASE_LABELS_LONG
-
-type Tab = 'me' | 'upcoming' | 'dept'
+type Tab = 'me' | 'upcoming'
 
 // ── TASK ROW ──────────────────────────────────────────────
 
 function TaskRow({ item, isMine, accent, showAssignee, crew, onTap, onToggle }: {
   item: ActionItem; isMine: boolean; accent: string; showAssignee?: boolean
-  crew: CrewMember[]; onTap: () => void; onToggle: () => void
+  crew: TeamMember[]; onTap: () => void; onToggle: () => void
 }) {
   const overdue = item.dueDate ? isLate(item.dueDate) : false
   const dateLabel = item.dueDate ? formatDate(item.dueDate) : null
-  const assignee = crew.find(c => c.id === item.assigneeId)
-  // TODO: high priority detection — using dept heuristic for now
-  const isHigh = item.dept === 'Production' || item.dept === 'Camera'
+  const isDone = item.status === 'done'
+  const assignee = crew.find(c => c.userId === item.assignedTo || c.id === item.assignedTo)
 
   return (
     <div style={{ margin: '0 16px 2px', borderRadius: 9 }}>
@@ -37,11 +32,6 @@ function TaskRow({ item, isMine, accent, showAssignee, crew, onTap, onToggle }: 
         style={{ gap: 11, padding: '12px 13px', background: '#0a0a12', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 9 }}
         onClick={onTap}
       >
-        {/* High priority accent bar */}
-        {isHigh && (
-          <div className="absolute left-0 rounded-r" style={{ top: 6, bottom: 6, width: 2.5, background: accent }} />
-        )}
-
         {/* Checkbox */}
         <div
           className="flex-shrink-0 rounded-full flex items-center justify-center cursor-pointer"
@@ -52,7 +42,7 @@ function TaskRow({ item, isMine, accent, showAssignee, crew, onTap, onToggle }: 
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="truncate" style={{ fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.3, color: isMine ? '#dddde8' : '#a0a0b8' }}>
-            {item.name}
+            {item.title}
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             {dateLabel && (
@@ -60,12 +50,9 @@ function TaskRow({ item, isMine, accent, showAssignee, crew, onTap, onToggle }: 
                 {dateLabel}{overdue ? ' — Overdue' : ''}
               </span>
             )}
-            <span className="font-mono uppercase" style={{ fontSize: '0.44rem', color: '#62627a', background: 'rgba(255,255,255,0.04)', borderRadius: 3, padding: '1px 4px' }}>
-              {item.dept}
-            </span>
             {showAssignee && assignee && (
               <span className="font-mono ml-auto" style={{ fontSize: '0.46rem', color: '#62627a', opacity: 0.6 }}>
-                {assignee.first} {assignee.last[0]}.
+                {assignee.User?.name ?? 'Unknown'}
               </span>
             )}
           </div>
@@ -86,7 +73,7 @@ function DoneTaskRow({ item, onTap }: { item: ActionItem; onTap: () => void }) {
           <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4L3.5 6L6.5 2" stroke="#6470f3" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="truncate line-through" style={{ fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.3, color: '#62627a' }}>{item.name}</div>
+          <div className="truncate line-through" style={{ fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.3, color: '#62627a' }}>{item.title}</div>
           {dateLabel && <div className="font-mono mt-0.5" style={{ fontSize: '0.48rem', color: '#62627a' }}>{dateLabel}</div>}
         </div>
       </div>
@@ -97,28 +84,22 @@ function DoneTaskRow({ item, onTap }: { item: ActionItem; onTap: () => void }) {
 // ── TASK DETAIL SHEET ─────────────────────────────────────
 
 function TaskDetailSheet({ item, crew, accent, onClose, onToggle }: {
-  item: ActionItem | null; crew: CrewMember[]; accent: string; onClose: () => void; onToggle: () => void
+  item: ActionItem | null; crew: TeamMember[]; accent: string; onClose: () => void; onToggle: () => void
 }) {
   if (!item) return null
-  const assignee = crew.find(c => c.id === item.assigneeId)
+  const assignee = crew.find(c => c.userId === item.assignedTo || c.id === item.assignedTo)
   const overdue = item.dueDate ? isLate(item.dueDate) : false
   const dateLabel = item.dueDate ? formatDate(item.dueDate) : '—'
-  const isHigh = item.dept === 'Production' || item.dept === 'Camera'
+  const isDone = item.status === 'done'
 
   return (
     <>
       {/* Header */}
       <div style={{ padding: '0 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <div className="flex justify-between items-start">
-          <div style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8', marginBottom: 6, flex: 1 }}>{item.name}</div>
+          <div style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8', marginBottom: 6, flex: 1 }}>{item.title}</div>
           <button onClick={onClose} className="text-muted text-sm w-7 h-7 flex items-center justify-center flex-shrink-0">✕</button>
         </div>
-        {isHigh && (
-          <span className="font-mono uppercase" style={{ fontSize: '0.46rem', letterSpacing: '0.06em', padding: '3px 8px', borderRadius: 20, background: `${accent}1a`, border: `1px solid ${accent}33`, color: accent, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <svg width="6" height="6" viewBox="0 0 6 6" fill="none"><circle cx="3" cy="3" r="3" fill={accent} /></svg>
-            High Priority
-          </span>
-        )}
       </div>
 
       {/* Fields */}
@@ -128,17 +109,13 @@ function TaskDetailSheet({ item, crew, accent, onClose, onToggle }: {
           <span style={{ fontSize: '0.78rem', fontWeight: 600, color: overdue ? '#e8a020' : '#dddde8' }}>{dateLabel}{overdue ? ' — Overdue' : ''}</span>
         </div>
         <div className="flex items-start gap-3">
-          <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.46rem', color: '#62627a', letterSpacing: '0.08em', width: 68, paddingTop: 1 }}>Dept</span>
-          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#dddde8' }}>{item.dept}</span>
-        </div>
-        <div className="flex items-start gap-3">
           <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.46rem', color: '#62627a', letterSpacing: '0.08em', width: 68, paddingTop: 1 }}>Assignee</span>
-          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#dddde8' }}>{assignee ? `${assignee.first} ${assignee.last}` : '—'}</span>
+          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#dddde8' }}>{assignee ? assignee.User?.name : '—'}</span>
         </div>
-        {item.notes && (
+        {item.description && (
           <div className="flex items-start gap-3">
             <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.46rem', color: '#62627a', letterSpacing: '0.08em', width: 68, paddingTop: 1 }}>Notes</span>
-            <div style={{ fontSize: '0.72rem', color: '#a0a0b8', lineHeight: 1.55, background: 'rgba(255,255,255,0.03)', borderRadius: 6, padding: '10px 12px', flex: 1 }}>{item.notes}</div>
+            <div style={{ fontSize: '0.72rem', color: '#a0a0b8', lineHeight: 1.55, background: 'rgba(255,255,255,0.03)', borderRadius: 6, padding: '10px 12px', flex: 1 }}>{item.description}</div>
           </div>
         )}
       </div>
@@ -150,7 +127,7 @@ function TaskDetailSheet({ item, crew, accent, onClose, onToggle }: {
           style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: 'rgba(0,184,148,0.1)', border: '1px solid rgba(0,184,148,0.2)', color: '#00b894' }}
           onClick={() => { haptic('success'); onToggle(); onClose() }}
         >
-          {item.done ? 'Reopen' : 'Mark Complete'}
+          {isDone ? 'Reopen' : 'Mark Complete'}
         </button>
         <button
           className="flex-1 font-bold cursor-pointer transition-all"
@@ -185,110 +162,6 @@ function BucketDivider({ label, isToday }: { label: string; isToday?: boolean })
   )
 }
 
-// ── NEW ACTION ITEM SHEET ─────────────────────────────────
-
-function NewActionItemSheet({ crew, accent, onSave, onClose }: {
-  crew: CrewMember[]; accent: string
-  onSave: (data: { name: string; dept: string; assigneeId: string | null; dueDate: string | null; notes: string }) => void
-  onClose: () => void
-}) {
-  const [name, setName] = useState('')
-  const [dept, setDept] = useState('Production')
-  const [assigneeId, setAssigneeId] = useState<string | null>(null)
-  const [dueDate, setDueDate] = useState('')
-  const [notes, setNotes] = useState('')
-
-  const canSave = name.trim().length > 0
-
-  return (
-    <>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <span style={{ fontWeight: 800, fontSize: '1rem', color: '#dddde8' }}>New Action Item</span>
-        <button
-          onClick={() => { if (canSave) { haptic('light'); onSave({ name: name.trim(), dept, assigneeId, dueDate: dueDate || null, notes }) } }}
-          style={{
-            fontFamily: 'var(--font-dm-mono)', fontSize: '0.48rem', letterSpacing: '0.06em', textTransform: 'uppercase',
-            padding: '5px 10px', borderRadius: 20, cursor: canSave ? 'pointer' : 'default',
-            background: canSave ? `${accent}1a` : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${canSave ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
-            color: canSave ? accent : '#62627a',
-          }}
-        >Save</button>
-      </div>
-
-      <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Task name</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="What needs to be done?"
-            autoComplete="off" spellCheck={false}
-            className="w-full outline-none focus:border-white/20"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', color: '#dddde8', fontSize: '0.82rem' }}
-          />
-        </div>
-
-        <div>
-          <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Department</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-            {DEPARTMENTS.map(d => (
-              <button key={d} onClick={() => setDept(d)}
-                className="font-mono uppercase cursor-pointer"
-                style={{
-                  fontSize: '0.44rem', letterSpacing: '0.05em', padding: '5px 9px', borderRadius: 20,
-                  background: dept === d ? `${accent}1a` : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${dept === d ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
-                  color: dept === d ? accent : '#62627a',
-                }}
-              >{d}</button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Due date</label>
-          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
-            className="w-full outline-none focus:border-white/20"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', color: '#dddde8', fontSize: '0.78rem', fontFamily: 'var(--font-dm-mono)' }}
-          />
-        </div>
-
-        <div>
-          <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Assignee</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-            <button onClick={() => setAssigneeId(null)}
-              className="font-mono uppercase cursor-pointer"
-              style={{
-                fontSize: '0.44rem', padding: '5px 9px', borderRadius: 20,
-                background: assigneeId === null ? `${accent}1a` : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${assigneeId === null ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
-                color: assigneeId === null ? accent : '#62627a',
-              }}
-            >Unassigned</button>
-            {crew.map(c => (
-              <button key={c.id} onClick={() => setAssigneeId(c.id)}
-                className="font-mono cursor-pointer"
-                style={{
-                  fontSize: '0.44rem', padding: '5px 9px', borderRadius: 20,
-                  background: assigneeId === c.id ? `${accent}1a` : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${assigneeId === c.id ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
-                  color: assigneeId === c.id ? accent : '#62627a',
-                }}
-              >{c.first} {c.last[0]}.</button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Notes</label>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Optional"
-            className="w-full outline-none focus:border-white/20 resize-none"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', color: '#dddde8', fontSize: '0.78rem', lineHeight: 1.5 }}
-          />
-        </div>
-      </div>
-    </>
-  )
-}
-
 // ── MAIN PAGE ─────────────────────────────────────────────
 
 export default function ActionItemsPage({ params }: { params: { projectId: string } }) {
@@ -309,11 +182,9 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
 
   const allItems = items ?? []
   const allCrew = crew ?? []
-  const openItems = allItems.filter(i => !i.done)
-  const doneItems = allItems.filter(i => i.done)
+  const openItems = allItems.filter(i => i.status !== 'done')
+  const doneItems = allItems.filter(i => i.status === 'done')
 
-  // TODO: replace with actual user matching via localStorage
-  const userName = typeof window !== 'undefined' ? localStorage.getItem('origin_one_user_name') ?? '' : ''
   const myItems = openItems // For now, show all as "mine"
 
   // Upcoming buckets
@@ -326,20 +197,13 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
   const weekItems = openItems.filter(i => { if (!i.dueDate) return false; const d = new Date(i.dueDate); d.setHours(0, 0, 0, 0); return d > today && d <= endOfWeek })
   const laterItems = openItems.filter(i => { if (!i.dueDate) return false; const d = new Date(i.dueDate); d.setHours(0, 0, 0, 0); return d > endOfWeek })
 
-  // Dept groups
-  const depts = Array.from(new Set(openItems.map(i => i.dept)))
-  const [openDepts, setOpenDepts] = useState<Set<string>>(new Set(depts.slice(0, 2)))
-  const toggleDept = (d: string) => setOpenDepts(prev => { const next = new Set(prev); next.has(d) ? next.delete(d) : next.add(d); return next })
-
-  const phaseColor = project ? PHASE_HEX[project.phase] : '#6470f3'
-
   return (
     <div className="screen">
       {/* Header */}
       <PageHeader
         projectId={projectId}
         title="Action Items"
-        meta={project ? `${project.name} · ${PHASE_LABEL[project.phase]}` : ''}
+        meta={project ? `${project.name} · ${statusLabel(project.status)}` : ''}
       />
 
       {/* Tabs */}
@@ -347,7 +211,6 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
         {([
           { key: 'me' as Tab, label: 'Me', count: myItems.length },
           { key: 'upcoming' as Tab, label: 'Upcoming', count: openItems.length },
-          { key: 'dept' as Tab, label: 'Dept', count: depts.length },
         ]).map(t => (
           <button
             key={t.key}
@@ -385,7 +248,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                 <SectionHead label="My open items" count={`${myItems.length} tasks`} />
                 {myItems.length === 0 ? <EmptyState text="All clear" /> : myItems.map(item => (
                   <TaskRow key={item.id} item={item} isMine accent={accent} crew={allCrew}
-                    onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: !item.done })} />
+                    onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />
                 ))}
                 {doneItems.length > 0 && (
                   <>
@@ -411,49 +274,22 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                 {todayItems.length > 0 && (
                   <>
                     <BucketDivider label="Today" isToday />
-                    {todayItems.map(item => <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew} onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: !item.done })} />)}
+                    {todayItems.map(item => <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew} onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />)}
                   </>
                 )}
                 {weekItems.length > 0 && (
                   <>
                     <BucketDivider label="This Week" />
-                    {weekItems.map(item => <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew} onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: !item.done })} />)}
+                    {weekItems.map(item => <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew} onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />)}
                   </>
                 )}
                 {laterItems.length > 0 && (
                   <>
                     <BucketDivider label="Later" />
-                    {laterItems.map(item => <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew} onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: !item.done })} />)}
+                    {laterItems.map(item => <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew} onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />)}
                   </>
                 )}
                 {openItems.length === 0 && <EmptyState text="Nothing upcoming" />}
-              </>
-            )}
-
-            {/* DEPT TAB */}
-            {tab === 'dept' && (
-              <>
-                {depts.map(dept => {
-                  const deptItems = openItems.filter(i => i.dept === dept)
-                  const isOpen = openDepts.has(dept)
-                  return (
-                    <div key={dept}>
-                      <div className="flex items-center gap-2 cursor-pointer select-none" style={{ padding: '14px 16px 9px' }} onClick={() => toggleDept(dept)}>
-                        <div className="flex-shrink-0 rounded-full" style={{ width: 6, height: 6, background: DEPT_COLORS[dept] ?? '#62627a' }} />
-                        <span style={{ fontWeight: 700, fontSize: '0.78rem', color: '#a0a0b8', flex: 1 }}>{dept}</span>
-                        <span className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a' }}>{deptItems.length} open</span>
-                        <svg width="7" height="11" viewBox="0 0 7 11" fill="none" style={{ opacity: 0.3, transition: 'transform 0.2s', transform: isOpen ? 'rotate(90deg)' : undefined }}>
-                          <path d="M1.5 1.5L5.5 5.5L1.5 9.5" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </div>
-                      {isOpen && deptItems.map(item => (
-                        <TaskRow key={item.id} item={item} isMine accent={accent} crew={allCrew}
-                          onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: !item.done })} />
-                      ))}
-                    </div>
-                  )
-                })}
-                {depts.length === 0 && <EmptyState text="No departments" />}
               </>
             )}
           </>
@@ -482,7 +318,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
             crew={allCrew}
             accent={accent}
             onClose={() => setSelected(null)}
-            onToggle={() => { if (selected) toggle.mutate({ id: selected.id, done: !selected.done }) }}
+            onToggle={() => { if (selected) toggle.mutate({ id: selected.id, done: selected.status !== 'done' }) }}
           />
         </div>
       </Sheet>

@@ -8,15 +8,14 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { FAB } from '@/components/ui/FAB'
 import { CreateMilestoneSheet } from '@/components/create'
 import { haptic } from '@/lib/utils/haptics'
-import { formatDate, isLate, getProjectColor, PHASE_HEX, PHASE_LABELS } from '@/lib/utils/phase'
+import { formatDate, isLate, getProjectColor, MILESTONE_STATUS_HEX, MILESTONE_STATUS_LABEL, statusLabel } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
-import type { Milestone, CrewMember, Phase } from '@/types'
+import type { Milestone, CrewMember } from '@/types'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 const DOW = ['Su','Mo','Tu','We','Th','Fr','Sa']
-const PHASE_LABEL = PHASE_LABELS
 
 type Mode = 'project' | 'master'
 
@@ -25,11 +24,10 @@ function dateKey(d: Date) { return `${d.getFullYear()}-${d.getMonth()}-${d.getDa
 
 // ── CALENDAR ──────────────────────────────────────────────
 
-function Calendar({ month, mode, accent, phases, milestones, deliveryDate, selectedDate, onSelect, onMonthChange }: {
+function Calendar({ month, mode, accent, milestones, selectedDate, onSelect, onMonthChange }: {
   month: Date; mode: Mode; accent: string
-  phases: { id: string; start: Date; end: Date }[]
-  milestones: { date: Date; phase: string; projectColor?: string }[]
-  deliveryDate: Date | null; selectedDate: Date | null
+  milestones: { date: Date; status: string; projectColor?: string }[]
+  selectedDate: Date | null
   onSelect: (d: Date) => void; onMonthChange: (d: Date) => void
 }) {
   const today = new Date()
@@ -37,8 +35,6 @@ function Calendar({ month, mode, accent, phases, milestones, deliveryDate, selec
   const firstDay = new Date(yr, mo, 1).getDay()
   const daysInMonth = new Date(yr, mo + 1, 0).getDate()
   const prevDays = new Date(yr, mo, 0).getDate()
-
-  const getPhase = (d: Date) => { for (const p of phases) { if (d >= p.start && d <= p.end) return p.id } return null }
 
   const cells: { day: number; date: Date; otherMonth: boolean }[] = []
   for (let i = firstDay - 1; i >= 0; i--) cells.push({ day: prevDays - i, date: new Date(yr, mo - 1, prevDays - i), otherMonth: true })
@@ -74,9 +70,7 @@ function Calendar({ month, mode, accent, phases, milestones, deliveryDate, selec
       {/* Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2 }}>
         {cells.map((c, i) => {
-          const phase = !c.otherMonth && mode === 'project' ? getPhase(c.date) : null
           const isToday = sameDay(c.date, today)
-          const isDelivery = deliveryDate && sameDay(c.date, deliveryDate)
           const isSelected = selectedDate && sameDay(c.date, selectedDate)
           const hasMilestone = milestones.some(m => sameDay(m.date, c.date))
 
@@ -88,17 +82,15 @@ function Calendar({ month, mode, accent, phases, milestones, deliveryDate, selec
             dots = colors.slice(0, 3)
           }
 
-          const phaseClass = phase === 'pre' ? 'rgba(232,160,32,0.12)' : phase === 'prod' ? 'rgba(100,112,243,0.12)' : phase === 'post' ? 'rgba(0,184,148,0.12)' : undefined
-
           return (
             <div
               key={i}
               className="flex flex-col items-center justify-center cursor-pointer relative select-none"
               style={{
                 height: 30, borderRadius: 5,
-                background: isToday ? 'rgba(255,255,255,0.13)' : phaseClass,
-                color: c.otherMonth ? undefined : isDelivery ? '#e8564a' : isToday ? '#dddde8' : phase ? '#dddde8' : '#62627a',
-                fontWeight: isToday || isDelivery ? 700 : undefined,
+                background: isToday ? 'rgba(255,255,255,0.13)' : undefined,
+                color: c.otherMonth ? undefined : isToday ? '#dddde8' : '#62627a',
+                fontWeight: isToday ? 700 : undefined,
                 opacity: c.otherMonth ? 0.2 : 1,
                 pointerEvents: c.otherMonth ? 'none' : undefined,
                 outline: isSelected ? `1.5px solid ${accent}99` : undefined,
@@ -106,7 +98,6 @@ function Calendar({ month, mode, accent, phases, milestones, deliveryDate, selec
               }}
               onClick={() => !c.otherMonth && onSelect(c.date)}
             >
-              {isDelivery && <div className="absolute rounded" style={{ inset: 1, border: '1px solid rgba(232,86,74,0.4)', borderRadius: 4 }} />}
               <span className="font-mono" style={{ fontSize: '0.52rem', lineHeight: 1 }}>{c.day}</span>
               {dots.length > 0 && (
                 <div className="flex items-center justify-center" style={{ gap: 2, height: 5, marginTop: 1 }}>
@@ -122,16 +113,12 @@ function Calendar({ month, mode, accent, phases, milestones, deliveryDate, selec
       <div className="flex items-center" style={{ gap: 10, marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
         {mode === 'project' ? (
           <>
-            {[{ label: 'Pre', color: '#e8a020' }, { label: 'Prod', color: '#6470f3' }, { label: 'Post', color: '#00b894' }].map(l => (
+            {[{ label: 'Upcoming', color: '#e8a020' }, { label: 'In Progress', color: '#6470f3' }, { label: 'Done', color: '#00b894' }].map(l => (
               <div key={l.label} className="flex items-center gap-1">
                 <div className="rounded-full" style={{ width: 5, height: 5, background: l.color }} />
                 <span className="font-mono uppercase" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.05em' }}>{l.label}</span>
               </div>
             ))}
-            <div className="flex items-center gap-1 ml-auto">
-              <div className="rounded-full" style={{ width: 5, height: 5, background: '#e8564a' }} />
-              <span className="font-mono uppercase" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.05em' }}>Delivery</span>
-            </div>
           </>
         ) : (
           <div className="flex items-center gap-2.5">
@@ -149,13 +136,13 @@ function MilestoneDetailSheet({ milestone, crew, accent, onClose }: {
   milestone: Milestone | null; crew: CrewMember[]; accent: string; onClose: () => void
 }) {
   if (!milestone) return null
-  const isDelivery = milestone.name.toLowerCase().includes('delivery')
-  const phaseColor = isDelivery ? '#e8564a' : PHASE_HEX[milestone.phase]
+  const isDelivery = milestone.title.toLowerCase().includes('delivery')
+  const statusColor = isDelivery ? '#e8564a' : (MILESTONE_STATUS_HEX[milestone.status] ?? '#62627a')
   const dateObj = new Date(milestone.date)
   const fullDate = `${MONTHS[dateObj.getMonth()]} ${dateObj.getDate()}, ${dateObj.getFullYear()}`
   const dayName = DAYS[dateObj.getDay()]
-  const people = milestone.people.map(id => crew.find(c => c.id === id)).filter(Boolean) as CrewMember[]
-  const [taggedIds, setTaggedIds] = useState<Set<string>>(new Set(milestone.people))
+  const people = (milestone.people ?? []).map(id => crew.find(c => c.id === id)).filter(Boolean) as CrewMember[]
+  const [taggedIds, setTaggedIds] = useState<Set<string>>(new Set(milestone.people ?? []))
 
   const toggleTag = (id: string) => setTaggedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
 
@@ -164,11 +151,11 @@ function MilestoneDetailSheet({ milestone, crew, accent, onClose }: {
       <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)', margin: '12px auto 18px' }} />
       {/* Eyebrow */}
       <div style={{ padding: '0 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <div className="font-mono uppercase flex items-center gap-1.5" style={{ fontSize: '0.44rem', letterSpacing: '0.08em', color: phaseColor, marginBottom: 6 }}>
-          <div className="rounded-full" style={{ width: 6, height: 6, background: phaseColor }} />
-          {PHASE_LABEL[milestone.phase] ?? milestone.phase}
+        <div className="font-mono uppercase flex items-center gap-1.5" style={{ fontSize: '0.44rem', letterSpacing: '0.08em', color: statusColor, marginBottom: 6 }}>
+          <div className="rounded-full" style={{ width: 6, height: 6, background: statusColor }} />
+          {MILESTONE_STATUS_LABEL[milestone.status] ?? milestone.status}
         </div>
-        <div style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: isDelivery ? '#e8564a' : '#dddde8' }}>{milestone.name}</div>
+        <div style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: isDelivery ? '#e8564a' : '#dddde8' }}>{milestone.title}</div>
       </div>
 
       {/* Fields */}
@@ -182,8 +169,8 @@ function MilestoneDetailSheet({ milestone, crew, accent, onClose }: {
           <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#dddde8' }}>{dayName}</span>
         </div>
         <div className="flex items-start gap-3">
-          <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', width: 68, paddingTop: 2 }}>Phase</span>
-          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#dddde8' }}>{PHASE_LABEL[milestone.phase]}</span>
+          <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', width: 68, paddingTop: 2 }}>Status</span>
+          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#dddde8' }}>{MILESTONE_STATUS_LABEL[milestone.status] ?? milestone.status}</span>
         </div>
       </div>
 
@@ -191,7 +178,7 @@ function MilestoneDetailSheet({ milestone, crew, accent, onClose }: {
       <div style={{ padding: '0 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Notes</span>
         <textarea
-          defaultValue={milestone.notes}
+          defaultValue={milestone.notes ?? ''}
           placeholder="Add a note..."
           className="outline-none"
           style={{ width: '100%', minHeight: 64, maxHeight: 120, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', fontSize: '0.76rem', color: '#dddde8', lineHeight: 1.5, resize: 'none', fontFamily: 'inherit' }}
@@ -207,13 +194,14 @@ function MilestoneDetailSheet({ milestone, crew, accent, onClose }: {
           <div className="flex flex-wrap" style={{ gap: 6 }}>
             {crew.map(c => {
               const tagged = taggedIds.has(c.id)
+              const name = c.User?.name ?? 'Unknown'
               return (
                 <button key={c.id} className="flex items-center cursor-pointer select-none transition-all"
                   style={{ gap: 5, padding: '4px 9px', borderRadius: 20, fontSize: '0.48rem', letterSpacing: '0.04em', fontFamily: 'var(--font-dm-mono), monospace',
                     background: tagged ? `${accent}1f` : 'rgba(255,255,255,0.04)', border: `1px solid ${tagged ? `${accent}4d` : 'rgba(255,255,255,0.05)'}`, color: tagged ? accent : '#62627a' }}
                   onClick={() => toggleTag(c.id)}>
                   <div className="rounded-full" style={{ width: 5, height: 5, background: tagged ? accent : '#62627a' }} />
-                  {c.first} {c.last[0]}.
+                  {name.split(' ')[0]} {name.split(' ')[1]?.[0] ? `${name.split(' ')[1][0]}.` : ''}
                 </button>
               )
             })}
@@ -229,86 +217,6 @@ function MilestoneDetailSheet({ milestone, crew, accent, onClose }: {
         <button className="flex-1 font-bold cursor-pointer transition-all"
           style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: 'rgba(232,86,74,0.08)', border: '1px solid rgba(232,86,74,0.2)', color: '#e8564a' }}
           onClick={() => { haptic('warning'); onClose() }}>Delete</button>
-      </div>
-    </>
-  )
-}
-
-// ── NEW MILESTONE SHEET ──────────────────────────────────
-
-function NewMilestoneSheet({ phase, accent, onSave, onClose }: {
-  phase: Phase; accent: string
-  onSave: (data: { name: string; phase: Phase; dept: string; date: string; notes: string; people: string[] }) => void
-  onClose: () => void
-}) {
-  const [name, setName] = useState('')
-  const [msPhase, setMsPhase] = useState<Phase>(phase)
-  const [date, setDate] = useState('')
-  const [notes, setNotes] = useState('')
-
-  const canSave = name.trim().length > 0 && date.length > 0
-
-  return (
-    <>
-      <div style={{ padding: '12px 0 0' }}>
-        <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)', margin: '0 auto 4px' }} />
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <span style={{ fontWeight: 800, fontSize: '1rem', color: '#dddde8' }}>New Milestone</span>
-        <button
-          onClick={() => { if (canSave) { haptic('light'); onSave({ name: name.trim(), phase: msPhase, dept: '', date, notes, people: [] }) } }}
-          style={{
-            fontFamily: 'var(--font-dm-mono)', fontSize: '0.48rem', letterSpacing: '0.06em', textTransform: 'uppercase',
-            padding: '5px 10px', borderRadius: 20, cursor: canSave ? 'pointer' : 'default',
-            background: canSave ? `${accent}1a` : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${canSave ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
-            color: canSave ? accent : '#62627a',
-          }}
-        >Save</button>
-      </div>
-
-      <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Name</label>
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Rough cut review"
-            autoComplete="off" spellCheck={false}
-            className="w-full outline-none focus:border-white/20"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', color: '#dddde8', fontSize: '0.82rem' }}
-          />
-        </div>
-
-        <div>
-          <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Date</label>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)}
-            className="w-full outline-none focus:border-white/20"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', color: '#dddde8', fontSize: '0.78rem', fontFamily: 'var(--font-dm-mono)' }}
-          />
-        </div>
-
-        <div>
-          <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Phase</label>
-          <div style={{ display: 'flex', gap: 5 }}>
-            {(['pre', 'prod', 'post'] as Phase[]).map(p => (
-              <button key={p} onClick={() => setMsPhase(p)}
-                className="font-mono uppercase cursor-pointer flex-1"
-                style={{
-                  fontSize: '0.44rem', letterSpacing: '0.05em', padding: '7px 9px', borderRadius: 20, textAlign: 'center',
-                  background: msPhase === p ? `${PHASE_HEX[p]}1a` : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${msPhase === p ? `${PHASE_HEX[p]}40` : 'rgba(255,255,255,0.05)'}`,
-                  color: msPhase === p ? PHASE_HEX[p] : '#62627a',
-                }}
-              >{PHASE_LABEL[p]}</button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Notes</label>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Optional"
-            className="w-full outline-none focus:border-white/20 resize-none"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', color: '#dddde8', fontSize: '0.78rem', lineHeight: 1.5 }}
-          />
-        </div>
       </div>
     </>
   )
@@ -338,19 +246,8 @@ export default function TimelinePage({ params }: { params: { projectId: string }
 
   const msListRef = useRef<HTMLDivElement>(null)
 
-  // Phases derived from project dates
-  const phases = useMemo(() => {
-    if (!project) return []
-    const pre = project.startDate && project.shootDate ? { id: 'pre', start: new Date(project.startDate), end: new Date(project.shootDate) } : null
-    const prod = project.shootDate ? { id: 'prod', start: new Date(project.shootDate), end: project.shootDateEnd ? new Date(project.shootDateEnd) : new Date(project.shootDate) } : null
-    const post = (project.shootDateEnd || project.shootDate) && project.deliveryDate ? { id: 'post', start: new Date(project.shootDateEnd || project.shootDate!), end: new Date(project.deliveryDate) } : null
-    return [pre, prod, post].filter(Boolean) as { id: string; start: Date; end: Date }[]
-  }, [project])
-
-  const deliveryDate = project?.deliveryDate ? new Date(project.deliveryDate) : null
-
   // Calendar milestone dots
-  const calMilestones = useMemo(() => allMS.map(m => ({ date: new Date(m.date), phase: m.phase, projectColor: accent })), [allMS, accent])
+  const calMilestones = useMemo(() => allMS.map(m => ({ date: new Date(m.date), status: m.status, projectColor: accent })), [allMS, accent])
 
   // Upcoming grouped by month
   const sorted = [...allMS].sort((a, b) => a.date.localeCompare(b.date))
@@ -388,8 +285,7 @@ export default function TimelinePage({ params }: { params: { projectId: string }
     return groups
   }, [sorted])
 
-  const phaseColor = project ? PHASE_HEX[project.phase] : '#6470f3'
-  const phaseLabel = project ? (project.phase === 'pre' ? 'In Pre-Production' : project.phase === 'prod' ? 'In Production' : 'In Post-Production') : ''
+  const projectStatusLabel = project ? statusLabel(project.status) : ''
 
   return (
     <div className="screen" style={{ overflow: 'hidden' }}>
@@ -397,7 +293,7 @@ export default function TimelinePage({ params }: { params: { projectId: string }
       <PageHeader
         projectId={projectId}
         title="Timeline"
-        meta={project ? `${project.name} · ${phaseLabel}` : ''}
+        meta={project ? `${project.name} · ${projectStatusLabel}` : ''}
         right={
           <div className="flex items-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 20, padding: 3, gap: 2 }}>
             <button onClick={() => setMode('project')} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
@@ -416,8 +312,8 @@ export default function TimelinePage({ params }: { params: { projectId: string }
 
       {/* Calendar — anchored, does not scroll */}
       <Calendar
-        month={month} mode={mode} accent={accent} phases={phases}
-        milestones={calMilestones} deliveryDate={deliveryDate}
+        month={month} mode={mode} accent={accent}
+        milestones={calMilestones}
         selectedDate={selectedDate} onSelect={onDayClick} onMonthChange={setMonth}
       />
 
@@ -462,7 +358,8 @@ export default function TimelinePage({ params }: { params: { projectId: string }
                 </div>
                 {dayMs.map(ms => {
                   const d = new Date(ms.date)
-                  const isDelivery = ms.name.toLowerCase().includes('delivery')
+                  const isDelivery = ms.title.toLowerCase().includes('delivery')
+                  const msColor = isDelivery ? '#e8564a' : (MILESTONE_STATUS_HEX[ms.status] ?? '#62627a')
                   return (
                     <div key={ms.id} className="flex items-start cursor-pointer" style={{ gap: 12, padding: '11px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
                       onClick={() => setSelectedMS(ms)}>
@@ -472,10 +369,10 @@ export default function TimelinePage({ params }: { params: { projectId: string }
                       </div>
                       <div className="flex-shrink-0" style={{ width: 1, background: `${accent}66`, alignSelf: 'stretch', margin: '2px 0' }} />
                       <div className="flex-1 min-w-0" style={{ paddingTop: 2 }}>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: isDelivery ? '#e8564a' : '#dddde8', marginBottom: 4 }}>{ms.name}</div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: isDelivery ? '#e8564a' : '#dddde8', marginBottom: 4 }}>{ms.title}</div>
                         <div className="font-mono uppercase flex items-center gap-1" style={{ fontSize: '0.42rem', color: '#62627a', background: 'rgba(255,255,255,0.04)', borderRadius: 3, padding: '2px 5px', display: 'inline-flex', letterSpacing: '0.05em' }}>
-                          <div className="rounded-full" style={{ width: 5, height: 5, background: PHASE_HEX[ms.phase] }} />
-                          {PHASE_LABEL[ms.phase]}
+                          <div className="rounded-full" style={{ width: 5, height: 5, background: msColor }} />
+                          {MILESTONE_STATUS_LABEL[ms.status] ?? ms.status}
                         </div>
                       </div>
                       <svg width="5" height="9" viewBox="0 0 5 9" fill="none" className="flex-shrink-0" style={{ opacity: 0.2, marginTop: 4 }}><path d="M1 1L4 4.5L1 8" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -493,9 +390,10 @@ export default function TimelinePage({ params }: { params: { projectId: string }
                 <div className="font-mono uppercase" style={{ fontSize: '0.47rem', color: '#62627a', letterSpacing: '0.1em', padding: '14px 0 7px' }}>{group.label}</div>
                 {group.items.map((ms, i) => {
                   const d = new Date(ms.date)
-                  const isDelivery = ms.name.toLowerCase().includes('delivery')
+                  const isDelivery = ms.title.toLowerCase().includes('delivery')
                   const isNext = !isDelivery && sorted.indexOf(ms) === sorted.findIndex(m => new Date(m.date) >= new Date())
                   const highlighted = highlightId === ms.id
+                  const msColor = isDelivery ? '#e8564a' : (MILESTONE_STATUS_HEX[ms.status] ?? '#62627a')
                   return (
                     <div key={ms.id} data-ms-id={ms.id}
                       className="flex items-start cursor-pointer transition-all"
@@ -513,10 +411,10 @@ export default function TimelinePage({ params }: { params: { projectId: string }
                       </div>
                       <div className="flex-shrink-0" style={{ width: 1, alignSelf: 'stretch', margin: '2px 0', background: isDelivery ? 'rgba(232,86,74,0.5)' : isNext ? `${accent}66` : 'rgba(255,255,255,0.05)' }} />
                       <div className="flex-1 min-w-0" style={{ paddingTop: 2 }}>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: isDelivery ? '#e8564a' : '#dddde8', marginBottom: 4 }}>{ms.name}</div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: isDelivery ? '#e8564a' : '#dddde8', marginBottom: 4 }}>{ms.title}</div>
                         <div className="font-mono uppercase flex items-center gap-1" style={{ fontSize: '0.42rem', color: '#62627a', background: 'rgba(255,255,255,0.04)', borderRadius: 3, padding: '2px 5px', display: 'inline-flex', letterSpacing: '0.05em' }}>
-                          <div className="rounded-full" style={{ width: 5, height: 5, background: isDelivery ? '#e8564a' : PHASE_HEX[ms.phase] }} />
-                          {isDelivery ? 'Delivery' : PHASE_LABEL[ms.phase]}
+                          <div className="rounded-full" style={{ width: 5, height: 5, background: msColor }} />
+                          {isDelivery ? 'Delivery' : (MILESTONE_STATUS_LABEL[ms.status] ?? ms.status)}
                         </div>
                       </div>
                       <svg width="5" height="9" viewBox="0 0 5 9" fill="none" className="flex-shrink-0" style={{ opacity: 0.2, marginTop: 4 }}><path d="M1 1L4 4.5L1 8" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -537,9 +435,6 @@ export default function TimelinePage({ params }: { params: { projectId: string }
         open={showAdd}
         projectId={projectId}
         accent={accent}
-        currentPhase={(project?.phase ?? 'prod') as Phase}
-        shootDate={project?.shootDate}
-        shootDateEnd={project?.shootDateEnd}
         onSave={(data) => { createMilestone.mutate(data as any); setShowAdd(false) }}
         onClose={() => setShowAdd(false)}
       />

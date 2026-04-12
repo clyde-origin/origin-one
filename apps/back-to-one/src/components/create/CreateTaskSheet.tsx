@@ -3,32 +3,30 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/utils/haptics'
-import { DEPARTMENTS } from '@/lib/utils/phase'
-import type { CrewMember } from '@/types'
+import type { TeamMember, ActionItemStatus } from '@/types'
 
 interface CreateTaskSheetProps {
   open: boolean
   projectId: string
   accent: string
-  crew: CrewMember[]
-  onSave: (data: { projectId: string; name: string; dept: string; assigneeId: string | null; dueDate: string | null; notes: string; done: boolean }) => void
+  crew: TeamMember[]
+  onSave: (data: { projectId: string; title: string; assignedTo: string | null; dueDate: string | null; description: string; status: ActionItemStatus }) => void
   onClose: () => void
 }
 
 export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose }: CreateTaskSheetProps) {
-  const [name, setName] = useState('')
-  const [dept, setDept] = useState('Production')
-  const [assigneeId, setAssigneeId] = useState<string | null>(null)
+  const [title, setTitle] = useState('')
+  const [assignedTo, setAssignedTo] = useState<string | null>(null)
   const [dueDate, setDueDate] = useState('')
   const [priority, setPriority] = useState<'normal' | 'high'>('normal')
-  const [notes, setNotes] = useState('')
+  const [description, setDescription] = useState('')
 
-  const canSave = name.trim().length > 0
+  const canSave = title.trim().length > 0
 
   function handleSave() {
     if (!canSave) return
     haptic('light')
-    onSave({ projectId, name: name.trim(), dept, assigneeId, dueDate: dueDate || null, notes, done: false })
+    onSave({ projectId, title: title.trim(), assignedTo, dueDate: dueDate || null, description, status: 'open' })
     resetForm()
   }
 
@@ -38,7 +36,7 @@ export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose
   }
 
   function resetForm() {
-    setName(''); setDept('Production'); setAssigneeId(null); setDueDate(''); setPriority('normal'); setNotes('')
+    setTitle(''); setAssignedTo(null); setDueDate(''); setPriority('normal'); setDescription('')
   }
 
   function handleDragEnd(_: unknown, info: { offset: { y: number } }) {
@@ -98,8 +96,8 @@ export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose
             {/* Fields */}
             <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Task name</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="What needs to be done?"
+                <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Task title</label>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="What needs to be done?"
                   autoFocus autoComplete="off" spellCheck={false}
                   className="w-full outline-none focus:border-white/20"
                   style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', color: '#dddde8', fontSize: '0.82rem' }}
@@ -117,25 +115,25 @@ export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose
               <div>
                 <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Assignee</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                  <button onClick={() => setAssigneeId(null)}
+                  <button onClick={() => setAssignedTo(null)}
                     className="font-mono uppercase cursor-pointer"
                     style={{
                       fontSize: '0.44rem', padding: '5px 9px', borderRadius: 20,
-                      background: assigneeId === null ? `${accent}1a` : 'rgba(255,255,255,0.04)',
-                      border: `1px solid ${assigneeId === null ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
-                      color: assigneeId === null ? accent : '#62627a',
+                      background: assignedTo === null ? `${accent}1a` : 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${assignedTo === null ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
+                      color: assignedTo === null ? accent : '#62627a',
                     }}
                   >Unassigned</button>
                   {crew.map(c => (
-                    <button key={c.id} onClick={() => setAssigneeId(c.id)}
+                    <button key={c.id} onClick={() => setAssignedTo(c.userId)}
                       className="font-mono cursor-pointer"
                       style={{
                         fontSize: '0.44rem', padding: '5px 9px', borderRadius: 20,
-                        background: assigneeId === c.id ? `${accent}1a` : 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${assigneeId === c.id ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
-                        color: assigneeId === c.id ? accent : '#62627a',
+                        background: assignedTo === c.userId ? `${accent}1a` : 'rgba(255,255,255,0.04)',
+                        border: `1px solid ${assignedTo === c.userId ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
+                        color: assignedTo === c.userId ? accent : '#62627a',
                       }}
-                    >{c.first} {c.last[0]}.</button>
+                    >{c.User.name}</button>
                   ))}
                 </div>
               </div>
@@ -158,20 +156,11 @@ export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose
               </div>
 
               <div>
-                <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Department</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                  {DEPARTMENTS.map(d => (
-                    <button key={d} onClick={() => setDept(d)}
-                      className="font-mono uppercase cursor-pointer"
-                      style={{
-                        fontSize: '0.44rem', letterSpacing: '0.05em', padding: '5px 9px', borderRadius: 20,
-                        background: dept === d ? `${accent}1a` : 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${dept === d ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
-                        color: dept === d ? accent : '#62627a',
-                      }}
-                    >{d}</button>
-                  ))}
-                </div>
+                <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Description</label>
+                <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Optional"
+                  className="w-full outline-none focus:border-white/20 resize-none"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', color: '#dddde8', fontSize: '0.78rem', lineHeight: 1.5 }}
+                />
               </div>
             </div>
           </motion.div>

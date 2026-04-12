@@ -1,31 +1,24 @@
 // ══════════════════════════════════════════════════════════
 // ORIGIN ONE — TYPE DEFINITIONS
-// Source of truth. Matches planning handoff exactly.
-// Maps 1:1 to Supabase schema.
+// Source of truth. Maps 1:1 to new Prisma schema.
 // ══════════════════════════════════════════════════════════
 
 // ── ENUMS ──────────────────────────────────────────────────
 
-export type Phase = 'pre' | 'prod' | 'post'
-
-export type ProjectType =
-  | 'Commercial'
-  | 'Narrative Short'
-  | 'Feature'
-  | 'Branded Documentary'
-  | 'Documentary'
-  | 'Music Video'
-  | 'Other'
-
 export type ProjectStatus =
-  | 'In Development'
-  | 'In Pre-Production'
-  | 'In Production'
-  | 'Shotlist in Progress'
-  | 'Picture Lock in Progress'
-  | 'In Post-Production'
-  | 'Delivered'
-  | 'Archived'
+  | 'development'
+  | 'pre_production'
+  | 'production'
+  | 'post_production'
+  | 'archived'
+
+export type MilestoneStatus = 'upcoming' | 'in_progress' | 'completed'
+
+export type ActionItemStatus = 'open' | 'in_progress' | 'done'
+
+export type ResourceType = 'link' | 'file' | 'image' | 'video' | 'document'
+
+export type Role = 'director' | 'producer' | 'coordinator' | 'writer' | 'crew'
 
 export type SceneMakerMode = 'script' | 'shotlist' | 'storyboard'
 
@@ -39,108 +32,57 @@ export type ArtStatus = 'In Progress' | 'Ready' | 'Approved' | 'Needs Review'
 
 export type ArtCategory = 'props' | 'hmu' | 'wardrobe'
 
-export type ResourceType = 'link' | 'deck' | 'doc' | 'folder' | 'contract' | 'video' | 'audio'
-
-export type ResourceCategory = 'brief' | 'legal' | 'assets' | 'refs' | 'deliverables' | 'audio'
-
 export type WorkflowNodeType =
   | 'storage' | 'software' | 'system'
   | 'transfer' | 'phase' | 'deliverable'
 
 export type WorkflowPhase = 'onset' | 'post' | 'delivery'
 
-export type ThreadContextType =
-  | 'shot' | 'milestone' | 'task' | 'location'
-  | 'role' | 'art' | 'workflow' | 'general'
-  | 'sequence' // for docs like Freehand
-
-// ── FOLDER ────────────────────────────────────────────────
-
-export interface Folder {
-  id: string
-  name: string
-  color: string
-  logoUrl: string | null
-  order: number
-  createdAt: string
-  updatedAt: string
-}
-
 // ── USER ───────────────────────────────────────────────────
 
 export interface User {
   id: string
   email: string
-  firstName: string
-  lastName: string
-  role: string
-  department: string
-  avatarColor1: string
-  avatarColor2: string
+  name: string
+  avatarUrl: string | null
   createdAt: string
+  updatedAt: string
 }
+
+// ── TEAM MEMBER (crew) ────────────────────────────���───────
+
+export interface TeamMember {
+  id: string
+  teamId: string
+  userId: string
+  role: Role
+  createdAt: string
+  User: User
+}
+
+// Keep CrewMember as alias for backwards compat in components
+export type CrewMember = TeamMember
 
 // ── PROJECT ────────────────────────────────────────────────
 
 export interface Project {
   id: string
+  teamId: string
   name: string
-  type: ProjectType
-  client: string
-  company: string           // e.g. "Origin Point"
-  phase: Phase
   status: ProjectStatus
-  logline: string
-  // Spec fields
-  runtimeTarget: string | null    // e.g. "3:00"
-  aspectRatio: string | null      // e.g. "2.39:1"
-  captureFormat: string | null    // e.g. "Digital Cinema"
-  startDate: string | null
-  shootDate: string | null        // single shoot day
-  shootDateEnd: string | null     // multi-day shoot end
-  deliveryDate: string | null
-  // Folder + ordering
-  folderId: string | null
-  displayOrder: number
-  // Counters (derived but stored for perf)
-  sceneCount: number
-  shotCount: number
-  // Timestamps
+  color: string | null
+  client: string | null
+  type: string | null
   createdAt: string
   updatedAt: string
 }
 
-// ── PROJECT MEMBER ─────────────────────────────────────────
+// ── FOLDER ────────────────────────���───────────────────────
 
-export interface ProjectMember {
+export interface Folder {
   id: string
   projectId: string
-  userId: string
-  role: string              // their role on this project
-  department: string
-  isOwner: boolean
-  createdAt: string
-}
-
-// ── CREW MEMBER ────────────────────────────────────────────
-
-export interface CrewMember {
-  id: string
-  projectId: string
-  first: string
-  last: string
-  role: string
-  dept: string
-  color1: string
-  color2: string
-  online: boolean
-  phone: string
-  email: string
-  allergies: string
-  dealMemoUrl: string
-  notes: string
-  avatarUrl: string
-  displayOrder: number
+  name: string
   createdAt: string
 }
 
@@ -149,12 +91,11 @@ export interface CrewMember {
 export interface ActionItem {
   id: string
   projectId: string
-  name: string
-  dept: string
-  assigneeId: string | null   // crew member id
-  dueDate: string | null      // ISO date YYYY-MM-DD
-  notes: string
-  done: boolean
+  title: string
+  description: string | null
+  status: ActionItemStatus
+  assignedTo: string | null
+  dueDate: string | null
   createdAt: string
   updatedAt: string
 }
@@ -164,25 +105,11 @@ export interface ActionItem {
 export interface Milestone {
   id: string
   projectId: string
-  name: string
-  phase: Phase
-  dept: string
-  date: string              // ISO date
-  notes: string
-  people: string[]          // crew member ids
-  isNext?: boolean          // computed
-  createdAt: string
-}
-
-// ── COMMENT ────────────────────────────────────────────────
-
-export interface Comment {
-  id: string
-  projectId: string
-  contextType: string       // 'shot' | 'task' | 'scene' etc
-  contextId: string         // id of the item being commented on
-  authorId: string          // crew member id
-  text: string
+  title: string
+  date: string
+  status: MilestoneStatus
+  notes: string | null
+  people: string[]
   createdAt: string
 }
 
@@ -191,11 +118,8 @@ export interface Comment {
 export interface Thread {
   id: string
   projectId: string
-  contextType: ThreadContextType
-  contextLabel: string      // e.g. "Shot 2B" or "Picture Lock Notes"
-  contextRef: string        // item id
-  subject: string
-  unread: boolean           // computed client-side
+  title: string
+  createdBy: string
   messages: ThreadMessage[]
   createdAt: string
   updatedAt: string
@@ -204,36 +128,56 @@ export interface Thread {
 export interface ThreadMessage {
   id: string
   threadId: string
-  authorId: string | null
-  tagged: string[]          // crew member ids
-  text: string
+  content: string
+  createdBy: string
   createdAt: string
 }
 
-// ── SCENEMAKER ─────────────────────────────────────────────
+// ── RESOURCE ────────────────────────────────��─────────────
 
-export interface SceneMakerVersion {
+export interface Resource {
   id: string
   projectId: string
-  label: string             // 'v1', 'v2' etc
-  isCurrent: boolean
+  folderId: string | null
+  title: string
+  url: string
+  type: ResourceType
+  createdBy: string
   createdAt: string
 }
+
+// ── SCENE + SHOT (new Prisma schema) ─────────────────────
 
 export interface Scene {
   id: string
   projectId: string
-  versionId: string
-  num: number
-  heading: string           // 'EXT. RAVINE EDGE – DUSK'
-  // Script content (ordered blocks)
-  action: string[]
-  dialogue: DialogueLine[]
-  action2: string[]
-  dialogue2: DialogueLine[]
-  action3: string[]
-  dialogue3: DialogueLine[]
-  action4: string[]
+  sceneNumber: string
+  title: string | null
+  description: string | null
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Shot {
+  id: string
+  sceneId: string
+  shotNumber: string
+  size: string | null
+  description: string | null
+  status: 'planned' | 'in_progress' | 'completed' | 'omitted'
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+// ── STUB TYPES (not yet in new schema) ────────────────────
+
+export interface SceneMakerVersion {
+  id: string
+  projectId: string
+  label: string
+  isCurrent: boolean
   createdAt: string
 }
 
@@ -242,33 +186,9 @@ export interface DialogueLine {
   line: string
 }
 
-export interface Shot {
-  id: string                // e.g. '1A', '2B', 'FH-1A'
-  projectId: string
-  versionId: string
-  sceneId: string
-  storyOrder: number
-  shootOrder: number
-  desc: string              // shot description
-  framing: string           // 'Wide Master', 'Medium', etc
-  movement: string
-  lens: string
-  dirNotes: string
-  prodNotes: string
-  elements: string[]
-  images: string[]          // storage URLs
-  status: 'planned' | 'captured' | 'approved'
-  createdAt: string
-  updatedAt: string
-}
-
-// ── STORYBOARD CARD ────────────────────────────────────────
-// Storyboard is a view over shots, not a separate data type.
-// Each card = one Shot. This interface is for UI rendering only.
-
 export interface StoryboardCard {
   shotId: string
-  shotLabel: string         // e.g. '1A'
+  shotLabel: string
   sceneHeading: string
   desc: string
   framing: string
@@ -276,8 +196,6 @@ export interface StoryboardCard {
   storyOrder: number
   shootOrder: number
 }
-
-// ── MOODBOARD ──────────────────────────────────────────────
 
 export interface MoodboardRef {
   id: string
@@ -289,8 +207,6 @@ export interface MoodboardRef {
   gradient: string
   createdAt: string
 }
-
-// ── LOCATIONS ──────────────────────────────────────────────
 
 export interface LocationGroup {
   id: string
@@ -310,8 +226,6 @@ export interface LocationOption {
   createdAt: string
 }
 
-// ── CASTING ────────────────────────────────────────────────
-
 export interface CastRole {
   id: string
   projectId: string
@@ -330,8 +244,6 @@ export interface CastTalent {
   note: string
 }
 
-// ── ART ────────────────────────────────────────────────────
-
 export interface ArtItem {
   id: string
   projectId: string
@@ -345,22 +257,6 @@ export interface ArtItem {
   updatedAt: string
 }
 
-// ── RESOURCES ──────────────────────────────────────────────
-
-export interface Resource {
-  id: string
-  projectId: string
-  cat: ResourceCategory
-  type: ResourceType
-  title: string
-  meta: string
-  url: string
-  pinned: boolean
-  createdAt: string
-}
-
-// ── WORKFLOW ───────────────────────────────────────────────
-
 export interface WorkflowNode {
   id: string
   projectId: string
@@ -371,6 +267,16 @@ export interface WorkflowNode {
   order: number
   createdAt: string
   updatedAt: string
+}
+
+export interface Comment {
+  id: string
+  projectId: string
+  contextType: string
+  contextId: string
+  authorId: string
+  text: string
+  createdAt: string
 }
 
 // ── UI STATE (client only, never persisted) ────────────────
