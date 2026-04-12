@@ -202,6 +202,18 @@ export async function toggleActionItem(id: string, done: boolean): Promise<void>
   if (error) { console.error('toggleActionItem failed:', error); throw error }
 }
 
+export async function updateActionItem(
+  id: string,
+  fields: { title?: string; description?: string; assignedTo?: string | null; dueDate?: string | null; status?: string }
+): Promise<void> {
+  const db = createClient()
+  const { error } = await db
+    .from('ActionItem')
+    .update(fields)
+    .eq('id', id)
+  if (error) { console.error('updateActionItem failed:', error); throw error }
+}
+
 export async function createActionItem(
   item: { projectId: string; title: string; description?: string; assignedTo?: string | null; dueDate?: string | null }
 ) {

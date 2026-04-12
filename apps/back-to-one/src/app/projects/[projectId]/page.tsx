@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
+import { getShotsByProject } from '@/lib/db/queries'
 import {
   useProject, useActionItems, useToggleActionItem, useCreateActionItem, useMilestones, useCreateMilestone, useCrew,
-  useSMVersions, useSMScenes, useSMShots, useMoodboard, useThreads,
+  useScenes, useMoodboard, useThreads,
   useLocations, useArtItems, useCastRoles, useWorkflowNodes,
 } from '@/lib/hooks/useOriginOne'
 import { CrewAvatar } from '@/components/ui'
@@ -39,16 +41,13 @@ const WF_ICONS: Record<string, string> = {
   storage: '💾', software: '🖥', system: '⚙', transfer: '↗', phase: '◆', deliverable: '📦',
 }
 
-// ── MODULE HEADER ─────────────────────────────────────────
+// ── MODULE HEADER — item 7: second-tier section headers ───
 
 function ModuleHeader({ name, meta }: { name: string; meta?: string }) {
   return (
     <div className="flex flex-col items-center mb-2.5">
       <div className="flex items-center gap-1.5">
-        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#dddde8' }}>{name}</span>
-        <svg width="5" height="8" viewBox="0 0 5 8" fill="none" className="opacity-20 flex-shrink-0">
-          <path d="M1 1L4 4L1 7" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#dddde8' }}>{name}</span>
       </div>
       {meta && (
         <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>
@@ -63,10 +62,7 @@ function SectionHeader({ name, meta }: { name: string; meta?: string }) {
   return (
     <div className="flex flex-col items-center mb-2.5">
       <div className="flex items-center gap-1.5">
-        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#dddde8' }}>{name}</span>
-        <svg width="5" height="8" viewBox="0 0 5 8" fill="none" className="opacity-20 flex-shrink-0">
-          <path d="M1 1L4 4L1 7" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#dddde8' }}>{name}</span>
       </div>
       {meta && (
         <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>
@@ -92,6 +88,309 @@ const MINI_ICONS: Record<string, React.ReactNode> = {
   locations: <LocationsIcon />,
   art: <ArtIcon />,
   casting: <CastingIcon />,
+}
+
+// ── GANTT CHART — item 10 ─────────────────────────────────
+
+function GanttChart({ milestones, projectStatus }: { milestones: Milestone[]; projectStatus: string }) {
+  const today = new Date()
+
+  const allDates = milestones.map(m => new Date(m.date))
+  const earliest = allDates.length > 0
+    ? new Date(Math.min(...allDates.map(d => d.getTime())))
+    : new Date(today.getFullYear(), today.getMonth() - 2, 1)
+  const latest = allDates.length > 0
+    ? new Date(Math.max(...allDates.map(d => d.getTime())))
+    : new Date(today.getFullYear(), today.getMonth() + 4, 1)
+
+  const rangeStart = new Date(earliest)
+  rangeStart.setDate(rangeStart.getDate() - 7)
+  const rangeEnd = new Date(latest)
+  rangeEnd.setDate(rangeEnd.getDate() + 7)
+  const totalMs = rangeEnd.getTime() - rangeStart.getTime()
+
+  function toPercent(date: Date) {
+    return Math.max(0, Math.min(100, ((date.getTime() - rangeStart.getTime()) / totalMs) * 100))
+  }
+
+  const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const todayPct = toPercent(today)
+
+  // Find the next upcoming milestone — pre-select it on load
+  const nextMs = milestones.filter(m => new Date(m.date) >= today).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]
+  const [selectedMsId, setSelectedMsId] = useState<string | null>(nextMs?.id ?? null)
+
+  // Final delivery = last milestone
+  const finalMs = milestones.length > 0 ? milestones.reduce((a, b) => new Date(a.date) > new Date(b.date) ? a : b) : null
+  const finalPct = finalMs ? toPercent(new Date(finalMs.date)) : null
+
+  // Production range — milestones in the active phase
+  const activePhaseIndex = projectStatus === 'pre_production' || projectStatus === 'development' ? 0
+    : projectStatus === 'production' ? 1
+    : projectStatus === 'post_production' ? 2
+    : -1
+
+  const phaseColors = ['#e8a020', '#6470f3', '#00b894']
+  const phaseLabels = ['Pre', 'Prod', 'Post']
+
+  // Single unified bar with colored segments
+  const thirdMs = totalMs / 3
+  const segments = [
+    { label: 'Pre', color: '#e8a020', leftPct: 0, widthPct: 33.3 },
+    { label: 'Prod', color: '#6470f3', leftPct: 33.3, widthPct: 33.4 },
+    { label: 'Post', color: '#00b894', leftPct: 66.7, widthPct: 33.3 },
+  ]
+
+  return (
+    <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 4, flex: 1, alignItems: 'center' }}>
+      {/* Unified Gantt bar */}
+      <div style={{ width: '100%', position: 'relative' }}>
+        {/* Date labels */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+          <span className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a' }}>{fmt(rangeStart)}</span>
+          <span className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a' }}>{fmt(rangeEnd)}</span>
+        </div>
+
+        {/* Bar track */}
+        <div
+          style={{ width: '100%', height: 8, background: 'rgba(255,255,255,0.04)', borderRadius: 4, position: 'relative', overflow: 'visible' }}
+        >
+          {/* Phase color segments */}
+          {segments.map((seg, i) => (
+            <div key={seg.label} style={{
+              position: 'absolute', top: 0, bottom: 0,
+              left: `${seg.leftPct}%`, width: `${seg.widthPct}%`,
+              background: i === activePhaseIndex ? seg.color : `${seg.color}33`,
+              borderRadius: i === 0 ? '4px 0 0 4px' : i === 2 ? '0 4px 4px 0' : 0,
+              transition: 'background 0.3s',
+              boxShadow: i === activePhaseIndex ? `0 0 8px ${seg.color}55` : undefined,
+            }} />
+          ))}
+
+          {/* Milestone markers — tappable ticks */}
+          {milestones.map(ms => {
+            const pct = toPercent(new Date(ms.date))
+            const isCompleted = ms.status === 'completed'
+            const isSelected = selectedMsId === ms.id
+            return (
+              <div key={ms.id}
+                onClick={(e) => { e.stopPropagation(); setSelectedMsId(prev => prev === ms.id ? null : ms.id) }}
+                style={{
+                  position: 'absolute', top: -4, left: `${pct}%`, transform: 'translateX(-50%)',
+                  width: 8, height: 16, cursor: 'pointer', zIndex: 4,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                <div style={{
+                  width: isSelected ? 4 : 3, height: isSelected ? 14 : 12, borderRadius: 1,
+                  background: isSelected ? '#dddde8' : isCompleted ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.45)',
+                  transition: 'all 0.15s',
+                }} />
+              </div>
+            )
+          })}
+
+          {/* Today marker */}
+          <div style={{
+            position: 'absolute', top: -3, bottom: -3,
+            left: `${todayPct}%`, transform: 'translateX(-50%)',
+            width: 2, borderRadius: 1,
+            background: '#e8564a',
+            boxShadow: '0 0 4px #e8564a',
+            zIndex: 3,
+          }} />
+
+          {/* Final delivery marker */}
+          {finalPct !== null && (
+            <div style={{
+              position: 'absolute', top: -2, bottom: -2,
+              left: `${finalPct}%`, transform: 'translateX(-50%)',
+              width: 2, borderRadius: 1,
+              background: '#dddde8',
+              opacity: 0.6,
+              zIndex: 2,
+            }} />
+          )}
+        </div>
+
+        {/* Phase labels below bar */}
+        <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: 3 }}>
+          {segments.map((seg, i) => (
+            <span key={seg.label} className="font-mono" style={{
+              fontSize: '0.46rem', letterSpacing: '0.06em',
+              color: i === activePhaseIndex ? seg.color : '#62627a',
+              opacity: i === activePhaseIndex ? 1 : 0.5,
+            }}>{seg.label}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Selected milestone — single row beneath Gantt */}
+      {selectedMsId && (() => {
+        const ms = milestones.find(m => m.id === selectedMsId)
+        if (!ms) return null
+        const statusColor = ms.status === 'completed' ? '#00b894' : ms.status === 'in_progress' ? '#e8a020' : '#62627a'
+        const msDate = new Date(ms.date)
+        const daysAway = Math.ceil((msDate.getTime() - today.getTime()) / 86400000)
+        const daysLabel = daysAway === 0 ? 'Today' : daysAway === 1 ? 'Tomorrow' : daysAway > 0 ? `${daysAway}d` : `${Math.abs(daysAway)}d ago`
+        return (
+          <div style={{
+            width: '100%', marginTop: 6, display: 'flex', alignItems: 'center', gap: 10,
+            padding: '11px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)',
+          }}>
+            <div style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: statusColor }} />
+            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#dddde8', flex: 1 }}>{ms.title}</span>
+            <span className="font-mono" style={{ fontSize: '0.48rem', color: '#62627a', flexShrink: 0 }}>{fmt(msDate)}</span>
+            <span className="font-mono" style={{ fontSize: '0.46rem', color: statusColor, flexShrink: 0 }}>{daysLabel}</span>
+          </div>
+        )
+      })()}
+    </div>
+  )
+}
+
+// ── SWIPEABLE SCENEMAKER — item 12 ───────────────────────
+
+function SwipeableSceneMaker({
+  projectId, projectColor, pr, pg, pb,
+  allShots, allScenes, allMoodRefs, shuffledMood,
+  router,
+}: {
+  projectId: string; projectColor: string; pr: number; pg: number; pb: number;
+  allShots: any[]; allScenes: any[]; allMoodRefs: any[]; shuffledMood: any[];
+  router: ReturnType<typeof useRouter>;
+}) {
+  const SIZE_SHORT: Record<string, string> = {
+    extreme_wide: 'EWS', wide: 'WS', full: 'FS', medium: 'MS',
+    medium_close_up: 'MCU', close_up: 'CU', extreme_close_up: 'ECU', insert: 'INS',
+  }
+
+  // Pages: 0=Script, 1=Shotlist (default), 2=Storyboard
+  const [page, setPage] = useState(1)
+  const touchStart = useRef<number | null>(null)
+  const touchDelta = useRef(0)
+  const [dragging, setDragging] = useState(false)
+  const [dragOffset, setDragOffset] = useState(0)
+
+  function onTouchStart(e: React.TouchEvent) {
+    touchStart.current = e.touches[0].clientX
+    touchDelta.current = 0
+    setDragging(true)
+    setDragOffset(0)
+  }
+
+  function onTouchMove(e: React.TouchEvent) {
+    if (touchStart.current === null) return
+    touchDelta.current = e.touches[0].clientX - touchStart.current
+    setDragOffset(touchDelta.current)
+  }
+
+  function onTouchEnd() {
+    const delta = touchDelta.current
+    setDragging(false)
+    setDragOffset(0)
+    touchStart.current = null
+    if (Math.abs(delta) > 40) {
+      if (delta < 0 && page < 2) setPage(p => p + 1)
+      if (delta > 0 && page > 0) setPage(p => p - 1)
+    }
+  }
+
+  const translateX = (page * -100) + (dragging ? (dragOffset / 2) : 0)
+  const pageLabels = ['Script', 'Shotlist', 'Storyboard']
+
+  return (
+    <div
+      style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onClick={() => {
+        const mode = page === 0 ? 'script' : page === 2 ? 'storyboard' : 'shotlist'
+        router.push(`/projects/${projectId}/scenemaker?mode=${mode}`)
+      }}
+    >
+      {/* Page indicator — top */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 12, padding: '7px 9px 2px', alignItems: 'center' }}>
+        {pageLabels.map((label, i) => (
+          <span key={label} className="font-mono uppercase" style={{
+            fontSize: '0.44rem',
+            letterSpacing: '0.06em',
+            color: page === i ? projectColor : '#62627a',
+            fontWeight: page === i ? 700 : 400,
+            opacity: page === i ? 1 : 0.5,
+            transition: 'all 0.2s ease',
+          }}>{label}</span>
+        ))}
+      </div>
+
+      <div style={{
+        display: 'flex', width: '300%', flex: 1,
+        transform: `translateX(calc(${translateX / 3}%))`,
+        transition: dragging ? 'none' : 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)',
+        willChange: 'transform',
+      }}>
+        {/* Page 0: Script */}
+        <div style={{ width: '33.333%', flex: '0 0 33.333%', padding: '8px 9px', display: 'flex', flexDirection: 'column' }}>
+          {allScenes.length > 0 ? (
+            <div className="flex flex-col flex-1 justify-center" style={{ gap: 5 }}>
+              {allScenes.slice(0, 2).map(sc => (
+                <div key={sc.id} style={{ padding: '4px 6px', background: 'rgba(255,255,255,0.03)', borderRadius: 4, border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div className="font-mono uppercase" style={{ fontSize: '0.32rem', color: projectColor, marginBottom: 2, letterSpacing: '0.06em' }}>{sc.title ?? ''}</div>
+                  <div style={{ fontSize: '0.38rem', color: '#a0a0b8', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{sc.description ?? ''}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a' }}>No script yet</span>
+            </div>
+          )}
+        </div>
+
+        {/* Page 1: Shotlist (default) — first 3 shots as rows */}
+        <div style={{ width: '33.333%', flex: '0 0 33.333%', padding: '8px 9px', display: 'flex', flexDirection: 'column' }}>
+          {allShots.length > 0 ? (
+            <div className="flex flex-col flex-1 justify-center" style={{ gap: 3 }}>
+              {allShots.slice(0, 3).map((shot: any) => (
+                <div key={shot.id} className="flex items-center" style={{ gap: 7, padding: '5px 6px', background: 'rgba(255,255,255,0.02)', borderRadius: 5, border: '1px solid rgba(255,255,255,0.04)' }}>
+                  <span className="font-mono flex-shrink-0" style={{ fontSize: '0.42rem', fontWeight: 700, color: projectColor, letterSpacing: '0.04em', width: 22 }}>{shot.shotNumber}</span>
+                  <span className="font-mono flex-shrink-0" style={{ fontSize: '0.34rem', color: '#62627a', letterSpacing: '0.04em', width: 24, textAlign: 'center' }}>{SIZE_SHORT[shot.size] ?? '—'}</span>
+                  <span className="truncate" style={{ fontSize: '0.40rem', color: '#a0a0b8', flex: 1 }}>{shot.description ?? ''}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center" style={{ gap: 6 }}>
+              <div className="flex items-center justify-center rounded-full" style={{ width: 28, height: 28, border: `1.5px dashed rgba(${pr},${pg},${pb},0.35)` }}>
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M5 1V9M1 5H9" stroke={`rgba(${pr},${pg},${pb},0.5)`} strokeWidth="1.3" strokeLinecap="round" /></svg>
+              </div>
+              <span className="font-mono" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em' }}>No shots yet</span>
+            </div>
+          )}
+        </div>
+
+        {/* Page 2: Storyboard — first 3 cards */}
+        <div style={{ width: '33.333%', flex: '0 0 33.333%', padding: '8px 9px', display: 'flex', flexDirection: 'column' }}>
+          <div className="flex flex-1 items-stretch" style={{ gap: 3 }}>
+            {allShots.length > 0 ? allShots.slice(0, 3).map((shot: any, i: number) => (
+              <div key={shot.id} className="flex-1 flex flex-col overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 5 }}>
+                <div className="flex-shrink-0" style={{ height: 46, background: SCENE_GRAD[(i % 3) + 1] ?? SCENE_GRAD[1] }} />
+                <div style={{ padding: '3px 4px' }}>
+                  <div className="font-mono" style={{ fontSize: '0.30rem', color: projectColor }}>{shot.shotNumber}</div>
+                  <div className="truncate" style={{ fontSize: '0.26rem', color: '#62627a' }}>{shot.description ?? ''}</div>
+                </div>
+              </div>
+            )) : (
+              <div className="flex-1 flex items-center justify-center">
+                <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a' }}>No boards yet</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+    </div>
+  )
 }
 
 // ── DETAIL SHEETS ─────────────────────────────────────────
@@ -207,11 +506,12 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
   const { data: actionItems, isLoading: loadingAI } = useActionItems(projectId)
   const { data: milestones, isLoading: loadingMS } = useMilestones(projectId)
   const { data: crew, isLoading: loadingCrew } = useCrew(projectId)
-  const { data: versions } = useSMVersions(projectId)
-  const currentVersion = versions?.find(v => v.isCurrent) ?? versions?.[0] ?? null
-  const versionId = currentVersion?.id ?? ''
-  const { data: smScenes } = useSMScenes(versionId)
-  const { data: smShots } = useSMShots(versionId)
+  const { data: scenes } = useScenes(projectId)
+  const { data: scenesWithShots } = useQuery({
+    queryKey: ['shotsByProject', projectId],
+    queryFn: () => getShotsByProject(projectId),
+    enabled: !!projectId,
+  })
   const { data: moodRefs } = useMoodboard(projectId)
   const { data: threads } = useThreads(projectId)
   const { data: locations } = useLocations(projectId)
@@ -232,7 +532,9 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
   const [crewPanelOpen, setCrewPanelOpen] = useState(false)
 
   const allItems = actionItems ?? [], allMS = milestones ?? [], allCrew = crew ?? []
-  const allScenes = smScenes ?? [], allShots = smShots ?? [], allMoodRefs = moodRefs ?? []
+  const allScenes = scenes ?? []
+  const allShots: any[] = (scenesWithShots ?? []).flatMap((s: any) => s.Shot ?? [])
+  const allMoodRefs = moodRefs ?? []
   const allLocations = locations ?? [], allArt = artItems ?? [], allCast = castRoles ?? []
   const allWorkflow = workflowNodes ?? []
   const allThreads = threads ?? []
@@ -273,21 +575,31 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
         ].join(', '),
       }} />
 
-      {/* ══ TOPBAR ══ */}
+      {/* ══ TOPBAR — frosted surface + radial accent glow from above ══ */}
       <div className="relative flex flex-col items-center justify-end px-5 flex-shrink-0" style={{
         minHeight: 100, paddingTop: 'calc(var(--safe-top) + 10px)', paddingBottom: 12,
-        background: 'transparent',
+        background: `rgba(4,4,10,0.65)`,
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
         zIndex: 10,
+        overflow: 'hidden',
       }}>
-        {/* Client name — centered above project name */}
+        {/* Radial accent glow from above */}
+        <div style={{
+          position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+          width: '140%', height: '120%',
+          background: `radial-gradient(ellipse 50% 70% at 50% 35%, rgba(${pr},${pg},${pb},0.15) 0%, rgba(${pr},${pg},${pb},0.04) 55%, transparent 80%)`,
+          pointerEvents: 'none',
+        }} />
+        {/* Client name — muted secondary */}
         {project.client && (
-          <span className="font-mono uppercase text-muted" style={{ fontSize: '0.38rem', letterSpacing: '0.1em', marginBottom: 4 }}>
+          <span className="font-mono uppercase" style={{ fontSize: '0.52rem', letterSpacing: '0.1em', marginBottom: 4, color: projectColor, opacity: 0.85, position: 'relative' }}>
             {project.client}
           </span>
         )}
 
-        {/* Project name — centered */}
-        <span className="text-text leading-none text-center" style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
+        {/* Project name — item 7: largest text element */}
+        <span className="text-text leading-none text-center" style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
           {project.name}
         </span>
 
@@ -299,8 +611,10 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
           <span className={`font-mono uppercase ${STATUS_TEXT[project.status]}`} style={{ fontSize: '0.48rem' }}>{statusLabel(project.status)}</span>
         </div>
 
-        {/* Crew avatars — centered */}
-        <div className="flex items-center justify-center cursor-pointer" style={{ marginTop: 8 }}
+        {/* Crew avatars */}
+        <div
+          className="flex items-center justify-center cursor-pointer"
+          style={{ marginTop: 10 }}
           onClick={() => { haptic('light'); setCrewPanelOpen(true) }}>
           {allCrew.slice(0, 4).map((m, i) => (
             <div key={m.id} className="relative" style={{ marginLeft: i === 0 ? 0 : -7, zIndex: 4 - i }}>
@@ -312,32 +626,36 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
               <span className="font-mono text-muted" style={{ fontSize: 9 }}>+{allCrew.length - 4}</span>
             </div>
           )}
+          {allCrew.length === 0 && (
+            <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.06em' }}>No crew yet</span>
+          )}
         </div>
       </div>
 
       {/* ══ BODY ══ */}
-      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', padding: '18px 16px 80px' }}>
+      {/* item 15: paddingBottom increased to clear FAB at bottom: 68px */}
+      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', padding: '18px 16px 140px' }}>
         <div className="flex flex-col gap-6">
 
-          {/* 1. TIMELINE (first) */}
+          {/* 1. TIMELINE (first) — item 9: no chevron, item 10: Gantt */}
           <div className="cursor-pointer" onClick={() => router.push(`/projects/${projectId}/timeline`)}>
             {(() => {
               const meta = allMS.length > 0 ? `${allMS.length} milestones` : 'Not set'
               return <ModuleHeader name="Timeline" meta={meta} />
             })()}
             {loadingMS ? (
-              <div style={{ ...cardStyle, height: 168, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ ...cardStyle, height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div className="w-4 h-4 rounded-full border border-border2 border-t-accent animate-spin" />
               </div>
             ) : allMS.length === 0 ? (
-              <div style={{ ...cardStyle, height: 168, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ ...cardStyle, height: 130, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ padding: '12px 12px 0', display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
-                  {(['Upcoming', 'In Progress', 'Done'] as const).map((label, i) => {
+                  {(['Pre', 'Prod', 'Post'] as const).map((label, i) => {
                     const color = ['#e8a020', '#6470f3', '#00b894'][i]
                     return (
                       <div key={label} className="flex items-center gap-1.5">
-                        <span className="font-mono uppercase text-right flex-shrink-0" style={{ fontSize: '0.42rem', color: '#62627a', width: 52, letterSpacing: '0.06em' }}>{label}</span>
-                        <div className="flex-1 rounded-sm" style={{ height: 4, background: `${color}1a`, animation: `pulse 2.4s ease-in-out infinite ${i * 0.3}s` }} />
+                        <span className="font-mono uppercase text-right flex-shrink-0" style={{ fontSize: '0.42rem', color: '#62627a', width: 28, letterSpacing: '0.06em' }}>{label}</span>
+                        <div className="flex-1 rounded-sm" style={{ height: 5, background: `${color}1a`, animation: `pulse 2.4s ease-in-out infinite ${i * 0.3}s` }} />
                       </div>
                     )
                   })}
@@ -348,27 +666,14 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
                 </div>
               </div>
             ) : (
-              <div style={{ ...cardStyle, height: 168, padding: '12px 12px 0', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                  {upcoming3.map(ms => {
-                    const isNext = ms.id === upcoming3[0]?.id
-                    const isDelivery = ms.title.toLowerCase().includes('delivery')
-                    const msColor = isDelivery ? '#e8564a' : (MILESTONE_STATUS_HEX[ms.status] ?? '#62627a')
-                    return (
-                      <div key={ms.id} className="flex items-center cursor-pointer flex-shrink-0" style={{ gap: 8, padding: '6px 0', borderTop: '1px solid rgba(255,255,255,0.05)' }}
-                        onClick={e => { e.stopPropagation(); setSelectedMS(ms) }}>
-                        <div className="rounded-full flex-shrink-0" style={{ width: 6, height: 6, background: msColor, boxShadow: isNext && !isDelivery ? `0 0 7px ${msColor}` : undefined }} />
-                        <span className="font-mono flex-shrink-0" style={{ fontSize: '0.48rem', color: '#62627a', letterSpacing: '0.04em', width: 34 }}>{formatDate(ms.date)}</span>
-                        <span className="truncate flex-1" style={{ fontSize: '0.7rem', fontWeight: 600, color: isDelivery ? '#e8564a' : '#dddde8' }}>{ms.title}</span>
-                      </div>
-                    )
-                  })}
-                </div>
+              // item 10: Gantt chart replaces milestone list
+              <div style={{ ...cardStyle, height: 130, display: 'flex', flexDirection: 'column' }}>
+                <GanttChart milestones={allMS} projectStatus={project.status} />
               </div>
             )}
           </div>
 
-          {/* 2. ACTION ITEMS (second) */}
+          {/* 2. ACTION ITEMS (second) — item 9: no chevron, item 13: assignee pills + navigate */}
           <div className="cursor-pointer" onClick={() => router.push(`/projects/${projectId}/action-items`)}>
             <ModuleHeader name="Action Items" meta={openItems.length > 0 ? `${openItems.length} open` : 'All clear'} />
             {loadingAI ? (
@@ -395,18 +700,33 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
                   const isMine = true
                   const dateLabel = item.dueDate ? formatDate(item.dueDate) : null
                   const overdue = item.dueDate ? isLate(item.dueDate) : false
+                  // item 13: look up assignee name from crew
+                  const assigneeMember = item.assignedTo ? allCrew.find(c => c.id === item.assignedTo) : null
+                  const assigneeName = assigneeMember?.User?.name ?? null
                   return (
-                    <div key={item.id} className="flex items-start cursor-pointer" style={{ gap: 10, padding: '10px 12px', borderBottom: i < previewTasks.length - 1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}
-                      onClick={e => { e.stopPropagation(); setSelectedAI(item) }}>
+                    <div key={item.id} className="flex items-start cursor-pointer" style={{ gap: 10, padding: '9px 12px', borderBottom: i < previewTasks.length - 1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}
+                      onClick={e => { e.stopPropagation(); router.push(`/projects/${projectId}/action-items`) }}>
                       <div className="flex-shrink-0 rounded-full" style={{ width: 14, height: 14, marginTop: 1, border: `1.5px solid ${isMine ? projectColor : '#62627a'}` }}
                         onClick={e => { e.stopPropagation(); haptic('success'); toggle.mutate({ id: item.id, done: item.status !== 'done' }) }} />
                       <div className="flex-1 min-w-0">
-                        <div className="truncate" style={{ fontSize: '0.72rem', fontWeight: 600, lineHeight: 1.3, color: isMine ? '#dddde8' : '#62627a' }}>{item.title}</div>
-                        {dateLabel && <div className="font-mono" style={{ fontSize: '0.52rem', marginTop: 2, letterSpacing: '0.03em', color: overdue ? '#e8a020' : '#62627a' }}>{dateLabel}</div>}
-                        {!isMine && item.assignedTo && (
-                          <div className="font-mono" style={{ fontSize: '0.48rem', color: '#62627a', opacity: 0.6, marginTop: 1 }}>— {allCrew.find(c => c.id === item.assignedTo)?.User?.name ?? 'Unknown'}</div>
-                        )}
+                        {/* item 7: third-tier label size */}
+                        <div className="truncate" style={{ fontSize: '0.66rem', fontWeight: 600, lineHeight: 1.3, color: isMine ? '#dddde8' : '#62627a' }}>{item.title}</div>
+                        {dateLabel && <div className="font-mono" style={{ fontSize: '0.50rem', marginTop: 2, letterSpacing: '0.03em', color: overdue ? '#e8a020' : '#62627a' }}>{dateLabel}</div>}
                       </div>
+                      {/* item 13: assignee pill */}
+                      {assigneeName && (
+                        <div style={{
+                          flexShrink: 0,
+                          padding: '2px 7px',
+                          borderRadius: 20,
+                          background: `rgba(${pr},${pg},${pb},0.08)`,
+                          border: `1px solid rgba(${pr},${pg},${pb},0.2)`,
+                          display: 'flex', alignItems: 'center',
+                          alignSelf: 'center',
+                        }}>
+                          <span className="font-mono" style={{ fontSize: '0.32rem', color: '#a0a0b8', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{assigneeName.split(' ')[0]}</span>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -414,111 +734,79 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
             )}
           </div>
 
-          {/* 3. CREATIVE SECTION — groups SceneMaker+Tone and Locations/Art/Casting */}
+          {/* 3. CREATIVE SECTION — item 9: no chevron on header */}
           <div>
             <SectionHeader name="Creative" meta={`${allScenes.length > 0 ? `SC.${allScenes[0].num}` : ''}${allMoodRefs.length > 0 ? ' · Tone' : ''}${allLocations.length > 0 ? ` · ${allLocations.length} locations` : ''}`} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {/* SceneMaker + Tone 50/50 */}
-              <div className="flex" style={{ gap: 8 }}>
-                {/* Story label + SceneMaker card */}
-                <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 10 }}>
-                  <div className="font-mono uppercase" style={{ fontSize: 9, color: 'rgba(98,98,122,0.5)', letterSpacing: '0.1em', textAlign: 'center' }}>Story</div>
-                </div>
-                {/* Tone label */}
-                <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 10 }}>
-                  <div className="font-mono uppercase" style={{ fontSize: 9, color: 'rgba(98,98,122,0.5)', letterSpacing: '0.1em', textAlign: 'center' }}>Tone</div>
-                </div>
-              </div>
-              <div className="flex" style={{ gap: 8, height: 130 }}>
-                {/* SceneMaker card */}
-                <div className="flex-1 min-w-0 cursor-pointer" style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
-                  onClick={() => router.push(`/projects/${projectId}/scenemaker`)}>
-                  <div style={{ padding: '8px 9px', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-                    {allShots.length > 0 && allShots[0]?.images?.length > 0 ? (
-                      <div className="flex flex-1 items-stretch" style={{ gap: 3 }}>
-                        {allShots.slice(0, 3).map(shot => { const sc = allScenes.find(s => s.id === shot.sceneId); return (
-                          <div key={shot.id} className="flex-1 flex flex-col overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 5 }}>
-                            <div className="flex-shrink-0" style={{ height: 46, background: SCENE_GRAD[sc?.num ?? 1] ?? SCENE_GRAD[1] }} />
-                            <div style={{ padding: '3px 4px', flex: 1 }}>
-                              <div className="font-mono" style={{ fontSize: '0.33rem', color: projectColor }}>{shot.id}</div>
-                              <div style={{ fontSize: '0.36rem', color: '#a0a0b8', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{shot.desc}</div>
-                            </div>
-                          </div>
-                        )})}
-                      </div>
-                    ) : allShots.length > 0 ? (
-                      <div className="flex flex-col flex-1 justify-center" style={{ gap: 4 }}>
-                        {allShots.slice(0, 3).map(shot => (
-                          <div key={shot.id} className="flex items-center" style={{ gap: 6 }}>
-                            <div className="flex-shrink-0" style={{ width: 32, height: 22, borderRadius: 4, background: `linear-gradient(90deg, rgba(${pr},${pg},${pb},0.2), rgba(${pr},${pg},${pb},0.1))`, border: '1px solid rgba(255,255,255,0.05)' }} />
-                            <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', color: projectColor, letterSpacing: '0.06em' }}>{shot.id}</span>
-                            <span className="truncate" style={{ fontSize: '0.42rem', color: '#a0a0b8' }}>{shot.desc}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : allScenes.length > 0 ? (
-                      <div className="flex flex-col flex-1 justify-center" style={{ gap: 4 }}>
-                        <span className="font-mono uppercase" style={{ fontSize: '0.38rem', color: projectColor, letterSpacing: '0.08em' }}>{allScenes[0].heading}</span>
-                        <div style={{ fontSize: '0.44rem', color: '#a0a0b8', lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{allScenes[0].action?.join(' ') ?? ''}</div>
-                      </div>
-                    ) : (
-                      <div className="flex-1 flex flex-col items-center justify-center" style={{ gap: 6 }}>
-                        <div className="flex items-center justify-center rounded-full" style={{ width: 28, height: 28, border: `1.5px dashed rgba(${pr},${pg},${pb},0.35)` }}>
-                          <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M5 1V9M1 5H9" stroke={`rgba(${pr},${pg},${pb},0.5)`} strokeWidth="1.3" strokeLinecap="round" /></svg>
-                        </div>
-                        <span className="font-mono" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em' }}>Make a Scene</span>
-                      </div>
-                    )}
-                  </div>
-                  {(allScenes.length > 0 || allShots.length > 0) && (
-                    <div className="flex items-center mt-auto" style={{ gap: 4, padding: '0 9px 6px' }}>
-                      {currentVersion && <span className="font-mono" style={{ fontSize: '0.33rem', color: '#62627a', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 3, padding: '1px 3px', letterSpacing: '0.04em' }}>{currentVersion.label}</span>}
-                      <span className="font-mono" style={{ fontSize: '0.33rem', color: '#62627a', letterSpacing: '0.04em' }}>{allShots.length > 0 ? `${allShots.length} shots` : `${allScenes.length} scenes`}</span>
-                    </div>
-                  )}
+              {/* SceneMaker + Tone 50/50 — item 8: labels moved INSIDE panels */}
+              <div className="flex" style={{ gap: 8, height: 148 }}>
+                {/* SceneMaker card — item 12: swipeable */}
+                <div className="flex-1 min-w-0 cursor-pointer" style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  <SwipeableSceneMaker
+                    projectId={projectId}
+                    projectColor={projectColor}
+                    pr={pr} pg={pg} pb={pb}
+                    allShots={allShots}
+                    allScenes={allScenes}
+                    allMoodRefs={allMoodRefs}
+                    shuffledMood={shuffledMood}
+                    router={router}
+                  />
                 </div>
 
-                {/* Tone card — flex:1 (50/50) */}
+                {/* Tone card */}
                 <Link href={`/projects/${projectId}/moodboard`}
                   className="flex-1 relative overflow-hidden block cursor-pointer active:opacity-90 transition-opacity"
-                  style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9 }}>
+                  style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, display: 'flex', flexDirection: 'column' }}>
+                  {/* Label at top */}
+                  <div className="font-mono uppercase" style={{ fontSize: '0.44rem', fontWeight: 700, color: projectColor, letterSpacing: '0.06em', textAlign: 'center', padding: '7px 9px 0', position: 'relative', zIndex: 2 }}>Tone</div>
                   {allMoodRefs.length > 0 ? (
                     <>
                       <div className="absolute inset-0 grid grid-cols-2 grid-rows-2" style={{ height: '100%' }}>
                         {shuffledMood.map((ref, i) => <div key={ref.id ?? i} style={{ background: ref.gradient || '#0a0a12' }} />)}
                         {Array.from({ length: Math.max(0, 4 - shuffledMood.length) }).map((_, i) => <div key={`f-${i}`} style={{ background: '#0a0a12' }} />)}
                       </div>
-                      <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(4,4,10,0.4), rgba(4,4,10,0.1))' }} />
-                      <svg className="absolute" style={{ top: 7, left: 7, opacity: 0.6 }} width="9" height="9" viewBox="0 0 9 9" fill="none"><circle cx="4.5" cy="4.5" r="3.5" stroke="white" strokeWidth="1"/><circle cx="4.5" cy="4.5" r="1.5" stroke="white" strokeWidth="1"/><circle cx="4.5" cy="4.5" r="0.7" fill="white"/></svg>
-                      <span className="absolute font-mono uppercase" style={{ bottom: 7, left: 7, fontSize: '0.36rem', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.06em' }}>Tone</span>
+                      <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(4,4,10,0.5), rgba(4,4,10,0.15))' }} />
                     </>
                   ) : (
-                    <div className="flex flex-col items-center justify-center h-full" style={{ gap: 6 }}>
-                      <div className="flex items-center justify-center rounded-full" style={{ width: 28, height: 28, border: '1.5px dashed rgba(255,255,255,0.15)' }}>
-                        <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M5 1V9M1 5H9" stroke="rgba(255,255,255,0.25)" strokeWidth="1.3" strokeLinecap="round" /></svg>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px dashed rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 2V8M2 5H8" stroke="rgba(255,255,255,0.25)" strokeWidth="1.3" strokeLinecap="round" /></svg>
                       </div>
-                      <span className="font-mono" style={{ fontSize: '0.36rem', color: '#62627a', letterSpacing: '0.06em' }}>Tone</span>
                     </div>
                   )}
                 </Link>
               </div>
 
-              {/* Locations / Art / Casting mini row */}
+              {/* Locations / Art / Casting mini row — item 14: taller cards */}
               <div className="flex" style={{ gap: 8 }}>
                 {[
                   { id: 'locations', label: 'Locations', count: `${locConfirmed} / ${locTotal} locked`, color: '#e8a020', ratio: locTotal > 0 ? locConfirmed / locTotal : 0 },
                   { id: 'art', label: 'Art', count: `${artApproved} / ${allArt.length} done`, color: '#6470f3', ratio: allArt.length > 0 ? artApproved / allArt.length : 0 },
                   { id: 'casting', label: 'Casting', count: `${castConfirmed} / ${allCast.length} cast`, color: '#00b894', ratio: allCast.length > 0 ? castConfirmed / allCast.length : 0 },
-                ].map(mod => (
-                  <Link key={mod.id} href={`/projects/${projectId}/${mod.id}`} className="flex-1 active:opacity-80 transition-opacity" style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, padding: '8px 9px' }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.58rem', color: '#dddde8', marginBottom: 2, textAlign: 'center' }}>{mod.label}</div>
-                    <div className="font-mono" style={{ fontSize: '0.33rem', color: '#62627a', marginBottom: 4, textAlign: 'center' }}>{mod.count}</div>
-                    <div style={{ height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 2 }}>
-                      <div style={{ height: '100%', borderRadius: 2, width: `${mod.ratio * 100}%`, background: mod.color, transition: 'width 0.5s ease' }} />
-                    </div>
-                  </Link>
-                ))}
+                ].map(mod => {
+                  const isEmpty = mod.ratio === 0 && mod.count.startsWith('0 / 0')
+                  return (
+                    <Link key={mod.id} href={`/projects/${projectId}/${mod.id}`} className="flex-1 active:opacity-80 transition-opacity" style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, padding: '12px 9px 10px', minHeight: 90, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      <div className="font-mono uppercase" style={{ fontSize: '0.44rem', fontWeight: 700, color: mod.color, letterSpacing: '0.06em', marginBottom: isEmpty ? 0 : 3 }}>{mod.label}</div>
+                      {isEmpty ? (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <div style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px dashed rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 2V8M2 5H8" stroke="rgba(255,255,255,0.25)" strokeWidth="1.3" strokeLinecap="round" /></svg>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="font-mono" style={{ fontSize: '0.33rem', color: '#62627a', marginBottom: 8 }}>{mod.count}</div>
+                          <div style={{ width: '100%', height: 2.5, background: 'rgba(255,255,255,0.05)', borderRadius: 2, marginTop: 'auto' }}>
+                            <div style={{ height: '100%', borderRadius: 2, width: `${mod.ratio * 100}%`, background: mod.color, transition: 'width 0.5s ease' }} />
+                          </div>
+                        </>
+                      )}
+                    </Link>
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -534,7 +822,8 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
                       <div className="flex items-center justify-center border border-border" style={{ width: 36, height: 36, borderRadius: 10, background: '#0f0f1a' }}>
                         <span style={{ fontSize: 15 }}>{WF_ICONS[node.type] ?? '⚙'}</span>
                       </div>
-                      <span className="font-mono text-center" style={{ fontSize: 8, color: '#a0a0b8', maxWidth: 48, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{node.label}</span>
+                      {/* item 7: third-tier label */}
+                      <span className="font-mono text-center" style={{ fontSize: '0.36rem', color: '#a0a0b8', maxWidth: 48, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{node.label}</span>
                     </div>
                     {i < arr.length - 1 && <div style={{ width: 12, height: 1, background: 'linear-gradient(90deg, rgba(100,112,243,0.3), rgba(0,184,148,0.3))', flexShrink: 0, marginBottom: 16 }} />}
                   </div>
@@ -676,7 +965,7 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
               <path d="M6.5 3V7.5M11.5 3V7.5" stroke="#6470f3" strokeWidth="1.3" strokeLinecap="round" />
             </svg>
           </div>
-          <span className="font-mono uppercase" style={{ fontSize: '0.38rem', letterSpacing: '0.06em', color: '#6470f3', whiteSpace: 'nowrap' }}>Creative</span>
+          <span className="font-mono uppercase" style={{ fontSize: '0.38rem', letterSpacing: '0.06em', color: '#6470f3', whiteSpace: 'nowrap' }}>Add Crew</span>
         </motion.button>
       </div>
 
@@ -691,25 +980,26 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
         {/* Back chevron — further left of Chat, slides off-screen when FAB opens */}
         <motion.div
           onClick={() => { haptic('light'); router.push('/projects') }}
-          animate={fabOpen ? { x: -200, opacity: 0 } : { x: -128, opacity: 1 }}
+          animate={fabOpen ? { x: -200, opacity: 0 } : { x: -58, opacity: 1 }}
           transition={{ type: 'spring', damping: 25, stiffness: 260 }}
           style={{
-            position: 'absolute', width: 28, height: 28, borderRadius: '50%',
-            background: `rgba(${pr},${pg},${pb},0.06)`,
-            backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-            border: `1px solid rgba(${pr},${pg},${pb},0.15)`,
+            position: 'absolute', width: 36, height: 36, borderRadius: '50%',
+            background: `rgba(${pr},${pg},${pb},0.1)`,
+            backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+            border: `1px solid rgba(${pr},${pg},${pb},0.2)`,
+            boxShadow: `0 2px 12px rgba(${pr},${pg},${pb},0.12), inset 0 1px 0 rgba(255,255,255,0.08)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            top: '50%', left: '50%', marginLeft: -14, marginTop: -14,
+            top: '50%', left: '50%', marginLeft: -18, marginTop: -18,
             cursor: 'pointer',
           }}
         >
-          <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="rgba(255,255,255,0.3)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <svg width="8" height="12" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="rgba(255,255,255,0.5)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </motion.div>
 
         {/* Chat FAB — slides left from center, glass */}
         <motion.div
           onClick={() => { haptic('light'); setFabOpen(false); router.push(`/projects/${projectId}/chat`) }}
-          animate={fabOpen ? { x: -78, opacity: 1 } : { x: 0, opacity: 0 }}
+          animate={fabOpen ? { x: -110, opacity: 1 } : { x: 0, opacity: 0 }}
           transition={{ type: 'spring', damping: 20, stiffness: 280 }}
           style={{
             position: 'absolute', width: 38, height: 38, borderRadius: '50%',
@@ -749,7 +1039,7 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
         {/* Threads FAB — slides right from center, glass */}
         <motion.div
           onClick={() => { haptic('light'); setFabOpen(false); router.push(`/projects/${projectId}/threads`) }}
-          animate={fabOpen ? { x: 78, opacity: 1 } : { x: 0, opacity: 0 }}
+          animate={fabOpen ? { x: 110, opacity: 1 } : { x: 0, opacity: 0 }}
           transition={{ type: 'spring', damping: 20, stiffness: 280 }}
           style={{
             position: 'absolute', width: 38, height: 38, borderRadius: '50%',

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useProject, useScenes } from '@/lib/hooks/useOriginOne'
 import { getShotsByProject, updateShotOrder, createShot } from '@/lib/db/queries'
@@ -703,7 +703,9 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const router = useRouter()
   const accent = getProjectColor(projectId)
 
-  const [mode, setMode] = useState<SceneMakerMode>('script')
+  const searchParams = useSearchParams()
+  const initialMode = (searchParams.get('mode') as SceneMakerMode) || 'shotlist'
+  const [mode, setMode] = useState<SceneMakerMode>(initialMode)
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null)
   const [newShotAt, setNewShotAt] = useState<{ index: number; sceneId: string } | null>(null)
   const [fabOpen, setFabOpen] = useState(false)
@@ -917,18 +919,19 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           )
         })}
 
-        {/* Back chevron */}
+        {/* Back chevron — matches hub: 36×36, left -58 */}
         <div className="flex items-center justify-center cursor-pointer"
           style={{
-            position: 'absolute', top: -14, left: -128 - 14,
-            width: 28, height: 28, borderRadius: '50%',
-            background: `${accent}14`, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-            border: `1px solid ${accent}26`,
+            position: 'absolute', top: -18, left: -76,
+            width: 36, height: 36, borderRadius: '50%',
+            background: `${accent}18`, backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+            border: `1px solid ${accent}33`,
+            boxShadow: `0 2px 12px ${accent}20, inset 0 1px 0 rgba(255,255,255,0.08)`,
             transition: 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.25s',
             ...(fabOpen ? { transform: 'translateX(-300px)', opacity: 0, pointerEvents: 'none' as const } : {}),
           }}
           onClick={() => router.back()}>
-          <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="rgba(255,255,255,0.4)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <svg width="8" height="12" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="rgba(255,255,255,0.5)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </div>
 
         {/* Chat FAB — slides left on open */}
@@ -939,7 +942,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
             background: `${accent}14`, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
             border: `1px solid ${accent}33`,
             opacity: fabOpen ? 1 : 0, pointerEvents: fabOpen ? 'all' : 'none',
-            transform: fabOpen ? 'translateX(-78px)' : 'translateX(0)',
+            transform: fabOpen ? 'translateX(-110px)' : 'translateX(0)',
             transition: 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.28s',
           }}
           onClick={() => router.push(`/projects/${projectId}/chat`)}>
@@ -949,11 +952,11 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         {/* Main FAB */}
         <div className="flex items-center justify-center cursor-pointer"
           style={{
-            position: 'absolute', top: -25, left: -25,
-            width: 50, height: 50, borderRadius: '50%',
-            background: `${accent}26`, backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+            position: 'absolute', top: -26, left: -26,
+            width: 52, height: 52, borderRadius: '50%',
+            background: `${accent}26`, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
             border: `1.5px solid ${accent}73`,
-            boxShadow: `0 4px 20px ${accent}40, inset 0 1px 0 rgba(255,255,255,0.1)`,
+            boxShadow: `0 4px 24px ${accent}40, 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)`,
             zIndex: 31,
             transform: fabOpen ? 'rotate(45deg)' : 'rotate(0deg)',
             transition: 'transform 0.28s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s',
@@ -985,7 +988,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
             background: `${accent}14`, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
             border: `1px solid ${accent}33`,
             opacity: fabOpen ? 1 : 0, pointerEvents: fabOpen ? 'all' : 'none',
-            transform: fabOpen ? 'translateX(78px)' : 'translateX(0)',
+            transform: fabOpen ? 'translateX(110px)' : 'translateX(0)',
             transition: 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.28s',
           }}
           onClick={() => router.push(`/projects/${projectId}/threads`)}>

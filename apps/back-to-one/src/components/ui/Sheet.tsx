@@ -16,7 +16,7 @@ export function Sheet({
   open,
   onClose,
   children,
-  maxHeight = '85vh',
+  maxHeight = '50vh',
   className,
 }: SheetProps) {
   // Haptic on open/close

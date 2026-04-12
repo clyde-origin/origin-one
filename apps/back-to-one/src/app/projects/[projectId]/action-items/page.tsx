@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useProject, useActionItems, useToggleActionItem, useCreateActionItem, useCrew } from '@/lib/hooks/useOriginOne'
+import { useProject, useActionItems, useToggleActionItem, useCreateActionItem, useUpdateActionItem, useCrew } from '@/lib/hooks/useOriginOne'
 import { LoadingState, EmptyState, CrewAvatar, SkeletonLine } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { FAB } from '@/components/ui/FAB'
@@ -83,14 +83,33 @@ function DoneTaskRow({ item, onTap }: { item: ActionItem; onTap: () => void }) {
 
 // ── TASK DETAIL SHEET ─────────────────────────────────────
 
-function TaskDetailSheet({ item, crew, accent, onClose, onToggle }: {
-  item: ActionItem | null; crew: TeamMember[]; accent: string; onClose: () => void; onToggle: () => void
+function TaskDetailSheet({ item, crew, accent, projectId, onClose, onToggle }: {
+  item: ActionItem | null; crew: TeamMember[]; accent: string; projectId: string; onClose: () => void; onToggle: () => void
 }) {
+  const updateItem = useUpdateActionItem(projectId)
+  const [editDue, setEditDue] = useState(false)
+  const [editAssignee, setEditAssignee] = useState(false)
+  const [dueValue, setDueValue] = useState(item?.dueDate?.split('T')[0] ?? '')
+
   if (!item) return null
   const assignee = crew.find(c => c.userId === item.assignedTo || c.id === item.assignedTo)
   const overdue = item.dueDate ? isLate(item.dueDate) : false
   const dateLabel = item.dueDate ? formatDate(item.dueDate) : '—'
   const isDone = item.status === 'done'
+
+  const saveDue = (val: string) => {
+    setEditDue(false)
+    if (val !== (item.dueDate?.split('T')[0] ?? '')) {
+      updateItem.mutate({ id: item.id, fields: { dueDate: val || null } })
+    }
+  }
+
+  const saveAssignee = (userId: string | null) => {
+    setEditAssignee(false)
+    if (userId !== item.assignedTo) {
+      updateItem.mutate({ id: item.id, fields: { assignedTo: userId } })
+    }
+  }
 
   return (
     <>
@@ -102,16 +121,57 @@ function TaskDetailSheet({ item, crew, accent, onClose, onToggle }: {
         </div>
       </div>
 
-      {/* Fields */}
+      {/* Editable Fields */}
       <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 13 }}>
+        {/* Due Date — tap to edit */}
         <div className="flex items-start gap-3">
           <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.46rem', color: '#62627a', letterSpacing: '0.08em', width: 68, paddingTop: 1 }}>Due</span>
-          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: overdue ? '#e8a020' : '#dddde8' }}>{dateLabel}{overdue ? ' — Overdue' : ''}</span>
+          {editDue ? (
+            <input
+              type="date"
+              autoFocus
+              defaultValue={dueValue}
+              onChange={e => setDueValue(e.target.value)}
+              onBlur={e => saveDue(e.target.value)}
+              className="outline-none"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '4px 8px', color: '#dddde8', fontSize: '0.74rem', fontFamily: 'var(--font-dm-mono)' }}
+            />
+          ) : (
+            <span
+              onClick={() => setEditDue(true)}
+              style={{ fontSize: '0.78rem', fontWeight: 600, color: overdue ? '#e8a020' : '#dddde8', cursor: 'pointer', borderBottom: '1px dashed rgba(255,255,255,0.1)', paddingBottom: 1 }}
+            >
+              {dateLabel}{overdue ? ' — Overdue' : ''}
+            </span>
+          )}
         </div>
+
+        {/* Assignee — tap to change */}
         <div className="flex items-start gap-3">
           <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.46rem', color: '#62627a', letterSpacing: '0.08em', width: 68, paddingTop: 1 }}>Assignee</span>
-          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#dddde8' }}>{assignee ? assignee.User?.name : '—'}</span>
+          {editAssignee ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flex: 1 }}>
+              <button onClick={() => saveAssignee(null)}
+                className="font-mono"
+                style={{ fontSize: '0.42rem', padding: '4px 8px', borderRadius: 16, background: !item.assignedTo ? `${accent}1a` : 'rgba(255,255,255,0.04)', border: `1px solid ${!item.assignedTo ? `${accent}40` : 'rgba(255,255,255,0.05)'}`, color: !item.assignedTo ? accent : '#62627a', cursor: 'pointer' }}
+              >None</button>
+              {crew.map(c => (
+                <button key={c.id} onClick={() => saveAssignee(c.userId)}
+                  className="font-mono"
+                  style={{ fontSize: '0.42rem', padding: '4px 8px', borderRadius: 16, background: (item.assignedTo === c.userId || item.assignedTo === c.id) ? `${accent}1a` : 'rgba(255,255,255,0.04)', border: `1px solid ${(item.assignedTo === c.userId || item.assignedTo === c.id) ? `${accent}40` : 'rgba(255,255,255,0.05)'}`, color: (item.assignedTo === c.userId || item.assignedTo === c.id) ? accent : '#62627a', cursor: 'pointer' }}
+                >{c.User?.name ?? 'Unknown'}</button>
+              ))}
+            </div>
+          ) : (
+            <span
+              onClick={() => setEditAssignee(true)}
+              style={{ fontSize: '0.78rem', fontWeight: 600, color: '#dddde8', cursor: 'pointer', borderBottom: '1px dashed rgba(255,255,255,0.1)', paddingBottom: 1 }}
+            >
+              {assignee ? assignee.User?.name : '—'}
+            </span>
+          )}
         </div>
+
         {item.description && (
           <div className="flex items-start gap-3">
             <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.46rem', color: '#62627a', letterSpacing: '0.08em', width: 68, paddingTop: 1 }}>Notes</span>
@@ -128,12 +188,6 @@ function TaskDetailSheet({ item, crew, accent, onClose, onToggle }: {
           onClick={() => { haptic('success'); onToggle(); onClose() }}
         >
           {isDone ? 'Reopen' : 'Mark Complete'}
-        </button>
-        <button
-          className="flex-1 font-bold cursor-pointer transition-all"
-          style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', color: '#a0a0b8' }}
-        >
-          Reassign
         </button>
       </div>
     </>
@@ -317,6 +371,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
             item={selected}
             crew={allCrew}
             accent={accent}
+            projectId={projectId}
             onClose={() => setSelected(null)}
             onToggle={() => { if (selected) toggle.mutate({ id: selected.id, done: selected.status !== 'done' }) }}
           />

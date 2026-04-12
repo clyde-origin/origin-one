@@ -131,16 +131,18 @@ export function CrewAvatar({
   name: string
   size?: number
 }) {
-  const [c1, c2] = avatarGradient(name)
+  const [c1] = avatarGradient(name)
   const initials = avatarInitials(name)
   return (
     <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
       <div
-        className="rounded-full flex items-center justify-center font-bold text-white"
+        className="rounded-full flex items-center justify-center font-semibold"
         style={{
           width: size,
           height: size,
-          background: `linear-gradient(135deg, ${c1}, ${c2})`,
+          background: '#0a0a12',
+          border: `1px solid ${c1}`,
+          color: c1,
           fontSize: size * 0.26,
         }}
       >

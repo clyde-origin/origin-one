@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  useProjects, useCrew, useMilestones, useArchiveProject, useDeleteProject, useUpdateProject,
+  useProjects, useCrew, useArchiveProject, useDeleteProject, useUpdateProject,
 } from '@/lib/hooks/useOriginOne'
 import { SkeletonLine, CrewAvatar } from '@/components/ui'
 import { getProjectColor, statusHex, STATUS_LABELS_SHORT } from '@/lib/utils/phase'
@@ -92,13 +92,8 @@ function SlateCard({ project, color, dimmed, editMode, isGhost, isDragging, wigg
 }) {
   const phaseColor = statusHex(project.status)
   const { data: crew } = useCrew(project.id)
-  const { data: milestones } = useMilestones(project.id)
   const allCrew = crew ?? []
-  const nextMs = (milestones ?? []).find(m => new Date(m.date) >= new Date())
-  const daysToNext = nextMs ? Math.ceil((new Date(nextMs.date).getTime() - Date.now()) / 86400000) : null
-  const isUrgentMs = daysToNext !== null && daysToNext <= 14
   const longPressHandlers = useLongPress(onLongPress, 500)
-  const milestoneText = nextMs ? (daysToNext === 0 ? `${nextMs.title} · Today` : `${nextMs.title} · ${daysToNext}d`) : null
 
   if (isGhost) {
     return (
@@ -145,32 +140,31 @@ function SlateCard({ project, color, dimmed, editMode, isGhost, isDragging, wigg
         padding: '9px 10px 11px', position: 'relative', overflow: 'hidden',
         background: slateBodyBg(color),
       }}>
+        {/* Top: type left, phase pill right */}
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <div className="font-mono uppercase" style={{ fontSize: '0.36rem', letterSpacing: '0.08em', color: hexToRgba(color, 0.55), marginBottom: 2 }}>{project.type}</div>
-          <div style={{ fontWeight: 800, fontSize: '0.82rem', color: '#dddde8', letterSpacing: '-0.02em', lineHeight: 1.1 }}>{project.name}</div>
-          {project.client && <div className="font-mono" style={{ fontSize: '0.3rem', color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>{project.client}</div>}
-        </div>
-        <div style={{ position: 'relative', zIndex: 1, marginTop: 7 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 20, background: hexToRgba(phaseColor, 0.12), border: `1px solid ${hexToRgba(phaseColor, 0.2)}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+            <div className="font-mono uppercase" style={{ fontSize: '0.42rem', letterSpacing: '0.08em', color: hexToRgba(color, 0.55) }}>{project.type}</div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 20, background: hexToRgba(phaseColor, 0.12), border: `1px solid ${hexToRgba(phaseColor, 0.2)}`, flexShrink: 0 }}>
               <div style={{ width: 3, height: 3, borderRadius: '50%', background: phaseColor, boxShadow: `0 0 3px ${phaseColor}` }} />
               <span className="font-mono uppercase" style={{ fontSize: '0.34rem', letterSpacing: '0.04em', color: phaseColor }}>{STATUS_LABELS_SHORT[project.status] ?? project.status}</span>
             </div>
-            {!editMode && allCrew.length > 0 && (
-              <div style={{ display: 'flex' }}>
-                {allCrew.slice(0, 3).map((c, i) => (
-                  <div key={c.id} style={{ marginLeft: i === 0 ? 0 : -4 }}>
-                    <CrewAvatar name={c.User?.name ?? 'Unknown'} size={16} />
-                  </div>
-                ))}
-                {allCrew.length > 3 && (
-                  <div style={{ width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.3rem', fontWeight: 600, border: '1px solid rgba(0,0,0,0.5)', marginLeft: -4, fontFamily: 'var(--font-dm-mono)', background: hexToRgba(color, 0.12), color: '#62627a' }}>+{allCrew.length - 3}</div>
-                )}
-              </div>
-            )}
           </div>
-          {!editMode && milestoneText && (
-            <div className="font-mono" style={{ fontSize: '0.32rem', color: isUrgentMs ? '#e8a020' : 'rgba(255,255,255,0.28)', letterSpacing: '0.04em', marginTop: 3 }}>{isUrgentMs ? '↑ ' : ''}{milestoneText}</div>
+          <div style={{ fontWeight: 800, fontSize: '0.82rem', color: '#dddde8', letterSpacing: '-0.02em', lineHeight: 1.1 }}>{project.name}</div>
+          {project.client && <div className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.06em', marginTop: 3 }}>{project.client}</div>}
+        </div>
+        {/* Bottom: crew avatars spread across */}
+        <div style={{ position: 'relative', zIndex: 1, marginTop: 7 }}>
+          {!editMode && allCrew.length > 0 && (
+            <div style={{ display: 'flex' }}>
+              {allCrew.slice(0, 5).map((c, i) => (
+                <div key={c.id} style={{ marginLeft: i === 0 ? 0 : -3, position: 'relative', zIndex: 5 - i }}>
+                  <CrewAvatar name={c.User?.name ?? 'Unknown'} size={20} />
+                </div>
+              ))}
+              {allCrew.length > 5 && (
+                <div style={{ width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.32rem', fontWeight: 600, border: '1px solid rgba(0,0,0,0.5)', marginLeft: -3, fontFamily: 'var(--font-dm-mono)', background: hexToRgba(color, 0.12), color: '#62627a' }}>+{allCrew.length - 5}</div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -223,7 +217,7 @@ export default function ProjectsPage() {
   const pendingDragRef = useRef<{ projectId: string; x: number; y: number; elX: number; elY: number; w: number } | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
 
-  const sortedProjects = [...allProjects].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+  const sortedProjects = [...allProjects]
 
   function getColor(projectId: string) {
     return colorOverrides[projectId] || getProjectColor(projectId)
@@ -392,9 +386,9 @@ export default function ProjectsPage() {
         {/* Header */}
         <div style={{ position: 'relative', padding: '0 20px 18px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' as const }}>
-            <p className="font-mono uppercase" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.1em', marginBottom: 5 }}>Origin Point</p>
-            <h1 className="font-sans" style={{ fontWeight: 800, fontSize: '1.5rem', color: '#dddde8', letterSpacing: '-0.03em', lineHeight: 1 }}>Back to One.</h1>
-            <p className="font-mono uppercase" style={{ fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.1em', marginTop: 6 }}>Select a project</p>
+            <p className="font-mono uppercase" style={{ fontSize: '0.4rem', color: '#62627a', letterSpacing: '0.12em', marginBottom: 3 }}>Back to One</p>
+            <h1 className="font-sans" style={{ fontWeight: 800, fontSize: '1.6rem', color: '#dddde8', letterSpacing: '-0.03em', lineHeight: 1 }}>Origin Point</h1>
+            <p className="font-sans" style={{ fontSize: '0.88rem', fontWeight: 500, color: '#62627a', marginTop: 10 }}>Select a Project</p>
           </div>
           <button onClick={handleLogout} className="active:opacity-60 transition-opacity" style={{
             position: 'fixed', top: 56, right: 20, zIndex: 5, width: 32, height: 32, borderRadius: '50%',
@@ -461,7 +455,7 @@ export default function ProjectsPage() {
               })}
 
               {/* Add / reorder buttons */}
-              <div style={{ gridColumn: 'span 2', display: 'flex', gap: 8, padding: '4px 2px 2px' }}>
+              <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'center', gap: 8, padding: '4px 2px 2px' }}>
                 {!editMode && (
                   <Link href="/projects/new" className="block active:opacity-70 transition-opacity">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 20, border: '1px dashed rgba(196,90,220,0.2)', background: 'rgba(196,90,220,0.03)', cursor: 'pointer' }}>
@@ -488,10 +482,12 @@ export default function ProjectsPage() {
       {dragProjectId && (() => {
         const project = allProjects.find(p => p.id === dragProjectId)
         if (!project) return null
+        const startX = dragStartRef.current ? dragStartRef.current.x - dragStartRef.current.elX : 0
+        const startY = dragStartRef.current ? dragStartRef.current.y - dragStartRef.current.elY : 0
         return (
           <div ref={dragElRef} style={{
             position: 'fixed',
-            left: 0, top: 0,
+            left: startX, top: startY,
             width: dragStartRef.current?.w ?? 172, zIndex: 50, pointerEvents: 'none',
           }}>
             <SlateCard project={project} color={getColor(project.id)} dimmed={false} editMode={false} isGhost={false} isDragging={true} onLongPress={() => {}} onClick={() => {}} />
@@ -514,7 +510,7 @@ export default function ProjectsPage() {
       </AnimatePresence>
 
       {/* FAB zone — zero-size anchor at FAB center point */}
-      <div style={{ position: 'fixed', bottom: 34, left: '50%', width: 0, height: 0, zIndex: 7, overflow: 'visible' }}>
+      <div style={{ position: 'fixed', bottom: 68, left: '50%', width: 0, height: 0, zIndex: 7, overflow: 'visible' }}>
 
         {/* Dashed branch lines from center to each arc button */}
         <AnimatePresence>
