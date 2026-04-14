@@ -54,7 +54,7 @@ function NewShotSheet({ autoId, accent, onSave, onClose }: {
     <>
       <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)', margin: '12px auto 18px' }} />
       <div style={{ padding: '0 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'baseline', gap: 10 }}>
-        <div style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8' }}>New Shot</div>
+        <div style={{ fontFamily: "'Geist', sans-serif", fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8' }}>New Shot</div>
         <span className="font-mono" style={{ fontSize: '0.62rem', fontWeight: 700, color: accent }}>{autoId}</span>
       </div>
       <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '60vh', overflowY: 'auto' }}>
@@ -268,11 +268,11 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onInsert, onReorder }:
                 <div style={{ width: 12, height: 1.5, background: 'white', borderRadius: 1 }} />
               </div>
               {/* Scene number */}
-              <span className="font-mono flex-shrink-0" style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', color: sceneColor, minWidth: 20 }}>
+              <span className="flex-shrink-0" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', color: sceneColor, minWidth: 20 }}>
                 {numStr}
               </span>
               {/* Scene title */}
-              <span className="flex-1 truncate" style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '0.52rem', letterSpacing: '0.02em', color: sceneColor, opacity: 0.7 }}>
+              <span className="flex-1 truncate" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor, opacity: 0.7 }}>
                 {scene.title ?? ''}
               </span>
               {/* Shot count */}
@@ -445,7 +445,7 @@ function ShotRow({ shot, sceneColor, dragState, onTapDetail, onDescChange, onSwi
         </div>
 
         {/* Shot number — tap opens detail */}
-        <span className="font-mono flex-shrink-0 cursor-pointer" style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
+        <span className="flex-shrink-0 cursor-pointer" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
           onClick={onTapDetail}>
           {shot.shotNumber}
         </span>
@@ -674,8 +674,8 @@ function BoardCard({ shot, sceneColor, isDragging, isShifted, onTap, onDragStart
         {/* 16:9 image area */}
         <div className="relative" style={{ aspectRatio: '16/9' }}>
           <div className="w-full h-full" style={{ background: `linear-gradient(135deg, ${sceneColor}15, ${sceneColor}08)` }} />
-          <div className="absolute top-1 left-1 font-mono" style={{
-            fontSize: '0.38rem', fontWeight: 700, letterSpacing: '0.04em',
+          <div className="absolute top-1 left-1" style={{
+            fontFamily: "'Geist', sans-serif", fontSize: '0.38rem', fontWeight: 700, letterSpacing: '0.04em',
             color: sceneColor, background: 'rgba(4,4,10,0.7)',
             borderRadius: 4, padding: '1px 4px',
           }}>
@@ -823,8 +823,14 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       <div className="flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#04040a' }}>
         <PageHeader
           projectId={projectId}
-          title="SceneMaker"
-          meta={project ? (<div className="flex flex-col items-center gap-1.5"><span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''}
+          title=""
+          meta={project ? (
+            <div className="flex flex-col items-center gap-1.5">
+              <span className="font-mono uppercase" style={{ fontSize: 11, letterSpacing: '0.12em', color: '#62627a' }}>One Arc</span>
+              <span style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#dddde8', lineHeight: 1 }}>{project.name}</span>
+              <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span>
+            </div>
+          ) : ''}
           noBorder
         />
 
