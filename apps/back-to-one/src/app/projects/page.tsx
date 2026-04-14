@@ -141,6 +141,7 @@ function SlateCard({ project, color, dimmed, editMode, isGhost, isDragging, wigg
         flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
         padding: '9px 10px 11px', position: 'relative', overflow: 'hidden',
         background: slateBodyBg(color),
+        minHeight: 90,
       }}>
         {/* Top: type left, phase pill right */}
         <div style={{ position: 'relative', zIndex: 1 }}>
