@@ -69,15 +69,24 @@ export async function getProject(id: string) {
 }
 
 export async function createProject(
-  project: { name: string; teamId: string; status?: string; color?: string; client?: string; type?: string }
+  project: { id?: string; name: string; teamId?: string; status?: string; color?: string; client?: string; type?: string }
 ) {
   const db = createClient()
+
+  // Resolve teamId — use provided value, or look up the first team
+  let teamId = project.teamId
+  if (!teamId) {
+    const { data: team } = await db.from('Team').select('id').limit(1).single()
+    teamId = team?.id
+  }
+  if (!teamId) throw new Error('No team found — cannot create project')
+
   const { data, error } = await db
     .from('Project')
     .insert({
-      id: crypto.randomUUID(),
+      id: project.id || crypto.randomUUID(),
       name: project.name,
-      teamId: project.teamId,
+      teamId,
       status: project.status ?? 'development',
       color: project.color ?? null,
       client: project.client ?? null,
