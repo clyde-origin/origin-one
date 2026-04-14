@@ -73,6 +73,7 @@ export interface Project {
   color: string | null
   client: string | null
   type: string | null
+  aspectRatio: string | null
   createdAt: string
   updatedAt: string
 }

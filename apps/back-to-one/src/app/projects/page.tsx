@@ -127,6 +127,8 @@ function SlateCard({ project, color, dimmed, editMode, isGhost, isDragging, wigg
         background: 'rgba(10,10,18,0.6)',
         transition: isDragging ? 'none' : 'transform 0.12s ease, opacity 0.25s, filter 0.25s',
         userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
         opacity: dimmed ? 0.35 : 1,
         filter: dimmed ? 'blur(1px)' : 'none',
         ...wiggleStyle,
@@ -198,7 +200,7 @@ export default function ProjectsPage() {
   const updateMutation = useUpdateProject()
 
   const [actionProject, setActionProject] = useState<{
-    id: string; name: string; client: string; type: string; projectColor: string
+    id: string; name: string; client: string; type: string; aspectRatio: string; projectColor: string
   } | null>(null)
   const [colorOverrides, setColorOverrides] = useState<Record<string, string>>({})
 
@@ -240,6 +242,18 @@ export default function ProjectsPage() {
     setColorOverrides(prev => ({ ...prev, [actionProject.id]: color }))
     setActionProject(prev => prev ? { ...prev, projectColor: color } : null)
     updateMutation.mutate({ id: actionProject.id, fields: { color } })
+  }
+
+  function handleTypeChange(type: string) {
+    if (!actionProject) return
+    setActionProject(prev => prev ? { ...prev, type } : null)
+    updateMutation.mutate({ id: actionProject.id, fields: { type } })
+  }
+
+  function handleAspectChange(aspectRatio: string) {
+    if (!actionProject) return
+    setActionProject(prev => prev ? { ...prev, aspectRatio } : null)
+    updateMutation.mutate({ id: actionProject.id, fields: { aspectRatio } })
   }
 
   // ── Touch drag handlers (ref-based, direct DOM transform) ──
@@ -446,7 +460,7 @@ export default function ProjectsPage() {
                       onLongPress={() => {
                         haptic('light')
                         if (editMode) return
-                        setActionProject({ id: p.id, name: p.name, client: p.client, type: p.type, projectColor: getColor(p.id) })
+                        setActionProject({ id: p.id, name: p.name, client: p.client, type: p.type, aspectRatio: p.aspectRatio, projectColor: getColor(p.id) })
                       }}
                       onClick={() => router.push(`/projects/${p.id}`)}
                     />
@@ -608,6 +622,8 @@ export default function ProjectsPage() {
         onDelete={() => { deleteMutation.mutate(actionProject!.id); setActionProject(null) }}
         onRename={handleRename}
         onColorChange={handleColorChange}
+        onTypeChange={handleTypeChange}
+        onAspectChange={handleAspectChange}
         onClose={() => setActionProject(null)}
       />
     </div>

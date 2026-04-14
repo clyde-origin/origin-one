@@ -91,7 +91,7 @@ export async function createProject(
 
 export async function updateProject(
   projectId: string,
-  fields: { name?: string; status?: string; color?: string; client?: string; type?: string }
+  fields: { name?: string; status?: string; color?: string; client?: string; type?: string; aspectRatio?: string }
 ): Promise<void> {
   const db = createClient()
   const { error } = await db

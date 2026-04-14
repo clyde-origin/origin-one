@@ -17,7 +17,9 @@ export function useLongPress(onLongPress: () => void, delay = 500, moveThreshold
   }, [clear])
 
   const start = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    // Prevent iOS text selection / Copy-Look Up bar on long press
     if ('touches' in e) {
+      e.preventDefault()
       startPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
     }
     timerRef.current = setTimeout(() => {

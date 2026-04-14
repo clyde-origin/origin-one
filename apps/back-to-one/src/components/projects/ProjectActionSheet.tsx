@@ -9,6 +9,7 @@ interface ProjectInfo {
   name: string
   client: string
   type: string
+  aspectRatio: string
   projectColor: string
 }
 
@@ -18,10 +19,19 @@ interface ProjectActionSheetProps {
   onDelete: () => void
   onRename: (name: string, client: string) => void
   onColorChange: (color: string) => void
+  onTypeChange: (type: string) => void
+  onAspectChange: (aspectRatio: string) => void
   onClose: () => void
 }
 
-type SubSheet = null | 'rename' | 'archive-confirm' | 'delete-confirm'
+const PROJECT_TYPES = [
+  'Commercial', 'Branded Documentary', 'Narrative Short', 'Feature',
+  'Music Video', 'Editorial', 'Educational', 'Event',
+]
+
+const ASPECT_RATIOS = ['16:9', '2.39:1', '4:3', '1:1', '9:16', '4:5']
+
+type SubSheet = null | 'rename' | 'type' | 'aspect' | 'archive-confirm' | 'delete-confirm'
 
 function hexToRgba(hex: string | null | undefined, a: number) {
   const h = hex || '#444444'
@@ -31,7 +41,7 @@ function hexToRgba(hex: string | null | undefined, a: number) {
   return `rgba(${r},${g},${b},${a})`
 }
 
-export function ProjectActionSheet({ project, onArchive, onDelete, onRename, onColorChange, onClose }: ProjectActionSheetProps) {
+export function ProjectActionSheet({ project, onArchive, onDelete, onRename, onColorChange, onTypeChange, onAspectChange, onClose }: ProjectActionSheetProps) {
   const [subSheet, setSubSheet] = useState<SubSheet>(null)
   const [renameName, setRenameName] = useState('')
   const [renameClient, setRenameClient] = useState('')
@@ -131,6 +141,24 @@ export function ProjectActionSheet({ project, onArchive, onDelete, onRename, onC
           label="Rename"
           sub="Change project name or client"
           onClick={() => { haptic('light'); setSubSheet('rename') }}
+          showChevron
+        />
+
+        {/* Project Type */}
+        <ActionRow
+          icon={<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="2.5" width="10" height="8" rx="1.5" stroke="white" strokeWidth="1.2" opacity="0.7"/><path d="M5 5.5L8.5 8" stroke="white" strokeWidth="1.2" strokeLinecap="round" opacity="0.7"/><path d="M5 8L8.5 5.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" opacity="0.7"/></svg>}
+          label="Project Type"
+          sub={project.type || 'Not set'}
+          onClick={() => { haptic('light'); setSubSheet('type') }}
+          showChevron
+        />
+
+        {/* Aspect Ratio */}
+        <ActionRow
+          icon={<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="3" width="10" height="7" rx="1" stroke="white" strokeWidth="1.2" opacity="0.7"/><path d="M4 6.5H9" stroke="white" strokeWidth="0.8" strokeLinecap="round" opacity="0.4"/><path d="M6.5 4.5V8.5" stroke="white" strokeWidth="0.8" strokeLinecap="round" opacity="0.4"/></svg>}
+          label="Aspect Ratio"
+          sub={project.aspectRatio || 'Not set'}
+          onClick={() => { haptic('light'); setSubSheet('aspect') }}
           showChevron
         />
 
@@ -266,6 +294,82 @@ export function ProjectActionSheet({ project, onArchive, onDelete, onRename, onC
               }}
             />
           </div>
+        </div>
+      </div>
+
+      {/* ── PROJECT TYPE SUB-SHEET ── */}
+      <div style={{
+        position: 'fixed', bottom: 0, left: '50%',
+        transform: subSheet === 'type' ? 'translateX(-50%) translateY(0)' : 'translateX(-50%) translateY(110%)',
+        width: '100%', maxWidth: 390, background: '#111118',
+        borderTop: '1px solid rgba(255,255,255,0.07)',
+        borderRadius: '20px 20px 0 0', zIndex: 102,
+        transition: 'transform 0.3s cubic-bezier(0.32,0.72,0,1)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 20px)',
+      }}>
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)', margin: '12px auto 4px' }} />
+        <div style={{
+          padding: '18px 18px 10px',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+        }}>
+          <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#dddde8' }}>Project Type</span>
+        </div>
+        <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column' }}>
+          {PROJECT_TYPES.map(t => (
+            <div
+              key={t}
+              onClick={() => { haptic('light'); onTypeChange(t); setSubSheet(null) }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '11px 10px', borderRadius: 8, cursor: 'pointer',
+                background: project.type === t ? 'rgba(255,255,255,0.05)' : 'transparent',
+              }}
+            >
+              <span style={{ fontSize: '0.78rem', color: '#dddde8', fontWeight: project.type === t ? 700 : 500 }}>{t}</span>
+              {project.type === t && (
+                <svg width="12" height="10" viewBox="0 0 12 10" fill="none"><path d="M1 5L4.5 8.5L11 1.5" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── ASPECT RATIO SUB-SHEET ── */}
+      <div style={{
+        position: 'fixed', bottom: 0, left: '50%',
+        transform: subSheet === 'aspect' ? 'translateX(-50%) translateY(0)' : 'translateX(-50%) translateY(110%)',
+        width: '100%', maxWidth: 390, background: '#111118',
+        borderTop: '1px solid rgba(255,255,255,0.07)',
+        borderRadius: '20px 20px 0 0', zIndex: 102,
+        transition: 'transform 0.3s cubic-bezier(0.32,0.72,0,1)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 20px)',
+      }}>
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)', margin: '12px auto 4px' }} />
+        <div style={{
+          padding: '18px 18px 10px',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+        }}>
+          <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#dddde8' }}>Aspect Ratio</span>
+        </div>
+        <div style={{ padding: '8px 10px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+          {ASPECT_RATIOS.map(r => (
+            <div
+              key={r}
+              onClick={() => { haptic('light'); onAspectChange(r); setSubSheet(null) }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '14px 8px', borderRadius: 8, cursor: 'pointer',
+                border: project.aspectRatio === r ? `1.5px solid ${hexToRgba(color, 0.5)}` : '1.5px solid rgba(255,255,255,0.06)',
+                background: project.aspectRatio === r ? hexToRgba(color, 0.08) : 'rgba(255,255,255,0.02)',
+              }}
+            >
+              <span style={{
+                fontFamily: 'var(--font-geist-mono)', fontSize: '0.72rem', fontWeight: 700,
+                color: project.aspectRatio === r ? color : '#a0a0b8',
+                letterSpacing: '0.02em',
+              }}>{r}</span>
+            </div>
+          ))}
         </div>
       </div>
 

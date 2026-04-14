@@ -72,7 +72,7 @@ export function useDeleteProject() {
 export function useUpdateProject() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: { name?: string; status?: string; color?: string; client?: string; type?: string } }) =>
+    mutationFn: ({ id, fields }: { id: string; fields: { name?: string; status?: string; color?: string; client?: string; type?: string; aspectRatio?: string } }) =>
       db.updateProject(id, fields),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.projects() }),
   })
