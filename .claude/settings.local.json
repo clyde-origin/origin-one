@@ -23,7 +23,9 @@
       "Bash(npx prisma:*)",
       "Bash(pnpm db:seed)",
       "Bash(npx tsx -e ':*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pnpm --filter back-to-one exec tsc --noEmit)"
     ]
   }
 }

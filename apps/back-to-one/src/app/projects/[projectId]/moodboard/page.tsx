@@ -1,4 +1,5 @@
 'use client'
+import { PageTransition } from '@/components/ui/PageTransition'
 
 import { useState, useRef } from 'react'
 import Link from 'next/link'
@@ -206,7 +207,7 @@ export default function MoodboardPage({ params }: { params: { projectId: string 
   const startAdd = () => { haptic('light'); setCreating(true) }
 
   return (
-    <div className="screen">
+    <PageTransition><div className="screen">
       <PageHeader projectId={projectId} title="Moodboard" meta={project ? (<div className="flex flex-col items-center gap-1.5"><span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''} />
 
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 80 }}>
@@ -246,5 +247,6 @@ export default function MoodboardPage({ params }: { params: { projectId: string 
         />
       </Sheet>
     </div>
+    </PageTransition>
   )
 }

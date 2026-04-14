@@ -1,4 +1,5 @@
 'use client'
+import { PageTransition } from '@/components/ui/PageTransition'
 
 import { useState, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
@@ -339,7 +340,7 @@ export default function TimelinePage({ params }: { params: { projectId: string }
   const projectStatusLabel = project ? statusLabel(project.status) : ''
 
   return (
-    <div className="screen" style={{ overflow: 'hidden' }}>
+    <PageTransition><div className="screen" style={{ overflow: 'hidden' }}>
       {/* Header */}
       <PageHeader
         projectId={projectId}
@@ -500,5 +501,6 @@ export default function TimelinePage({ params }: { params: { projectId: string }
         <MilestoneDetailSheet milestone={selectedMS} crew={allCrew} accent={accent} projectId={projectId} onClose={() => setSelectedMS(null)} />
       </Sheet>
     </div>
+    </PageTransition>
   )
 }

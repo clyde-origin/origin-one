@@ -92,8 +92,8 @@ const MINI_ICONS: Record<string, React.ReactNode> = {
 
 // ── SWIPE PANEL — reusable swipeable card ─────────────────
 
-function SwipePanel<T>({ items, label, labelColor, emptyIcon, href, renderItem }: {
-  items: T[]; label: string; labelColor: string; emptyIcon: string; href: string
+function SwipePanel<T>({ items, label, labelColor, emptyIcon, emptyLabel, emptyContent, href, renderItem }: {
+  items: T[]; label: string; labelColor: string; emptyIcon?: string; emptyLabel?: string; emptyContent?: React.ReactNode; href: string
   renderItem: (item: T, index: number) => React.ReactNode
 }) {
   const [page, setPage] = useState(0)
@@ -138,10 +138,15 @@ function SwipePanel<T>({ items, label, labelColor, emptyIcon, href, renderItem }
           )}
         </div>
       ) : (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px dashed rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 2V8M2 5H8" stroke="rgba(255,255,255,0.25)" strokeWidth="1.3" strokeLinecap="round" /></svg>
-          </div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+          {emptyContent ?? (
+            <>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px dashed rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 2V8M2 5H8" stroke="rgba(255,255,255,0.25)" strokeWidth="1.3" strokeLinecap="round" /></svg>
+              </div>
+              {emptyLabel && <span className="font-mono" style={{ fontSize: '0.36rem', color: '#62627a' }}>{emptyLabel}</span>}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -853,13 +858,22 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
                   items={allMoodRefs}
                   label="Tone"
                   labelColor={projectColor}
-                  emptyIcon="🎨"
                   href={`/projects/${projectId}/moodboard`}
+                  emptyContent={
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: 0.35 }}>
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                        <rect x="2" y="4" width="20" height="16" rx="2" stroke="#62627a" strokeWidth="1.3" />
+                        <circle cx="8" cy="10" r="2" stroke="#62627a" strokeWidth="1.2" />
+                        <path d="M2 16l5-4 3 2 4-5 8 7" stroke="#62627a" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a' }}>Set the tone</span>
+                    </div>
+                  }
                   renderItem={(ref) => (
                     ref.imageUrl ? (
-                      <img src={ref.imageUrl} alt={ref.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={ref.imageUrl} alt={ref.title} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }} />
                     ) : (
-                      <div style={{ width: '100%', height: '100%', background: ref.gradient || '#0a0a12' }} />
+                      <div style={{ width: '100%', height: '100%', background: ref.gradient || '#0a0a12', opacity: 0.7 }} />
                     )
                   )}
                 />

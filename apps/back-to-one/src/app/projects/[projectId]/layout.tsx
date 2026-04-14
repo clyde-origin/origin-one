@@ -1,6 +1,6 @@
-// This layout wraps every screen inside a project.
-// It will eventually: check project access, load project data,
-// provide project context to all child screens.
+'use client'
+
+import { PageExitProvider } from '@/lib/context/PageExitContext'
 
 export default function ProjectLayout({
   children,
@@ -10,8 +10,10 @@ export default function ProjectLayout({
   params: { projectId: string }
 }) {
   return (
-    <div className="relative w-full h-full">
-      {children}
-    </div>
+    <PageExitProvider>
+      <div className="relative w-full h-full">
+        {children}
+      </div>
+    </PageExitProvider>
   )
 }

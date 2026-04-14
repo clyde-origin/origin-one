@@ -1,4 +1,5 @@
 'use client'
+import { PageTransition } from '@/components/ui/PageTransition'
 
 import { useState, useRef, useCallback, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -818,7 +819,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   }, [mode, accent, allScenes.length, allShots.length])
 
   return (
-    <div className="screen" style={{ overflow: 'hidden' }}>
+    <PageTransition><div className="screen" style={{ overflow: 'hidden' }}>
       {/* Header */}
       <div className="flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#04040a' }}>
         <PageHeader
@@ -1027,5 +1028,6 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         />
       </Sheet>
     </div>
+    </PageTransition>
   )
 }

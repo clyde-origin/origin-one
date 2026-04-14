@@ -1,4 +1,5 @@
 'use client'
+import { PageTransition } from '@/components/ui/PageTransition'
 
 import { PageHeader } from '@/components/ui/PageHeader'
 import { FAB } from '@/components/ui/FAB'
@@ -12,7 +13,7 @@ export default function ChatPage({ params }: { params: { projectId: string } }) 
   const { data: project } = useProject(projectId)
 
   return (
-    <div className="screen">
+    <PageTransition><div className="screen">
       <PageHeader projectId={projectId} title="Chat" meta={project ? (<div className="flex flex-col items-center gap-1.5"><span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''} />
       <div className="flex-1 overflow-y-auto no-scrollbar" style={{ paddingBottom: 24 }}>
         {/* Ghost message rows */}
@@ -35,5 +36,6 @@ export default function ChatPage({ params }: { params: { projectId: string } }) 
       </div>
       <FAB accent={accent} projectId={projectId} hideChat />
     </div>
+    </PageTransition>
   )
 }
