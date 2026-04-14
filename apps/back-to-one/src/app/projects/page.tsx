@@ -222,7 +222,9 @@ export default function ProjectsPage() {
   const sortedProjects = [...allProjects]
 
   function getColor(projectId: string) {
-    return colorOverrides[projectId] || getProjectColor(projectId)
+    if (colorOverrides[projectId]) return colorOverrides[projectId]
+    const p = allProjects.find(proj => proj.id === projectId)
+    return p?.color || getProjectColor(projectId)
   }
 
   function handleLogout() {
