@@ -14,7 +14,8 @@ export const metadata: Metadata = {
     title: 'Back to One',
   },
   icons: {
-    apple: '/icons/apple-touch-icon.png',
+    icon: '/icon-192.png',
+    apple: '/apple-touch-icon.png',
   },
 }
 
@@ -35,7 +36,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="icon" href="/icon-192.png" />
       </head>
       <body>
         <QueryProvider>
