@@ -1,5 +1,4 @@
 'use client'
-import { PageTransition } from '@/components/ui/PageTransition'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -94,7 +93,7 @@ export default function CastingPage({ params }: { params: { projectId: string } 
   const confirmed = allRoles.filter(r => r.status === 'Confirmed').length
 
   return (
-    <PageTransition><div className="screen">
+    <div className="screen">
       <PageHeader projectId={projectId} title="Casting" meta={project ? (<div className="flex flex-col items-center gap-1.5"><span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''} />
 
       {/* Summary strip */}
@@ -127,6 +126,5 @@ export default function CastingPage({ params }: { params: { projectId: string } 
       </Sheet>
       <FAB accent={accent} projectId={projectId} onPress={() => { haptic('light'); setCreating(true) }} />
     </div>
-    </PageTransition>
   )
 }

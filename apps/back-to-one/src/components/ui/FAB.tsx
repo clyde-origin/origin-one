@@ -3,7 +3,6 @@
 import { useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { haptic } from '@/lib/utils/haptics'
-import { usePageExit } from '@/lib/context/PageExitContext'
 
 // ── Types ────────────────────────────────────────────────
 
@@ -36,7 +35,6 @@ interface FABProps {
 export function FAB({ accent, projectId, branches = [], onPress, hideBack, hideChat, hideThreads }: FABProps) {
   const [open, setOpen] = useState(false)
   const router = useRouter()
-  const { triggerExit } = usePageExit()
   const hasBranches = branches.length > 0
 
   const toggle = () => {
@@ -127,7 +125,7 @@ export function FAB({ accent, projectId, branches = [], onPress, hideBack, hideC
               transition: 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.25s',
               ...(open ? { transform: 'translateX(-300px)', opacity: 0, pointerEvents: 'none' as const } : {}),
             }}
-            onClick={() => triggerExit(() => router.back())}>
+            onClick={() => router.back()}>
             <svg width="8" height="12" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="rgba(255,255,255,0.5)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </div>
         )}

@@ -1,5 +1,4 @@
 'use client'
-import { PageTransition } from '@/components/ui/PageTransition'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -286,7 +285,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
   const laterItems = openItems.filter(i => { if (!i.dueDate) return false; const d = new Date(i.dueDate); d.setHours(0, 0, 0, 0); return d > endOfWeek })
 
   return (
-    <PageTransition><div className="screen">
+    <div className="screen">
       {/* Header */}
       <PageHeader
         projectId={projectId}
@@ -481,6 +480,5 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
         </div>
       </Sheet>
     </div>
-    </PageTransition>
   )
 }

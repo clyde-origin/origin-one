@@ -582,8 +582,7 @@ function CrewDetailSheet({ member, onClose }: { member: CrewMember | null; onClo
 
 // ── MAIN PAGE ─────────────────────────────────────────────
 
-export default function HubPage({ params }: { params: { projectId: string } }) {
-  const { projectId } = params
+export function HubContent({ projectId }: { projectId: string }) {
   const router = useRouter()
   const projectColor = getProjectColor(projectId)
   const [pr, pg, pb] = hexToRgb(projectColor)
