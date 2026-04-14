@@ -96,11 +96,13 @@ function NewRefSheet({ projectId, refCount, onClose, onCreate }: {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    setError(null)
     setImageFile(file)
     setImagePreview(URL.createObjectURL(file))
     e.target.value = ''
@@ -109,6 +111,7 @@ function NewRefSheet({ projectId, refCount, onClose, onCreate }: {
   const handleSubmit = async () => {
     if (!title.trim() || saving) return
     setSaving(true)
+    setError(null)
     try {
       let imageUrl: string | null = null
       if (imageFile) {
@@ -120,8 +123,10 @@ function NewRefSheet({ projectId, refCount, onClose, onCreate }: {
         gradient: GRADIENTS[refCount % GRADIENTS.length],
       })
       onClose()
-    } catch (err) {
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to save reference. Please try again.'
       console.error('Failed to save reference:', err)
+      setError(msg)
       setSaving(false)
     }
   }
@@ -175,6 +180,11 @@ function NewRefSheet({ projectId, refCount, onClose, onCreate }: {
             <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="Optional"
               className="w-full bg-surface2 border border-border2 rounded-lg px-3 py-2.5 text-text text-base outline-none focus:border-accent transition-colors resize-none" />
           </div>
+          {error && (
+            <div className="rounded-lg px-3 py-2.5 text-sm" style={{ background: 'rgba(255,59,48,0.12)', color: '#ff6b6b', border: '1px solid rgba(255,59,48,0.2)' }}>
+              {error}
+            </div>
+          )}
           <button onClick={handleSubmit} disabled={!title.trim() || saving}
             className="w-full py-3 rounded-lg bg-accent text-white font-semibold text-base transition-opacity disabled:opacity-40 active:opacity-80">
             {saving ? 'Saving...' : 'Add Reference'}

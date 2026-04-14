@@ -4,10 +4,24 @@ import { createBrowserAuthClient as createClient } from '@origin-one/auth'
 
 export async function uploadMoodboardImage(file: File, projectId: string): Promise<string> {
   const db = createClient()
-  const ext = file.name.split('.').pop() ?? 'jpg'
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
   const path = `${projectId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+
   const { error } = await db.storage.from('moodboard').upload(path, file, { upsert: true })
-  if (error) { console.error('uploadMoodboardImage failed:', error); throw error }
+  if (error) {
+    console.error('uploadMoodboardImage failed:', error)
+    if (error.message?.includes('Bucket not found')) {
+      throw new Error('Storage bucket not configured. Run the setup-storage.sql script in the Supabase SQL Editor.')
+    }
+    if (error.message?.includes('mime type')) {
+      throw new Error('File type not supported. Use PNG, JPEG, or WebP.')
+    }
+    if (error.message?.includes('size')) {
+      throw new Error('File too large. Maximum 10 MB.')
+    }
+    throw new Error(error.message || 'Upload failed. Please try again.')
+  }
+
   const { data } = db.storage.from('moodboard').getPublicUrl(path)
   return data.publicUrl
 }
