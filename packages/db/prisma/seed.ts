@@ -56,6 +56,8 @@ async function main() {
   console.log('Seeding — Origin Point projects...\n')
 
   // ── Wipe in reverse-dependency order ──────────────────────────────────────
+  await prisma.moodboardRef.deleteMany()
+  await prisma.moodboardTab.deleteMany()
   await prisma.location.deleteMany()
   await prisma.actionItem.deleteMany()
   await prisma.milestonePerson.deleteMany()

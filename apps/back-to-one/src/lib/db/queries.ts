@@ -529,22 +529,59 @@ export async function getSceneMakerVersions(_projectId: string): Promise<any[]> 
 export async function getSMScenes(_versionId: string): Promise<any[]> { return [] }
 export async function getSMShots(_versionId: string): Promise<any[]> { return [] }
 export async function updateShotImages(_shotId: string, _images: string[]) {}
+// ── MOODBOARD TABS ────────────────────────────────────────
+
+export async function getMoodboardTabs(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('MoodboardTab')
+    .select('*')
+    .eq('projectId', projectId)
+    .order('sortOrder', { ascending: true })
+  if (error) { console.error('getMoodboardTabs failed:', error); return [] }
+  return data ?? []
+}
+
+export async function createMoodboardTab(tab: { projectId: string; name: string; sortOrder?: number }) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('MoodboardTab')
+    .insert({ id: crypto.randomUUID(), projectId: tab.projectId, name: tab.name, sortOrder: tab.sortOrder ?? 0 })
+    .select()
+    .single()
+  if (error) { throw new Error(`Create tab failed: ${error.message}`) }
+  return data
+}
+
+export async function updateMoodboardTab(id: string, fields: { name?: string; sortOrder?: number }) {
+  const db = createClient()
+  const { error } = await db.from('MoodboardTab').update(fields).eq('id', id)
+  if (error) { throw new Error(`Update tab failed: ${error.message}`) }
+}
+
+export async function deleteMoodboardTab(id: string) {
+  const db = createClient()
+  // Unlink refs from this tab first
+  await db.from('MoodboardRef').update({ tabId: null }).eq('tabId', id)
+  const { error } = await db.from('MoodboardTab').delete().eq('id', id)
+  if (error) { throw new Error(`Delete tab failed: ${error.message}`) }
+}
+
+// ── MOODBOARD REFS ────────────────────────────────────────
+
 export async function getMoodboardRefs(projectId: string) {
   const db = createClient()
   const { data, error } = await db
     .from('MoodboardRef')
     .select('*')
     .eq('projectId', projectId)
-    .order('createdAt', { ascending: true })
-  if (error) {
-    console.error('getMoodboardRefs failed:', error)
-    return []
-  }
+    .order('sortOrder', { ascending: true })
+  if (error) { console.error('getMoodboardRefs failed:', error); return [] }
   return data ?? []
 }
 
 export async function createMoodboardRef(
-  ref: { projectId: string; cat: string; title: string; note?: string; imageUrl?: string | null; gradient?: string | null }
+  ref: { projectId: string; cat: string; title: string; note?: string; imageUrl?: string | null; gradient?: string | null; sortOrder?: number; tabId?: string | null }
 ) {
   const db = createClient()
   const payload = {
@@ -555,6 +592,8 @@ export async function createMoodboardRef(
     note: ref.note ?? null,
     imageUrl: ref.imageUrl ?? null,
     gradient: ref.gradient ?? null,
+    sortOrder: ref.sortOrder ?? 0,
+    tabId: ref.tabId ?? null,
   }
   console.log('[createMoodboardRef] inserting:', payload)
   const { data, error } = await db
@@ -568,6 +607,38 @@ export async function createMoodboardRef(
   }
   console.log('[createMoodboardRef] success:', data?.id)
   return data
+}
+
+export async function updateMoodboardRef(
+  id: string,
+  fields: { title?: string; note?: string | null; imageUrl?: string | null; cat?: string; sortOrder?: number; tabId?: string | null }
+) {
+  const db = createClient()
+  const { error } = await db.from('MoodboardRef').update(fields).eq('id', id)
+  if (error) { throw new Error(`Update ref failed: ${error.message}`) }
+}
+
+export async function deleteMoodboardRef(id: string) {
+  const db = createClient()
+  // Get the ref first to clean up storage
+  const { data: ref } = await db.from('MoodboardRef').select('imageUrl').eq('id', id).single()
+  if (ref?.imageUrl) {
+    // Extract path from public URL: ...storage/v1/object/public/moodboard/{path}
+    const match = ref.imageUrl.match(/\/moodboard\/(.+)$/)
+    if (match) {
+      await db.storage.from('moodboard').remove([match[1]])
+    }
+  }
+  const { error } = await db.from('MoodboardRef').delete().eq('id', id)
+  if (error) { throw new Error(`Delete ref failed: ${error.message}`) }
+}
+
+export async function reorderMoodboardRefs(updates: { id: string; sortOrder: number }[]) {
+  const db = createClient()
+  // Batch update sort orders
+  for (const u of updates) {
+    await db.from('MoodboardRef').update({ sortOrder: u.sortOrder }).eq('id', u.id)
+  }
 }
 // ── LOCATIONS ─────────────────────────────────────────────
 

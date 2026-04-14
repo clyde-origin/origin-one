@@ -40,25 +40,22 @@ CREATE POLICY IF NOT EXISTS "moodboard_anon_update"
 --    level defaults. This adds gen_random_uuid() to all id columns.
 -- ═══════════════════════════════════════════════════════════════
 
-ALTER TABLE "Project"         ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
-ALTER TABLE "Folder"          ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
-ALTER TABLE "Scene"           ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
-ALTER TABLE "Shot"            ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
-ALTER TABLE "Entity"          ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
-ALTER TABLE "Document"        ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
 ALTER TABLE "User"            ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
 ALTER TABLE "Team"            ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
 ALTER TABLE "TeamMember"      ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
 ALTER TABLE "ProjectMember"   ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
-ALTER TABLE "ActionItem"      ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "Project"         ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "Scene"           ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "Shot"            ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "Entity"          ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "Document"        ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
 ALTER TABLE "Milestone"       ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
 ALTER TABLE "MilestonePerson" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "ActionItem"      ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
 ALTER TABLE "Thread"          ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
-ALTER TABLE "Message"         ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
-ALTER TABLE "Resource"        ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
-ALTER TABLE "WorkflowNode"    ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "ThreadMessage"   ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "MoodboardTab"    ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
 ALTER TABLE "MoodboardRef"    ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
 ALTER TABLE "Location"        ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
-ALTER TABLE "SceneMakerVersion" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
-ALTER TABLE "CastRole"        ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
-ALTER TABLE "ArtItem"         ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "Folder"          ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "Resource"        ALTER COLUMN "id" SET DEFAULT gen_random_uuid();

@@ -198,6 +198,14 @@ export interface StoryboardCard {
   shootOrder: number
 }
 
+export interface MoodboardTab {
+  id: string
+  projectId: string
+  name: string
+  sortOrder: number
+  createdAt: string
+}
+
 export interface MoodboardRef {
   id: string
   projectId: string
@@ -206,6 +214,8 @@ export interface MoodboardRef {
   note: string
   imageUrl: string | null
   gradient: string
+  sortOrder: number
+  tabId: string | null
   createdAt: string
 }
 

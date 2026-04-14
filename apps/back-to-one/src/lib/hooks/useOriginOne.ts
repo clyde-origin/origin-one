@@ -424,6 +424,42 @@ export function useArtItems(projectId: string) {
 
 // ── MOODBOARD ──────────────────────────────────────────────
 
+export function useMoodboardTabs(projectId: string) {
+  return useQuery({
+    queryKey: ['moodboardTabs', projectId],
+    queryFn:  () => db.getMoodboardTabs(projectId),
+    enabled:  !!projectId,
+  })
+}
+
+export function useCreateMoodboardTab(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createMoodboardTab,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['moodboardTabs', projectId] }),
+  })
+}
+
+export function useUpdateMoodboardTab(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: { name?: string; sortOrder?: number } }) =>
+      db.updateMoodboardTab(id, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['moodboardTabs', projectId] }),
+  })
+}
+
+export function useDeleteMoodboardTab(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteMoodboardTab,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['moodboardTabs', projectId] })
+      qc.invalidateQueries({ queryKey: keys.moodboard(projectId) })
+    },
+  })
+}
+
 export function useMoodboard(projectId: string) {
   return useQuery({
     queryKey: keys.moodboard(projectId),
@@ -440,6 +476,30 @@ export function useCreateMoodboardRef(projectId: string) {
   })
 }
 
+export function useUpdateMoodboardRef(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: Parameters<typeof db.updateMoodboardRef>[1] }) =>
+      db.updateMoodboardRef(id, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.moodboard(projectId) }),
+  })
+}
+
+export function useDeleteMoodboardRef(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteMoodboardRef,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.moodboard(projectId) }),
+  })
+}
+
+export function useReorderMoodboardRefs(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.reorderMoodboardRefs,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.moodboard(projectId) }),
+  })
+}
 
 // ── GLOBAL QUERIES (cross-project) ────────────────────────
 

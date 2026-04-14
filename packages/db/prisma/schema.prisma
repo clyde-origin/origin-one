@@ -167,6 +167,7 @@ model Project {
   locations     Location[]
   folders       Folder[]
   resources     Resource[]
+  moodboardTabs MoodboardTab[]
   moodboardRefs MoodboardRef[]
 }
 
@@ -298,6 +299,16 @@ model ThreadMessage {
 
 // ─── Moodboard ──────────────────────────────────────────────────────────────
 
+model MoodboardTab {
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
+  projectId String
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
 model MoodboardRef {
   id        String       @id @default(dbgenerated("gen_random_uuid()"))
   projectId String
@@ -306,6 +317,8 @@ model MoodboardRef {
   note      String?
   imageUrl  String?
   gradient  String?
+  sortOrder Int          @default(0)
+  tabId     String?
   createdAt DateTime     @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
