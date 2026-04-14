@@ -90,6 +90,64 @@ const MINI_ICONS: Record<string, React.ReactNode> = {
   casting: <CastingIcon />,
 }
 
+// ── SWIPE PANEL — reusable swipeable card ─────────────────
+
+function SwipePanel<T>({ items, label, labelColor, emptyIcon, href, renderItem }: {
+  items: T[]; label: string; labelColor: string; emptyIcon: string; href: string
+  renderItem: (item: T, index: number) => React.ReactNode
+}) {
+  const [page, setPage] = useState(0)
+  const touchStart = useRef<number | null>(null)
+  const router = useRouter()
+
+  const onTS = (e: React.TouchEvent) => { touchStart.current = e.touches[0].clientX }
+  const onTE = (e: React.TouchEvent) => {
+    if (touchStart.current === null) return
+    const dx = e.changedTouches[0].clientX - touchStart.current
+    touchStart.current = null
+    if (Math.abs(dx) < 40) return
+    if (dx < 0 && page < items.length - 1) setPage(p => p + 1)
+    if (dx > 0 && page > 0) setPage(p => p - 1)
+  }
+
+  return (
+    <div
+      className="flex-1 relative overflow-hidden cursor-pointer active:opacity-90 transition-opacity"
+      style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, minHeight: 90, display: 'flex', flexDirection: 'column' }}
+      onTouchStart={onTS}
+      onTouchEnd={onTE}
+      onClick={() => router.push(href)}
+    >
+      <div className="font-mono uppercase" style={{ fontSize: '0.44rem', fontWeight: 700, color: labelColor, letterSpacing: '0.06em', textAlign: 'center', padding: '7px 0 0', position: 'relative', zIndex: 2 }}>{label}</div>
+      {items.length > 0 ? (
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', width: `${items.length * 100}%`, height: '100%', transform: `translateX(-${page * (100 / items.length)}%)`, transition: 'transform 0.28s ease' }}>
+            {items.map((item, i) => (
+              <div key={i} style={{ width: `${100 / items.length}%`, height: '100%' }}>
+                {renderItem(item, i)}
+              </div>
+            ))}
+          </div>
+          {/* Dot indicators */}
+          {items.length > 1 && (
+            <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 3 }}>
+              {items.map((_, i) => (
+                <div key={i} style={{ width: page === i ? 10 : 4, height: 3, borderRadius: 2, background: page === i ? labelColor : 'rgba(255,255,255,0.2)', transition: 'all 0.2s' }} />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px dashed rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 2V8M2 5H8" stroke="rgba(255,255,255,0.25)" strokeWidth="1.3" strokeLinecap="round" /></svg>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── GANTT CHART — item 10 ─────────────────────────────────
 
 function GanttChart({ milestones, projectStatus }: { milestones: Milestone[]; projectStatus: string }) {
@@ -790,58 +848,83 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
                   />
                 </div>
 
-                {/* Tone card */}
-                <Link href={`/projects/${projectId}/moodboard`}
-                  className="flex-1 relative overflow-hidden block cursor-pointer active:opacity-90 transition-opacity"
-                  style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, display: 'flex', flexDirection: 'column' }}>
-                  {/* Label at top */}
-                  <div className="font-mono uppercase" style={{ fontSize: '0.44rem', fontWeight: 700, color: projectColor, letterSpacing: '0.06em', textAlign: 'center', padding: '7px 9px 0', position: 'relative', zIndex: 2 }}>Tone</div>
-                  {allMoodRefs.length > 0 ? (
-                    <>
-                      <div className="absolute inset-0 grid grid-cols-2 grid-rows-2" style={{ height: '100%' }}>
-                        {shuffledMood.map((ref, i) => <div key={ref.id ?? i} style={{ background: ref.gradient || '#0a0a12' }} />)}
-                        {Array.from({ length: Math.max(0, 4 - shuffledMood.length) }).map((_, i) => <div key={`f-${i}`} style={{ background: '#0a0a12' }} />)}
-                      </div>
-                      <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(4,4,10,0.5), rgba(4,4,10,0.15))' }} />
-                    </>
-                  ) : (
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px dashed rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 2V8M2 5H8" stroke="rgba(255,255,255,0.25)" strokeWidth="1.3" strokeLinecap="round" /></svg>
-                      </div>
-                    </div>
+                {/* Tone panel — swipeable moodboard images */}
+                <SwipePanel
+                  items={allMoodRefs}
+                  label="Tone"
+                  labelColor={projectColor}
+                  emptyIcon="🎨"
+                  href={`/projects/${projectId}/moodboard`}
+                  renderItem={(ref) => (
+                    ref.imageUrl ? (
+                      <img src={ref.imageUrl} alt={ref.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', background: ref.gradient || '#0a0a12' }} />
+                    )
                   )}
-                </Link>
+                />
               </div>
 
-              {/* Locations / Art / Casting mini row — item 14: taller cards */}
+              {/* Locations / Casting / Art row */}
               <div className="flex" style={{ gap: 8 }}>
-                {[
-                  { id: 'locations', label: 'Locations', count: `${locConfirmed} / ${locTotal} locked`, color: '#e8a020', ratio: locTotal > 0 ? locConfirmed / locTotal : 0 },
-                  { id: 'art', label: 'Art', count: `${artApproved} / ${allArt.length} done`, color: '#6470f3', ratio: allArt.length > 0 ? artApproved / allArt.length : 0 },
-                  { id: 'casting', label: 'Casting', count: `${castConfirmed} / ${allCast.length} cast`, color: '#00b894', ratio: allCast.length > 0 ? castConfirmed / allCast.length : 0 },
-                ].map(mod => {
-                  const isEmpty = mod.ratio === 0 && mod.count.startsWith('0 / 0')
-                  return (
-                    <Link key={mod.id} href={`/projects/${projectId}/${mod.id}`} className="flex-1 active:opacity-80 transition-opacity" style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '12px 9px 10px', minHeight: 90, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                      <div className="font-mono uppercase" style={{ fontSize: '0.44rem', fontWeight: 700, color: mod.color, letterSpacing: '0.06em', marginBottom: isEmpty ? 0 : 3 }}>{mod.label}</div>
-                      {isEmpty ? (
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <div style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px dashed rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 2V8M2 5H8" stroke="rgba(255,255,255,0.25)" strokeWidth="1.3" strokeLinecap="round" /></svg>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="font-mono" style={{ fontSize: '0.33rem', color: '#62627a', marginBottom: 8 }}>{mod.count}</div>
-                          <div style={{ width: '100%', height: 2.5, background: 'rgba(255,255,255,0.05)', borderRadius: 2, marginTop: 'auto' }}>
-                            <div style={{ height: '100%', borderRadius: 2, width: `${mod.ratio * 100}%`, background: mod.color, transition: 'width 0.5s ease' }} />
-                          </div>
-                        </>
-                      )}
-                    </Link>
-                  )
-                })}
+                {/* Locations panel — swipeable location images */}
+                <SwipePanel
+                  items={allLocations}
+                  label="Locations"
+                  labelColor="#e8a020"
+                  emptyIcon="📍"
+                  href={`/projects/${projectId}/locations`}
+                  renderItem={(loc: any) => (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
+                      <span style={{ fontSize: '0.50rem', fontWeight: 600, color: '#dddde8', textAlign: 'center' }}>{loc.scriptLocation ?? loc.name ?? ''}</span>
+                      <span className="font-mono" style={{ fontSize: '0.34rem', color: '#62627a', marginTop: 2 }}>{loc.type ?? ''}</span>
+                    </div>
+                  )}
+                />
+
+                {/* Casting panel — swipeable cast headshots */}
+                <SwipePanel
+                  items={allCast}
+                  label="Casting"
+                  labelColor="#00b894"
+                  emptyIcon="🎭"
+                  href={`/projects/${projectId}/casting`}
+                  renderItem={(role: any) => (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: 16 }}>🎭</span>
+                      </div>
+                      <span style={{ fontSize: '0.46rem', fontWeight: 600, color: '#dddde8' }}>{role.name}</span>
+                      <span className="font-mono capitalize" style={{ fontSize: '0.32rem', color: '#62627a' }}>{role.status}</span>
+                    </div>
+                  )}
+                />
+
+                {/* Art panel — swipeable tabs: Wardrobe, Props, HMU */}
+                <SwipePanel
+                  items={['wardrobe', 'props', 'hmu'] as const}
+                  label="Art"
+                  labelColor="#6470f3"
+                  emptyIcon="🎨"
+                  href={`/projects/${projectId}/art`}
+                  renderItem={(cat: string) => {
+                    const catItems = allArt.filter(a => a.cat === cat)
+                    const latest = catItems.find(a => a.imageUrl) ?? catItems[0]
+                    const catLabel = cat === 'hmu' ? 'HMU' : cat === 'wardrobe' ? 'Wardrobe' : 'Props'
+                    return (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 6 }}>
+                        {latest?.imageUrl ? (
+                          <img src={latest.imageUrl} alt={catLabel} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
+                        ) : (
+                          <>
+                            <span className="font-mono uppercase" style={{ fontSize: '0.38rem', color: '#6470f3', letterSpacing: '0.06em' }}>{catLabel}</span>
+                            <span className="font-mono" style={{ fontSize: '0.30rem', color: '#62627a', marginTop: 2 }}>{catItems.length > 0 ? `${catItems.length} items` : 'Empty'}</span>
+                          </>
+                        )}
+                      </div>
+                    )
+                  }}
+                />
               </div>
             </div>
           </div>
