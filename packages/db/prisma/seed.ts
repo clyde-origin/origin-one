@@ -56,6 +56,7 @@ async function main() {
   console.log('Seeding — Origin Point projects...\n')
 
   // ── Wipe in reverse-dependency order ──────────────────────────────────────
+  await prisma.location.deleteMany()
   await prisma.actionItem.deleteMany()
   await prisma.milestonePerson.deleteMany()
   await prisma.milestone.deleteMany()
@@ -263,6 +264,46 @@ FADE TO BLACK.`,
     { projectId: p1.id, title: 'Insurance certificate delivered to estate owner', assignedTo: marcusWebb.id,  dueDate: new Date('2026-04-12'), status: 'in_progress' },
   ]})
 
+  // P1 — Locations (3)
+  await prisma.location.createMany({ data: [
+    {
+      projectId: p1.id,
+      name: 'Villa Serena — Bel Air Estate',
+      description: 'Mediterranean-revival estate with infinity pool, marble terraces, and golden hour light through floor-to-ceiling windows. Hero location for the talent walk-through and product reveal.',
+      address: '1240 Bel Air Rd, Los Angeles, CA 90077',
+      keyContact: 'Patricia Hahn — Estate Rep — (310) 555-0188',
+      shootDates: 'Apr 14–15',
+      status: 'booked',
+      approved: true,
+      notes: 'Load-in via service entrance on Copa de Oro. 20-amp circuits in east wing only — bring distro. Pool must be camera-ready by 6am call.',
+      sortOrder: 0,
+    },
+    {
+      projectId: p1.id,
+      name: 'Milk Studios — Stage 3',
+      description: 'Controlled studio environment for product close-ups, beauty lighting setups, and packshot photography. White cyc with overhead rig.',
+      address: '1200 E 8th St, Los Angeles, CA 90021',
+      keyContact: 'Studio bookings — (213) 555-0230',
+      shootDates: 'Apr 16',
+      status: 'booked',
+      approved: true,
+      notes: '12-hour hold confirmed. Makeup and talent holding in Suite B. Product samples arrive morning of.',
+      sortOrder: 1,
+    },
+    {
+      projectId: p1.id,
+      name: 'Greystone Mansion Gardens',
+      description: 'Formal English garden with stone pergola and hedgerows. Secondary outdoor coverage for lifestyle B-roll — soft, editorial, natural light.',
+      address: '905 Loma Vista Dr, Beverly Hills, CA 90210',
+      keyContact: 'Beverly Hills Rec & Parks — (310) 555-0145',
+      shootDates: 'Apr 17',
+      status: 'in_talks',
+      approved: false,
+      notes: 'Film permit application submitted. $2,500/day fee. No vehicles past the gate — grip carts only. Rain date TBD.',
+      sortOrder: 2,
+    },
+  ]})
+
   // ══════════════════════════════════════════════════════════════════════════
   // PROJECT 2 — FULL SEND
   // Client: Vanta  Status: Production  Day 2 of 3  Run-and-gun
@@ -425,6 +466,46 @@ CUT TO BLACK.`,
     { projectId: p2.id, title: 'Day 1 selects log created for editor',           assignedTo: jakeMorales.id, dueDate: new Date('2026-04-12'), status: 'open' },
     { projectId: p2.id, title: 'Book edit suite for post',                       assignedTo: caseyLin.id,    dueDate: new Date('2026-04-12'), status: 'open' },
     { projectId: p2.id, title: 'Confirm music license direction with Vanta',     assignedTo: caseyLin.id,    dueDate: new Date('2026-04-14'), status: 'open' },
+  ]})
+
+  // P2 — Locations (3)
+  await prisma.location.createMany({ data: [
+    {
+      projectId: p2.id,
+      name: 'Venice Beach Skatepark',
+      description: 'Iconic concrete bowl and street course. High-energy skate segment — wide-angle hero shots and tracking coverage.',
+      address: '1800 Ocean Front Walk, Venice, CA 90291',
+      keyContact: 'LA Parks Film Unit — (213) 555-0310',
+      shootDates: 'Apr 10 (completed)',
+      status: 'booked',
+      approved: true,
+      notes: 'Permit #F-2026-4410. Dawn patrol — exclusive access 5:30–8:30am before public opens. Talent: Kai Reeves.',
+      sortOrder: 0,
+    },
+    {
+      projectId: p2.id,
+      name: 'Turnbull Canyon Trail',
+      description: 'Rugged single-track through coastal sage scrub. Mountain bike downhill segment — chase car rig and drone.',
+      address: 'Turnbull Canyon Rd, Whittier, CA 90601',
+      keyContact: 'Puente Hills Preserve — (562) 555-0177',
+      shootDates: 'Apr 11 (completed)',
+      status: 'booked',
+      approved: true,
+      notes: 'Drone FAA waiver approved. Trail closed to public 6–10am. Medic on standby — steep terrain.',
+      sortOrder: 1,
+    },
+    {
+      projectId: p2.id,
+      name: 'DTLA Rooftop Court',
+      description: 'Private rooftop basketball court with downtown skyline backdrop. Final segment — golden hour, wide establishing and tight action cuts.',
+      address: '888 S Hope St, Los Angeles, CA 90017 (roof level)',
+      keyContact: 'Building management — Derek Sato — (213) 555-0442',
+      shootDates: 'Apr 12',
+      status: 'scouting',
+      approved: false,
+      notes: 'Scouted Apr 8. Access via freight elevator. Weight limit 3,000 lbs for gear. Backup: Grand Park courts.',
+      sortOrder: 2,
+    },
   ]})
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -593,6 +674,51 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
     { projectId: p3.id, title: 'Temp music selects for assembly',                  assignedTo: eliseMarchetti.id, dueDate: new Date('2026-04-19'), status: 'open' },
     { projectId: p3.id, title: 'Archival wine footage licensing',                  assignedTo: luciaFontaine.id, dueDate: new Date('2026-04-18'), status: 'open' },
   ]})
+
+  // P3 — Locations (3)
+  await prisma.location.createMany({ data: [
+    {
+      projectId: p3.id,
+      name: 'Oakville Estate Vineyard',
+      description: 'Heritage vineyard with century-old vines. Main interview location for Day 1. Golden hour light through the rows.',
+      address: '7801 St. Helena Hwy, Oakville, CA 94562',
+      keyContact: 'Margaret Hess — Estate Manager — (707) 555-0142',
+      shootDates: 'Apr 10 (completed)',
+      status: 'booked',
+      approved: true,
+      notes: 'Gate code: 4418. Park in the gravel lot past the barn. No drones without 48h notice.',
+      sceneTab: 'The Vine',
+      sortOrder: 0,
+    },
+    {
+      projectId: p3.id,
+      name: 'St. Helena Barrel Cellar',
+      description: 'Underground barrel aging room. Low ceilings, dramatic side light from small windows. Interview with the winemaker here.',
+      address: '1220 Adams St, St. Helena, CA 94574',
+      keyContact: 'Dan Moretti — Head Winemaker — (707) 555-0287',
+      shootDates: 'Apr 11 (today)',
+      status: 'booked',
+      approved: true,
+      notes: 'Temperature controlled — no hot lights. LED panels only. Access via loading dock on Adams St.',
+      sceneTab: 'The Cellar',
+      sortOrder: 1,
+    },
+    {
+      projectId: p3.id,
+      name: 'Silverado Trail Vista Point',
+      description: 'Elevated overlook with panoramic valley views. Final driving sequence and closing shots.',
+      address: 'Silverado Trail, near Deer Park Rd, Napa, CA',
+      keyContact: 'Lucia Fontaine — permit on file',
+      shootDates: 'Apr 12',
+      status: 'in_talks',
+      approved: false,
+      notes: 'County film permit submitted. Awaiting confirmation. Backup: pull-off at mile marker 22.',
+      sceneTab: 'The Road',
+      sortOrder: 2,
+    },
+  ]})
+
+  console.log('  P3: + 3 locations')
 
   // ══════════════════════════════════════════════════════════════════════════
   // PROJECT 4 — FLEXIBILITY COURSE A
@@ -766,6 +892,46 @@ END EPISODE 1.`,
     { projectId: p4.id, title: 'Series template locked after Ep 1 review',        assignedTo: simonePark.id, dueDate: new Date('2026-04-28'), status: 'open' },
   ]})
 
+  // P4 — Locations (3)
+  await prisma.location.createMany({ data: [
+    {
+      projectId: p4.id,
+      name: 'The Stillpoint — Private Studio',
+      description: 'Kaia\'s personal yoga studio. Clean white walls, polished concrete floor, north-facing windows. Primary teaching location for all six episodes.',
+      address: '4521 York Blvd, Suite 200, Los Angeles, CA 90042',
+      keyContact: 'Kaia Mori — (323) 555-0198',
+      shootDates: 'Apr 20–21',
+      status: 'booked',
+      approved: true,
+      notes: 'Studio holds 8 people max including crew. No shoes past the threshold. Temperature must stay at 72°F for talent comfort.',
+      sortOrder: 0,
+    },
+    {
+      projectId: p4.id,
+      name: 'Point Dume Blufftop',
+      description: 'Coastal cliffside with panoramic ocean views. Outdoor practice sequence — sunrise shoot. Wind-protected clearing above the cove.',
+      address: 'Point Dume State Beach, Malibu, CA 90265',
+      keyContact: 'CA State Parks — Permit desk — (818) 555-0290',
+      shootDates: 'Apr 22',
+      status: 'booked',
+      approved: true,
+      notes: 'Film permit #SP-26-0414. Call time 5:15am for sunrise at 6:12am. Talent warming area in parking lot. No generator — battery power only.',
+      sortOrder: 1,
+    },
+    {
+      projectId: p4.id,
+      name: 'Minimalist Home — Silver Lake',
+      description: 'Mid-century modern interior. Large windows, warm wood floors, minimal furnishing. Episode 3 home practice environment — intimate, personal.',
+      address: 'Silver Lake, Los Angeles (address TBD)',
+      keyContact: 'Location scout pending',
+      shootDates: 'Apr 24',
+      status: 'in_talks',
+      approved: false,
+      notes: 'Three options scouted. Awaiting homeowner confirmation. Must have living room clear of furniture for full-body framing.',
+      sortOrder: 2,
+    },
+  ]})
+
   // ══════════════════════════════════════════════════════════════════════════
   // PROJECT 5 — NATURAL ORDER
   // Client: Meridian Climate  Status: Post-Production  Post-only sizzle
@@ -923,6 +1089,11 @@ FADE TO BLACK.`,
     { projectId: p5.id, title: 'Lower thirds and supers design',               assignedTo: cleoStrand.id, dueDate: new Date('2026-04-14'), status: 'open' },
     { projectId: p5.id, title: 'End card and Meridian logo lockup',            assignedTo: cleoStrand.id, dueDate: new Date('2026-04-14'), status: 'open' },
     { projectId: p5.id, title: 'Export specs confirmed with Meridian team',    assignedTo: rafiTorres.id, dueDate: new Date('2026-04-20'), status: 'open' },
+  ]})
+
+  // ── P5 Locations ────────────────────────────────────────────────────────
+  await prisma.location.createMany({ data: [
+    { projectId: p5.id, name: 'Westside Post — Suite 4', address: '1432 2nd St, Santa Monica, CA 90401', status: 'booked', approved: true, description: 'Dedicated edit suite with 5.1 monitoring and Resolve grading bay. Booked for two-week finishing window.', keyContact: 'Lena Marsh — Facility Manager', shootDates: 'Apr 14–25', sceneTab: 'Post', sortOrder: 1 },
   ]})
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1183,6 +1354,14 @@ FADE TO BLACK.`,
     { projectId: p6.id, title: 'Festival delivery specs — DCP + digital',          assignedTo: jessHuang.id,  dueDate: new Date('2026-05-25'), status: 'open' },
   ]})
 
+  // ── P6 Locations ────────────────────────────────────────────────────────
+  await prisma.location.createMany({ data: [
+    { projectId: p6.id, name: 'Industrial Warehouse — Vernon', address: '2801 E Vernon Ave, Vernon, CA 90058', status: 'booked', approved: true, description: 'Raw concrete interior, 30-ft ceilings, loading dock. Dressed as the Fracture workshop. Days 1–2 primary.', keyContact: 'Tony Gutierrez — Owner', shootDates: 'Apr 11–12', sceneTab: 'INT', sortOrder: 1 },
+    { projectId: p6.id, name: 'City Street — 6th & Spring', address: '600 S Spring St, Los Angeles, CA 90014', status: 'booked', approved: true, description: 'DTLA night exterior. Wet-down permitted. Film LA permit locked for overnight Apr 13 22:00–05:00.', keyContact: 'Film LA — Permit #FL-26-4481', shootDates: 'Apr 13 (overnight)', sceneTab: 'EXT Night', sortOrder: 2 },
+    { projectId: p6.id, name: 'Brutalist Apartment — Crenshaw', address: '3450 W 43rd Pl, Los Angeles, CA 90008', status: 'in_talks', approved: false, description: 'Mid-century brutalist exterior and stairwell. Backup for protagonist apartment block. Owner interested, rate TBD.', keyContact: 'Diana Kwon — Building Manager', shootDates: 'TBD', sceneTab: 'EXT', sortOrder: 3 },
+    { projectId: p6.id, name: 'Underground Parking — Bunker Hill', address: '333 S Hope St, Los Angeles, CA 90071', status: 'scouting', approved: false, description: 'Subterranean parking structure, fluorescent lighting, deep shadows. Potential chase sequence location.', keyContact: 'Property mgmt contacted — awaiting response', shootDates: 'TBD', sceneTab: 'INT', sortOrder: 4 },
+  ]})
+
   // ── Final count ───────────────────────────────────────────────────────────
   const counts = {
     projects:       await prisma.project.count(),
@@ -1195,6 +1374,7 @@ FADE TO BLACK.`,
     projectMembers: await prisma.projectMember.count(),
     milestones:     await prisma.milestone.count(),
     actionItems:    await prisma.actionItem.count(),
+    locations:      await prisma.location.count(),
   }
 
   console.log('  ─────────────────────────────')
@@ -1208,6 +1388,7 @@ FADE TO BLACK.`,
   console.log(`  ProjectMembers:  ${counts.projectMembers}`)
   console.log(`  Milestones:      ${counts.milestones}`)
   console.log(`  ActionItems:     ${counts.actionItems}`)
+  console.log(`  Locations:       ${counts.locations}`)
   console.log('  ─────────────────────────────')
   console.log('  Done.\n')
 }

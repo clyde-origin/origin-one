@@ -164,6 +164,7 @@ model Project {
   milestones  Milestone[]
   actionItems ActionItem[]
   threads     Thread[]
+  locations     Location[]
   folders       Folder[]
   resources     Resource[]
   moodboardRefs MoodboardRef[]
@@ -306,6 +307,29 @@ model MoodboardRef {
   imageUrl  String?
   gradient  String?
   createdAt DateTime     @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ─── Locations ─────────────────────────────────────────────────────────────
+
+model Location {
+  id          String   @id @default(uuid())
+  projectId   String
+  name        String
+  description String?
+  address     String?
+  keyContact  String?
+  webLink     String?
+  shootDates  String?
+  status      String   @default("no_contact")
+  approved    Boolean  @default(false)
+  notes       String?
+  imageUrl    String?
+  sceneTab    String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }

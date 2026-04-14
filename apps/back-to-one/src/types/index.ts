@@ -24,7 +24,7 @@ export type SceneMakerMode = 'script' | 'shotlist' | 'storyboard'
 
 export type ShotOrderMode = 'story' | 'shooting'
 
-export type LocationStatus = 'Scouted' | 'Option' | 'Selected' | 'Confirmed'
+export type LocationStatus = 'booked' | 'in_talks' | 'scouting' | 'no_contact'
 
 export type CastStatus = 'Uncast' | 'Hold' | 'Confirmed'
 
@@ -209,22 +209,23 @@ export interface MoodboardRef {
   createdAt: string
 }
 
-export interface LocationGroup {
+export interface Location {
   id: string
   projectId: string
-  scriptLocation: string
-  type: 'VFX / Stage Build' | 'Practical' | 'Mixed'
-  options: LocationOption[]
-}
-
-export interface LocationOption {
-  id: string
-  locationGroupId: string
   name: string
+  description: string | null
+  address: string | null
+  keyContact: string | null
+  webLink: string | null
+  shootDates: string | null
   status: LocationStatus
-  gradient: string
-  note: string
+  approved: boolean
+  notes: string | null
+  imageUrl: string | null
+  sceneTab: string | null
+  sortOrder: number
   createdAt: string
+  updatedAt: string
 }
 
 export interface CastRole {

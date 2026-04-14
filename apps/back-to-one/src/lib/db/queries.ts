@@ -542,8 +542,63 @@ export async function createMoodboardRef(
   if (error) { console.error('createMoodboardRef failed:', error); throw error }
   return data
 }
-export async function getLocationGroups(_projectId: string): Promise<any[]> { return [] }
-export async function updateLocationStatus(_optionId: string, _status: string) {}
+// ── LOCATIONS ─────────────────────────────────────────────
+
+export async function getLocations(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Location')
+    .select('*')
+    .eq('projectId', projectId)
+    .order('sortOrder', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function createLocation(
+  loc: { projectId: string; name: string; description?: string; address?: string; keyContact?: string; webLink?: string; shootDates?: string; status?: string; approved?: boolean; notes?: string; imageUrl?: string | null; sceneTab?: string | null; sortOrder?: number }
+) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Location')
+    .insert({
+      projectId: loc.projectId,
+      name: loc.name,
+      description: loc.description ?? null,
+      address: loc.address ?? null,
+      keyContact: loc.keyContact ?? null,
+      webLink: loc.webLink ?? null,
+      shootDates: loc.shootDates ?? null,
+      status: loc.status ?? 'no_contact',
+      approved: loc.approved ?? false,
+      notes: loc.notes ?? null,
+      imageUrl: loc.imageUrl ?? null,
+      sceneTab: loc.sceneTab ?? null,
+      sortOrder: loc.sortOrder ?? 0,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createLocation failed:', error); throw error }
+  return data
+}
+
+export async function updateLocation(
+  id: string,
+  fields: { name?: string; description?: string | null; address?: string | null; keyContact?: string | null; webLink?: string | null; shootDates?: string | null; status?: string; approved?: boolean; notes?: string | null; imageUrl?: string | null; sceneTab?: string | null; sortOrder?: number }
+): Promise<void> {
+  const db = createClient()
+  const { error } = await db
+    .from('Location')
+    .update(fields)
+    .eq('id', id)
+  if (error) { console.error('updateLocation failed:', error); throw error }
+}
+
+export async function deleteLocation(id: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('Location').delete().eq('id', id)
+  if (error) { console.error('deleteLocation failed:', error); throw error }
+}
 export async function getCastRoles(_projectId: string): Promise<any[]> { return [] }
 export async function updateCastRole(_id: string, _updates: any) {}
 export async function getArtItems(_projectId: string): Promise<any[]> { return [] }

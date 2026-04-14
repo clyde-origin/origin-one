@@ -655,8 +655,8 @@ export function HubContent({ projectId }: { projectId: string }) {
   if (loadingProject) return <HubSkeleton />
   if (!project) return <div className="screen flex items-center justify-center"><p className="text-muted font-mono text-xs">Project not found</p></div>
 
-  const locConfirmed = allLocations.reduce((n: number, g: any) => n + (g.options?.filter((o: any) => o.status === 'Confirmed').length ?? 0), 0)
-  const locTotal = allLocations.reduce((n: number, g: any) => n + (g.options?.length ?? 0), 0)
+  const locConfirmed = allLocations.filter((l: any) => l.status === 'booked').length
+  const locTotal = allLocations.length
   const artApproved = allArt.filter(a => a.status === 'Approved').length
   const castConfirmed = allCast.filter(r => r.status === 'Confirmed').length
 
@@ -888,10 +888,19 @@ export function HubContent({ projectId }: { projectId: string }) {
                   emptyIcon="📍"
                   href={`/projects/${projectId}/locations`}
                   renderItem={(loc: any) => (
-                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
-                      <span style={{ fontSize: '0.50rem', fontWeight: 600, color: '#dddde8', textAlign: 'center' }}>{loc.scriptLocation ?? loc.name ?? ''}</span>
-                      <span className="font-mono" style={{ fontSize: '0.34rem', color: '#62627a', marginTop: 2 }}>{loc.type ?? ''}</span>
-                    </div>
+                    loc.imageUrl ? (
+                      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                        <img src={loc.imageUrl} alt={loc.name} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }} />
+                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '4px 6px', background: 'linear-gradient(transparent, rgba(0,0,0,0.7))' }}>
+                          <span style={{ fontSize: '0.38rem', fontWeight: 600, color: '#dddde8' }}>{loc.name}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
+                        <span style={{ fontSize: '0.50rem', fontWeight: 600, color: '#dddde8', textAlign: 'center' }}>{loc.name ?? ''}</span>
+                        <span className="font-mono capitalize" style={{ fontSize: '0.34rem', color: '#62627a', marginTop: 2 }}>{loc.status?.replace('_', ' ') ?? ''}</span>
+                      </div>
+                    )
                   )}
                 />
 

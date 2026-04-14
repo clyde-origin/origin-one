@@ -372,8 +372,33 @@ export function useWorkflowNodes(projectId: string) {
 export function useLocations(projectId: string) {
   return useQuery({
     queryKey: keys.locations(projectId),
-    queryFn:  () => db.getLocationGroups(projectId),
+    queryFn:  () => db.getLocations(projectId),
     enabled:  !!projectId,
+  })
+}
+
+export function useCreateLocation(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createLocation,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.locations(projectId) }),
+  })
+}
+
+export function useUpdateLocation(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: Parameters<typeof db.updateLocation>[1] }) =>
+      db.updateLocation(id, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.locations(projectId) }),
+  })
+}
+
+export function useDeleteLocation(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteLocation,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.locations(projectId) }),
   })
 }
 
@@ -415,14 +440,6 @@ export function useCreateMoodboardRef(projectId: string) {
   })
 }
 
-export function useUpdateLocationStatus(projectId: string) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ optionId, status }: { optionId: string; status: string }) =>
-      db.updateLocationStatus(optionId, status),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.locations(projectId) }),
-  })
-}
 
 // ── GLOBAL QUERIES (cross-project) ────────────────────────
 
