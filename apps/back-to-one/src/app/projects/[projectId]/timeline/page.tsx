@@ -197,7 +197,7 @@ function MilestoneDetailSheet({ milestone, crew, accent, onClose }: {
               const name = c.User?.name ?? 'Unknown'
               return (
                 <button key={c.id} className="flex items-center cursor-pointer select-none transition-all"
-                  style={{ gap: 5, padding: '4px 9px', borderRadius: 20, fontSize: '0.48rem', letterSpacing: '0.04em', fontFamily: 'var(--font-dm-mono), monospace',
+                  style={{ gap: 5, padding: '4px 9px', borderRadius: 20, fontSize: '0.48rem', letterSpacing: '0.04em', fontFamily: 'var(--font-geist-mono), monospace',
                     background: tagged ? `${accent}1f` : 'rgba(255,255,255,0.04)', border: `1px solid ${tagged ? `${accent}4d` : 'rgba(255,255,255,0.05)'}`, color: tagged ? accent : '#62627a' }}
                   onClick={() => toggleTag(c.id)}>
                   <div className="rounded-full" style={{ width: 5, height: 5, background: tagged ? accent : '#62627a' }} />

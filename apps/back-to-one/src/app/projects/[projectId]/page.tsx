@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getShotsByProject } from '@/lib/db/queries'
 import {
-  useProject, useActionItems, useToggleActionItem, useCreateActionItem, useMilestones, useCreateMilestone, useCrew,
+  useProjects, useProject, useActionItems, useToggleActionItem, useCreateActionItem, useMilestones, useCreateMilestone, useCrew,
   useScenes, useMoodboard, useThreads,
   useLocations, useArtItems, useCastRoles, useWorkflowNodes,
 } from '@/lib/hooks/useOriginOne'
@@ -50,7 +50,7 @@ function ModuleHeader({ name, meta }: { name: string; meta?: string }) {
         <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#dddde8' }}>{name}</span>
       </div>
       {meta && (
-        <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>
+        <span className="font-mono" style={{ fontSize: '0.50rem', color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>
           {meta}
         </span>
       )}
@@ -65,7 +65,7 @@ function SectionHeader({ name, meta }: { name: string; meta?: string }) {
         <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#dddde8' }}>{name}</span>
       </div>
       {meta && (
-        <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>
+        <span className="font-mono" style={{ fontSize: '0.50rem', color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>
           {meta}
         </span>
       )}
@@ -224,23 +224,46 @@ function GanttChart({ milestones, projectStatus }: { milestones: Milestone[]; pr
         </div>
       </div>
 
-      {/* Selected milestone — single row beneath Gantt */}
+      {/* Selected milestone — single row with prev/next chevrons */}
       {selectedMsId && (() => {
-        const ms = milestones.find(m => m.id === selectedMsId)
+        const sorted = [...milestones].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        const idx = sorted.findIndex(m => m.id === selectedMsId)
+        const ms = sorted[idx]
         if (!ms) return null
         const statusColor = ms.status === 'completed' ? '#00b894' : ms.status === 'in_progress' ? '#e8a020' : '#62627a'
         const msDate = new Date(ms.date)
         const daysAway = Math.ceil((msDate.getTime() - today.getTime()) / 86400000)
         const daysLabel = daysAway === 0 ? 'Today' : daysAway === 1 ? 'Tomorrow' : daysAway > 0 ? `${daysAway}d` : `${Math.abs(daysAway)}d ago`
+        const hasPrev = idx > 0
+        const hasNext = idx < sorted.length - 1
         return (
           <div style={{
-            width: '100%', marginTop: 6, display: 'flex', alignItems: 'center', gap: 10,
-            padding: '11px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)',
+            width: '100%', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6,
           }}>
-            <div style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: statusColor }} />
-            <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#dddde8', flex: 1 }}>{ms.title}</span>
-            <span className="font-mono" style={{ fontSize: '0.48rem', color: '#62627a', flexShrink: 0 }}>{fmt(msDate)}</span>
-            <span className="font-mono" style={{ fontSize: '0.46rem', color: statusColor, flexShrink: 0 }}>{daysLabel}</span>
+            {/* Prev chevron */}
+            <div
+              onClick={(e) => { e.stopPropagation(); if (hasPrev) setSelectedMsId(sorted[idx - 1].id) }}
+              style={{ width: 24, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: hasPrev ? 'pointer' : 'default', opacity: hasPrev ? 0.5 : 0.15, flexShrink: 0 }}
+            >
+              <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </div>
+            {/* Milestone row */}
+            <div style={{
+              flex: 1, display: 'flex', alignItems: 'center', gap: 10,
+              padding: '11px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)',
+            }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: statusColor }} />
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#dddde8', flex: 1 }}>{ms.title}</span>
+              <span className="font-mono" style={{ fontSize: '0.48rem', color: '#62627a', flexShrink: 0 }}>{fmt(msDate)}</span>
+              <span className="font-mono" style={{ fontSize: '0.46rem', color: statusColor, flexShrink: 0 }}>{daysLabel}</span>
+            </div>
+            {/* Next chevron */}
+            <div
+              onClick={(e) => { e.stopPropagation(); if (hasNext) setSelectedMsId(sorted[idx + 1].id) }}
+              style={{ width: 24, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: hasNext ? 'pointer' : 'default', opacity: hasNext ? 0.5 : 0.15, flexShrink: 0 }}
+            >
+              <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M1 1L5 5L1 9" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </div>
           </div>
         )
       })()}
@@ -531,6 +554,21 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
   const [selectedCrew, setSelectedCrew] = useState<CrewMember | null>(null)
   const [crewPanelOpen, setCrewPanelOpen] = useState(false)
 
+  // Swipe between projects
+  const { data: allProjectsList } = useProjects()
+  const projectIds = (allProjectsList ?? []).map(p => p.id)
+  const currentIdx = projectIds.indexOf(projectId)
+  const swipeStartX = useRef<number | null>(null)
+  const handleHubTouchStart = (e: React.TouchEvent) => { swipeStartX.current = e.touches[0].clientX }
+  const handleHubTouchEnd = (e: React.TouchEvent) => {
+    if (swipeStartX.current === null) return
+    const dx = e.changedTouches[0].clientX - swipeStartX.current
+    swipeStartX.current = null
+    if (Math.abs(dx) < 80) return
+    if (dx < 0 && currentIdx < projectIds.length - 1) router.push(`/projects/${projectIds[currentIdx + 1]}`)
+    if (dx > 0 && currentIdx > 0) router.push(`/projects/${projectIds[currentIdx - 1]}`)
+  }
+
   const allItems = actionItems ?? [], allMS = milestones ?? [], allCrew = crew ?? []
   const allScenes = scenes ?? []
   const allShots: any[] = (scenesWithShots ?? []).flatMap((s: any) => s.Shot ?? [])
@@ -560,10 +598,10 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
   const artApproved = allArt.filter(a => a.status === 'Approved').length
   const castConfirmed = allCast.filter(r => r.status === 'Confirmed').length
 
-  const cardStyle = { background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, overflow: 'hidden' as const }
+  const cardStyle = { background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' as const }
 
   return (
-    <div className="screen">
+    <div className="screen" onTouchStart={handleHubTouchStart} onTouchEnd={handleHubTouchEnd}>
       {/* ══ CENTER GLOW — 3 stacked radial ellipses ══ */}
       <div style={{
         position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
@@ -639,10 +677,7 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
 
           {/* 1. TIMELINE (first) — item 9: no chevron, item 10: Gantt */}
           <div className="cursor-pointer" onClick={() => router.push(`/projects/${projectId}/timeline`)}>
-            {(() => {
-              const meta = allMS.length > 0 ? `${allMS.length} milestones` : 'Not set'
-              return <ModuleHeader name="Timeline" meta={meta} />
-            })()}
+            <ModuleHeader name="Timeline" meta={new Date().toLocaleDateString('en-US', { weekday: 'short', month: '2-digit', day: '2-digit' }).replace(',', ' ·')} />
             {loadingMS ? (
               <div style={{ ...cardStyle, height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div className="w-4 h-4 rounded-full border border-border2 border-t-accent animate-spin" />
@@ -675,7 +710,7 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
 
           {/* 2. ACTION ITEMS (second) — item 9: no chevron, item 13: assignee pills + navigate */}
           <div className="cursor-pointer" onClick={() => router.push(`/projects/${projectId}/action-items`)}>
-            <ModuleHeader name="Action Items" meta={openItems.length > 0 ? `${openItems.length} open` : 'All clear'} />
+            <ModuleHeader name="My Action Items" meta={openItems.length > 0 ? `${openItems.length} open` : 'All clear'} />
             {loadingAI ? (
               <div style={{ ...cardStyle, height: 148, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div className="w-4 h-4 rounded-full border border-border2 border-t-accent animate-spin" />
@@ -742,7 +777,7 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
               {/* SceneMaker + Tone 50/50 — item 8: labels moved INSIDE panels */}
               <div className="flex" style={{ gap: 8, height: 148 }}>
                 {/* SceneMaker card — item 12: swipeable */}
-                <div className="flex-1 min-w-0 cursor-pointer" style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <div className="flex-1 min-w-0 cursor-pointer" style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                   <SwipeableSceneMaker
                     projectId={projectId}
                     projectColor={projectColor}
@@ -758,7 +793,7 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
                 {/* Tone card */}
                 <Link href={`/projects/${projectId}/moodboard`}
                   className="flex-1 relative overflow-hidden block cursor-pointer active:opacity-90 transition-opacity"
-                  style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, display: 'flex', flexDirection: 'column' }}>
+                  style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, display: 'flex', flexDirection: 'column' }}>
                   {/* Label at top */}
                   <div className="font-mono uppercase" style={{ fontSize: '0.44rem', fontWeight: 700, color: projectColor, letterSpacing: '0.06em', textAlign: 'center', padding: '7px 9px 0', position: 'relative', zIndex: 2 }}>Tone</div>
                   {allMoodRefs.length > 0 ? (
@@ -788,7 +823,7 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
                 ].map(mod => {
                   const isEmpty = mod.ratio === 0 && mod.count.startsWith('0 / 0')
                   return (
-                    <Link key={mod.id} href={`/projects/${projectId}/${mod.id}`} className="flex-1 active:opacity-80 transition-opacity" style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, padding: '12px 9px 10px', minHeight: 90, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <Link key={mod.id} href={`/projects/${projectId}/${mod.id}`} className="flex-1 active:opacity-80 transition-opacity" style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '12px 9px 10px', minHeight: 90, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                       <div className="font-mono uppercase" style={{ fontSize: '0.44rem', fontWeight: 700, color: mod.color, letterSpacing: '0.06em', marginBottom: isEmpty ? 0 : 3 }}>{mod.label}</div>
                       {isEmpty ? (
                         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1052,7 +1087,7 @@ export default function HubPage({ params }: { params: { projectId: string } }) {
           }}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M2.5 2h9a1 1 0 011 1v5a1 1 0 01-1 1H5.5l-3 2.5V3a1 1 0 011-1z" stroke="rgba(255,255,255,0.55)" strokeWidth="1.1" strokeLinejoin="round" />
+            <path d="M3 3h8M3 6h6M3 9h7M3 12h4" stroke="rgba(255,255,255,0.55)" strokeWidth="1.2" strokeLinecap="round" />
           </svg>
           {unreadThreads > 0 && (
             <div style={{ position: 'absolute', top: -1, right: -1, width: 7, height: 7, borderRadius: '50%', background: '#4ab8e8', border: '1.5px solid #04040a' }} />

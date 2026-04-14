@@ -97,7 +97,7 @@ function SlateCard({ project, color, dimmed, editMode, isGhost, isDragging, wigg
 
   if (isGhost) {
     return (
-      <div style={{ borderRadius: 9, border: '1px dashed rgba(255,255,255,0.1)', opacity: 0.18, overflow: 'hidden' }}>
+      <div style={{ borderRadius: 14, border: '1px dashed rgba(255,255,255,0.1)', opacity: 0.18, overflow: 'hidden' }}>
         <div style={{ height: 18 }} />
         <div style={{ height: 90 }} />
       </div>
@@ -121,7 +121,7 @@ function SlateCard({ project, color, dimmed, editMode, isGhost, isDragging, wigg
       {...(editMode ? {} : longPressHandlers)}
       data-project-id={project.id}
       style={{
-        borderRadius: 9, overflow: 'hidden', position: 'relative', cursor: 'pointer',
+        borderRadius: 14, overflow: 'hidden', position: 'relative', cursor: 'pointer',
         display: 'flex', flexDirection: 'column',
         border: `1px solid rgba(255,255,255,${editMode ? '0.1' : '0.06'})`,
         background: 'rgba(10,10,18,0.6)',
@@ -162,7 +162,7 @@ function SlateCard({ project, color, dimmed, editMode, isGhost, isDragging, wigg
                 </div>
               ))}
               {allCrew.length > 5 && (
-                <div style={{ width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.32rem', fontWeight: 600, border: '1px solid rgba(0,0,0,0.5)', marginLeft: -3, fontFamily: 'var(--font-dm-mono)', background: hexToRgba(color, 0.12), color: '#62627a' }}>+{allCrew.length - 5}</div>
+                <div style={{ width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.32rem', fontWeight: 600, border: '1px solid rgba(0,0,0,0.5)', marginLeft: -3, fontFamily: 'var(--font-geist-mono)', background: hexToRgba(color, 0.12), color: '#62627a' }}>+{allCrew.length - 5}</div>
               )}
             </div>
           )}
@@ -405,7 +405,7 @@ export default function ProjectsPage() {
         <div ref={gridRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, padding: '0 14px' }}>
           {isLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="animate-pulse" style={{ aspectRatio: '16/9', borderRadius: 9, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.04)' }}>
+              <div key={i} className="animate-pulse" style={{ aspectRatio: '16/9', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.04)' }}>
                 <div style={{ padding: '20px 8px 8px', display: 'flex', flexDirection: 'column', gap: 4, height: '100%', justifyContent: 'flex-end' }}>
                   <SkeletonLine w={50} h={6} /><SkeletonLine w={80} h={12} /><SkeletonLine w={36} h={10} className="rounded" />
                 </div>

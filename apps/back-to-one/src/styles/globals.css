@@ -22,7 +22,7 @@
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
     @apply bg-bg text-text;
-    font-family: var(--font-manrope), -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -197,7 +197,7 @@
     @apply px-3 py-2.5 text-text outline-none;
     @apply transition-colors duration-150;
     font-size: 0.82rem;
-    font-family: var(--font-manrope);
+    font-family: var(--font-geist-sans);
   }
   .detail-field input:focus,
   .detail-field select:focus,
@@ -234,7 +234,7 @@
 
 /* ── UTILITY LAYER ── */
 @layer utilities {
-  .font-mono { font-family: var(--font-dm-mono), 'SF Mono', ui-monospace, monospace; }
+  .font-mono { font-family: var(--font-geist-mono), 'SF Mono', ui-monospace, monospace; }
   .no-scrollbar { scrollbar-width: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .safe-bottom { padding-bottom: var(--safe-bottom); }

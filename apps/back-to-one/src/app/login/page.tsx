@@ -5,7 +5,7 @@
 export default function LoginPage() {
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-content-center px-8"
+      className="min-h-screen flex flex-col items-center justify-center px-8"
       style={{
         background: '#04040a',
         display: 'flex',
@@ -19,7 +19,7 @@ export default function LoginPage() {
       {/* Wordmark */}
       <div style={{ textAlign: 'center', marginBottom: 44 }}>
         <div style={{
-          fontFamily: 'var(--font-manrope)',
+          fontFamily: 'var(--font-geist-sans)',
           fontSize: '1.65rem',
           fontWeight: 800,
           color: '#6470f3',
@@ -30,7 +30,7 @@ export default function LoginPage() {
           Origin One
         </div>
         <div style={{
-          fontFamily: 'var(--font-dm-mono)',
+          fontFamily: 'var(--font-geist-mono)',
           fontSize: '0.5rem',
           fontWeight: 300,
           color: '#8080a0',
@@ -44,7 +44,7 @@ export default function LoginPage() {
       {/* Form */}
       <div style={{ width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ fontFamily: 'var(--font-dm-mono)', fontSize: '0.48rem', fontWeight: 300, color: '#42425a', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+          <label style={{ fontFamily: 'var(--font-geist-mono)', fontSize: '0.48rem', fontWeight: 300, color: '#42425a', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
             Email
           </label>
           <input
@@ -57,13 +57,13 @@ export default function LoginPage() {
               borderRadius: 9, padding: '12px 14px',
               color: '#dddde8', fontSize: '0.82rem',
               outline: 'none', WebkitAppearance: 'none',
-              fontFamily: 'var(--font-manrope)',
+              fontFamily: 'var(--font-geist-sans)',
             }}
           />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ fontFamily: 'var(--font-dm-mono)', fontSize: '0.48rem', fontWeight: 300, color: '#42425a', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+          <label style={{ fontFamily: 'var(--font-geist-mono)', fontSize: '0.48rem', fontWeight: 300, color: '#42425a', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
             Password
           </label>
           <input
@@ -75,7 +75,7 @@ export default function LoginPage() {
               borderRadius: 9, padding: '12px 14px',
               color: '#dddde8', fontSize: '0.82rem',
               outline: 'none', WebkitAppearance: 'none',
-              fontFamily: 'var(--font-manrope)',
+              fontFamily: 'var(--font-geist-sans)',
             }}
           />
         </div>
@@ -87,7 +87,7 @@ export default function LoginPage() {
             border: 'none', borderRadius: 9,
             color: 'white', fontSize: '0.88rem',
             fontWeight: 700, cursor: 'pointer',
-            fontFamily: 'var(--font-manrope)',
+            fontFamily: 'var(--font-geist-sans)',
           }}
         >
           Sign In
@@ -97,7 +97,7 @@ export default function LoginPage() {
       {/* Footer */}
       <div style={{
         marginTop: 28,
-        fontFamily: 'var(--font-dm-mono)',
+        fontFamily: 'var(--font-geist-mono)',
         fontSize: '0.44rem',
         fontWeight: 300,
         color: 'rgba(66,66,90,0.5)',

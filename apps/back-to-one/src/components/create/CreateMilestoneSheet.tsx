@@ -81,7 +81,7 @@ export function CreateMilestoneSheet({ open, projectId, accent, onSave, onClose 
               <button
                 onClick={handleSave}
                 style={{
-                  fontFamily: 'var(--font-dm-mono)', fontSize: '0.48rem', letterSpacing: '0.06em', textTransform: 'uppercase',
+                  fontFamily: 'var(--font-geist-mono)', fontSize: '0.48rem', letterSpacing: '0.06em', textTransform: 'uppercase',
                   padding: '5px 10px', borderRadius: 20, cursor: canSave ? 'pointer' : 'default',
                   background: canSave ? `${accent}1a` : 'rgba(255,255,255,0.04)',
                   border: `1px solid ${canSave ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
@@ -105,7 +105,7 @@ export function CreateMilestoneSheet({ open, projectId, accent, onSave, onClose 
                 <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Date</label>
                 <input type="date" value={date} onChange={e => setDate(e.target.value)}
                   className="w-full outline-none focus:border-white/20"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', color: '#dddde8', fontSize: '0.78rem', fontFamily: 'var(--font-dm-mono)' }}
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', color: '#dddde8', fontSize: '0.78rem', fontFamily: 'var(--font-geist-mono)' }}
                 />
               </div>
 

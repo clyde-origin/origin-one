@@ -1,21 +1,8 @@
 import type { Metadata, Viewport } from 'next'
-import { Manrope, DM_Mono } from 'next/font/google'
+import { GeistSans } from 'geist/font/sans'
+import { GeistMono } from 'geist/font/mono'
 import { QueryProvider } from '@/lib/query/provider'
 import '@/styles/globals.css'
-
-const manrope = Manrope({
-  subsets: ['latin'],
-  weight: ['400', '600', '700'],
-  variable: '--font-manrope',
-  display: 'swap',
-})
-
-const dmMono = DM_Mono({
-  subsets: ['latin'],
-  weight: ['300', '400', '500'],
-  variable: '--font-dm-mono',
-  display: 'swap',
-})
 
 export const metadata: Metadata = {
   title: { default: 'Back to One', template: '%s · Back to One' },
@@ -43,7 +30,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${manrope.variable} ${dmMono.variable}`}>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

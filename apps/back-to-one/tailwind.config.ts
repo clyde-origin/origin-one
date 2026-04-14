@@ -58,10 +58,10 @@ const config: Config = {
         border3: 'rgba(255,255,255,0.14)',
       },
 
-      // Typography — Manrope + DM Mono (loaded via next/font)
+      // Typography — Geist Sans + Geist Mono
       fontFamily: {
-        sans: ['var(--font-manrope)', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
-        mono: ['var(--font-dm-mono)', 'SF Mono', 'ui-monospace', 'monospace'],
+        sans: ['var(--font-geist-sans)', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        mono: ['var(--font-geist-mono)', 'SF Mono', 'ui-monospace', 'monospace'],
       },
 
       // Type scale

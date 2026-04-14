@@ -119,7 +119,7 @@ export function ProjectActionSheet({ project, onArchive, onDelete, onRename, onC
           }} />
           <div>
             <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#dddde8' }}>{project.name}</div>
-            <div style={{ fontFamily: 'var(--font-dm-mono)', fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>
+            <div style={{ fontFamily: 'var(--font-geist-mono)', fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>
               {project.client}
             </div>
           </div>
@@ -146,7 +146,7 @@ export function ProjectActionSheet({ project, onArchive, onDelete, onRename, onC
             </div>
             <div>
               <div style={{ fontWeight: 600, fontSize: '0.78rem', color: '#dddde8' }}>Change color</div>
-              <div style={{ fontFamily: 'var(--font-dm-mono)', fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.04em', marginTop: 1 }}>18 accent colors</div>
+              <div style={{ fontFamily: 'var(--font-geist-mono)', fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.04em', marginTop: 1 }}>18 accent colors</div>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(9, 1fr)', gap: 7 }}>
@@ -212,7 +212,7 @@ export function ProjectActionSheet({ project, onArchive, onDelete, onRename, onC
           <button
             onClick={handleSaveRename}
             style={{
-              fontFamily: 'var(--font-dm-mono)', fontSize: '0.48rem', color: '#c45adc',
+              fontFamily: 'var(--font-geist-mono)', fontSize: '0.48rem', color: '#c45adc',
               letterSpacing: '0.06em', textTransform: 'uppercase' as const,
               padding: '5px 10px', borderRadius: 20,
               background: 'rgba(196,90,220,0.1)', border: '1px solid rgba(196,90,220,0.25)',
@@ -223,7 +223,7 @@ export function ProjectActionSheet({ project, onArchive, onDelete, onRename, onC
         <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <label style={{
-              fontFamily: 'var(--font-dm-mono)', fontSize: '0.44rem', color: '#62627a',
+              fontFamily: 'var(--font-geist-mono)', fontSize: '0.44rem', color: '#62627a',
               letterSpacing: '0.08em', textTransform: 'uppercase' as const,
               display: 'block', marginBottom: 6,
             }}>Project name</label>
@@ -239,14 +239,14 @@ export function ProjectActionSheet({ project, onArchive, onDelete, onRename, onC
                 width: '100%', background: 'rgba(255,255,255,0.04)',
                 border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7,
                 padding: '10px 12px', color: '#dddde8',
-                fontFamily: 'var(--font-manrope)', fontSize: '0.82rem',
+                fontFamily: 'var(--font-geist-sans)', fontSize: '0.82rem',
                 outline: 'none',
               }}
             />
           </div>
           <div>
             <label style={{
-              fontFamily: 'var(--font-dm-mono)', fontSize: '0.44rem', color: '#62627a',
+              fontFamily: 'var(--font-geist-mono)', fontSize: '0.44rem', color: '#62627a',
               letterSpacing: '0.08em', textTransform: 'uppercase' as const,
               display: 'block', marginBottom: 6,
             }}>Client</label>
@@ -261,7 +261,7 @@ export function ProjectActionSheet({ project, onArchive, onDelete, onRename, onC
                 width: '100%', background: 'rgba(255,255,255,0.04)',
                 border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7,
                 padding: '10px 12px', color: '#dddde8',
-                fontFamily: 'var(--font-manrope)', fontSize: '0.82rem',
+                fontFamily: 'var(--font-geist-sans)', fontSize: '0.82rem',
                 outline: 'none',
               }}
             />
@@ -285,7 +285,7 @@ export function ProjectActionSheet({ project, onArchive, onDelete, onRename, onC
           Archive &ldquo;{project.name}&rdquo;?
         </div>
         <div style={{
-          fontFamily: 'var(--font-dm-mono)', fontSize: '0.48rem', color: '#62627a',
+          fontFamily: 'var(--font-geist-mono)', fontSize: '0.48rem', color: '#62627a',
           letterSpacing: '0.04em', padding: '0 24px 20px', lineHeight: 1.6,
         }}>
           Hide from active projects. You can restore from settings.
@@ -326,7 +326,7 @@ export function ProjectActionSheet({ project, onArchive, onDelete, onRename, onC
           Delete &ldquo;{project.name}&rdquo;?
         </div>
         <div style={{
-          fontFamily: 'var(--font-dm-mono)', fontSize: '0.48rem', color: '#62627a',
+          fontFamily: 'var(--font-geist-mono)', fontSize: '0.48rem', color: '#62627a',
           letterSpacing: '0.04em', padding: '0 24px 20px', lineHeight: 1.6,
         }}>
           All data permanently removed. This cannot be undone.
@@ -384,7 +384,7 @@ function ActionRow({ icon, iconBg, label, labelColor, sub, onClick, showChevron,
       </div>
       <div style={{ flex: 1 }}>
         <div style={{ fontWeight: 600, fontSize: '0.78rem', color: labelColor || '#dddde8' }}>{label}</div>
-        <div style={{ fontFamily: 'var(--font-dm-mono)', fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.04em', marginTop: 1 }}>{sub}</div>
+        <div style={{ fontFamily: 'var(--font-geist-mono)', fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.04em', marginTop: 1 }}>{sub}</div>
       </div>
       {showChevron && (
         <svg style={{ opacity: 0.2, marginLeft: 'auto', flexShrink: 0 }} width="5" height="9" viewBox="0 0 5 9" fill="none">
