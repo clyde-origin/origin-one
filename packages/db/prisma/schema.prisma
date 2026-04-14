@@ -260,6 +260,7 @@ model ActionItem {
   description String?
   status      ActionItemStatus @default(open)
   assignedTo  String?
+  department  String?
   dueDate     DateTime?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt

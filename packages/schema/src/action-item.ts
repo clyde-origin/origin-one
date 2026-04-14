@@ -15,6 +15,7 @@ export const ActionItem = z.object({
   description: z.string().nullable(),
   status: ActionItemStatus,
   assignedTo: z.string().uuid().nullable(),
+  department: z.string().nullable(),
   dueDate: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),

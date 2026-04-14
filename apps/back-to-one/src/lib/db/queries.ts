@@ -216,7 +216,7 @@ export async function toggleActionItem(id: string, done: boolean): Promise<void>
 
 export async function updateActionItem(
   id: string,
-  fields: { title?: string; description?: string; assignedTo?: string | null; dueDate?: string | null; status?: string }
+  fields: { title?: string; description?: string; assignedTo?: string | null; department?: string | null; dueDate?: string | null; status?: string }
 ): Promise<void> {
   const db = createClient()
   const { error } = await db
@@ -227,7 +227,7 @@ export async function updateActionItem(
 }
 
 export async function createActionItem(
-  item: { projectId: string; title: string; description?: string; assignedTo?: string | null; dueDate?: string | null }
+  item: { projectId: string; title: string; description?: string; assignedTo?: string | null; department?: string | null; dueDate?: string | null }
 ) {
   const db = createClient()
   const { data, error } = await db
@@ -237,6 +237,7 @@ export async function createActionItem(
       title: item.title,
       description: item.description ?? null,
       assignedTo: item.assignedTo ?? null,
+      department: item.department ?? null,
       dueDate: item.dueDate ?? null,
     })
     .select()

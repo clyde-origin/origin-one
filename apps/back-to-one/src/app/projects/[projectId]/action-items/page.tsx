@@ -12,7 +12,9 @@ import { formatDate, isLate, getProjectColor, statusLabel, statusHex } from '@/l
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import type { ActionItem, TeamMember } from '@/types'
 
-type Tab = 'me' | 'upcoming'
+type Tab = 'me' | 'upcoming' | 'dept'
+
+const DEPT_OPTIONS = ['Direction', 'Production', 'Camera', 'Sound', 'Art', 'Wardrobe', 'HMU', 'Post', 'Other'] as const
 
 // ── TASK ROW ──────────────────────────────────────────────
 
@@ -146,30 +148,36 @@ function TaskDetailSheet({ item, crew, accent, projectId, onClose, onToggle }: {
           )}
         </div>
 
-        {/* Assignee — tap to change */}
-        <div className="flex items-start gap-3">
+        {/* Assignee — compact dropdown */}
+        <div className="flex items-start gap-3" style={{ position: 'relative' }}>
           <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.46rem', color: '#62627a', letterSpacing: '0.08em', width: 68, paddingTop: 1 }}>Assignee</span>
-          {editAssignee ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flex: 1 }}>
-              <button onClick={() => saveAssignee(null)}
-                className="font-mono"
-                style={{ fontSize: '0.42rem', padding: '4px 8px', borderRadius: 16, background: !item.assignedTo ? `${accent}1a` : 'rgba(255,255,255,0.04)', border: `1px solid ${!item.assignedTo ? `${accent}40` : 'rgba(255,255,255,0.05)'}`, color: !item.assignedTo ? accent : '#62627a', cursor: 'pointer' }}
-              >None</button>
-              {crew.map(c => (
-                <button key={c.id} onClick={() => saveAssignee(c.userId)}
-                  className="font-mono"
-                  style={{ fontSize: '0.42rem', padding: '4px 8px', borderRadius: 16, background: (item.assignedTo === c.userId || item.assignedTo === c.id) ? `${accent}1a` : 'rgba(255,255,255,0.04)', border: `1px solid ${(item.assignedTo === c.userId || item.assignedTo === c.id) ? `${accent}40` : 'rgba(255,255,255,0.05)'}`, color: (item.assignedTo === c.userId || item.assignedTo === c.id) ? accent : '#62627a', cursor: 'pointer' }}
-                >{c.User?.name ?? 'Unknown'}</button>
-              ))}
-            </div>
-          ) : (
-            <span
-              onClick={() => setEditAssignee(true)}
-              style={{ fontSize: '0.78rem', fontWeight: 600, color: '#dddde8', cursor: 'pointer', borderBottom: '1px dashed rgba(255,255,255,0.1)', paddingBottom: 1 }}
+          <div style={{ flex: 1, position: 'relative' }}>
+            <button
+              onClick={() => setEditAssignee(!editAssignee)}
+              style={{
+                fontSize: '0.78rem', fontWeight: 600, color: '#dddde8', cursor: 'pointer',
+                borderBottom: '1px dashed rgba(255,255,255,0.1)', paddingBottom: 1,
+                display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', borderBottomWidth: 1, borderBottomStyle: 'dashed', borderBottomColor: 'rgba(255,255,255,0.1)',
+              }}
             >
               {assignee ? assignee.User?.name : '—'}
-            </span>
-          )}
+              <svg width="8" height="5" viewBox="0 0 8 5" fill="none" style={{ opacity: 0.3 }}><path d="M1 1L4 4L7 1" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+            {editAssignee && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, marginTop: 4,
+                background: '#151520', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10,
+                maxHeight: 180, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+              }}>
+                <div onClick={() => saveAssignee(null)} style={{ padding: '9px 14px', cursor: 'pointer', color: !item.assignedTo ? accent : '#a0a0b8', fontSize: '0.74rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Unassigned</div>
+                {crew.map(c => (
+                  <div key={c.id} onClick={() => saveAssignee(c.userId)} style={{ padding: '9px 14px', cursor: 'pointer', color: (item.assignedTo === c.userId || item.assignedTo === c.id) ? accent : '#a0a0b8', fontSize: '0.74rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    {c.User?.name ?? 'Unknown'}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {item.description && (
@@ -265,6 +273,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
         {([
           { key: 'me' as Tab, label: 'Me', count: myItems.length },
           { key: 'upcoming' as Tab, label: 'Upcoming', count: openItems.length },
+          { key: 'dept' as Tab, label: 'Dept', count: Array.from(new Set(openItems.map(i => i.department).filter(Boolean))).length },
         ]).map(t => (
           <button
             key={t.key}
@@ -344,6 +353,39 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                   </>
                 )}
                 {openItems.length === 0 && <EmptyState text="Nothing upcoming" />}
+              </>
+            )}
+
+            {/* DEPT TAB */}
+            {tab === 'dept' && (
+              <>
+                {DEPT_OPTIONS.map(dept => {
+                  const deptItems = openItems.filter(i => i.department === dept)
+                  if (deptItems.length === 0) return null
+                  return (
+                    <div key={dept}>
+                      <BucketDivider label={dept} />
+                      {deptItems.map(item => (
+                        <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew}
+                          onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />
+                      ))}
+                    </div>
+                  )
+                })}
+                {(() => {
+                  const untagged = openItems.filter(i => !i.department)
+                  if (untagged.length === 0) return null
+                  return (
+                    <div>
+                      <BucketDivider label="No Department" />
+                      {untagged.map(item => (
+                        <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew}
+                          onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />
+                      ))}
+                    </div>
+                  )
+                })()}
+                {openItems.length === 0 && <EmptyState text="No items" />}
               </>
             )}
           </>

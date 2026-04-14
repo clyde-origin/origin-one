@@ -201,7 +201,7 @@ export function useCreateActionItem(projectId: string) {
 export function useUpdateActionItem(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: { title?: string; description?: string; assignedTo?: string | null; dueDate?: string | null; status?: string } }) =>
+    mutationFn: ({ id, fields }: { id: string; fields: { title?: string; description?: string; assignedTo?: string | null; department?: string | null; dueDate?: string | null; status?: string } }) =>
       db.updateActionItem(id, fields),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.actionItems(projectId) }),
   })

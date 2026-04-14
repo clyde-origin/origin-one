@@ -5,28 +5,32 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/utils/haptics'
 import type { TeamMember, ActionItemStatus } from '@/types'
 
+const DEPARTMENTS = ['Direction', 'Production', 'Camera', 'Sound', 'Art', 'Wardrobe', 'HMU', 'Post', 'Other'] as const
+
 interface CreateTaskSheetProps {
   open: boolean
   projectId: string
   accent: string
   crew: TeamMember[]
-  onSave: (data: { projectId: string; title: string; assignedTo: string | null; dueDate: string | null; description: string; status: ActionItemStatus }) => void
+  onSave: (data: { projectId: string; title: string; assignedTo: string | null; department: string | null; dueDate: string | null; description: string; status: ActionItemStatus }) => void
   onClose: () => void
 }
 
 export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose }: CreateTaskSheetProps) {
   const [title, setTitle] = useState('')
   const [assignedTo, setAssignedTo] = useState<string | null>(null)
+  const [department, setDepartment] = useState<string | null>(null)
   const [dueDate, setDueDate] = useState('')
-  const [priority, setPriority] = useState<'normal' | 'high'>('normal')
   const [description, setDescription] = useState('')
+  const [showAssigneePicker, setShowAssigneePicker] = useState(false)
 
   const canSave = title.trim().length > 0
+  const assigneeName = assignedTo ? crew.find(c => c.userId === assignedTo)?.User?.name ?? 'Unknown' : 'Unassigned'
 
   function handleSave() {
     if (!canSave) return
     haptic('light')
-    onSave({ projectId, title: title.trim(), assignedTo, dueDate: dueDate || null, description, status: 'open' })
+    onSave({ projectId, title: title.trim(), assignedTo, department, dueDate: dueDate || null, description, status: 'open' })
     resetForm()
   }
 
@@ -36,7 +40,7 @@ export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose
   }
 
   function resetForm() {
-    setTitle(''); setAssignedTo(null); setDueDate(''); setPriority('normal'); setDescription('')
+    setTitle(''); setAssignedTo(null); setDepartment(null); setDueDate(''); setDescription(''); setShowAssigneePicker(false)
   }
 
   function handleDragEnd(_: unknown, info: { offset: { y: number } }) {
@@ -47,7 +51,6 @@ export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose
     <AnimatePresence>
       {open && (
         <>
-          {/* Overlay */}
           <motion.div
             key="task-overlay"
             initial={{ opacity: 0 }}
@@ -57,7 +60,6 @@ export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose
             style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)' }}
           />
 
-          {/* Sheet */}
           <motion.div
             key="task-sheet"
             initial={{ y: '100%' }}
@@ -71,14 +73,12 @@ export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose
             style={{
               position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 51,
               background: '#0e0e1a', borderRadius: '20px 20px 0 0',
-              maxHeight: '85vh', overflowY: 'auto',
+              maxHeight: 'calc(100dvh - 100px)', overflowY: 'auto',
               paddingBottom: 'env(safe-area-inset-bottom, 24px)',
             }}
           >
-            {/* Handle */}
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)', margin: '12px auto 0' }} />
 
-            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <span style={{ fontWeight: 800, fontSize: '1rem', color: '#dddde8' }}>New Action Item</span>
               <button
@@ -93,8 +93,8 @@ export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose
               >Save</button>
             </div>
 
-            {/* Fields */}
             <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Title */}
               <div>
                 <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Task title</label>
                 <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="What needs to be done?"
@@ -104,6 +104,7 @@ export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose
                 />
               </div>
 
+              {/* Due date */}
               <div>
                 <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Due date</label>
                 <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
@@ -112,52 +113,72 @@ export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose
                 />
               </div>
 
-              <div>
+              {/* Assignee — compact dropdown trigger */}
+              <div style={{ position: 'relative' }}>
                 <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Assignee</label>
+                <button
+                  onClick={() => setShowAssigneePicker(!showAssigneePicker)}
+                  className="w-full text-left"
+                  style={{
+                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7,
+                    padding: '10px 12px', color: assignedTo ? '#dddde8' : '#62627a', fontSize: '0.78rem',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  }}
+                >
+                  <span>{assigneeName}</span>
+                  <svg width="8" height="5" viewBox="0 0 8 5" fill="none" style={{ opacity: 0.4 }}><path d="M1 1L4 4L7 1" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </button>
+                {showAssigneePicker && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, marginTop: 4,
+                    background: '#151520', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10,
+                    maxHeight: 180, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  }}>
+                    <div
+                      onClick={() => { setAssignedTo(null); setShowAssigneePicker(false) }}
+                      style={{ padding: '9px 14px', cursor: 'pointer', color: !assignedTo ? accent : '#a0a0b8', fontSize: '0.74rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                    >Unassigned</div>
+                    {crew.map(c => (
+                      <div key={c.id}
+                        onClick={() => { setAssignedTo(c.userId); setShowAssigneePicker(false) }}
+                        style={{ padding: '9px 14px', cursor: 'pointer', color: assignedTo === c.userId ? accent : '#a0a0b8', fontSize: '0.74rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                      >{c.User?.name ?? 'Unknown'}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Department */}
+              <div>
+                <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Department</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                  <button onClick={() => setAssignedTo(null)}
-                    className="font-mono uppercase cursor-pointer"
+                  <button onClick={() => setDepartment(null)}
+                    className="font-mono cursor-pointer"
                     style={{
-                      fontSize: '0.44rem', padding: '5px 9px', borderRadius: 20,
-                      background: assignedTo === null ? `${accent}1a` : 'rgba(255,255,255,0.04)',
-                      border: `1px solid ${assignedTo === null ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
-                      color: assignedTo === null ? accent : '#62627a',
+                      fontSize: '0.42rem', padding: '5px 9px', borderRadius: 20,
+                      background: department === null ? `${accent}1a` : 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${department === null ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
+                      color: department === null ? accent : '#62627a',
                     }}
-                  >Unassigned</button>
-                  {crew.map(c => (
-                    <button key={c.id} onClick={() => setAssignedTo(c.userId)}
+                  >None</button>
+                  {DEPARTMENTS.map(d => (
+                    <button key={d} onClick={() => setDepartment(d)}
                       className="font-mono cursor-pointer"
                       style={{
-                        fontSize: '0.44rem', padding: '5px 9px', borderRadius: 20,
-                        background: assignedTo === c.userId ? `${accent}1a` : 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${assignedTo === c.userId ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
-                        color: assignedTo === c.userId ? accent : '#62627a',
+                        fontSize: '0.42rem', padding: '5px 9px', borderRadius: 20,
+                        background: department === d ? `${accent}1a` : 'rgba(255,255,255,0.04)',
+                        border: `1px solid ${department === d ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
+                        color: department === d ? accent : '#62627a',
                       }}
-                    >{c.User.name}</button>
+                    >{d}</button>
                   ))}
                 </div>
               </div>
 
-              <div>
-                <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Priority</label>
-                <div style={{ display: 'flex', gap: 5 }}>
-                  {(['normal', 'high'] as const).map(p => (
-                    <button key={p} onClick={() => setPriority(p)}
-                      className="font-mono uppercase cursor-pointer flex-1"
-                      style={{
-                        fontSize: '0.44rem', letterSpacing: '0.05em', padding: '7px 9px', borderRadius: 20, textAlign: 'center',
-                        background: priority === p ? (p === 'high' ? 'rgba(232,86,74,0.15)' : `${accent}1a`) : 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${priority === p ? (p === 'high' ? 'rgba(232,86,74,0.4)' : `${accent}40`) : 'rgba(255,255,255,0.05)'}`,
-                        color: priority === p ? (p === 'high' ? '#e8564a' : accent) : '#62627a',
-                      }}
-                    >{p}</button>
-                  ))}
-                </div>
-              </div>
-
+              {/* Description */}
               <div>
                 <label className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Description</label>
-                <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Optional"
+                <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} placeholder="Optional"
                   className="w-full outline-none focus:border-white/20 resize-none"
                   style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', color: '#dddde8', fontSize: '0.78rem', lineHeight: 1.5 }}
                 />

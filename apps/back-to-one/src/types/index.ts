@@ -95,6 +95,7 @@ export interface ActionItem {
   description: string | null
   status: ActionItemStatus
   assignedTo: string | null
+  department: string | null
   dueDate: string | null
   createdAt: string
   updatedAt: string
