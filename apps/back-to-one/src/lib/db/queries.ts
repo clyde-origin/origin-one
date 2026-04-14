@@ -71,30 +71,56 @@ export async function getProject(id: string) {
 export async function createProject(
   project: { id?: string; name: string; teamId?: string; status?: string; color?: string; client?: string; type?: string }
 ) {
+  console.log('[createProject] called with:', JSON.stringify(project))
   const db = createClient()
 
   // Resolve teamId — use provided value, or look up the first team
   let teamId = project.teamId
   if (!teamId) {
-    const { data: team } = await db.from('Team').select('id').limit(1).single()
-    teamId = team?.id
+    const { data: team, error: teamErr } = await db.from('Team').select('id').limit(1).single()
+    console.log('[createProject] Team lookup:', { team, teamErr })
+    if (!team) {
+      // No team exists — create one
+      console.log('[createProject] No team found, creating default team...')
+      const { data: newTeam, error: createTeamErr } = await db
+        .from('Team')
+        .insert({ id: crypto.randomUUID(), name: 'Origin Point' })
+        .select()
+        .single()
+      console.log('[createProject] Team create result:', { newTeam, createTeamErr })
+      if (createTeamErr) {
+        console.error('[createProject] Failed to create team:', { message: createTeamErr.message, code: createTeamErr.code, details: createTeamErr.details, hint: createTeamErr.hint })
+        throw createTeamErr
+      }
+      teamId = newTeam?.id
+    } else {
+      teamId = team.id
+    }
   }
-  if (!teamId) throw new Error('No team found — cannot create project')
+  if (!teamId) throw new Error('No team found and could not create one')
+
+  const row = {
+    id: crypto.randomUUID(),
+    name: project.name,
+    teamId,
+    status: project.status ?? 'development',
+    color: project.color ?? null,
+    client: project.client ?? null,
+    type: project.type ?? null,
+  }
+  console.log('[createProject] inserting row:', JSON.stringify(row))
 
   const { data, error } = await db
     .from('Project')
-    .insert({
-      id: project.id || crypto.randomUUID(),
-      name: project.name,
-      teamId,
-      status: project.status ?? 'development',
-      color: project.color ?? null,
-      client: project.client ?? null,
-      type: project.type ?? null,
-    })
+    .insert(row)
     .select()
     .single()
-  if (error) { console.error('createProject failed:', error); throw error }
+
+  if (error) {
+    console.error('[createProject] FAILED:', { message: error.message, code: error.code, details: error.details, hint: error.hint })
+    throw error
+  }
+  console.log('[createProject] SUCCESS:', data)
   return data
 }
 

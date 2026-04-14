@@ -63,27 +63,33 @@ export default function NewProjectPage() {
 
   const handleCreate = async () => {
     if (!name.trim()) return
-    const id = genId()
+    console.log('[handleCreate] starting...', { name: name.trim(), type, client: client.trim(), status })
     try {
-      await create.mutateAsync({
-        id,
+      const result = await create.mutateAsync({
         name: name.trim(),
         type,
         client: client.trim(),
         status,
       } as any)
+      console.log('[handleCreate] project created:', result)
+      const projectId = result?.id
+      if (!projectId) {
+        console.error('[handleCreate] No project ID returned from create')
+        return
+      }
       // Add selected crew
       for (const member of selectedCrew) {
         await addCrew.mutateAsync({
-          projectId: id,
+          projectId,
           userId: member.userId,
           role: member.role,
           createdAt: new Date().toISOString(),
         } as any)
       }
-      router.push(`/projects/${id}`)
+      console.log('[handleCreate] navigating to /projects/' + projectId)
+      router.push(`/projects/${projectId}`)
     } catch (e) {
-      console.error('Failed to create project:', e)
+      console.error('[handleCreate] FAILED:', e)
     }
   }
 
