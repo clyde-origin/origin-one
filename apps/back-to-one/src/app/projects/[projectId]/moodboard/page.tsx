@@ -85,10 +85,10 @@ function DetailSheet({ item, onClose }: { item: MoodboardRef | null; onClose: ()
 
 // ── New Reference Sheet — image upload optional, inside the sheet ──
 
-function NewRefSheet({ projectId, refCount, onClose, onCreate }: {
+function NewRefSheet({ projectId, refCount, onClose, onSave }: {
   projectId: string; refCount: number
   onClose: () => void
-  onCreate: (data: Omit<MoodboardRef, 'id' | 'createdAt'>) => void
+  onSave: (data: Omit<MoodboardRef, 'id' | 'createdAt'>) => Promise<void>
 }) {
   const [title, setTitle] = useState('')
   const [cat, setCat]     = useState<MoodCat>('tone')
@@ -113,19 +113,26 @@ function NewRefSheet({ projectId, refCount, onClose, onCreate }: {
     setSaving(true)
     setError(null)
     try {
+      // Step 1: Upload image to storage
       let imageUrl: string | null = null
       if (imageFile) {
+        console.log('[moodboard] uploading image to storage…')
         imageUrl = await uploadMoodboardImage(imageFile, projectId)
+        console.log('[moodboard] upload OK → ', imageUrl)
       }
-      onCreate({
+
+      // Step 2: Write to DB (wait for it to complete before closing)
+      console.log('[moodboard] writing to DB…', { projectId, title: title.trim(), cat, imageUrl })
+      await onSave({
         projectId, title: title.trim(), cat, note,
         imageUrl,
         gradient: GRADIENTS[refCount % GRADIENTS.length],
       })
+      console.log('[moodboard] DB write OK')
       onClose()
     } catch (err: any) {
       const msg = err?.message || 'Failed to save reference. Please try again.'
-      console.error('Failed to save reference:', err)
+      console.error('[moodboard] FAILED:', err)
       setError(msg)
       setSaving(false)
     }
@@ -252,7 +259,7 @@ export default function MoodboardPage({ params }: { params: { projectId: string 
           projectId={projectId}
           refCount={allRefs.length}
           onClose={() => setCreating(false)}
-          onCreate={(data) => create.mutate(data as any)}
+          onSave={async (data) => { await create.mutateAsync(data as any) }}
         />
       </Sheet>
     </div>

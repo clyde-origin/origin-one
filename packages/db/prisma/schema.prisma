@@ -92,7 +92,7 @@ enum MoodCategory {
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
-  id        String   @id @default(uuid())
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
   email     String   @unique
   name      String
   avatarUrl String?
@@ -110,7 +110,7 @@ model User {
 }
 
 model Team {
-  id        String   @id @default(uuid())
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
   name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -120,7 +120,7 @@ model Team {
 }
 
 model TeamMember {
-  id        String   @id @default(uuid())
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
   teamId    String
   userId    String
   role      Role
@@ -133,7 +133,7 @@ model TeamMember {
 }
 
 model ProjectMember {
-  id        String   @id @default(uuid())
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
   projectId String
   userId    String
   role      Role
@@ -146,7 +146,7 @@ model ProjectMember {
 }
 
 model Project {
-  id        String        @id @default(uuid())
+  id        String        @id @default(dbgenerated("gen_random_uuid()"))
   teamId    String
   name      String
   status    ProjectStatus
@@ -171,7 +171,7 @@ model Project {
 }
 
 model Scene {
-  id          String   @id @default(uuid())
+  id          String   @id @default(dbgenerated("gen_random_uuid()"))
   projectId   String
   sceneNumber String
   title       String?
@@ -185,7 +185,7 @@ model Scene {
 }
 
 model Shot {
-  id          String     @id @default(uuid())
+  id          String     @id @default(dbgenerated("gen_random_uuid()"))
   sceneId     String
   shotNumber  String
   size        ShotSize?
@@ -199,7 +199,7 @@ model Shot {
 }
 
 model Entity {
-  id          String     @id @default(uuid())
+  id          String     @id @default(dbgenerated("gen_random_uuid()"))
   projectId   String
   type        EntityType
   name        String
@@ -212,7 +212,7 @@ model Entity {
 }
 
 model Document {
-  id        String       @id @default(uuid())
+  id        String       @id @default(dbgenerated("gen_random_uuid()"))
   projectId String
   type      DocumentType
   title     String
@@ -229,7 +229,7 @@ model Document {
 // ─── Milestones ─────────────────────────────────────────────────────────────
 
 model Milestone {
-  id        String          @id @default(uuid())
+  id        String          @id @default(dbgenerated("gen_random_uuid()"))
   projectId String
   title     String
   date      DateTime
@@ -242,7 +242,7 @@ model Milestone {
 }
 
 model MilestonePerson {
-  id          String @id @default(uuid())
+  id          String @id @default(dbgenerated("gen_random_uuid()"))
   milestoneId String
   userId      String
 
@@ -255,7 +255,7 @@ model MilestonePerson {
 // ─── Action Items ───────────────────────────────────────────────────────────
 
 model ActionItem {
-  id          String           @id @default(uuid())
+  id          String           @id @default(dbgenerated("gen_random_uuid()"))
   projectId   String
   title       String
   description String?
@@ -273,7 +273,7 @@ model ActionItem {
 // ─── Threads ────────────────────────────────────────────────────────────────
 
 model Thread {
-  id        String   @id @default(uuid())
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
   projectId String
   title     String
   createdBy String
@@ -286,7 +286,7 @@ model Thread {
 }
 
 model ThreadMessage {
-  id        String   @id @default(uuid())
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
   threadId  String
   content   String
   createdBy String
@@ -299,7 +299,7 @@ model ThreadMessage {
 // ─── Moodboard ──────────────────────────────────────────────────────────────
 
 model MoodboardRef {
-  id        String       @id @default(uuid())
+  id        String       @id @default(dbgenerated("gen_random_uuid()"))
   projectId String
   cat       MoodCategory
   title     String
@@ -314,7 +314,7 @@ model MoodboardRef {
 // ─── Locations ─────────────────────────────────────────────────────────────
 
 model Location {
-  id          String   @id @default(uuid())
+  id          String   @id @default(dbgenerated("gen_random_uuid()"))
   projectId   String
   name        String
   description String?
@@ -337,7 +337,7 @@ model Location {
 // ─── Folders & Resources ────────────────────────────────────────────────────
 
 model Folder {
-  id        String   @id @default(uuid())
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
   projectId String
   name      String
   createdAt DateTime @default(now())
@@ -347,7 +347,7 @@ model Folder {
 }
 
 model Resource {
-  id        String       @id @default(uuid())
+  id        String       @id @default(dbgenerated("gen_random_uuid()"))
   projectId String
   folderId  String?
   title     String

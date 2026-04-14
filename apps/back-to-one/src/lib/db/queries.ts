@@ -75,6 +75,7 @@ export async function createProject(
   const { data, error } = await db
     .from('Project')
     .insert({
+      id: crypto.randomUUID(),
       name: project.name,
       teamId: project.teamId,
       status: project.status ?? 'development',
@@ -122,7 +123,7 @@ export async function createFolder(
   const db = createClient()
   const { data, error } = await db
     .from('Folder')
-    .insert({ projectId: folder.projectId, name: folder.name })
+    .insert({ id: crypto.randomUUID(), projectId: folder.projectId, name: folder.name })
     .select()
     .single()
   if (error) { console.error('createFolder failed:', error); throw error }
@@ -180,6 +181,7 @@ export async function addCrewMember(
   const { data, error } = await db
     .from('ProjectMember')
     .insert({
+      id: crypto.randomUUID(),
       projectId: member.projectId,
       userId: member.userId,
       role: member.role,
@@ -247,6 +249,7 @@ export async function createActionItem(
   const { data, error } = await db
     .from('ActionItem')
     .insert({
+      id: crypto.randomUUID(),
       projectId: item.projectId,
       title: item.title,
       description: item.description ?? null,
@@ -290,7 +293,7 @@ export async function updateMilestone(
 
 export async function addMilestonePerson(milestoneId: string, userId: string): Promise<void> {
   const db = createClient()
-  const { error } = await db.from('MilestonePerson').insert({ milestoneId, userId })
+  const { error } = await db.from('MilestonePerson').insert({ id: crypto.randomUUID(), milestoneId, userId })
   if (error) { console.error('addMilestonePerson failed:', error); throw error }
 }
 
@@ -308,6 +311,7 @@ export async function createMilestone(
   const { data, error } = await db
     .from('Milestone')
     .insert({
+      id: crypto.randomUUID(),
       projectId: fields.projectId,
       title: fields.title,
       date: fields.date,
@@ -387,6 +391,7 @@ export async function createShot(shot: {
   const { data, error } = await db
     .from('Shot')
     .insert({
+      id: crypto.randomUUID(),
       sceneId: shot.sceneId,
       shotNumber: shot.shotNumber,
       size: shot.size ?? null,
@@ -424,7 +429,7 @@ export async function createThread(
   const db = createClient()
   const { data, error } = await db
     .from('Thread')
-    .insert({ projectId, title, createdBy })
+    .insert({ id: crypto.randomUUID(), projectId, title, createdBy })
     .select()
     .single()
   if (error) { console.error('createThread failed:', error); throw error }
@@ -439,7 +444,7 @@ export async function postMessage(
   const db = createClient()
   const { data, error } = await db
     .from('ThreadMessage')
-    .insert({ threadId, createdBy, content })
+    .insert({ id: crypto.randomUUID(), threadId, createdBy, content })
     .select()
     .single()
   if (error) { console.error('postMessage failed:', error); throw error }
@@ -466,6 +471,7 @@ export async function createResource(
   const { data, error } = await db
     .from('Resource')
     .insert({
+      id: crypto.randomUUID(),
       projectId: resource.projectId,
       folderId: resource.folderId ?? null,
       title: resource.title,
@@ -541,19 +547,26 @@ export async function createMoodboardRef(
   ref: { projectId: string; cat: string; title: string; note?: string; imageUrl?: string | null; gradient?: string | null }
 ) {
   const db = createClient()
+  const payload = {
+    id: crypto.randomUUID(),
+    projectId: ref.projectId,
+    cat: ref.cat,
+    title: ref.title,
+    note: ref.note ?? null,
+    imageUrl: ref.imageUrl ?? null,
+    gradient: ref.gradient ?? null,
+  }
+  console.log('[createMoodboardRef] inserting:', payload)
   const { data, error } = await db
     .from('MoodboardRef')
-    .insert({
-      projectId: ref.projectId,
-      cat: ref.cat,
-      title: ref.title,
-      note: ref.note ?? null,
-      imageUrl: ref.imageUrl ?? null,
-      gradient: ref.gradient ?? null,
-    })
+    .insert(payload)
     .select()
     .single()
-  if (error) { console.error('createMoodboardRef failed:', error); throw error }
+  if (error) {
+    console.error('[createMoodboardRef] FAILED:', error.code, error.message, error.details, error.hint)
+    throw new Error(`DB write failed: ${error.message}`)
+  }
+  console.log('[createMoodboardRef] success:', data?.id)
   return data
 }
 // ── LOCATIONS ─────────────────────────────────────────────
@@ -576,6 +589,7 @@ export async function createLocation(
   const { data, error } = await db
     .from('Location')
     .insert({
+      id: crypto.randomUUID(),
       projectId: loc.projectId,
       name: loc.name,
       description: loc.description ?? null,
