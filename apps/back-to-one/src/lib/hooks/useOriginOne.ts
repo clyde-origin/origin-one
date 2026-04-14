@@ -74,7 +74,10 @@ export function useUpdateProject() {
   return useMutation({
     mutationFn: ({ id, fields }: { id: string; fields: { name?: string; status?: string; color?: string; client?: string; type?: string; aspectRatio?: string } }) =>
       db.updateProject(id, fields),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.projects() }),
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: keys.projects() })
+      qc.invalidateQueries({ queryKey: keys.project(id) })
+    },
   })
 }
 

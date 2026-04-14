@@ -69,7 +69,7 @@ function DetailSheet({ item, onClose }: { item: ArtItem | null; onClose: () => v
 export default function ArtPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
   const { data: project } = useProject(projectId)
-  const accent = getProjectColor(projectId)
+  const accent = project?.color || getProjectColor(projectId)
   const [selected, setSelected] = useState<ArtItem | null>(null)
 
   const { data: items, isLoading } = useArtItems(projectId)

@@ -112,7 +112,7 @@ function NewSheet({ projectId, onClose, onCreate }: {
 export default function ResourcesPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
   const { data: project } = useProject(projectId)
-  const accent = getProjectColor(projectId)
+  const accent = project?.color || getProjectColor(projectId)
   const [creating, setCreating] = useState(false)
 
   const { data: resources, isLoading } = useResources(projectId)

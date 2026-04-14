@@ -84,7 +84,7 @@ function DetailSheet({ node, onClose }: { node: WorkflowNode | null; onClose: ()
 export default function WorkflowPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
   const { data: project } = useProject(projectId)
-  const accent = getProjectColor(projectId)
+  const accent = project?.color || getProjectColor(projectId)
   const [selected, setSelected] = useState<WorkflowNode | null>(null)
 
   const { data: nodes, isLoading } = useWorkflowNodes(projectId)

@@ -584,10 +584,9 @@ function CrewDetailSheet({ member, onClose }: { member: CrewMember | null; onClo
 
 export function HubContent({ projectId }: { projectId: string }) {
   const router = useRouter()
-  const projectColor = getProjectColor(projectId)
-  const [pr, pg, pb] = hexToRgb(projectColor)
-
   const { data: project, isLoading: loadingProject } = useProject(projectId)
+  const projectColor = project?.color || getProjectColor(projectId)
+  const [pr, pg, pb] = hexToRgb(projectColor)
   const { data: actionItems, isLoading: loadingAI } = useActionItems(projectId)
   const { data: milestones, isLoading: loadingMS } = useMilestones(projectId)
   const { data: crew, isLoading: loadingCrew } = useCrew(projectId)

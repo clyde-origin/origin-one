@@ -408,7 +408,7 @@ function LocationDetailSheet({ loc, accent, onUpdate, onDelete, onClose }: {
 export default function LocationsPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
   const { data: project } = useProject(projectId)
-  const accent = getProjectColor(projectId)
+  const accent = project?.color || getProjectColor(projectId)
   const { data: locations, isLoading } = useLocations(projectId)
   const createLoc = useCreateLocation(projectId)
   const updateLoc = useUpdateLocation(projectId)

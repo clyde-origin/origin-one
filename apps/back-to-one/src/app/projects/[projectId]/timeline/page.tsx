@@ -278,9 +278,8 @@ function MilestoneDetailSheet({ milestone, crew, accent, projectId, onClose }: {
 export default function TimelinePage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
   const router = useRouter()
-  const accent = getProjectColor(projectId)
-
   const { data: project } = useProject(projectId)
+  const accent = project?.color || getProjectColor(projectId)
   const { data: milestones, isLoading } = useMilestones(projectId)
   const { data: crew } = useCrew(projectId)
 

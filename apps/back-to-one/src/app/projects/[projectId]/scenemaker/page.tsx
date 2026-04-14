@@ -701,7 +701,8 @@ function BoardCard({ shot, sceneColor, isDragging, isShifted, onTap, onDragStart
 export default function SceneMakerPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
   const router = useRouter()
-  const accent = getProjectColor(projectId)
+  const { data: project } = useProject(projectId)
+  const accent = project?.color || getProjectColor(projectId)
 
   const searchParams = useSearchParams()
   const initialMode = (searchParams.get('mode') as SceneMakerMode) || 'shotlist'
@@ -715,7 +716,6 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const closeFab = () => setFabOpen(false)
 
   const qc = useQueryClient()
-  const { data: project } = useProject(projectId)
   const { data: scenes, isLoading: loadingScenes } = useScenes(projectId)
   const { data: scenesWithShots, isLoading: loadingShots } = useQuery({
     queryKey: ['shotsByProject', projectId],

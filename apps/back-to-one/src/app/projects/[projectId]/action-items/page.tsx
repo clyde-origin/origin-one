@@ -253,15 +253,14 @@ function BucketDivider({ label, isToday }: { label: string; isToday?: boolean })
 export default function ActionItemsPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
   const router = useRouter()
-  const accent = getProjectColor(projectId)
+  const { data: project } = useProject(projectId)
+  const accent = project?.color || getProjectColor(projectId)
 
   const [tab, setTab] = useState<Tab>('me')
   const [selected, setSelected] = useState<ActionItem | null>(null)
   const [showCompleted, setShowCompleted] = useState(false)
   const [deptFilter, setDeptFilter] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
-
-  const { data: project } = useProject(projectId)
   const { data: items, isLoading: loadingItems } = useActionItems(projectId)
   const { data: crew, isLoading: loadingCrew } = useCrew(projectId)
   const toggle = useToggleActionItem(projectId)

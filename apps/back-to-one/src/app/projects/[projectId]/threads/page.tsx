@@ -216,7 +216,7 @@ function NewThreadSheet({ projectId, onClose, onCreate }: {
 export default function ThreadsPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
   const { data: project } = useProject(projectId)
-  const accent = getProjectColor(projectId)
+  const accent = project?.color || getProjectColor(projectId)
   const [selected, setSelected] = useState<Thread | null>(null)
   const [creating, setCreating] = useState(false)
 

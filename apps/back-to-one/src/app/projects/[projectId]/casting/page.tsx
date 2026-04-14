@@ -84,7 +84,7 @@ function DetailSheet({ role, onClose }: { role: CastRole | null; onClose: () => 
 export default function CastingPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
   const { data: project } = useProject(projectId)
-  const accent = getProjectColor(projectId)
+  const accent = project?.color || getProjectColor(projectId)
   const [selected, setSelected] = useState<CastRole | null>(null)
   const [creating, setCreating] = useState(false)
 

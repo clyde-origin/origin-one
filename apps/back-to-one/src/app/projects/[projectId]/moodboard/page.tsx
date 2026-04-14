@@ -512,7 +512,7 @@ function ReorderableGrid({
 export default function MoodboardPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
   const { data: project } = useProject(projectId)
-  const accent = getProjectColor(projectId)
+  const accent = project?.color || getProjectColor(projectId)
 
   const [selected, setSelected] = useState<MoodboardRef | null>(null)
   const [creating, setCreating] = useState(false)

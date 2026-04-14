@@ -248,7 +248,7 @@ function CrewEmpty({ onAdd }: { onAdd: () => void }) {
 export default function CrewPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
   const { data: project } = useProject(projectId)
-  const accent = getProjectColor(projectId)
+  const accent = project?.color || getProjectColor(projectId)
   const [tab, setTab] = useState<RoleTab>('All')
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
   const [showNewSheet, setShowNewSheet] = useState(false)

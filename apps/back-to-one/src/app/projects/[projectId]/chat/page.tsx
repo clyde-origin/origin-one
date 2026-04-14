@@ -8,8 +8,8 @@ import { GhostRect, EmptyCTA } from '@/components/ui/EmptyState'
 
 export default function ChatPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
-  const accent = getProjectColor(projectId)
   const { data: project } = useProject(projectId)
+  const accent = project?.color || getProjectColor(projectId)
 
   return (
     <div className="screen">
