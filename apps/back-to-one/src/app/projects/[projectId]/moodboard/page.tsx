@@ -2,7 +2,8 @@
 
 import { useState, useRef } from 'react'
 import Link from 'next/link'
-import { useMoodboard, useCreateMoodboardRef } from '@/lib/hooks/useOriginOne'
+import { useProject, useMoodboard, useCreateMoodboardRef } from '@/lib/hooks/useOriginOne'
+
 import { uploadMoodboardImage } from '@/lib/db/queries'
 import { LoadingState, EmptyState } from '@/components/ui'
 import { EmptyCTA } from '@/components/ui/EmptyState'
@@ -10,7 +11,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { FAB } from '@/components/ui/FAB'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor } from '@/lib/utils/phase'
+import { getProjectColor , statusHex, statusLabel } from '@/lib/utils/phase'
 import { MOODBOARD_GRADIENTS } from '@/lib/utils/gradients'
 import type { MoodboardRef } from '@/types'
 
@@ -188,6 +189,7 @@ function NewRefSheet({ projectId, refCount, onClose, onCreate }: {
 
 export default function MoodboardPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
+  const { data: project } = useProject(projectId)
   const accent = getProjectColor(projectId)
   const [selected, setSelected] = useState<MoodboardRef | null>(null)
   const [creating, setCreating] = useState(false)
@@ -205,7 +207,7 @@ export default function MoodboardPage({ params }: { params: { projectId: string 
 
   return (
     <div className="screen">
-      <PageHeader projectId={projectId} title="Moodboard" meta={`${allRefs.length}`} />
+      <PageHeader projectId={projectId} title="Moodboard" meta={project ? (<div className="flex flex-col items-center gap-1.5"><span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''} />
 
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 80 }}>
         {isLoading ? <LoadingState /> : (

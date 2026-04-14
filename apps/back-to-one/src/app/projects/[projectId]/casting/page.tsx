@@ -2,13 +2,14 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useCastRoles } from '@/lib/hooks/useOriginOne'
+import { useProject, useCastRoles } from '@/lib/hooks/useOriginOne'
+
 import { LoadingState, EmptyState, StatusBadge } from '@/components/ui'
 import { GhostRow, GhostCircle, GhostRect, GhostPill, SectionLabel, EmptyCTA } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { FAB } from '@/components/ui/FAB'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor } from '@/lib/utils/phase'
+import { getProjectColor , statusHex, statusLabel } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import type { CastRole } from '@/types'
 
@@ -82,6 +83,7 @@ function DetailSheet({ role, onClose }: { role: CastRole | null; onClose: () => 
 
 export default function CastingPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
+  const { data: project } = useProject(projectId)
   const accent = getProjectColor(projectId)
   const [selected, setSelected] = useState<CastRole | null>(null)
   const [creating, setCreating] = useState(false)
@@ -92,7 +94,7 @@ export default function CastingPage({ params }: { params: { projectId: string } 
 
   return (
     <div className="screen">
-      <PageHeader projectId={projectId} title="Casting" meta={`${confirmed}/${allRoles.length}`} />
+      <PageHeader projectId={projectId} title="Casting" meta={project ? (<div className="flex flex-col items-center gap-1.5"><span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''} />
 
       {/* Summary strip */}
       {allRoles.length > 0 && (

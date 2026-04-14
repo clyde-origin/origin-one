@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { useThreads, useCreateThread, usePostMessage, useCrew } from '@/lib/hooks/useOriginOne'
+import { useProject, useThreads, useCreateThread, usePostMessage, useCrew } from '@/lib/hooks/useOriginOne'
+
 import { LoadingState, CrewAvatar } from '@/components/ui'
 import { GhostRect, GhostPill, GhostCircle, SectionLabel, EmptyCTA } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { FAB } from '@/components/ui/FAB'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor } from '@/lib/utils/phase'
+import { getProjectColor , statusHex, statusLabel } from '@/lib/utils/phase'
 import type { Thread, ThreadMessage, TeamMember } from '@/types'
 
 // ── Helpers ───────────────────────────────────────────────
@@ -214,6 +215,7 @@ function NewThreadSheet({ projectId, onClose, onCreate }: {
 
 export default function ThreadsPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
+  const { data: project } = useProject(projectId)
   const accent = getProjectColor(projectId)
   const [selected, setSelected] = useState<Thread | null>(null)
   const [creating, setCreating] = useState(false)
@@ -230,7 +232,7 @@ export default function ThreadsPage({ params }: { params: { projectId: string } 
 
   return (
     <div className="screen">
-      <PageHeader projectId={projectId} title="Threads" meta={`${allThreads.length}`} />
+      <PageHeader projectId={projectId} title="Threads" meta={project ? (<div className="flex flex-col items-center gap-1.5"><span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''} />
 
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 80 }}>
         {loadingThreads || loadingCrew ? <LoadingState /> : (

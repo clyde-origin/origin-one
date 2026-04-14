@@ -9,7 +9,7 @@ import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Sheet } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor, getSceneColor } from '@/lib/utils/phase'
+import { getProjectColor, getSceneColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { ScriptView, type ScriptViewHandle } from './components/ScriptView'
 import { ShotDetailSheet } from './components/ShotDetailSheet'
 import type { Scene, Shot, SceneMakerMode } from '@/types'
@@ -824,7 +824,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         <PageHeader
           projectId={projectId}
           title="SceneMaker"
-          meta={`${project?.name ?? ''} · SC.${allScenes[0]?.sceneNumber ?? '—'}`}
+          meta={project ? (<div className="flex flex-col items-center gap-1.5"><span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''}
           noBorder
         />
 

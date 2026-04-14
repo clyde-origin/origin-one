@@ -225,6 +225,33 @@ export function useCreateMilestone(projectId: string) {
   })
 }
 
+export function useUpdateMilestone(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: { title?: string; date?: string; status?: string; notes?: string } }) =>
+      db.updateMilestone(id, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.milestones(projectId) }),
+  })
+}
+
+export function useAddMilestonePerson(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ milestoneId, userId }: { milestoneId: string; userId: string }) =>
+      db.addMilestonePerson(milestoneId, userId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.milestones(projectId) }),
+  })
+}
+
+export function useRemoveMilestonePerson(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ milestoneId, userId }: { milestoneId: string; userId: string }) =>
+      db.removeMilestonePerson(milestoneId, userId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.milestones(projectId) }),
+  })
+}
+
 // ── SCENES + SHOTS ────────────────────────────────────────
 
 export function useScenes(projectId: string) {

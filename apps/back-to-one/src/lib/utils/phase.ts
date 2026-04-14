@@ -104,10 +104,22 @@ export function statusLabel(status: string | undefined): string {
 }
 
 export const DEPT_COLORS: Record<string, string> = {
-  Production: '#6470f3', Direction: '#6470f3', Camera: '#e8a020',
-  'G&E': '#e8a020', Art: '#c45adc', Wardrobe: '#4ab8e8',
-  HMU: '#e84a9a', Casting: '#e8c44a', Sound: '#4ae8a0',
-  Post: '#00b894', Client: '#e87a4a', Other: '#62627a',
+  Direction: '#9b6de0',  // purple
+  Production: '#6470f3', // blue
+  Camera: '#3eb8a8',     // teal
+  Sound: '#e8a020',      // amber
+  Art: '#e87060',        // coral
+  Wardrobe: '#d96aac',   // pink
+  HMU: '#e0708a',        // rose/warm pink
+  Post: '#00b894',       // green
+  Other: '#62627a',      // gray
+  // Legacy aliases
+  'G&E': '#3eb8a8', Casting: '#e87060', Client: '#6470f3',
+}
+
+export const DEPT_SHORT: Record<string, string> = {
+  Direction: 'Dir', Production: 'Prod', Camera: 'Cam', Sound: 'Sound',
+  Art: 'Art', Wardrobe: 'Ward', HMU: 'HMU', Post: 'Post', Other: 'Other',
 }
 
 export const DEPT_CLASSES: Record<string, string> = {

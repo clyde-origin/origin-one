@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { FAB } from '@/components/ui/FAB'
 import { CreateTaskSheet } from '@/components/create'
 import { haptic } from '@/lib/utils/haptics'
-import { formatDate, isLate, getProjectColor, statusLabel, statusHex } from '@/lib/utils/phase'
+import { formatDate, isLate, getProjectColor, statusLabel, statusHex, DEPT_COLORS, DEPT_SHORT as DEPT_SHORT_MAP } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import type { ActionItem, TeamMember } from '@/types'
 
@@ -43,8 +43,14 @@ function TaskRow({ item, isMine, accent, showAssignee, crew, onTap, onToggle }: 
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="truncate" style={{ fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.3, color: isMine ? '#dddde8' : '#a0a0b8' }}>
-            {item.title}
+          <div className="flex items-center gap-2">
+            <span className="truncate" style={{ fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.3, color: isMine ? '#dddde8' : '#a0a0b8' }}>
+              {item.title}
+            </span>
+            {item.department && (() => {
+              const dc = DEPT_COLORS[item.department] ?? '#62627a'
+              return <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', padding: '1px 6px', borderRadius: 10, background: `${dc}15`, color: dc }}>{DEPT_SHORT_MAP[item.department] ?? item.department}</span>
+            })()}
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             {dateLabel && (
@@ -53,7 +59,7 @@ function TaskRow({ item, isMine, accent, showAssignee, crew, onTap, onToggle }: 
               </span>
             )}
             {showAssignee && assignee && (
-              <span className="font-mono ml-auto" style={{ fontSize: '0.46rem', color: '#62627a', opacity: 0.6 }}>
+              <span className="font-mono ml-auto" style={{ fontSize: '0.58rem', color: '#62627a' }}>
                 {assignee.User?.name ?? 'Unknown'}
               </span>
             )}
@@ -92,6 +98,7 @@ function TaskDetailSheet({ item, crew, accent, projectId, onClose, onToggle }: {
   const [editDue, setEditDue] = useState(false)
   const [editAssignee, setEditAssignee] = useState(false)
   const [dueValue, setDueValue] = useState(item?.dueDate?.split('T')[0] ?? '')
+  const [notes, setNotes] = useState(item?.description ?? '')
 
   if (!item) return null
   const assignee = crew.find(c => c.userId === item.assignedTo || c.id === item.assignedTo)
@@ -119,7 +126,13 @@ function TaskDetailSheet({ item, crew, accent, projectId, onClose, onToggle }: {
       <div style={{ padding: '0 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <div className="flex justify-between items-start">
           <div style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8', marginBottom: 6, flex: 1 }}>{item.title}</div>
-          <button onClick={onClose} className="text-muted text-sm w-7 h-7 flex items-center justify-center flex-shrink-0">✕</button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {item.department && (() => {
+              const dc = DEPT_COLORS[item.department] ?? '#62627a'
+              return <span className="font-mono" style={{ fontSize: '0.42rem', padding: '2px 8px', borderRadius: 12, background: `${dc}18`, color: dc }}>{DEPT_SHORT_MAP[item.department] ?? item.department}</span>
+            })()}
+            <button onClick={onClose} className="text-muted text-sm w-7 h-7 flex items-center justify-center">✕</button>
+          </div>
         </div>
       </div>
 
@@ -180,12 +193,23 @@ function TaskDetailSheet({ item, crew, accent, projectId, onClose, onToggle }: {
           </div>
         </div>
 
-        {item.description && (
-          <div className="flex items-start gap-3">
-            <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.46rem', color: '#62627a', letterSpacing: '0.08em', width: 68, paddingTop: 1 }}>Notes</span>
-            <div style={{ fontSize: '0.72rem', color: '#a0a0b8', lineHeight: 1.55, background: 'rgba(255,255,255,0.03)', borderRadius: 6, padding: '10px 12px', flex: 1 }}>{item.description}</div>
-          </div>
-        )}
+        {/* Notes — editable textarea */}
+        <div className="flex items-start gap-3">
+          <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.46rem', color: '#62627a', letterSpacing: '0.08em', width: 68, paddingTop: 1 }}>Notes</span>
+          <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            onBlur={() => {
+              if (notes !== (item.description ?? '')) {
+                updateItem.mutate({ id: item.id, fields: { description: notes || undefined } })
+              }
+            }}
+            placeholder="Add notes..."
+            rows={3}
+            className="outline-none resize-none"
+            style={{ flex: 1, fontSize: '0.72rem', color: '#a0a0b8', lineHeight: 1.55, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 6, padding: '10px 12px', fontFamily: 'inherit' }}
+          />
+        </div>
       </div>
 
       {/* Buttons */}
@@ -234,6 +258,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
   const [tab, setTab] = useState<Tab>('me')
   const [selected, setSelected] = useState<ActionItem | null>(null)
   const [showCompleted, setShowCompleted] = useState(false)
+  const [deptFilter, setDeptFilter] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
 
   const { data: project } = useProject(projectId)
@@ -265,7 +290,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
       <PageHeader
         projectId={projectId}
         title="Action Items"
-        meta={project ? `${project.name} · ${statusLabel(project.status)}` : ''}
+        meta={project ? (<div className="flex flex-col items-center gap-1.5"><span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''}
       />
 
       {/* Tabs */}
@@ -357,37 +382,72 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
             )}
 
             {/* DEPT TAB */}
-            {tab === 'dept' && (
-              <>
-                {DEPT_OPTIONS.map(dept => {
-                  const deptItems = openItems.filter(i => i.department === dept)
-                  if (deptItems.length === 0) return null
-                  return (
-                    <div key={dept}>
-                      <BucketDivider label={dept} />
-                      {deptItems.map(item => (
+            {tab === 'dept' && (() => {
+              const hasUntagged = openItems.some(i => !i.department)
+              const filteredItems = deptFilter ? openItems.filter(i => i.department === deptFilter) : openItems
+              return (
+                <>
+                  {/* Filter pills — full width, dept colors */}
+                  <div className="flex" style={{ gap: 4, padding: '10px 16px 8px' }}>
+                    {DEPT_OPTIONS.map(dept => {
+                      const isActive = deptFilter === dept
+                      const dc = DEPT_COLORS[dept] ?? '#62627a'
+                      return (
+                        <button key={dept}
+                          onClick={() => setDeptFilter(isActive ? null : dept)}
+                          className="font-mono cursor-pointer"
+                          style={{
+                            flex: 1, fontSize: '0.56rem', padding: '6px 0', borderRadius: 20, textAlign: 'center',
+                            background: isActive ? `${dc}22` : `${dc}0a`,
+                            border: `1px solid ${isActive ? `${dc}55` : `${dc}18`}`,
+                            color: isActive ? dc : `${dc}99`,
+                          }}
+                        >{DEPT_SHORT_MAP[dept] ?? dept}</button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Grouped items */}
+                  {deptFilter ? (
+                    // Single department filtered
+                    <>
+                      <SectionHead label={deptFilter} count={`${filteredItems.length} open`} />
+                      {filteredItems.map(item => (
                         <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew}
                           onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />
                       ))}
-                    </div>
-                  )
-                })}
-                {(() => {
-                  const untagged = openItems.filter(i => !i.department)
-                  if (untagged.length === 0) return null
-                  return (
-                    <div>
-                      <BucketDivider label="No Department" />
-                      {untagged.map(item => (
-                        <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew}
-                          onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />
-                      ))}
-                    </div>
-                  )
-                })()}
-                {openItems.length === 0 && <EmptyState text="No items" />}
-              </>
-            )}
+                    </>
+                  ) : (
+                    // All departments grouped
+                    <>
+                      {DEPT_OPTIONS.map(dept => {
+                        const deptItems = openItems.filter(i => i.department === dept)
+                        if (deptItems.length === 0) return null
+                        return (
+                          <div key={dept}>
+                            <BucketDivider label={DEPT_SHORT_MAP[dept] ?? dept} />
+                            {deptItems.map(item => (
+                              <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew}
+                                onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />
+                            ))}
+                          </div>
+                        )
+                      })}
+                      {hasUntagged && (
+                        <div>
+                          <BucketDivider label="Untagged" />
+                          {openItems.filter(i => !i.department).map(item => (
+                            <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew}
+                              onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {openItems.length === 0 && <EmptyState text="No items" />}
+                </>
+              )
+            })()}
           </>
         )}
       </div>

@@ -460,7 +460,7 @@ function AIDetailSheet({ item, crew, onClose }: { item: ActionItem | null; crew:
 function MSDetailSheet({ milestone, crew, onClose }: { milestone: Milestone | null; crew: CrewMember[]; onClose: () => void }) {
   if (!milestone) return null
   const past = isLate(milestone.date)
-  const people = (milestone.people ?? []).map(id => crew.find(c => c.id === id)).filter(Boolean) as CrewMember[]
+  const people = (milestone.people ?? []).map(id => crew.find(c => c.userId === id)).filter(Boolean) as CrewMember[]
   const statusColor = MILESTONE_STATUS_HEX[milestone.status] ?? '#62627a'
   return (
     <>

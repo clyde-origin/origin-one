@@ -2,14 +2,15 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useCrew, useAddCrewMember, useUpdateCrewMember, useAllCrew } from '@/lib/hooks/useOriginOne'
+import { useProject, useCrew, useAddCrewMember, useUpdateCrewMember, useAllCrew } from '@/lib/hooks/useOriginOne'
+
 import { CrewAvatar } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { FAB } from '@/components/ui/FAB'
 import { SideFabs } from '@/components/ui/SideFabs'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor } from '@/lib/utils/phase'
+import { getProjectColor , statusHex, statusLabel } from '@/lib/utils/phase'
 import type { TeamMember, Role } from '@/types'
 
 // ── Role filter tabs ────────────────────────────────────
@@ -246,6 +247,7 @@ function CrewEmpty({ onAdd }: { onAdd: () => void }) {
 
 export default function CrewPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
+  const { data: project } = useProject(projectId)
   const accent = getProjectColor(projectId)
   const [tab, setTab] = useState<RoleTab>('All')
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
@@ -272,7 +274,7 @@ export default function CrewPage({ params }: { params: { projectId: string } }) 
 
   return (
     <div className="screen" style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: '#04040a' }}>
-      <PageHeader projectId={projectId} title="Crew" meta={`${allCrew.length} members`} />
+      <PageHeader projectId={projectId} title="Crew" meta={project ? (<div className="flex flex-col items-center gap-1.5"><span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''} />
       <RoleTabs active={tab} onChange={setTab} />
 
       <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 200 }}>

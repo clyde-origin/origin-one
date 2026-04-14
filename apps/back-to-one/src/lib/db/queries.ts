@@ -262,6 +262,30 @@ export async function getMilestones(projectId: string) {
   }))
 }
 
+export async function updateMilestone(
+  id: string,
+  fields: { title?: string; date?: string; status?: string; notes?: string }
+): Promise<void> {
+  const db = createClient()
+  const { error } = await db
+    .from('Milestone')
+    .update(fields)
+    .eq('id', id)
+  if (error) { console.error('updateMilestone failed:', error); throw error }
+}
+
+export async function addMilestonePerson(milestoneId: string, userId: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('MilestonePerson').insert({ milestoneId, userId })
+  if (error) { console.error('addMilestonePerson failed:', error); throw error }
+}
+
+export async function removeMilestonePerson(milestoneId: string, userId: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('MilestonePerson').delete().eq('milestoneId', milestoneId).eq('userId', userId)
+  if (error) { console.error('removeMilestonePerson failed:', error); throw error }
+}
+
 export async function createMilestone(
   milestone: { projectId: string; title: string; date: string; status?: string; notes?: string; people?: string[] }
 ) {

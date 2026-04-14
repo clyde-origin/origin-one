@@ -2,13 +2,14 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useResources, useCreateResource } from '@/lib/hooks/useOriginOne'
+import { useProject, useResources, useCreateResource } from '@/lib/hooks/useOriginOne'
+
 import { LoadingState, EmptyState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { FAB } from '@/components/ui/FAB'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor } from '@/lib/utils/phase'
+import { getProjectColor , statusHex, statusLabel } from '@/lib/utils/phase'
 import type { Resource, ResourceType } from '@/types'
 
 // ── Constants ─────────────────────────────────────────────
@@ -110,6 +111,7 @@ function NewSheet({ projectId, onClose, onCreate }: {
 
 export default function ResourcesPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
+  const { data: project } = useProject(projectId)
   const accent = getProjectColor(projectId)
   const [creating, setCreating] = useState(false)
 
@@ -120,7 +122,7 @@ export default function ResourcesPage({ params }: { params: { projectId: string 
 
   return (
     <div className="screen">
-      <PageHeader projectId={projectId} title="Resources" meta={`${allResources.length}`} />
+      <PageHeader projectId={projectId} title="Resources" meta={project ? (<div className="flex flex-col items-center gap-1.5"><span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''} />
 
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 80 }}>
         {isLoading ? <LoadingState /> : (

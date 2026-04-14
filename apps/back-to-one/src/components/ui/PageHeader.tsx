@@ -3,7 +3,7 @@ import Link from 'next/link'
 interface PageHeaderProps {
   projectId: string
   title: string
-  meta?: string
+  meta?: React.ReactNode
   right?: React.ReactNode
   noBorder?: boolean
 }
