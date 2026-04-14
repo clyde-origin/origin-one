@@ -826,8 +826,8 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           title=""
           meta={project ? (
             <div className="flex flex-col items-center gap-1.5">
-              <span className="font-mono uppercase" style={{ fontSize: 11, letterSpacing: '0.12em', color: '#62627a' }}>One Arc</span>
-              <span style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em', color: '#dddde8', lineHeight: 1 }}>{project.name}</span>
+              <span className="font-mono uppercase" style={{ fontSize: 11, letterSpacing: '0.12em', color: accent }}>One Arc</span>
+              <span className="text-text leading-none" style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em' }}>{project.name}</span>
               <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span>
             </div>
           ) : ''}
@@ -837,8 +837,8 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         {/* Mode tabs */}
         <div className="flex">
           {(['script', 'shotlist', 'storyboard'] as SceneMakerMode[]).map(m => (
-            <button key={m} className="flex-1 text-center font-mono uppercase cursor-pointer select-none relative transition-colors"
-              style={{ padding: '11px 0', fontSize: '0.52rem', letterSpacing: '0.06em', color: mode === m ? '#dddde8' : '#62627a' }}
+            <button key={m} className="flex-1 text-center uppercase cursor-pointer select-none relative transition-colors"
+              style={{ fontFamily: "'Geist', sans-serif", fontWeight: 700, padding: '11px 0', fontSize: '0.52rem', letterSpacing: '0.08em', color: mode === m ? '#dddde8' : '#62627a' }}
               onClick={() => setMode(m)}>
               {m}
               {mode === m && <div className="absolute bottom-0" style={{ left: '10%', right: '10%', height: 2, background: accent, borderRadius: '2px 2px 0 0' }} />}
