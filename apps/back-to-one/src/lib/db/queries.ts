@@ -99,6 +99,7 @@ export async function createProject(
   }
   if (!teamId) throw new Error('No team found and could not create one')
 
+  const now = new Date().toISOString()
   const row = {
     id: crypto.randomUUID(),
     name: project.name,
@@ -107,6 +108,8 @@ export async function createProject(
     color: project.color ?? null,
     client: project.client ?? null,
     type: project.type ?? null,
+    createdAt: now,
+    updatedAt: now,
   }
   console.log('[createProject] inserting row:', JSON.stringify(row))
 
