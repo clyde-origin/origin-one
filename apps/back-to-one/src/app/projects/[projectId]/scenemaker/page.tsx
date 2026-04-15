@@ -126,31 +126,41 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
   }, [scenes, shots])
 
   // Projected display number during drag — reflects where shot *would* land
-  const getProjectedDisplayNumber = useCallback((shot: Shot) => {
+  const getProjectedDisplayNumber = useCallback((shot: Shot, sceneId: string) => {
     if (!dragShotId || dragTargetIdx < 0) return getShotDisplayNumber(shot)
     const order = flatShotOrder.current
     const fromIdx = order.indexOf(dragShotId)
     if (fromIdx < 0) return getShotDisplayNumber(shot)
-    // Build virtual order with dragged shot moved to target
+    // Build virtual order: remove dragged, then insert at correct position
     const virtual = order.filter(id => id !== dragShotId)
-    virtual.splice(dragTargetIdx, 0, dragShotId)
-    // Find all shots in same scene as this shot, in virtual order
-    const sceneId = shot.sceneId
-    const sceneShotIds = virtual.filter(id => {
-      const s = shots.find(sh => sh.id === id)
-      // If dragged shot lands in this scene's neighborhood, use target scene
+    // dragTargetIdx is relative to original order; adjust for the removal
+    const insertIdx = dragTargetIdx > fromIdx ? dragTargetIdx - 1 : dragTargetIdx
+    virtual.splice(Math.min(insertIdx, virtual.length), 0, dragShotId)
+    // Count only shots in this scene, in virtual order
+    // The dragged shot inherits the scene of its nearest neighbor at landing
+    let letterIdx = 0
+    for (const id of virtual) {
+      let sid: string
       if (id === dragShotId) {
-        const neighborId = virtual[dragTargetIdx === 0 ? 1 : dragTargetIdx - 1]
-        const neighbor = shots.find(sh => sh.id === neighborId)
-        return (neighbor?.sceneId ?? shot.sceneId) === sceneId
+        // Dragged shot takes the scene of its neighbor at target position
+        const ni = virtual.indexOf(id)
+        const neighborId = virtual[ni === 0 ? 1 : ni - 1]
+        const neighbor = shots.find(s => s.id === neighborId)
+        sid = neighbor?.sceneId ?? shot.sceneId
+      } else {
+        const s = shots.find(s => s.id === id)
+        sid = s?.sceneId ?? ''
       }
-      return s?.sceneId === sceneId
-    })
-    const idx = sceneShotIds.indexOf(shot.id)
-    if (idx < 0) return getShotDisplayNumber(shot)
-    const scene = scenes.find(s => s.id === sceneId)
-    const prefix = scene?.sceneNumber ?? '1'
-    return `${prefix}${String.fromCharCode(65 + idx)}`
+      if (sid !== sceneId) continue
+      if (id === shot.id) {
+        const scene = scenes.find(s => s.id === sceneId)
+        const prefix = scene?.sceneNumber ?? '1'
+        return `${prefix}${String.fromCharCode(65 + letterIdx)}`
+      }
+      letterIdx++
+    }
+    // Fallback — shot not found in this scene during drag
+    return getShotDisplayNumber(shot)
   }, [dragShotId, dragTargetIdx, shots, scenes, getShotDisplayNumber])
 
   const snapshotRects = useCallback(() => {
@@ -335,7 +345,7 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
             {(isOpen || wiggleMode) && (
               <>
                 {sceneShots.map((shot, i) => {
-                  const displayNum = dragShotId ? getProjectedDisplayNumber(shot) : getShotDisplayNumber(shot)
+                  const displayNum = dragShotId ? getProjectedDisplayNumber(shot, scene.id) : getShotDisplayNumber(shot)
                   const ds = getDragState(shot.id)
                   // Displaced cards shift by the height of one card row (~70px) to open a gap
                   const cardH = 70
