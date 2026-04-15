@@ -14,6 +14,9 @@ import { ScriptView, type ScriptViewHandle } from './components/ScriptView'
 import { ShotDetailSheet } from './components/ShotDetailSheet'
 import type { Scene, Shot, SceneMakerMode } from '@/types'
 
+type StoryboardScale = 'feed' | '3up' | '2up' | 'all'
+type ScriptPanel = 'characters' | 'locations' | 'props' | null
+
 // ── PILL SELECTOR ─────────────────────────────────────────
 
 function PillSelector({ label, options, value, onChange, accent }: {
@@ -507,12 +510,13 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
 
 // ── STORYBOARD VIEW ──────────────────────────────────────
 
-function StoryboardView({ scenes, shots, onTapShot, onReorder }: {
-  scenes: Scene[]; shots: Shot[]; onTapShot: (s: Shot) => void
+function StoryboardView({ scenes, shots, scale, onTapShot, onReorder }: {
+  scenes: Scene[]; shots: Shot[]; scale: StoryboardScale; onTapShot: (s: Shot) => void
   onReorder: (shotId: string, newIndex: number) => void
 }) {
   const totalScenes = scenes.length
   const sorted = [...shots].sort((a, b) => a.sortOrder - b.sortOrder)
+  const [activeSlot, setActiveSlot] = useState<0 | 1>(0) // for 2-up split
 
   const [dragId, setDragId] = useState<string | null>(null)
   const dragIdRef = useRef<string | null>(null)
@@ -543,6 +547,11 @@ function StoryboardView({ scenes, shots, onTapShot, onReorder }: {
     return 'idle'
   }, [dragId, dragTargetIdx, sorted])
 
+  const getSceneColorForShot = useCallback((shot: Shot) => {
+    const scene = scenes.find(s => s.id === shot.sceneId)
+    return scene ? getSceneColor(parseInt(scene.sceneNumber), totalScenes) : '#c45adc'
+  }, [scenes, totalScenes])
+
   if (shots.length === 0) return (
     <div className="flex flex-col items-center justify-center" style={{ minHeight: '60vh', gap: 10 }}>
       <div className="flex items-center justify-center cursor-pointer rounded-full" style={{ width: 40, height: 40, border: '1.5px dashed rgba(196,90,220,0.35)' }}>
@@ -552,11 +561,120 @@ function StoryboardView({ scenes, shots, onTapShot, onReorder }: {
     </div>
   )
 
+  // ── FEED: single column, large frames ──
+  if (scale === 'feed') return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '8px 10px' }}>
+      {sorted.map(shot => {
+        const sc = getSceneColorForShot(shot)
+        return (
+          <div key={shot.id} className="cursor-pointer" onClick={() => onTapShot(shot)}
+            style={{ background: 'rgba(10,10,18,0.42)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, overflow: 'hidden' }}>
+            <div className="relative" style={{ aspectRatio: '16/9' }}>
+              {shot.imageUrl ? (
+                <img src={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <div className="w-full h-full" style={{ background: `linear-gradient(135deg, ${sc}15, ${sc}08)` }} />
+              )}
+              <div className="absolute top-2 left-2" style={{
+                fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700,
+                color: sc, background: 'rgba(4,4,10,0.75)', borderRadius: 6, padding: '2px 8px',
+              }}>{shot.shotNumber}</div>
+            </div>
+            <div style={{ padding: '8px 12px' }}>
+              <div style={{ fontSize: '0.66rem', fontWeight: 600, color: '#dddde8', lineHeight: 1.4, marginBottom: 4 }}>{shot.description || '—'}</div>
+              {shot.notes && <div style={{ fontSize: '0.54rem', color: '#62627a', lineHeight: 1.4 }}>{shot.notes}</div>}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+
+  // ── 2-UP SPLIT: two large frames + filmstrip ──
+  if (scale === '2up') {
+    const slotShots = [sorted[0] ?? null, sorted[1] ?? null] as const
+    return (
+      <div>
+        {/* Two large frames */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, padding: '8px 10px' }}>
+          {[0, 1].map(slot => {
+            const shot = slotShots[slot]
+            const sc = shot ? getSceneColorForShot(shot) : '#62627a'
+            return (
+              <div key={slot} className="cursor-pointer"
+                style={{
+                  aspectRatio: '16/9', borderRadius: 10, overflow: 'hidden', position: 'relative',
+                  background: shot ? `linear-gradient(135deg, ${sc}15, ${sc}08)` : 'rgba(255,255,255,0.03)',
+                  border: activeSlot === slot ? `2px solid ${sc}` : '1px solid rgba(255,255,255,0.07)',
+                }}
+                onClick={() => { setActiveSlot(slot as 0 | 1); if (shot) onTapShot(shot) }}>
+                {shot?.imageUrl && <img src={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                {shot && (
+                  <div className="absolute top-1.5 left-1.5" style={{
+                    fontFamily: "'Geist', sans-serif", fontSize: '0.44rem', fontWeight: 700,
+                    color: sc, background: 'rgba(4,4,10,0.75)', borderRadius: 4, padding: '1px 6px',
+                  }}>{shot.shotNumber}</div>
+                )}
+                {!shot && <div className="w-full h-full flex items-center justify-center" style={{ fontSize: '0.5rem', color: '#62627a' }}>Empty</div>}
+              </div>
+            )
+          })}
+        </div>
+        {/* Filmstrip */}
+        <div className="no-scrollbar" style={{ display: 'flex', gap: 5, padding: '8px 10px', overflowX: 'auto' }}>
+          {sorted.map(shot => {
+            const sc = getSceneColorForShot(shot)
+            const isActive = slotShots[activeSlot]?.id === shot.id
+            return (
+              <div key={shot.id} className="flex-shrink-0 cursor-pointer" style={{
+                width: 64, borderRadius: 6, overflow: 'hidden',
+                border: isActive ? `1.5px solid ${sc}` : '1px solid rgba(255,255,255,0.07)',
+                opacity: isActive ? 1 : 0.7,
+              }}
+                onClick={() => onTapShot(shot)}>
+                <div style={{ aspectRatio: '16/9', background: `linear-gradient(135deg, ${sc}15, ${sc}08)` }}>
+                  {shot.imageUrl && <img src={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                </div>
+                <div style={{ padding: '2px 4px', fontSize: '0.32rem', fontWeight: 700, color: sc, textAlign: 'center' }}>{shot.shotNumber}</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // ── SEE ALL: everything scaled to fit, no scroll ──
+  if (scale === 'all') {
+    // Calculate columns to fit all items on screen
+    const count = sorted.length
+    const cols = count <= 4 ? 2 : count <= 9 ? 3 : count <= 16 ? 4 : count <= 25 ? 5 : 6
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 3, padding: '6px 6px', height: '100%' }}>
+        {sorted.map(shot => {
+          const sc = getSceneColorForShot(shot)
+          return (
+            <div key={shot.id} className="cursor-pointer" onClick={() => onTapShot(shot)}
+              style={{ borderRadius: 4, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)', position: 'relative' }}>
+              <div style={{ aspectRatio: '16/9', background: `linear-gradient(135deg, ${sc}12, ${sc}06)` }}>
+                {shot.imageUrl && <img src={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+              </div>
+              <div className="absolute bottom-0 left-0 right-0" style={{
+                fontSize: '0.28rem', fontWeight: 700, color: sc,
+                background: 'rgba(4,4,10,0.8)', padding: '1px 3px', textAlign: 'center',
+              }}>{shot.shotNumber}</div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // ── 3-UP GRID (default) ──
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, padding: '8px 10px' }}>
       {sorted.map((shot, idx) => {
-        const scene = scenes.find(s => s.id === shot.sceneId)
-        const sceneColor = scene ? getSceneColor(parseInt(scene.sceneNumber), totalScenes) : '#c45adc'
+        const sceneColor = getSceneColorForShot(shot)
         const state = getBoardDragState(shot.id)
 
         return (
@@ -734,6 +852,9 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null)
   const [newShotAt, setNewShotAt] = useState<{ index: number; sceneId: string } | null>(null)
   const [fabOpen, setFabOpen] = useState(false)
+  const [boardScale, setBoardScale] = useState<StoryboardScale>('3up')
+  const [scriptPanel, setScriptPanel] = useState<ScriptPanel>(null)
+  const [shotOrder, setShotOrder] = useState<'story' | 'shooting'>('story')
   const scriptRef = useRef<ScriptViewHandle>(null)
   const thumbFileRef = useRef<HTMLInputElement>(null)
   const pendingUploadShotRef = useRef<string | null>(null)
@@ -952,12 +1073,94 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         </div>
       </div>
 
-      {/* Shot count bar (shotlist/storyboard only) */}
-      {(mode === 'shotlist' || mode === 'storyboard') && (
-        <div className="flex items-center flex-shrink-0" style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          <span className="font-mono" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.06em' }}>
-            {allShots.length} shots
-          </span>
+      {/* ── MODE SUBHEADERS ── */}
+
+      {/* Script subheader: Characters / Locations / Props */}
+      {mode === 'script' && (
+        <div className="flex items-center justify-center flex-shrink-0" style={{ padding: '7px 14px', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          {(['characters', 'locations', 'props'] as const).map(panel => (
+            <button key={panel} className="font-mono uppercase cursor-pointer select-none transition-colors"
+              style={{
+                fontSize: '0.42rem', letterSpacing: '0.06em', padding: '5px 14px', borderRadius: 14,
+                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#a0a0b8',
+                minHeight: 30,
+              }}
+              onClick={() => { haptic('light'); setScriptPanel(panel) }}>
+              {panel}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Shotlist subheader: Export PDF | Story/Shooting | Version */}
+      {mode === 'shotlist' && (
+        <div className="flex items-center flex-shrink-0" style={{ padding: '7px 14px', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          {/* Export PDF */}
+          <button className="flex items-center gap-1.5 cursor-pointer select-none"
+            style={{ padding: '4px 10px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+            onClick={() => haptic('light')}>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 7V8.5h6V7" stroke="#a0a0b8" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /><path d="M5 1v5M3 4l2 2 2-2" stroke="#a0a0b8" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            <span className="font-mono uppercase" style={{ fontSize: '0.38rem', letterSpacing: '0.06em', color: '#a0a0b8' }}>PDF</span>
+          </button>
+
+          <div className="flex-1" />
+
+          {/* Story / Shooting toggle */}
+          <div className="flex" style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
+            {(['story', 'shooting'] as const).map(o => (
+              <button key={o} className="font-mono uppercase cursor-pointer select-none transition-colors"
+                style={{
+                  fontSize: '0.38rem', letterSpacing: '0.04em', padding: '4px 10px',
+                  background: shotOrder === o ? `${accent}1a` : 'rgba(255,255,255,0.02)',
+                  color: shotOrder === o ? accent : '#62627a',
+                }}
+                onClick={() => { haptic('light'); setShotOrder(o) }}>
+                {o}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1" />
+
+          {/* Version selector */}
+          <div className="flex items-center" style={{ gap: 4 }}>
+            <button className="flex items-center gap-1 cursor-pointer select-none"
+              style={{ padding: '4px 8px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+              onClick={() => haptic('light')}>
+              <span className="font-mono" style={{ fontSize: '0.42rem', fontWeight: 700, color: '#a0a0b8' }}>V1</span>
+              <svg width="6" height="6" viewBox="0 0 6 6" fill="none"><path d="M1.5 2.5L3 4L4.5 2.5" stroke="#62627a" strokeWidth="0.9" strokeLinecap="round" /></svg>
+            </button>
+            <button className="flex items-center justify-center cursor-pointer"
+              style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+              onClick={() => haptic('light')}>
+              <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M4 1.5v5M1.5 4h5" stroke="#62627a" strokeWidth="0.9" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Storyboard subheader: scale selector */}
+      {mode === 'storyboard' && (
+        <div className="flex items-center justify-center flex-shrink-0" style={{ padding: '7px 14px', gap: 6, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          {([
+            { key: 'feed' as const, label: 'Feed', icon: <><rect x="3" y="2" width="8" height="3" rx="0.5" /><rect x="3" y="6" width="8" height="3" rx="0.5" /><rect x="3" y="10" width="8" height="3" rx="0.5" /></> },
+            { key: '3up' as const, label: '3-up', icon: <><rect x="1" y="3" width="3.5" height="3" rx="0.5" /><rect x="5.25" y="3" width="3.5" height="3" rx="0.5" /><rect x="9.5" y="3" width="3.5" height="3" rx="0.5" /><rect x="1" y="7" width="3.5" height="3" rx="0.5" /><rect x="5.25" y="7" width="3.5" height="3" rx="0.5" /><rect x="9.5" y="7" width="3.5" height="3" rx="0.5" /></> },
+            { key: '2up' as const, label: 'Split', icon: <><rect x="1" y="2" width="6" height="5" rx="0.5" /><rect x="7.5" y="2" width="6" height="5" rx="0.5" /><rect x="1" y="9" width="2.5" height="2" rx="0.3" /><rect x="4" y="9" width="2.5" height="2" rx="0.3" /><rect x="7" y="9" width="2.5" height="2" rx="0.3" /><rect x="10" y="9" width="2.5" height="2" rx="0.3" /></> },
+            { key: 'all' as const, label: 'All', icon: <>{[0,1,2,3].map(r => [0,1,2,3].map(c => <rect key={`${r}${c}`} x={1+c*3.25} y={1.5+r*3} width="2.5" height="2" rx="0.3" />))}</> },
+          ]).map(s => (
+            <button key={s.key} className="flex flex-col items-center gap-1 cursor-pointer select-none transition-colors"
+              style={{
+                padding: '4px 10px', borderRadius: 10, minWidth: 44,
+                background: boardScale === s.key ? `${accent}14` : 'transparent',
+                border: boardScale === s.key ? `1px solid ${accent}30` : '1px solid transparent',
+              }}
+              onClick={() => { haptic('light'); setBoardScale(s.key) }}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={boardScale === s.key ? accent : '#62627a'} strokeWidth="0.7">
+                {s.icon}
+              </svg>
+              <span className="font-mono uppercase" style={{ fontSize: '0.3rem', letterSpacing: '0.04em', color: boardScale === s.key ? accent : '#62627a' }}>{s.label}</span>
+            </button>
+          ))}
         </div>
       )}
 
@@ -968,7 +1171,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
             {mode === 'script' && (() => { console.log('[SceneMaker] rendering ScriptView, mode=', mode, 'scenes=', allScenes.length, 'sceneIds=', allScenes.map(s => s.id)); return null })()}
             {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} onUpdateScene={handleUpdateScene} />}
             {mode === 'shotlist' && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} />}
-            {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} onTapShot={setSelectedShot} onReorder={handleReorder} />}
+            {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} scale={boardScale} onTapShot={setSelectedShot} onReorder={handleReorder} />}
           </>
         )}
       </div>
@@ -1147,6 +1350,46 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           }}
           onClose={() => setNewShotAt(null)}
         />
+      </Sheet>
+
+      {/* Script panel sheets — Characters / Locations / Props */}
+      <Sheet open={scriptPanel === 'characters'} onClose={() => setScriptPanel(null)} maxHeight="70vh">
+        <div style={{ padding: '8px 20px 20px' }}>
+          <span style={{ fontFamily: "'Geist', sans-serif", fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8' }}>Characters</span>
+        </div>
+        <div className="flex flex-col items-center justify-center" style={{ padding: '40px 20px', gap: 12 }}>
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="12" r="5" stroke="#62627a" strokeWidth="1.5" />
+            <path d="M8 26c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="#62627a" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <span style={{ fontSize: '0.7rem', color: '#62627a', textAlign: 'center', lineHeight: 1.5 }}>Characters will be extracted from your script</span>
+        </div>
+      </Sheet>
+
+      <Sheet open={scriptPanel === 'locations'} onClose={() => setScriptPanel(null)} maxHeight="70vh">
+        <div style={{ padding: '8px 20px 20px' }}>
+          <span style={{ fontFamily: "'Geist', sans-serif", fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8' }}>Locations</span>
+        </div>
+        <div className="flex flex-col items-center justify-center" style={{ padding: '40px 20px', gap: 12 }}>
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <path d="M16 4c-5 0-9 4-9 9 0 7 9 15 9 15s9-8 9-15c0-5-4-9-9-9z" stroke="#62627a" strokeWidth="1.5" />
+            <circle cx="16" cy="13" r="3" stroke="#62627a" strokeWidth="1.5" />
+          </svg>
+          <span style={{ fontSize: '0.7rem', color: '#62627a', textAlign: 'center', lineHeight: 1.5 }}>Locations will be extracted from your script</span>
+        </div>
+      </Sheet>
+
+      <Sheet open={scriptPanel === 'props'} onClose={() => setScriptPanel(null)} maxHeight="70vh">
+        <div style={{ padding: '8px 20px 20px' }}>
+          <span style={{ fontFamily: "'Geist', sans-serif", fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8' }}>Props</span>
+        </div>
+        <div className="flex flex-col items-center justify-center" style={{ padding: '40px 20px', gap: 12 }}>
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <rect x="6" y="8" width="20" height="16" rx="2" stroke="#62627a" strokeWidth="1.5" />
+            <path d="M12 8V6a4 4 0 018 0v2" stroke="#62627a" strokeWidth="1.5" />
+          </svg>
+          <span style={{ fontSize: '0.7rem', color: '#62627a', textAlign: 'center', lineHeight: 1.5 }}>Props will be extracted from your script</span>
+        </div>
       </Sheet>
     </div>
   )
