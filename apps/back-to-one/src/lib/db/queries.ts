@@ -386,7 +386,7 @@ export async function updateScene(
   fields: { title?: string; description?: string }
 ): Promise<void> {
   const db = createClient()
-  console.log('[updateScene]', sceneId, fields)
+  console.log('[ScriptView] saving scene', sceneId, fields)
   const { error } = await db
     .from('Scene')
     .update(fields)

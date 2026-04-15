@@ -25,21 +25,49 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
   const dialogueLineRef = useRef<HTMLDivElement | null>(null)
   const totalScenes = scenes.length
 
-  // Track pending edits per scene so we can flush on unmount / tab switch
+  // Track pending edits per scene — written by onInput, flushed by debounce / blur / tab switch / unmount
   const pendingEdits = useRef<Map<string, { title?: string; description?: string }>>(new Map())
+  const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   const queueEdit = useCallback((sceneId: string, fields: { title?: string; description?: string }) => {
     const existing = pendingEdits.current.get(sceneId) ?? {}
     pendingEdits.current.set(sceneId, { ...existing, ...fields })
+    console.log('[ScriptView] queued edit', sceneId, pendingEdits.current.get(sceneId))
   }, [])
 
-  const flushEdits = useCallback(() => {
-    pendingEdits.current.forEach((fields, sceneId) => {
-      console.log('[ScriptView] flushing edit', sceneId, fields)
+  const saveScene = useCallback((sceneId: string) => {
+    const fields = pendingEdits.current.get(sceneId)
+    if (fields) {
+      console.log('[ScriptView] saving on flush/blur/debounce', sceneId, fields)
       onUpdateScene(sceneId, fields)
-    })
-    pendingEdits.current.clear()
+      pendingEdits.current.delete(sceneId)
+    }
+    // Clear any pending debounce for this scene
+    const timer = debounceTimers.current.get(sceneId)
+    if (timer) {
+      clearTimeout(timer)
+      debounceTimers.current.delete(sceneId)
+    }
   }, [onUpdateScene])
+
+  const flushEdits = useCallback(() => {
+    pendingEdits.current.forEach((_fields, sceneId) => {
+      saveScene(sceneId)
+    })
+  }, [saveScene])
+
+  const scheduleDebounceSave = useCallback((sceneId: string) => {
+    // Clear existing timer
+    const existing = debounceTimers.current.get(sceneId)
+    if (existing) clearTimeout(existing)
+    // Set new 2-second debounce
+    const timer = setTimeout(() => {
+      console.log('[ScriptView] debounce fired for', sceneId)
+      saveScene(sceneId)
+      debounceTimers.current.delete(sceneId)
+    }, 2000)
+    debounceTimers.current.set(sceneId, timer)
+  }, [saveScene])
 
   // Focus newly inserted block
   useEffect(() => {
@@ -59,9 +87,11 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
     }
   }, [dialogueStep])
 
-  // Flush on unmount
+  // Flush on unmount + clear debounce timers
   useEffect(() => {
     return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      debounceTimers.current.forEach(timer => clearTimeout(timer))
       // eslint-disable-next-line react-hooks/exhaustive-deps
       pendingEdits.current.forEach((fields, sceneId) => {
         console.log('[ScriptView] flush on unmount', sceneId, fields)
@@ -91,36 +121,33 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
     e.currentTarget.style.boxShadow = `0 0 0 4px ${accent}0d`
   }
 
-  const handleTitleBlur = useCallback((sceneId: string, original: string, e: React.FocusEvent<HTMLDivElement>) => {
-    e.currentTarget.style.background = ''
-    e.currentTarget.style.boxShadow = ''
+  // onInput: track changes in real time, schedule debounce save
+  const handleTitleInput = useCallback((sceneId: string, e: React.FormEvent<HTMLDivElement>) => {
     const newVal = e.currentTarget.textContent?.trim() ?? ''
-    if (newVal !== original) {
-      queueEdit(sceneId, { title: newVal })
-      // Save immediately on blur
-      const pending = pendingEdits.current.get(sceneId)
-      if (pending) {
-        console.log('[ScriptView] saving on blur', sceneId, pending)
-        onUpdateScene(sceneId, pending)
-        pendingEdits.current.delete(sceneId)
-      }
-    }
-  }, [queueEdit, onUpdateScene])
+    queueEdit(sceneId, { title: newVal })
+    scheduleDebounceSave(sceneId)
+  }, [queueEdit, scheduleDebounceSave])
 
-  const handleDescBlur = useCallback((sceneId: string, original: string, e: React.FocusEvent<HTMLDivElement>) => {
+  const handleDescInput = useCallback((sceneId: string, e: React.FormEvent<HTMLDivElement>) => {
+    const newVal = e.currentTarget.textContent?.trim() ?? ''
+    queueEdit(sceneId, { description: newVal })
+    scheduleDebounceSave(sceneId)
+  }, [queueEdit, scheduleDebounceSave])
+
+  // onBlur fallback: save immediately if there are pending edits
+  const handleTitleBlur = useCallback((sceneId: string, e: React.FocusEvent<HTMLDivElement>) => {
     e.currentTarget.style.background = ''
     e.currentTarget.style.boxShadow = ''
-    const newVal = e.currentTarget.textContent?.trim() ?? ''
-    if (newVal !== original) {
-      queueEdit(sceneId, { description: newVal })
-      const pending = pendingEdits.current.get(sceneId)
-      if (pending) {
-        console.log('[ScriptView] saving on blur', sceneId, pending)
-        onUpdateScene(sceneId, pending)
-        pendingEdits.current.delete(sceneId)
-      }
-    }
-  }, [queueEdit, onUpdateScene])
+    console.log('[ScriptView] title blur', sceneId)
+    saveScene(sceneId)
+  }, [saveScene])
+
+  const handleDescBlur = useCallback((sceneId: string, e: React.FocusEvent<HTMLDivElement>) => {
+    e.currentTarget.style.background = ''
+    e.currentTarget.style.boxShadow = ''
+    console.log('[ScriptView] desc blur', sceneId)
+    saveScene(sceneId)
+  }, [saveScene])
 
   if (scenes.length === 0 && insertedBlocks.length === 0) return (
     <div className="flex flex-col items-center justify-center" style={{ minHeight: '60vh', gap: 10 }}>
@@ -136,8 +163,6 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
       {scenes.map((scene, si) => {
         const sceneNum = parseInt(scene.sceneNumber) || (si + 1)
         const sceneColor = getSceneColor(sceneNum, totalScenes)
-        const origTitle = scene.title ?? ''
-        const origDesc = scene.description ?? ''
         return (
           <div key={scene.id} style={{ padding: '20px 20px 0', borderTop: si > 0 ? '1px solid rgba(255,255,255,0.05)' : undefined }}>
             {/* Scene number badge + Slug */}
@@ -148,8 +173,9 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
               <div contentEditable suppressContentEditableWarning
                 style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '0.78rem', fontWeight: 700, color: '#dddde8', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.4, outline: 'none', borderRadius: 4, cursor: 'text', flex: 1 }}
                 onFocus={focusStyle}
-                onBlur={e => handleTitleBlur(scene.id, origTitle, e)}>
-                {origTitle}
+                onInput={e => handleTitleInput(scene.id, e)}
+                onBlur={e => handleTitleBlur(scene.id, e)}>
+                {scene.title ?? ''}
               </div>
             </div>
 
@@ -158,8 +184,9 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
               data-placeholder="Action description..."
               style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '0.74rem', color: '#a0a0b8', lineHeight: 1.65, marginBottom: 10, outline: 'none', borderRadius: 4, cursor: 'text', minHeight: 20 }}
               onFocus={focusStyle}
-              onBlur={e => handleDescBlur(scene.id, origDesc, e)}>
-              {origDesc}
+              onInput={e => handleDescInput(scene.id, e)}
+              onBlur={e => handleDescBlur(scene.id, e)}>
+              {scene.description ?? ''}
             </div>
           </div>
         )
