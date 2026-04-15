@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useProject, useScenes } from '@/lib/hooks/useOriginOne'
-import { getShotsByProject, updateShotOrder, createShot, createScene, uploadStoryboardImage, updateShot, updateScene } from '@/lib/db/queries'
+import { getShotsByProject, updateShotOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene } from '@/lib/db/queries'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Sheet } from '@/components/ui/Sheet'
@@ -759,22 +759,32 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
     })
   }, [projectId, qc])
 
-  // ── ADD SCENE HANDLER (creates DB record) ───────────────
+  // ── ADD SCENE HANDLER (creates DB record at cursor position) ──
   const handleAddScene = useCallback(() => {
-    const nextNum = String(allScenes.length + 1)
-    const nextOrder = allScenes.length
-    console.log('[SceneMaker] handleAddScene CALLED', { projectId, sceneNumber: nextNum, sortOrder: nextOrder })
-    createScene(projectId, {
-      sceneNumber: nextNum,
-      sortOrder: nextOrder,
-    }).then(() => {
-      console.log('[SceneMaker] createScene SUCCESS — invalidating queries')
-      qc.invalidateQueries({ queryKey: ['scenes', projectId] })
-      qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
-    }).catch((err) => {
-      console.error('[SceneMaker] createScene FAILED:', err)
-    })
-  }, [projectId, allScenes.length, qc])
+    const focusedIdx = scriptRef.current?.getFocusedSceneIndex() ?? allScenes.length - 1
+    // For empty projects (no scenes), use createScene with sortOrder 0
+    if (allScenes.length === 0) {
+      console.log('[SceneMaker] handleAddScene — first scene for empty project', { projectId })
+      createScene(projectId, { sceneNumber: '1', sortOrder: 0 })
+        .then(() => {
+          console.log('[SceneMaker] createScene SUCCESS')
+          qc.invalidateQueries({ queryKey: ['scenes', projectId] })
+          qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
+        })
+        .catch(err => console.error('[SceneMaker] createScene FAILED:', err))
+      return
+    }
+    // Insert after the focused scene
+    const afterSortOrder = allScenes[focusedIdx]?.sortOrder ?? allScenes[allScenes.length - 1].sortOrder
+    console.log('[SceneMaker] handleAddScene CALLED', { projectId, focusedIdx, afterSortOrder })
+    createSceneAtPosition(projectId, afterSortOrder, {})
+      .then(() => {
+        console.log('[SceneMaker] createSceneAtPosition SUCCESS')
+        qc.invalidateQueries({ queryKey: ['scenes', projectId] })
+        qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
+      })
+      .catch(err => console.error('[SceneMaker] createSceneAtPosition FAILED:', err))
+  }, [projectId, allScenes, qc])
 
   // ── REORDER HANDLER ──────────────────────────────────────
 

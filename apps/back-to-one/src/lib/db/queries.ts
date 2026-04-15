@@ -406,6 +406,51 @@ export async function createScene(
   return { id }
 }
 
+/** Insert a scene after a given sortOrder, shifting subsequent scenes */
+export async function createSceneAtPosition(
+  projectId: string,
+  insertAfterSortOrder: number,
+  fields: { title?: string; description?: string }
+): Promise<{ id: string }> {
+  const db = createClient()
+  const now = new Date().toISOString()
+
+  // Fetch all existing scenes to determine numbering + shift
+  const { data: existing } = await db
+    .from('Scene')
+    .select('id, sortOrder')
+    .eq('projectId', projectId)
+    .order('sortOrder', { ascending: true })
+
+  const newSortOrder = insertAfterSortOrder + 1
+  const sceneNumber = String((existing?.length ?? 0) + 1)
+
+  // Shift scenes at or after the new position
+  if (existing) {
+    for (const s of existing) {
+      if (s.sortOrder >= newSortOrder) {
+        await db.from('Scene').update({ sortOrder: s.sortOrder + 1, updatedAt: now }).eq('id', s.id)
+      }
+    }
+  }
+
+  const id = crypto.randomUUID()
+  const row = {
+    id,
+    projectId,
+    sceneNumber,
+    title: fields.title ?? null,
+    description: fields.description ?? null,
+    sortOrder: newSortOrder,
+    createdAt: now,
+    updatedAt: now,
+  }
+  console.log('[createSceneAtPosition] inserting after sortOrder', insertAfterSortOrder, row)
+  const { error } = await db.from('Scene').insert(row)
+  if (error) { console.error('[createSceneAtPosition] FAILED:', error); throw error }
+  return { id }
+}
+
 export async function updateScene(
   sceneId: string,
   fields: { title?: string; description?: string }
