@@ -43,11 +43,12 @@ function mkBlock(type: ContentBlock['type'], content = ''): ContentBlock {
 
 // ── Block placeholders ───────────────────────────────────
 const PLACEHOLDER: Record<string, string> = {
-  scene_heading: 'INT./EXT. LOCATION — TIME',
-  action: 'Action...',
-  character: 'CHARACTER NAME',
-  dialogue: 'Dialogue...',
+  scene_heading: 'Scene Heading',
+  action: 'Action / Description',
+  character: 'Character',
+  dialogue: 'Dialogue',
 }
+
 
 // ── Public handle ────────────────────────────────────────
 export interface ScriptViewHandle {
@@ -328,6 +329,25 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
     </div>
   )
 
+  // ── Compute scene heading numbers across all scenes ─────
+  // Each DB scene gets its sceneNumber; scene_heading blocks within
+  // get auto-incremented numbers starting after the highest DB scene number.
+  const allBlocksList: { sceneId: string; blocks: ContentBlock[] }[] = []
+  let headingCounter = totalScenes
+  for (const scene of scenes) {
+    allBlocksList.push({ sceneId: scene.id, blocks: getSceneBlocks(scene) })
+  }
+  // Build a map of block.id → display number for scene_heading blocks
+  const headingNumbers = new Map<string, number>()
+  for (const entry of allBlocksList) {
+    for (const block of entry.blocks) {
+      if (block.type === 'scene_heading') {
+        headingCounter++
+        headingNumbers.set(block.id, headingCounter)
+      }
+    }
+  }
+
   // ── Main render ────────────────────────────────────────
   return (
     <div style={{ paddingBottom: 20 }}>
@@ -354,7 +374,7 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
                     el.setAttribute('data-init', '1')
                   }
                 }}
-                data-placeholder="INT./EXT. LOCATION — TIME"
+                data-placeholder="Scene Heading"
                 style={{
                   fontFamily: "'Geist', sans-serif", fontSize: '0.78rem', fontWeight: 700,
                   color: accent, textTransform: 'uppercase', letterSpacing: '0.04em',
@@ -369,24 +389,55 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
             </div>
 
             {/* Content blocks */}
-            {blocks.map((block, bi) => (
-              <div key={block.id}
-                data-block-id={block.id}
-                contentEditable suppressContentEditableWarning
-                ref={el => {
-                  if (el && !el.getAttribute('data-init')) {
-                    el.textContent = block.content
-                    el.setAttribute('data-init', '1')
-                  }
-                }}
-                data-placeholder={PLACEHOLDER[block.type] ?? ''}
-                style={getBlockStyle(block.type)}
-                onFocus={focusStyle}
-                onInput={e => handleBlockInput(scene.id, bi, e)}
-                onBlur={e => handleBlockBlur(scene.id, e)}
-                onKeyDown={e => handleBlockKeyDown(scene.id, bi, block.type, e)}
-              />
-            ))}
+            {blocks.map((block, bi) => {
+              // Scene heading blocks get a numbered badge like DB scenes
+              if (block.type === 'scene_heading') {
+                const hNum = headingNumbers.get(block.id) ?? (totalScenes + 1)
+                const hColor = getSceneColor(hNum, headingCounter)
+                return (
+                  <div key={block.id} className="flex items-start" style={{ gap: 8, marginBottom: 12, marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    <span className="font-mono flex-shrink-0" style={{ fontSize: '0.52rem', fontWeight: 700, color: hColor, background: `${hColor}1a`, borderRadius: 4, padding: '2px 5px', marginTop: 2 }}>
+                      {String(hNum).padStart(2, '0')}
+                    </span>
+                    <div
+                      data-block-id={block.id}
+                      contentEditable suppressContentEditableWarning
+                      ref={el => {
+                        if (el && !el.getAttribute('data-init')) {
+                          el.textContent = block.content
+                          el.setAttribute('data-init', '1')
+                        }
+                      }}
+                      data-placeholder={PLACEHOLDER.scene_heading}
+                      style={{ ...getBlockStyle('scene_heading'), flex: 1 }}
+                      onFocus={focusStyle}
+                      onInput={e => handleBlockInput(scene.id, bi, e)}
+                      onBlur={e => handleBlockBlur(scene.id, e)}
+                      onKeyDown={e => handleBlockKeyDown(scene.id, bi, block.type, e)}
+                    />
+                  </div>
+                )
+              }
+
+              return (
+                <div key={block.id}
+                  data-block-id={block.id}
+                  contentEditable suppressContentEditableWarning
+                  ref={el => {
+                    if (el && !el.getAttribute('data-init')) {
+                      el.textContent = block.content
+                      el.setAttribute('data-init', '1')
+                    }
+                  }}
+                  data-placeholder={PLACEHOLDER[block.type] ?? ''}
+                  style={getBlockStyle(block.type)}
+                  onFocus={focusStyle}
+                  onInput={e => handleBlockInput(scene.id, bi, e)}
+                  onBlur={e => handleBlockBlur(scene.id, e)}
+                  onKeyDown={e => handleBlockKeyDown(scene.id, bi, block.type, e)}
+                />
+              )
+            })}
           </div>
         )
       })}
