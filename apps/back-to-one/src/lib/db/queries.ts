@@ -372,13 +372,38 @@ export async function createMilestone(
 
 export async function getScenes(projectId: string) {
   const db = createClient()
+  console.log('[getScenes] fetching for projectId:', projectId)
   const { data, error } = await db
     .from('Scene')
     .select('*')
     .eq('projectId', projectId)
     .order('sortOrder', { ascending: true })
+  console.log('[getScenes] raw response:', { count: data?.length ?? 0, error, data })
   if (error) throw error
   return data
+}
+
+export async function createScene(
+  projectId: string,
+  fields: { title?: string; description?: string; sceneNumber?: string; sortOrder?: number }
+): Promise<{ id: string }> {
+  const db = createClient()
+  const now = new Date().toISOString()
+  const id = crypto.randomUUID()
+  const row = {
+    id,
+    projectId,
+    sceneNumber: fields.sceneNumber ?? '1',
+    title: fields.title ?? '',
+    description: fields.description ?? '',
+    sortOrder: fields.sortOrder ?? 0,
+    createdAt: now,
+    updatedAt: now,
+  }
+  console.log('[createScene] inserting:', row)
+  const { error } = await db.from('Scene').insert(row)
+  if (error) { console.error('[createScene] FAILED:', error); throw error }
+  return { id }
 }
 
 export async function updateScene(

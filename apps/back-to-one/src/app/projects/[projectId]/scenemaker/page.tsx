@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useProject, useScenes } from '@/lib/hooks/useOriginOne'
-import { getShotsByProject, updateShotOrder, createShot, uploadStoryboardImage, updateShot, updateScene } from '@/lib/db/queries'
+import { getShotsByProject, updateShotOrder, createShot, createScene, uploadStoryboardImage, updateShot, updateScene } from '@/lib/db/queries'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Sheet } from '@/components/ui/Sheet'
@@ -759,6 +759,20 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
     })
   }, [projectId, qc])
 
+  // ── ADD SCENE HANDLER (creates DB record) ───────────────
+  const handleAddScene = useCallback(() => {
+    const nextNum = String(allScenes.length + 1)
+    const nextOrder = allScenes.length
+    console.log('[SceneMaker] creating scene', { projectId, sceneNumber: nextNum, sortOrder: nextOrder })
+    createScene(projectId, {
+      sceneNumber: nextNum,
+      sortOrder: nextOrder,
+    }).then(() => {
+      qc.invalidateQueries({ queryKey: ['scenes', projectId] })
+      qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
+    })
+  }, [projectId, allScenes.length, qc])
+
   // ── REORDER HANDLER ──────────────────────────────────────
 
   const handleReorder = useCallback((shotId: string, newIndex: number) => {
@@ -847,7 +861,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const branches: BranchDef[] = useMemo(() => {
     if (mode === 'script') {
       return [
-        { label: 'Add Scene', color: '#e8a020', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" /><path d="M13 10v4M11 12h4" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" /></svg>, action: () => { scriptRef.current?.addScene() } },
+        { label: 'Add Scene', color: '#e8a020', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" /><path d="M13 10v4M11 12h4" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" /></svg>, action: () => { handleAddScene() } },
         { label: 'Add Action', color: '#6470f3', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h12M2 11h8" stroke="#6470f3" strokeWidth="1.3" strokeLinecap="round" /></svg>, action: () => { scriptRef.current?.addAction() } },
         { label: 'Add Dialogue', color: accent, icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4h8M5 7h6M4 10h8" stroke={accent} strokeWidth="1.3" strokeLinecap="round" /></svg>, action: () => { scriptRef.current?.addDialogue() } },
       ]
@@ -921,7 +935,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       <div className="flex-1 overflow-y-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 100 }}>
         {loading ? <LoadingState /> : (
           <>
-            {mode === 'script' && (() => { console.log('[SceneMaker] rendering ScriptView, mode=', mode, 'scenes=', allScenes.length); return null })()}
+            {mode === 'script' && (() => { console.log('[SceneMaker] rendering ScriptView, mode=', mode, 'scenes=', allScenes.length, 'sceneIds=', allScenes.map(s => s.id)); return null })()}
             {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} onUpdateScene={handleUpdateScene} />}
             {mode === 'shotlist' && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} />}
             {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} onTapShot={setSelectedShot} onReorder={handleReorder} />}
