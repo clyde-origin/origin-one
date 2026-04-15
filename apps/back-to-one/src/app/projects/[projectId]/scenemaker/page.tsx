@@ -516,7 +516,12 @@ function StoryboardView({ scenes, shots, scale, onTapShot, onReorder }: {
 }) {
   const totalScenes = scenes.length
   const sorted = [...shots].sort((a, b) => a.sortOrder - b.sortOrder)
-  const [activeSlot, setActiveSlot] = useState<0 | 1>(0) // for 2-up split
+  // 2-up split state
+  const [leftShotId, setLeftShotId] = useState<string | null>(null)
+  const [rightShotId, setRightShotId] = useState<string | null>(null)
+  // Initialize slot defaults when shots change
+  const effectiveLeftId = leftShotId && sorted.some(s => s.id === leftShotId) ? leftShotId : sorted[0]?.id ?? null
+  const effectiveRightId = rightShotId && sorted.some(s => s.id === rightShotId) ? rightShotId : sorted[1]?.id ?? null
 
   const [dragId, setDragId] = useState<string | null>(null)
   const dragIdRef = useRef<string | null>(null)
@@ -590,29 +595,34 @@ function StoryboardView({ scenes, shots, scale, onTapShot, onReorder }: {
     </div>
   )
 
-  // ── 2-UP SPLIT: two large frames + filmstrip ──
+  // ── 2-UP SPLIT: two large frames, each with own filmstrip ──
   if (scale === '2up') {
-    const slotShots = [sorted[0] ?? null, sorted[1] ?? null] as const
+    const SLOT_COLORS = ['#6470f3', '#e8a020'] as const
+    const slotIds = [effectiveLeftId, effectiveRightId]
+    const setSlotId = [setLeftShotId, setRightShotId]
+    const slotShots = slotIds.map(id => sorted.find(s => s.id === id) ?? null)
+
     return (
       <div>
         {/* Two large frames */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, padding: '8px 10px' }}>
           {[0, 1].map(slot => {
             const shot = slotShots[slot]
+            const slotColor = SLOT_COLORS[slot]
             const sc = shot ? getSceneColorForShot(shot) : '#62627a'
             return (
-              <div key={slot} className="cursor-pointer"
+              <div key={slot}
                 style={{
                   aspectRatio: '16/9', borderRadius: 10, overflow: 'hidden', position: 'relative',
                   background: shot ? `linear-gradient(135deg, ${sc}15, ${sc}08)` : 'rgba(255,255,255,0.03)',
-                  border: activeSlot === slot ? `2px solid ${sc}` : '1px solid rgba(255,255,255,0.07)',
-                }}
-                onClick={() => { setActiveSlot(slot as 0 | 1); if (shot) onTapShot(shot) }}>
+                  border: `2px solid ${slotColor}60`,
+                  boxShadow: `0 0 12px ${slotColor}15`,
+                }}>
                 {shot?.imageUrl && <img src={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                 {shot && (
                   <div className="absolute top-1.5 left-1.5" style={{
                     fontFamily: "'Geist', sans-serif", fontSize: '0.44rem', fontWeight: 700,
-                    color: sc, background: 'rgba(4,4,10,0.75)', borderRadius: 4, padding: '1px 6px',
+                    color: '#fff', background: slotColor, borderRadius: 4, padding: '1px 6px',
                   }}>{shot.shotNumber}</div>
                 )}
                 {!shot && <div className="w-full h-full flex items-center justify-center" style={{ fontSize: '0.5rem', color: '#62627a' }}>Empty</div>}
@@ -620,26 +630,42 @@ function StoryboardView({ scenes, shots, scale, onTapShot, onReorder }: {
             )
           })}
         </div>
-        {/* Filmstrip */}
-        <div className="no-scrollbar" style={{ display: 'flex', gap: 5, padding: '8px 10px', overflowX: 'auto' }}>
-          {sorted.map(shot => {
-            const sc = getSceneColorForShot(shot)
-            const isActive = slotShots[activeSlot]?.id === shot.id
-            return (
-              <div key={shot.id} className="flex-shrink-0 cursor-pointer" style={{
-                width: 64, borderRadius: 6, overflow: 'hidden',
-                border: isActive ? `1.5px solid ${sc}` : '1px solid rgba(255,255,255,0.07)',
-                opacity: isActive ? 1 : 0.7,
-              }}
-                onClick={() => onTapShot(shot)}>
-                <div style={{ aspectRatio: '16/9', background: `linear-gradient(135deg, ${sc}15, ${sc}08)` }}>
-                  {shot.imageUrl && <img src={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                </div>
-                <div style={{ padding: '2px 4px', fontSize: '0.32rem', fontWeight: 700, color: sc, textAlign: 'center' }}>{shot.shotNumber}</div>
+
+        {/* Two filmstrips — one per slot */}
+        {[0, 1].map(slot => {
+          const slotColor = SLOT_COLORS[slot]
+          const selectedId = slotIds[slot]
+          return (
+            <div key={slot}>
+              <div className="flex items-center" style={{ padding: '6px 10px 2px', gap: 5 }}>
+                <div style={{ width: 8, height: 8, borderRadius: 2, background: slotColor, opacity: 0.7 }} />
+                <span className="font-mono uppercase" style={{ fontSize: '0.36rem', color: slotColor, letterSpacing: '0.06em', opacity: 0.8 }}>
+                  {slot === 0 ? 'Left' : 'Right'}
+                </span>
               </div>
-            )
-          })}
-        </div>
+              <div className="no-scrollbar" style={{ display: 'flex', gap: 5, padding: '4px 10px 8px', overflowX: 'auto' }}>
+                {sorted.map(shot => {
+                  const sc = getSceneColorForShot(shot)
+                  const isSelected = shot.id === selectedId
+                  return (
+                    <div key={shot.id} className="flex-shrink-0 cursor-pointer" style={{
+                      width: 56, borderRadius: 6, overflow: 'hidden',
+                      border: isSelected ? `2px solid ${slotColor}` : '1px solid rgba(255,255,255,0.07)',
+                      opacity: isSelected ? 1 : 0.6,
+                      transition: 'border 0.15s, opacity 0.15s',
+                    }}
+                      onClick={() => { haptic('light'); setSlotId[slot](shot.id) }}>
+                      <div style={{ aspectRatio: '16/9', background: `linear-gradient(135deg, ${sc}15, ${sc}08)` }}>
+                        {shot.imageUrl && <img src={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                      </div>
+                      <div style={{ padding: '2px 4px', fontSize: '0.3rem', fontWeight: 700, color: isSelected ? slotColor : sc, textAlign: 'center' }}>{shot.shotNumber}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
       </div>
     )
   }
@@ -1073,17 +1099,16 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         </div>
       </div>
 
-      {/* ── MODE SUBHEADERS ── */}
+      {/* ── MODE SUBHEADERS (consistent 44px height) ── */}
 
       {/* Script subheader: Characters / Locations / Props */}
       {mode === 'script' && (
-        <div className="flex items-center justify-center flex-shrink-0" style={{ padding: '7px 14px', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="flex items-center justify-center flex-shrink-0" style={{ height: 44, padding: '0 14px', gap: 10, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           {(['characters', 'locations', 'props'] as const).map(panel => (
             <button key={panel} className="font-mono uppercase cursor-pointer select-none transition-colors"
               style={{
-                fontSize: '0.42rem', letterSpacing: '0.06em', padding: '5px 14px', borderRadius: 14,
+                fontSize: '0.46rem', letterSpacing: '0.06em', padding: '6px 18px', borderRadius: 16,
                 background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#a0a0b8',
-                minHeight: 30,
               }}
               onClick={() => { haptic('light'); setScriptPanel(panel) }}>
               {panel}
@@ -1094,23 +1119,23 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
       {/* Shotlist subheader: Export PDF | Story/Shooting | Version */}
       {mode === 'shotlist' && (
-        <div className="flex items-center flex-shrink-0" style={{ padding: '7px 14px', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="flex items-center flex-shrink-0" style={{ height: 44, padding: '0 14px', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           {/* Export PDF */}
-          <button className="flex items-center gap-1.5 cursor-pointer select-none"
-            style={{ padding: '4px 10px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+          <button className="flex items-center gap-2 cursor-pointer select-none"
+            style={{ padding: '6px 14px', borderRadius: 16, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
             onClick={() => haptic('light')}>
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 7V8.5h6V7" stroke="#a0a0b8" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /><path d="M5 1v5M3 4l2 2 2-2" stroke="#a0a0b8" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            <span className="font-mono uppercase" style={{ fontSize: '0.38rem', letterSpacing: '0.06em', color: '#a0a0b8' }}>PDF</span>
+            <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 7V8.5h6V7" stroke="#a0a0b8" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /><path d="M5 1v5M3 4l2 2 2-2" stroke="#a0a0b8" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            <span className="font-mono uppercase" style={{ fontSize: '0.46rem', letterSpacing: '0.06em', color: '#a0a0b8' }}>PDF</span>
           </button>
 
           <div className="flex-1" />
 
           {/* Story / Shooting toggle */}
-          <div className="flex" style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="flex" style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
             {(['story', 'shooting'] as const).map(o => (
               <button key={o} className="font-mono uppercase cursor-pointer select-none transition-colors"
                 style={{
-                  fontSize: '0.38rem', letterSpacing: '0.04em', padding: '4px 10px',
+                  fontSize: '0.46rem', letterSpacing: '0.04em', padding: '6px 14px',
                   background: shotOrder === o ? `${accent}1a` : 'rgba(255,255,255,0.02)',
                   color: shotOrder === o ? accent : '#62627a',
                 }}
@@ -1123,17 +1148,17 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           <div className="flex-1" />
 
           {/* Version selector */}
-          <div className="flex items-center" style={{ gap: 4 }}>
-            <button className="flex items-center gap-1 cursor-pointer select-none"
-              style={{ padding: '4px 8px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+          <div className="flex items-center" style={{ gap: 5 }}>
+            <button className="flex items-center gap-1.5 cursor-pointer select-none"
+              style={{ padding: '6px 12px', borderRadius: 16, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
               onClick={() => haptic('light')}>
-              <span className="font-mono" style={{ fontSize: '0.42rem', fontWeight: 700, color: '#a0a0b8' }}>V1</span>
-              <svg width="6" height="6" viewBox="0 0 6 6" fill="none"><path d="M1.5 2.5L3 4L4.5 2.5" stroke="#62627a" strokeWidth="0.9" strokeLinecap="round" /></svg>
+              <span className="font-mono" style={{ fontSize: '0.5rem', fontWeight: 700, color: '#a0a0b8' }}>V1</span>
+              <svg width="7" height="7" viewBox="0 0 6 6" fill="none"><path d="M1.5 2.5L3 4L4.5 2.5" stroke="#62627a" strokeWidth="0.9" strokeLinecap="round" /></svg>
             </button>
             <button className="flex items-center justify-center cursor-pointer"
-              style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+              style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
               onClick={() => haptic('light')}>
-              <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M4 1.5v5M1.5 4h5" stroke="#62627a" strokeWidth="0.9" strokeLinecap="round" /></svg>
+              <svg width="10" height="10" viewBox="0 0 8 8" fill="none"><path d="M4 1.5v5M1.5 4h5" stroke="#62627a" strokeWidth="0.9" strokeLinecap="round" /></svg>
             </button>
           </div>
         </div>
@@ -1141,7 +1166,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
       {/* Storyboard subheader: scale selector */}
       {mode === 'storyboard' && (
-        <div className="flex items-center justify-center flex-shrink-0" style={{ padding: '7px 14px', gap: 6, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="flex items-center justify-center flex-shrink-0" style={{ height: 44, padding: '0 14px', gap: 6, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           {([
             { key: 'feed' as const, label: 'Feed', icon: <><rect x="3" y="2" width="8" height="3" rx="0.5" /><rect x="3" y="6" width="8" height="3" rx="0.5" /><rect x="3" y="10" width="8" height="3" rx="0.5" /></> },
             { key: '3up' as const, label: '3-up', icon: <><rect x="1" y="3" width="3.5" height="3" rx="0.5" /><rect x="5.25" y="3" width="3.5" height="3" rx="0.5" /><rect x="9.5" y="3" width="3.5" height="3" rx="0.5" /><rect x="1" y="7" width="3.5" height="3" rx="0.5" /><rect x="5.25" y="7" width="3.5" height="3" rx="0.5" /><rect x="9.5" y="7" width="3.5" height="3" rx="0.5" /></> },
@@ -1150,7 +1175,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           ]).map(s => (
             <button key={s.key} className="flex flex-col items-center gap-1 cursor-pointer select-none transition-colors"
               style={{
-                padding: '4px 10px', borderRadius: 10, minWidth: 44,
+                padding: '4px 12px', borderRadius: 10, minWidth: 48,
                 background: boardScale === s.key ? `${accent}14` : 'transparent',
                 border: boardScale === s.key ? `1px solid ${accent}30` : '1px solid transparent',
               }}
