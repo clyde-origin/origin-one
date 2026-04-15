@@ -125,6 +125,34 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
     return `${prefix}${letter}`
   }, [scenes, shots])
 
+  // Projected display number during drag — reflects where shot *would* land
+  const getProjectedDisplayNumber = useCallback((shot: Shot) => {
+    if (!dragShotId || dragTargetIdx < 0) return getShotDisplayNumber(shot)
+    const order = flatShotOrder.current
+    const fromIdx = order.indexOf(dragShotId)
+    if (fromIdx < 0) return getShotDisplayNumber(shot)
+    // Build virtual order with dragged shot moved to target
+    const virtual = order.filter(id => id !== dragShotId)
+    virtual.splice(dragTargetIdx, 0, dragShotId)
+    // Find all shots in same scene as this shot, in virtual order
+    const sceneId = shot.sceneId
+    const sceneShotIds = virtual.filter(id => {
+      const s = shots.find(sh => sh.id === id)
+      // If dragged shot lands in this scene's neighborhood, use target scene
+      if (id === dragShotId) {
+        const neighborId = virtual[dragTargetIdx === 0 ? 1 : dragTargetIdx - 1]
+        const neighbor = shots.find(sh => sh.id === neighborId)
+        return (neighbor?.sceneId ?? shot.sceneId) === sceneId
+      }
+      return s?.sceneId === sceneId
+    })
+    const idx = sceneShotIds.indexOf(shot.id)
+    if (idx < 0) return getShotDisplayNumber(shot)
+    const scene = scenes.find(s => s.id === sceneId)
+    const prefix = scene?.sceneNumber ?? '1'
+    return `${prefix}${String.fromCharCode(65 + idx)}`
+  }, [dragShotId, dragTargetIdx, shots, scenes, getShotDisplayNumber])
+
   const snapshotRects = useCallback(() => {
     const map = new Map<string, DOMRect>()
     flatShotOrder.current.forEach(id => {
@@ -184,19 +212,20 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
     const shotId = dragShotIdRef.current
     const targetIdx = dragTargetIdxRef.current
     if (shotId && targetIdx >= 0) {
-      // Snapshot current display numbers before reorder
+      // Snapshot display numbers before reorder
       const before = new Map<string, string>()
       shots.forEach(s => before.set(s.id, getShotDisplayNumber(s)))
-      prevDisplayNumbers.current = before
       onReorder(shotId, targetIdx)
-      // After reorder, compare and blink changed numbers
+      // After state updates, compare and blink changed numbers (stays in wiggle mode)
       requestAnimationFrame(() => {
         const changed = new Set<string>()
         shots.forEach(s => {
-          const newNum = getShotDisplayNumber(s)
           const oldNum = before.get(s.id)
+          const newNum = getShotDisplayNumber(s)
           if (oldNum && newNum !== oldNum) changed.add(s.id)
         })
+        // Also blink the dragged shot itself
+        changed.add(shotId)
         if (changed.size > 0) {
           setBlinkIds(changed)
           setTimeout(() => setBlinkIds(new Set()), 700)
@@ -306,7 +335,7 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
             {(isOpen || wiggleMode) && (
               <>
                 {sceneShots.map((shot, i) => {
-                  const displayNum = getShotDisplayNumber(shot)
+                  const displayNum = dragShotId ? getProjectedDisplayNumber(shot) : getShotDisplayNumber(shot)
                   const ds = getDragState(shot.id)
                   // Displaced cards shift by the height of one card row (~70px) to open a gap
                   const cardH = 70
@@ -1011,7 +1040,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       <input ref={thumbFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleThumbFileChange} />
 
       {/* Shot detail sheet */}
-      <Sheet open={!!selectedShot} onClose={() => setSelectedShot(null)}>
+      <Sheet open={!!selectedShot} onClose={() => setSelectedShot(null)} maxHeight="95vh">
         <ShotDetailSheet shot={selectedShot} accent={accent} onClose={() => setSelectedShot(null)} onUploadImage={handleUploadImage}
           onUpdateShot={(shotId, fields) => {
             updateShot(shotId, fields).then(() => {

@@ -99,8 +99,8 @@ export function Sheet({
             exit={{ y: '100%' }}
             transition={springTransition}
             drag="y"
-            dragConstraints={{ top: 0 }}
-            dragElastic={{ top: 0, bottom: 0.5 }}
+            dragConstraints={{ top: -60 }}
+            dragElastic={{ top: 0.15, bottom: 0.5 }}
             onDragEnd={handleDragEnd}
             role="dialog"
             aria-modal="true"
