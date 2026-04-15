@@ -232,6 +232,29 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
     blockType: ContentBlock['type'],
     e: React.KeyboardEvent<HTMLDivElement>,
   ) => {
+    // Backspace on empty scene_heading → delete it, focus previous block
+    if (e.key === 'Backspace' && blockType === 'scene_heading') {
+      const content = e.currentTarget.textContent?.trim() ?? ''
+      if (!content) {
+        e.preventDefault()
+        const blocks = blocksRef.current.get(sceneId) || []
+        // Find what to focus: previous block, or scene title if first block
+        const focusTarget = blockIndex > 0
+          ? blocks[blockIndex - 1].id
+          : `title-${sceneId}`
+        blocks.splice(blockIndex, 1)
+        // If no blocks left, add a default action
+        if (blocks.length === 0) {
+          const fallback = mkBlock('action')
+          blocks.push(fallback)
+          commitBlocks(sceneId, blocks, fallback.id)
+        } else {
+          commitBlocks(sceneId, blocks, focusTarget)
+        }
+        return
+      }
+    }
+
     if (e.key !== 'Enter') return
     e.preventDefault()
 
