@@ -18,12 +18,25 @@ interface ScriptViewProps {
 }
 
 export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function ScriptView({ scenes, accent, onUpdateScene }, ref) {
+  console.log('ScriptView rendered', { sceneCount: scenes.length, accent })
+
   const [insertedBlocks, setInsertedBlocks] = useState<Array<{ type: 'scene' | 'action' | 'dialogue'; id: string }>>([])
   const newBlockRef = useRef<HTMLDivElement | null>(null)
   const [dialogueStep, setDialogueStep] = useState<'char' | 'line' | null>(null)
   const dialogueCharRef = useRef<HTMLDivElement | null>(null)
   const dialogueLineRef = useRef<HTMLDivElement | null>(null)
   const totalScenes = scenes.length
+
+  // DEBUG: native event listener test on first scene title
+  const debugTitleRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = debugTitleRef.current
+    if (!el) return
+    const handler = () => console.log('[ScriptView] native input fired', el.textContent)
+    el.addEventListener('input', handler)
+    console.log('[ScriptView] native listener attached to', el)
+    return () => el.removeEventListener('input', handler)
+  }, [scenes.length]) // re-attach if scene count changes
 
   // Track pending edits per scene — written by onInput, flushed by debounce / blur / tab switch / unmount
   const pendingEdits = useRef<Map<string, { title?: string; description?: string }>>(new Map())
@@ -171,9 +184,10 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
                 {scene.sceneNumber.padStart(2, '0')}
               </span>
               <div contentEditable suppressContentEditableWarning
+                ref={si === 0 ? debugTitleRef : undefined}
                 style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '0.78rem', fontWeight: 700, color: '#dddde8', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.4, outline: 'none', borderRadius: 4, cursor: 'text', flex: 1 }}
                 onFocus={focusStyle}
-                onInput={e => handleTitleInput(scene.id, e)}
+                onInput={e => { console.log('[ScriptView] React onInput fired', scene.id); handleTitleInput(scene.id, e) }}
                 onBlur={e => handleTitleBlur(scene.id, e)}>
                 {scene.title ?? ''}
               </div>
