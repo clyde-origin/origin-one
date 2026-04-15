@@ -763,13 +763,16 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const handleAddScene = useCallback(() => {
     const nextNum = String(allScenes.length + 1)
     const nextOrder = allScenes.length
-    console.log('[SceneMaker] creating scene', { projectId, sceneNumber: nextNum, sortOrder: nextOrder })
+    console.log('[SceneMaker] handleAddScene CALLED', { projectId, sceneNumber: nextNum, sortOrder: nextOrder })
     createScene(projectId, {
       sceneNumber: nextNum,
       sortOrder: nextOrder,
     }).then(() => {
+      console.log('[SceneMaker] createScene SUCCESS — invalidating queries')
       qc.invalidateQueries({ queryKey: ['scenes', projectId] })
       qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
+    }).catch((err) => {
+      console.error('[SceneMaker] createScene FAILED:', err)
     })
   }, [projectId, allScenes.length, qc])
 
@@ -890,7 +893,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       { label: 'Add Scene', color: accent, icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke={accent} strokeWidth="1.3" strokeLinecap="round" /><path d="M13 10v4M11 12h4" stroke={accent} strokeWidth="1.3" strokeLinecap="round" /></svg>, action: () => { /* TODO */ } },
     ]
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, accent, allScenes.length, allShots.length])
+  }, [mode, accent, allScenes.length, allShots.length, handleAddScene])
 
   return (
     <div className="screen" style={{ overflow: 'hidden' }}>
