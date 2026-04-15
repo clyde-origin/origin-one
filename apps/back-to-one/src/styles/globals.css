@@ -248,6 +248,13 @@
   50% { transform: rotate(0.5deg); }
 }
 .wiggle { animation: wiggle 0.25s ease-in-out infinite; }
+@keyframes number-blink {
+  0%, 100% { opacity: 1; }
+  25% { opacity: 0.15; }
+  50% { opacity: 1; }
+  75% { opacity: 0.15; }
+}
+.number-blink { animation: number-blink 0.6s ease-in-out; }
 
 /* ── UTILITY LAYER ── */
 @layer utilities {

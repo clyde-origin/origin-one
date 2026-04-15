@@ -100,6 +100,10 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
   const [wiggleMode, setWiggleMode] = useState(false)
   const totalScenes = scenes.length
 
+  // ── Shot number blink after reorder ──
+  const [blinkIds, setBlinkIds] = useState<Set<string>>(new Set())
+  const prevDisplayNumbers = useRef<Map<string, string>>(new Map())
+
   // ── Drag state (wiggle mode only) ──
   const [dragShotId, setDragShotId] = useState<string | null>(null)
   const dragShotIdRef = useRef<string | null>(null)
@@ -110,6 +114,16 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
   const flatShotOrder = useRef<string[]>([])
   const shotRectsRef = useRef<Map<string, DOMRect>>(new Map())
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Auto-renumber shots within each scene (e.g. 1A, 1B, 1C)
+  const getShotDisplayNumber = useCallback((shot: Shot) => {
+    const scene = scenes.find(s => s.id === shot.sceneId)
+    const prefix = scene?.sceneNumber ?? '1'
+    const sceneShots = shots.filter(s => s.sceneId === shot.sceneId).sort((a, b) => a.sortOrder - b.sortOrder)
+    const idx = sceneShots.findIndex(s => s.id === shot.id)
+    const letter = String.fromCharCode(65 + Math.max(0, idx)) // A, B, C...
+    return `${prefix}${letter}`
+  }, [scenes, shots])
 
   const snapshotRects = useCallback(() => {
     const map = new Map<string, DOMRect>()
@@ -169,13 +183,32 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
     }
     const shotId = dragShotIdRef.current
     const targetIdx = dragTargetIdxRef.current
-    if (shotId && targetIdx >= 0) onReorder(shotId, targetIdx)
+    if (shotId && targetIdx >= 0) {
+      // Snapshot current display numbers before reorder
+      const before = new Map<string, string>()
+      shots.forEach(s => before.set(s.id, getShotDisplayNumber(s)))
+      prevDisplayNumbers.current = before
+      onReorder(shotId, targetIdx)
+      // After reorder, compare and blink changed numbers
+      requestAnimationFrame(() => {
+        const changed = new Set<string>()
+        shots.forEach(s => {
+          const newNum = getShotDisplayNumber(s)
+          const oldNum = before.get(s.id)
+          if (oldNum && newNum !== oldNum) changed.add(s.id)
+        })
+        if (changed.size > 0) {
+          setBlinkIds(changed)
+          setTimeout(() => setBlinkIds(new Set()), 700)
+        }
+      })
+    }
     dragShotIdRef.current = null
     setDragShotId(null)
     dragTargetIdxRef.current = -1
     setDragTargetIdx(-1)
     dragElRef.current = null
-  }, [onReorder])
+  }, [onReorder, shots, getShotDisplayNumber])
 
   const getDragState = useCallback((shotId: string): 'idle' | 'dragging' | 'displaced-down' | 'displaced-up' => {
     if (!dragShotId) return 'idle'
@@ -207,16 +240,6 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
   const cancelLongPress = useCallback(() => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
   }, [])
-
-  // Auto-renumber shots within each scene (e.g. 1A, 1B, 1C)
-  const getShotDisplayNumber = useCallback((shot: Shot) => {
-    const scene = scenes.find(s => s.id === shot.sceneId)
-    const prefix = scene?.sceneNumber ?? '1'
-    const sceneShots = shots.filter(s => s.sceneId === shot.sceneId).sort((a, b) => a.sortOrder - b.sortOrder)
-    const idx = sceneShots.findIndex(s => s.id === shot.id)
-    const letter = String.fromCharCode(65 + Math.max(0, idx)) // A, B, C...
-    return `${prefix}${letter}`
-  }, [scenes, shots])
 
   if (shots.length === 0) return (
     <div className="flex flex-col items-center justify-center" style={{ minHeight: '60vh', gap: 10 }}>
@@ -285,15 +308,18 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
                 {sceneShots.map((shot, i) => {
                   const displayNum = getShotDisplayNumber(shot)
                   const ds = getDragState(shot.id)
-                  const transform = ds === 'displaced-down' ? 'translateY(60px)' : ds === 'displaced-up' ? 'translateY(-60px)' : 'translateY(0)'
+                  // Displaced cards shift by the height of one card row (~70px) to open a gap
+                  const cardH = 70
+                  const transform = ds === 'displaced-down' ? `translateY(${cardH}px)` : ds === 'displaced-up' ? `translateY(-${cardH}px)` : 'translateY(0)'
                   return (
                     <div key={shot.id}>
                       {!wiggleMode && <InsertRow index={i} sceneId={scene.id} />}
                       <div data-shot-id={shot.id}
                         className={wiggleMode && ds !== 'dragging' ? 'wiggle' : ''}
                         style={{
-                          padding: '0 14px 3px', position: 'relative',
-                          ...(ds === 'dragging' ? { zIndex: 50 } : { transform, transition: 'transform 0.25s ease', zIndex: 1 }),
+                          padding: wiggleMode ? '0 14px 10px' : '0 14px 3px', position: 'relative',
+                          transition: wiggleMode ? 'padding 0.2s ease' : undefined,
+                          ...(ds === 'dragging' ? { zIndex: 50 } : { transform, transition: 'transform 0.2s cubic-bezier(0.25,0.1,0.25,1)', zIndex: 1 }),
                         }}>
                         <div ref={ds === 'dragging' ? undefined : undefined}
                           className="flex items-center select-none relative"
@@ -338,7 +364,7 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
                           )}
 
                           {/* Shot number */}
-                          <span className="flex-shrink-0 cursor-pointer" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
+                          <span className={`flex-shrink-0 cursor-pointer${blinkIds.has(shot.id) ? ' number-blink' : ''}`} style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
                             onClick={() => !wiggleMode && onTapShot(shot)}>
                             {displayNum}
                           </span>
