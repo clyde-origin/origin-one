@@ -192,6 +192,7 @@ model Shot {
   shotNumber  String
   size        ShotSize?
   description String?
+  imageUrl    String?
   status      ShotStatus @default(planned)
   sortOrder   Int
   createdAt   DateTime   @default(now())

@@ -566,7 +566,36 @@ export async function getAllThreads() {
 export async function getSceneMakerVersions(_projectId: string): Promise<any[]> { return [] }
 export async function getSMScenes(_versionId: string): Promise<any[]> { return [] }
 export async function getSMShots(_versionId: string): Promise<any[]> { return [] }
-export async function updateShotImages(_shotId: string, _images: string[]) {}
+export async function updateShot(
+  shotId: string,
+  fields: { description?: string; size?: string | null; imageUrl?: string | null; status?: string }
+): Promise<void> {
+  const db = createClient()
+  const { error } = await db
+    .from('Shot')
+    .update(fields)
+    .eq('id', shotId)
+  if (error) { console.error('updateShot failed:', error); throw error }
+}
+
+export async function uploadStoryboardImage(file: File, projectId: string, shotId: string): Promise<string> {
+  const db = createClient()
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'png'
+  const path = `${projectId}/${shotId}.${ext}`
+
+  const { error } = await db.storage.from('storyboard').upload(path, file, {
+    contentType: file.type || 'image/png',
+    upsert: true,
+  })
+  if (error) {
+    console.error('uploadStoryboardImage failed:', error)
+    throw error
+  }
+
+  const { data: { publicUrl } } = db.storage.from('storyboard').getPublicUrl(path)
+  return publicUrl
+}
+
 // ── MOODBOARD TABS ────────────────────────────────────────
 
 export async function getMoodboardTabs(projectId: string) {

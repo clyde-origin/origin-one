@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useProject, useScenes } from '@/lib/hooks/useOriginOne'
-import { getShotsByProject, updateShotOrder, createShot } from '@/lib/db/queries'
+import { getShotsByProject, updateShotOrder, createShot, uploadStoryboardImage, updateShot } from '@/lib/db/queries'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Sheet } from '@/components/ui/Sheet'
@@ -90,9 +90,10 @@ function NewShotSheet({ autoId, accent, onSave, onClose }: {
 
 // ── SHOTLIST VIEW ─────────────────────────────────────────
 
-function ShotlistView({ scenes, shots, accent, onTapShot, onInsert, onReorder }: {
+function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInsert, onReorder }: {
   scenes: Scene[]; shots: Shot[]; accent: string
-  onTapShot: (s: Shot) => void; onInsert: (index: number, sceneId: string) => void
+  onTapShot: (s: Shot) => void; onTapThumbnail: (s: Shot) => void
+  onInsert: (index: number, sceneId: string) => void
   onReorder: (shotId: string, newIndex: number) => void
 }) {
   const [collapsedScenes, setCollapsedScenes] = useState<Set<string>>(new Set())
@@ -302,6 +303,7 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onInsert, onReorder }:
                     <ShotRow shot={shot} sceneColor={sceneColor}
                       dragState={getDragState(shot.id)}
                       onTapDetail={() => onTapShot(shot)}
+                      onTapThumbnail={() => onTapThumbnail(shot)}
                       onSwipeThread={() => { /* TODO: open thread sheet */ }}
                       onDescChange={(desc) => { console.log('Shot desc update:', shot.id, desc) }}
                       onDragStart={(y, el) => handleDragStart(shot.id, y, el)}
@@ -319,10 +321,11 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onInsert, onReorder }:
   )
 }
 
-function ShotRow({ shot, sceneColor, dragState, onTapDetail, onDescChange, onSwipeThread, onDragStart, onDragMove, onDragEnd }: {
+function ShotRow({ shot, sceneColor, dragState, onTapDetail, onTapThumbnail, onDescChange, onSwipeThread, onDragStart, onDragMove, onDragEnd }: {
   shot: Shot; sceneColor: string
   dragState: 'idle' | 'dragging' | 'displaced-down' | 'displaced-up'
   onTapDetail: () => void
+  onTapThumbnail: () => void
   onDescChange?: (desc: string) => void
   onSwipeThread?: () => void
   onDragStart: (touchY: number, el: HTMLDivElement) => void
@@ -455,9 +458,10 @@ function ShotRow({ shot, sceneColor, dragState, onTapDetail, onDescChange, onSwi
           {shot.shotNumber}
         </span>
 
-        {/* Size pill */}
+        {/* Size pill — tap opens detail sheet */}
         {shot.size && (
-          <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}>
+          <span className="font-mono uppercase flex-shrink-0 cursor-pointer" style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}
+            onClick={onTapDetail}>
             {SIZE_ABBREV[shot.size] ?? shot.size}
           </span>
         )}
@@ -476,10 +480,19 @@ function ShotRow({ shot, sceneColor, dragState, onTapDetail, onDescChange, onSwi
           </span>
         )}
 
-        {/* Thumbnail */}
+        {/* Thumbnail — tap: upload if empty, detail if image exists */}
         <div className="flex-shrink-0 overflow-hidden cursor-pointer" style={{ width: 72, height: 44, borderRadius: 6, marginLeft: 'auto' }}
-          onClick={onTapDetail}>
-          <div className="w-full h-full" style={{ background: `linear-gradient(135deg, ${sceneColor}18, ${sceneColor}08)` }} />
+          onClick={onTapThumbnail}>
+          {shot.imageUrl ? (
+            <img src={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${sceneColor}18, ${sceneColor}08)` }}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <rect x="2" y="3" width="10" height="8" rx="1.5" stroke={sceneColor} strokeWidth="1" opacity="0.35" />
+                <path d="M7 5.5v3M5.5 7h3" stroke={sceneColor} strokeWidth="1" strokeLinecap="round" opacity="0.35" />
+              </svg>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -716,6 +729,8 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const [newShotAt, setNewShotAt] = useState<{ index: number; sceneId: string } | null>(null)
   const [fabOpen, setFabOpen] = useState(false)
   const scriptRef = useRef<ScriptViewHandle>(null)
+  const thumbFileRef = useRef<HTMLInputElement>(null)
+  const pendingUploadShotRef = useRef<string | null>(null)
 
   const toggleFab = () => { haptic('light'); setFabOpen(o => !o) }
   const closeFab = () => setFabOpen(false)
@@ -785,6 +800,39 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
     const nextLetter = letters.length > 0 ? String.fromCharCode(Math.max(...letters.map((l: string) => l.charCodeAt(0))) + 1) : 'A'
     return `${prefix}${nextLetter}`
   }, [allScenes, allShots])
+
+  // ── IMAGE UPLOAD HANDLER ───────────────────────────────────
+
+  const handleUploadImage = useCallback(async (shotId: string, file: File) => {
+    try {
+      const url = await uploadStoryboardImage(file, projectId, shotId)
+      await updateShot(shotId, { imageUrl: url })
+      qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
+      // Update selectedShot in-place so the detail sheet shows the new image
+      setSelectedShot(prev => prev?.id === shotId ? { ...prev, imageUrl: url } : prev)
+    } catch (err) {
+      console.error('Failed to upload storyboard image:', err)
+    }
+  }, [projectId, qc])
+
+  const handleThumbnailTap = useCallback((shot: Shot) => {
+    if (shot.imageUrl) {
+      setSelectedShot(shot)
+    } else {
+      pendingUploadShotRef.current = shot.id
+      thumbFileRef.current?.click()
+    }
+  }, [])
+
+  const handleThumbFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    const shotId = pendingUploadShotRef.current
+    if (file && shotId) {
+      handleUploadImage(shotId, file)
+    }
+    pendingUploadShotRef.current = null
+    e.target.value = ''
+  }, [handleUploadImage])
 
   // Contextual branch options per mode
   type BranchDef = { label: string; color: string; icon: React.ReactNode; action: () => void }
@@ -866,7 +914,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         {loading ? <LoadingState /> : (
           <>
             {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} />}
-            {mode === 'shotlist' && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} onTapShot={setSelectedShot} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} />}
+            {mode === 'shotlist' && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} />}
             {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} onTapShot={setSelectedShot} onReorder={handleReorder} />}
           </>
         )}
@@ -1008,9 +1056,12 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
       </div>
 
+      {/* Hidden file input for thumbnail uploads */}
+      <input ref={thumbFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleThumbFileChange} />
+
       {/* Shot detail sheet */}
       <Sheet open={!!selectedShot} onClose={() => setSelectedShot(null)}>
-        <ShotDetailSheet shot={selectedShot} accent={accent} onClose={() => setSelectedShot(null)} />
+        <ShotDetailSheet shot={selectedShot} accent={accent} onClose={() => setSelectedShot(null)} onUploadImage={handleUploadImage} />
       </Sheet>
 
       {/* New shot sheet */}
