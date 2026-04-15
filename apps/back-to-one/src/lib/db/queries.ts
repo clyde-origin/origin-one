@@ -651,7 +651,7 @@ export async function getSMScenes(_versionId: string): Promise<any[]> { return [
 export async function getSMShots(_versionId: string): Promise<any[]> { return [] }
 export async function updateShot(
   shotId: string,
-  fields: { description?: string; size?: string | null; imageUrl?: string | null; status?: string }
+  fields: { description?: string; size?: string | null; imageUrl?: string | null; status?: string; notes?: string }
 ): Promise<void> {
   const db = createClient()
   const { error } = await db

@@ -167,6 +167,7 @@ export interface Shot {
   shotNumber: string
   size: string | null
   description: string | null
+  notes: string | null
   imageUrl: string | null
   status: 'planned' | 'in_progress' | 'completed' | 'omitted'
   sortOrder: number

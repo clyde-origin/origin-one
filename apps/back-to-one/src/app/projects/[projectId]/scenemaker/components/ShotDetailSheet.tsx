@@ -1,41 +1,72 @@
 'use client'
 
-import { useRef } from 'react'
+import { useState, useRef } from 'react'
 import { haptic } from '@/lib/utils/haptics'
 import type { Shot } from '@/types'
 
 const SIZE_ABBREV: Record<string, string> = {
   extreme_wide: 'EWS', wide: 'WIDE', full: 'FS', medium: 'MED',
   medium_close_up: 'MCU', close_up: 'CU', extreme_close_up: 'ECU', insert: 'INS',
+  aerial: 'AERIAL', pov: 'POV',
 }
 
-export function ShotDetailSheet({ shot, accent, onClose, onUploadImage }: {
+const SHOT_SIZES = [
+  { value: 'extreme_wide', label: 'Extreme Wide' },
+  { value: 'wide', label: 'Wide' },
+  { value: 'full', label: 'Full' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'medium_close_up', label: 'Med Close-Up' },
+  { value: 'close_up', label: 'Close-Up' },
+  { value: 'extreme_close_up', label: 'Extreme CU' },
+  { value: 'insert', label: 'Insert' },
+  { value: 'aerial', label: 'Aerial' },
+  { value: 'pov', label: 'POV' },
+]
+
+export function ShotDetailSheet({ shot, accent, onClose, onUploadImage, onUpdateShot }: {
   shot: Shot | null
   accent: string
   onClose: () => void
   onUploadImage: (shotId: string, file: File) => void
+  onUpdateShot: (shotId: string, fields: { description?: string; size?: string | null; notes?: string }) => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const [editingDesc, setEditingDesc] = useState(false)
+  const [descValue, setDescValue] = useState('')
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [notesValue, setNotesValue] = useState('')
+
   if (!shot) return null
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      onUploadImage(shot.id, file)
-    }
-    // Reset so the same file can be re-selected
+    if (file) onUploadImage(shot.id, file)
     e.target.value = ''
+  }
+
+  const commitDesc = () => {
+    setEditingDesc(false)
+    const trimmed = descValue.trim()
+    if (trimmed !== (shot.description ?? '')) {
+      onUpdateShot(shot.id, { description: trimmed })
+    }
+  }
+
+  const commitNotes = () => {
+    setEditingNotes(false)
+    const trimmed = notesValue.trim()
+    if (trimmed !== (shot.notes ?? '')) {
+      onUpdateShot(shot.id, { notes: trimmed })
+    }
   }
 
   return (
     <>
-      <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)', margin: '12px auto 14px' }} />
-
       {/* Hero image area */}
       <div
         className="cursor-pointer"
         style={{
-          margin: '0 16px 14px',
+          margin: '4px 16px 14px',
           borderRadius: 10,
           overflow: 'hidden',
           aspectRatio: '16/9',
@@ -47,11 +78,7 @@ export function ShotDetailSheet({ shot, accent, onClose, onUploadImage }: {
         onClick={() => fileRef.current?.click()}
       >
         {shot.imageUrl ? (
-          <img
-            src={shot.imageUrl}
-            alt={shot.shotNumber}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
+          <img src={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
           <div className="flex flex-col items-center gap-2">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -78,17 +105,86 @@ export function ShotDetailSheet({ shot, accent, onClose, onUploadImage }: {
 
       <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
 
-      {/* Shot info */}
+      {/* Shot info header */}
       <div style={{ padding: '0 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <div className="flex items-center gap-2" style={{ marginBottom: 5 }}>
-          <span style={{ fontFamily: "'Geist', sans-serif", fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: accent }}>{shot.shotNumber}</span>
+        <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+          <span style={{ fontFamily: "'Geist', sans-serif", fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: accent }}>
+            {shot.shotNumber}
+          </span>
           {shot.size && (
             <span className="font-mono uppercase" style={{ fontSize: '0.38rem', letterSpacing: '0.06em', padding: '2px 7px', borderRadius: 10, background: `${accent}14`, border: `1px solid ${accent}30`, color: accent }}>
               {SIZE_ABBREV[shot.size] ?? shot.size}
             </span>
           )}
         </div>
-        <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#dddde8', lineHeight: 1.35 }}>{shot.description || '—'}</div>
+
+        {/* Editable description */}
+        {editingDesc ? (
+          <textarea
+            value={descValue}
+            onChange={e => setDescValue(e.target.value)}
+            autoFocus
+            onBlur={commitDesc}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitDesc() } }}
+            rows={2}
+            className="w-full outline-none resize-none"
+            style={{ fontSize: '0.82rem', fontWeight: 600, color: '#dddde8', lineHeight: 1.4, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6, padding: '6px 8px' }}
+          />
+        ) : (
+          <div
+            className="cursor-text"
+            style={{ fontSize: '0.82rem', fontWeight: 600, color: shot.description ? '#dddde8' : '#62627a', lineHeight: 1.4, minHeight: 22, borderRadius: 6, padding: '2px 0' }}
+            onClick={() => { setDescValue(shot.description ?? ''); setEditingDesc(true) }}>
+            {shot.description || 'Tap to add description...'}
+          </div>
+        )}
+      </div>
+
+      {/* Framing / Shot Size selector */}
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 8 }}>Framing</span>
+        <div className="flex flex-wrap" style={{ gap: 5 }}>
+          {SHOT_SIZES.map(s => (
+            <button key={s.value}
+              className="font-mono cursor-pointer select-none transition-all"
+              style={{
+                fontSize: '0.42rem', letterSpacing: '0.04em', padding: '4px 9px', borderRadius: 16,
+                background: shot.size === s.value ? `${accent}1f` : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${shot.size === s.value ? `${accent}4d` : 'rgba(255,255,255,0.05)'}`,
+                color: shot.size === s.value ? accent : '#62627a',
+              }}
+              onClick={() => {
+                haptic('light')
+                onUpdateShot(shot.id, { size: s.value })
+              }}>
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Notes field */}
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Notes</span>
+        {editingNotes ? (
+          <textarea
+            value={notesValue}
+            onChange={e => setNotesValue(e.target.value)}
+            autoFocus
+            onBlur={commitNotes}
+            rows={3}
+            placeholder="Crew instructions, reminders..."
+            className="w-full outline-none resize-none"
+            style={{ fontSize: '0.74rem', color: '#a0a0b8', lineHeight: 1.5, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6, padding: '6px 8px' }}
+          />
+        ) : (
+          <div
+            className="cursor-text"
+            style={{ fontSize: '0.74rem', color: shot.notes ? '#a0a0b8' : '#62627a', lineHeight: 1.5, minHeight: 20, borderRadius: 6, padding: '2px 0' }}
+            onClick={() => { setNotesValue(shot.notes ?? ''); setEditingNotes(true) }}>
+            {shot.notes || 'Tap to add notes...'}
+          </div>
+        )}
       </div>
 
       {/* Metadata rows */}

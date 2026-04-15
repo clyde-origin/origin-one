@@ -97,9 +97,10 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
   onReorder: (shotId: string, newIndex: number) => void
 }) {
   const [collapsedScenes, setCollapsedScenes] = useState<Set<string>>(new Set())
+  const [wiggleMode, setWiggleMode] = useState(false)
   const totalScenes = scenes.length
 
-  // ── Drag state ──
+  // ── Drag state (wiggle mode only) ──
   const [dragShotId, setDragShotId] = useState<string | null>(null)
   const dragShotIdRef = useRef<string | null>(null)
   const [dragTargetIdx, setDragTargetIdx] = useState(-1)
@@ -108,7 +109,7 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
   const dragOriginY = useRef(0)
   const flatShotOrder = useRef<string[]>([])
   const shotRectsRef = useRef<Map<string, DOMRect>>(new Map())
-  const headerRectsRef = useRef<Map<string, DOMRect>>(new Map())
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const snapshotRects = useCallback(() => {
     const map = new Map<string, DOMRect>()
@@ -117,12 +118,6 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
       if (el) map.set(id, el.getBoundingClientRect())
     })
     shotRectsRef.current = map
-    const hmap = new Map<string, DOMRect>()
-    document.querySelectorAll('[data-scene-header]').forEach(el => {
-      const id = el.getAttribute('data-scene-header')!
-      hmap.set(id, el.getBoundingClientRect())
-    })
-    headerRectsRef.current = hmap
   }, [])
 
   const handleDragStart = useCallback((shotId: string, touchY: number, el: HTMLDivElement) => {
@@ -144,17 +139,15 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
     dragElRef.current.style.transform = `translateY(${dy}px)`
     dragElRef.current.style.transition = 'none'
 
-    let targetIdx = dragTargetIdxRef.current
     const order = flatShotOrder.current
+    let targetIdx = dragTargetIdxRef.current
     let closest = { dist: Infinity, idx: targetIdx }
     shotRectsRef.current.forEach((rect, id) => {
       if (id === dragShotIdRef.current) return
       const mid = rect.top + rect.height / 2
       const dist = Math.abs(touchY - mid)
       const idx = order.indexOf(id)
-      if (dist < closest.dist) {
-        closest = { dist, idx }
-      }
+      if (dist < closest.dist) closest = { dist, idx }
     })
     const closestRect = shotRectsRef.current.get(order[closest.idx])
     if (closestRect) {
@@ -163,32 +156,8 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
       if (touchY < mid && closest.idx < fromIdx) targetIdx = closest.idx
       if (touchY > mid && closest.idx > fromIdx) targetIdx = closest.idx
     }
-    const firstId = order[0]
-    const firstRect = shotRectsRef.current.get(firstId)
-    if (firstRect && touchY < firstRect.top + firstRect.height / 2) {
-      targetIdx = 0
-    }
-    headerRectsRef.current.forEach((rect, headerId) => {
-      if (touchY >= rect.top && touchY <= rect.bottom) {
-        const headerShots = order.filter(id => {
-          const shotRect = shotRectsRef.current.get(id)
-          return shotRect && shotRect.top >= rect.bottom
-        })
-        if (headerShots.length > 0) {
-          targetIdx = order.indexOf(headerShots[0])
-        } else {
-          let insertIdx = order.length
-          for (let i = 0; i < order.length; i++) {
-            const shotRect = shotRectsRef.current.get(order[i])
-            if (shotRect && shotRect.top > rect.bottom) {
-              insertIdx = i
-              break
-            }
-          }
-          targetIdx = insertIdx
-        }
-      }
-    })
+    const firstRect = shotRectsRef.current.get(order[0])
+    if (firstRect && touchY < firstRect.top + firstRect.height / 2) targetIdx = 0
     dragTargetIdxRef.current = targetIdx
     setDragTargetIdx(targetIdx)
   }, [])
@@ -200,9 +169,7 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
     }
     const shotId = dragShotIdRef.current
     const targetIdx = dragTargetIdxRef.current
-    if (shotId && targetIdx >= 0) {
-      onReorder(shotId, targetIdx)
-    }
+    if (shotId && targetIdx >= 0) onReorder(shotId, targetIdx)
     dragShotIdRef.current = null
     setDragShotId(null)
     dragTargetIdxRef.current = -1
@@ -230,6 +197,27 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
     })
   }
 
+  // Long press to enter wiggle mode
+  const startLongPress = useCallback(() => {
+    longPressTimer.current = setTimeout(() => {
+      haptic('medium')
+      setWiggleMode(true)
+    }, 500)
+  }, [])
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+  }, [])
+
+  // Auto-renumber shots within each scene (e.g. 1A, 1B, 1C)
+  const getShotDisplayNumber = useCallback((shot: Shot) => {
+    const scene = scenes.find(s => s.id === shot.sceneId)
+    const prefix = scene?.sceneNumber ?? '1'
+    const sceneShots = shots.filter(s => s.sceneId === shot.sceneId).sort((a, b) => a.sortOrder - b.sortOrder)
+    const idx = sceneShots.findIndex(s => s.id === shot.id)
+    const letter = String.fromCharCode(65 + Math.max(0, idx)) // A, B, C...
+    return `${prefix}${letter}`
+  }, [scenes, shots])
+
   if (shots.length === 0) return (
     <div className="flex flex-col items-center justify-center" style={{ minHeight: '60vh', gap: 10 }}>
       <div className="flex items-center justify-center cursor-pointer rounded-full" style={{ width: 40, height: 40, border: '1.5px dashed rgba(196,90,220,0.35)' }}>
@@ -251,14 +239,21 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
     </div>
   )
 
-  // Story order — grouped by scene
   return (
-    <div>
+    <div onClick={wiggleMode && !dragShotId ? () => setWiggleMode(false) : undefined}>
+      {/* Wiggle mode Done button */}
+      {wiggleMode && (
+        <div className="flex justify-center" style={{ padding: '8px 14px 4px' }}>
+          <button className="font-mono uppercase cursor-pointer"
+            style={{ fontSize: '0.44rem', letterSpacing: '0.06em', padding: '5px 16px', borderRadius: 14, background: `${accent}1f`, border: `1px solid ${accent}40`, color: accent }}
+            onClick={(e) => { e.stopPropagation(); haptic('light'); setWiggleMode(false) }}>Done</button>
+        </div>
+      )}
+
       {scenes.map(scene => {
         const sceneShots = shots.filter(s => s.sceneId === scene.id).sort((a, b) => a.sortOrder - b.sortOrder)
         const sceneColor = getSceneColor(parseInt(scene.sceneNumber), totalScenes)
         const isOpen = !collapsedScenes.has(scene.id)
-        const numStr = scene.sceneNumber
 
         return (
           <div key={scene.id}>
@@ -266,235 +261,129 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
             <div className="flex items-center select-none cursor-pointer"
               data-scene-header={scene.id}
               style={{ gap: 8, padding: '11px 14px 7px' }}
-              onClick={() => toggleScene(scene.id)}>
-              {/* Drag handle */}
-              <div className="flex flex-col flex-shrink-0" style={{ gap: 2.5, opacity: 0.2 }}>
-                <div style={{ width: 12, height: 1.5, background: 'white', borderRadius: 1 }} />
-                <div style={{ width: 12, height: 1.5, background: 'white', borderRadius: 1 }} />
-                <div style={{ width: 12, height: 1.5, background: 'white', borderRadius: 1 }} />
-              </div>
-              {/* Scene number */}
+              onClick={() => !wiggleMode && toggleScene(scene.id)}>
               <span className="flex-shrink-0" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', color: sceneColor, minWidth: 20 }}>
-                {numStr}
+                {scene.sceneNumber}
               </span>
-              {/* Scene title */}
               <span className="flex-1 truncate" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor, opacity: 0.7 }}>
                 {scene.title ?? ''}
               </span>
-              {/* Shot count */}
               <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', color: '#62627a', opacity: 0.55 }}>
                 {sceneShots.length}
               </span>
-              {/* Chevron */}
-              <svg width="5" height="9" viewBox="0 0 5 9" fill="none" className="flex-shrink-0"
-                style={{ opacity: 0.5, transition: 'transform 0.2s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>
-                <path d="M1 1L4 4.5L1 8" stroke={sceneColor} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              {!wiggleMode && (
+                <svg width="5" height="9" viewBox="0 0 5 9" fill="none" className="flex-shrink-0"
+                  style={{ opacity: 0.5, transition: 'transform 0.2s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                  <path d="M1 1L4 4.5L1 8" stroke={sceneColor} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
             </div>
-            {/* Scene color line */}
             <div style={{ height: 1, margin: '0 14px 4px', background: sceneColor, opacity: 0.5 }} />
 
-            {/* Shots — only when expanded */}
-            {isOpen && (
+            {(isOpen || wiggleMode) && (
               <>
-                {sceneShots.map((shot, i) => (
-                  <div key={shot.id}>
-                    <InsertRow index={i} sceneId={scene.id} />
-                    <ShotRow shot={shot} sceneColor={sceneColor}
-                      dragState={getDragState(shot.id)}
-                      onTapDetail={() => onTapShot(shot)}
-                      onTapThumbnail={() => onTapThumbnail(shot)}
-                      onSwipeThread={() => { /* TODO: open thread sheet */ }}
-                      onDescChange={(desc) => { console.log('Shot desc update:', shot.id, desc) }}
-                      onDragStart={(y, el) => handleDragStart(shot.id, y, el)}
-                      onDragMove={handleDragMove}
-                      onDragEnd={handleDragEnd} />
-                  </div>
-                ))}
-                <InsertRow index={sceneShots.length} sceneId={scene.id} />
+                {sceneShots.map((shot, i) => {
+                  const displayNum = getShotDisplayNumber(shot)
+                  const ds = getDragState(shot.id)
+                  const transform = ds === 'displaced-down' ? 'translateY(60px)' : ds === 'displaced-up' ? 'translateY(-60px)' : 'translateY(0)'
+                  return (
+                    <div key={shot.id}>
+                      {!wiggleMode && <InsertRow index={i} sceneId={scene.id} />}
+                      <div data-shot-id={shot.id}
+                        className={wiggleMode && ds !== 'dragging' ? 'wiggle' : ''}
+                        style={{
+                          padding: '0 14px 3px', position: 'relative',
+                          ...(ds === 'dragging' ? { zIndex: 50 } : { transform, transition: 'transform 0.25s ease', zIndex: 1 }),
+                        }}>
+                        <div ref={ds === 'dragging' ? undefined : undefined}
+                          className="flex items-center select-none relative"
+                          style={{
+                            gap: 9,
+                            background: ds === 'dragging' ? 'rgba(10,10,18,0.85)' : 'rgba(10,10,18,0.42)',
+                            backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+                            border: ds === 'dragging' ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.07)',
+                            borderRadius: 8, padding: '9px 10px',
+                            boxShadow: ds === 'dragging' ? '0 8px 32px rgba(0,0,0,0.6)' : 'none',
+                          }}
+                          onTouchStart={e => {
+                            if (wiggleMode) {
+                              // In wiggle mode, start drag immediately
+                              e.stopPropagation()
+                              const el = e.currentTarget as HTMLDivElement
+                              const startY = e.touches[0].clientY
+                              handleDragStart(shot.id, startY, el)
+                              const onMove = (ev: TouchEvent) => { ev.preventDefault(); handleDragMove(ev.touches[0].clientY) }
+                              const onEnd = () => { handleDragEnd(); window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onEnd) }
+                              window.addEventListener('touchmove', onMove, { passive: false })
+                              window.addEventListener('touchend', onEnd)
+                            } else {
+                              // Normal mode — long press enters wiggle
+                              startLongPress()
+                            }
+                          }}
+                          onTouchMove={() => cancelLongPress()}
+                          onTouchEnd={() => cancelLongPress()}
+                          onClick={e => {
+                            if (wiggleMode) { e.stopPropagation() }
+                          }}>
+
+                          {/* Drag handle — visible in wiggle mode */}
+                          {wiggleMode && (
+                            <div className="flex flex-col items-center justify-center flex-shrink-0"
+                              style={{ gap: 2.5, opacity: 0.4, minHeight: 44, width: 20 }}>
+                              <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
+                              <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
+                              <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
+                            </div>
+                          )}
+
+                          {/* Shot number */}
+                          <span className="flex-shrink-0 cursor-pointer" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
+                            onClick={() => !wiggleMode && onTapShot(shot)}>
+                            {displayNum}
+                          </span>
+
+                          {/* Size pill */}
+                          {shot.size && (
+                            <span className="font-mono uppercase flex-shrink-0 cursor-pointer" style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}
+                              onClick={() => !wiggleMode && onTapShot(shot)}>
+                              {SIZE_ABBREV[shot.size] ?? shot.size}
+                            </span>
+                          )}
+
+                          {/* Description */}
+                          <span className="flex-1 min-w-0 truncate" style={{ fontSize: '0.58rem', fontWeight: 500, color: '#a0a0b8', lineHeight: 1.35 }}
+                            onClick={() => !wiggleMode && onTapShot(shot)}>
+                            {shot.description || '—'}
+                          </span>
+
+                          {/* Thumbnail */}
+                          {!wiggleMode && (
+                            <div className="flex-shrink-0 overflow-hidden cursor-pointer" style={{ width: 72, height: 44, borderRadius: 6, marginLeft: 'auto' }}
+                              onClick={() => onTapThumbnail(shot)}>
+                              {shot.imageUrl ? (
+                                <img src={shot.imageUrl} alt={displayNum} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${sceneColor}18, ${sceneColor}08)` }}>
+                                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                    <rect x="2" y="3" width="10" height="8" rx="1.5" stroke={sceneColor} strokeWidth="1" opacity="0.35" />
+                                    <path d="M7 5.5v3M5.5 7h3" stroke={sceneColor} strokeWidth="1" strokeLinecap="round" opacity="0.35" />
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+                {!wiggleMode && <InsertRow index={sceneShots.length} sceneId={scene.id} />}
               </>
             )}
           </div>
         )
       })}
-    </div>
-  )
-}
-
-function ShotRow({ shot, sceneColor, dragState, onTapDetail, onTapThumbnail, onDescChange, onSwipeThread, onDragStart, onDragMove, onDragEnd }: {
-  shot: Shot; sceneColor: string
-  dragState: 'idle' | 'dragging' | 'displaced-down' | 'displaced-up'
-  onTapDetail: () => void
-  onTapThumbnail: () => void
-  onDescChange?: (desc: string) => void
-  onSwipeThread?: () => void
-  onDragStart: (touchY: number, el: HTMLDivElement) => void
-  onDragMove: (touchY: number) => void
-  onDragEnd: () => void
-}) {
-  const [swipeX, setSwipeX] = useState(0)
-  const [editing, setEditing] = useState(false)
-  const [editValue, setEditValue] = useState(shot.description ?? '')
-  const swipeStart = useRef<{ x: number; y: number } | null>(null)
-  const rowElRef = useRef<HTMLDivElement>(null)
-  const dragCardRef = useRef<HTMLDivElement>(null)
-  const dragHandleActive = useRef(false)
-  const dragMoved = useRef(false)
-  const dragStartY = useRef(0)
-
-  // Swipe on row body
-  const handleRowTouchStart = (e: React.TouchEvent) => {
-    if (dragHandleActive.current) return
-    swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
-  }
-  const handleRowTouchMove = (e: React.TouchEvent) => {
-    if (dragHandleActive.current || !swipeStart.current) return
-    const dx = e.touches[0].clientX - swipeStart.current.x
-    const dy = Math.abs(e.touches[0].clientY - swipeStart.current.y)
-    if (dy > 20) { swipeStart.current = null; return }
-    if (dx < -10) setSwipeX(Math.max(dx, -80))
-  }
-  const handleRowTouchEnd = () => {
-    if (dragHandleActive.current) return
-    if (swipeX < -40 && onSwipeThread) setSwipeX(-72)
-    else setSwipeX(0)
-    swipeStart.current = null
-  }
-
-  // Drag handle: short tap → detail sheet, drag → reorder
-  const handleHandleTouchStart = (e: React.TouchEvent) => {
-    e.stopPropagation()
-    dragHandleActive.current = true
-    dragMoved.current = false
-    dragStartY.current = e.touches[0].clientY
-
-    const startY = e.touches[0].clientY
-    let activated = false
-
-    const onMove = (ev: TouchEvent) => {
-      const dy = Math.abs(ev.touches[0].clientY - startY)
-      if (!activated && dy > 4) {
-        activated = true
-        ev.preventDefault()
-        if (dragCardRef.current) onDragStart(startY, dragCardRef.current)
-      }
-      if (activated) {
-        ev.preventDefault()
-        dragMoved.current = true
-        onDragMove(ev.touches[0].clientY)
-      }
-    }
-    const onEnd = () => {
-      if (activated) {
-        onDragEnd()
-      } else {
-        onTapDetail()
-      }
-      dragHandleActive.current = false
-      window.removeEventListener('touchmove', onMove)
-      window.removeEventListener('touchend', onEnd)
-      window.removeEventListener('touchcancel', onEnd)
-    }
-    window.addEventListener('touchmove', onMove, { passive: false })
-    window.addEventListener('touchend', onEnd)
-    window.addEventListener('touchcancel', onEnd)
-  }
-
-  const commitEdit = () => {
-    setEditing(false)
-    if (editValue !== (shot.description ?? '')) onDescChange?.(editValue)
-  }
-
-  const transform = dragState === 'displaced-down' ? 'translateY(60px)'
-    : dragState === 'displaced-up' ? 'translateY(-60px)'
-    : 'translateY(0)'
-
-  return (
-    <div ref={rowElRef} data-shot-id={shot.id}
-      style={{
-        padding: '0 14px 3px', position: 'relative',
-        ...(dragState === 'dragging' ? { zIndex: 50 } : {
-          transform,
-          transition: 'transform 0.25s ease',
-          zIndex: 1,
-        }),
-      }}>
-      {/* Thread reveal behind */}
-      {swipeX < -10 && (
-        <div className="flex items-center justify-center cursor-pointer"
-          style={{ position: 'absolute', right: 14, top: 0, bottom: 3, width: 68, borderRadius: '0 8px 8px 0', background: `${sceneColor}26`, zIndex: 0 }}
-          onClick={() => { setSwipeX(0); onSwipeThread?.() }}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M2 3h12a1 1 0 011 1v7a1 1 0 01-1 1H6l-4 3V4a1 1 0 011-1z" stroke={sceneColor} strokeWidth="1.2" strokeLinejoin="round" />
-          </svg>
-        </div>
-      )}
-
-      <div ref={dragCardRef} className="flex items-center select-none relative"
-        style={{
-          gap: 9,
-          background: dragState === 'dragging' ? 'rgba(10,10,18,0.7)' : 'rgba(10,10,18,0.42)',
-          backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-          border: dragState === 'dragging' ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 8, padding: '9px 10px',
-          transform: `translateX(${swipeX}px)`, transition: swipeStart.current ? 'none' : 'transform 0.25s ease',
-          boxShadow: dragState === 'dragging' ? '0 8px 32px rgba(0,0,0,0.6)' : 'none',
-        }}
-        onTouchStart={handleRowTouchStart} onTouchMove={handleRowTouchMove} onTouchEnd={handleRowTouchEnd}
-        onTouchCancel={() => { setSwipeX(0); swipeStart.current = null }}>
-
-        {/* Drag handle — also short tap to open detail */}
-        <div className="flex flex-col items-center justify-center flex-shrink-0"
-          style={{ gap: 2.5, opacity: dragState === 'dragging' ? 0.5 : 0.18, minHeight: 44, width: 24, cursor: 'grab' }}
-          onTouchStart={handleHandleTouchStart}>
-          <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
-          <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
-          <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
-        </div>
-
-        {/* Shot number — tap opens detail */}
-        <span className="flex-shrink-0 cursor-pointer" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
-          onClick={onTapDetail}>
-          {shot.shotNumber}
-        </span>
-
-        {/* Size pill — tap opens detail sheet */}
-        {shot.size && (
-          <span className="font-mono uppercase flex-shrink-0 cursor-pointer" style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}
-            onClick={onTapDetail}>
-            {SIZE_ABBREV[shot.size] ?? shot.size}
-          </span>
-        )}
-
-        {/* Description — tap to edit inline */}
-        {editing ? (
-          <input value={editValue} onChange={e => setEditValue(e.target.value)}
-            autoFocus onBlur={commitEdit}
-            onKeyDown={e => { if (e.key === 'Enter') commitEdit() }}
-            className="flex-1 min-w-0 outline-none"
-            style={{ fontSize: '0.58rem', fontWeight: 500, color: '#dddde8', lineHeight: 1.35, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '2px 6px' }} />
-        ) : (
-          <span className="flex-1 min-w-0 truncate cursor-text" style={{ fontSize: '0.58rem', fontWeight: 500, color: '#a0a0b8', lineHeight: 1.35 }}
-            onClick={() => setEditing(true)}>
-            {shot.description}
-          </span>
-        )}
-
-        {/* Thumbnail — tap: upload if empty, detail if image exists */}
-        <div className="flex-shrink-0 overflow-hidden cursor-pointer" style={{ width: 72, height: 44, borderRadius: 6, marginLeft: 'auto' }}
-          onClick={onTapThumbnail}>
-          {shot.imageUrl ? (
-            <img src={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${sceneColor}18, ${sceneColor}08)` }}>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <rect x="2" y="3" width="10" height="8" rx="1.5" stroke={sceneColor} strokeWidth="1" opacity="0.35" />
-                <path d="M7 5.5v3M5.5 7h3" stroke={sceneColor} strokeWidth="1" strokeLinecap="round" opacity="0.35" />
-              </svg>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   )
 }
@@ -1097,7 +986,14 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
       {/* Shot detail sheet */}
       <Sheet open={!!selectedShot} onClose={() => setSelectedShot(null)}>
-        <ShotDetailSheet shot={selectedShot} accent={accent} onClose={() => setSelectedShot(null)} onUploadImage={handleUploadImage} />
+        <ShotDetailSheet shot={selectedShot} accent={accent} onClose={() => setSelectedShot(null)} onUploadImage={handleUploadImage}
+          onUpdateShot={(shotId, fields) => {
+            updateShot(shotId, fields).then(() => {
+              qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
+              // Update selectedShot in-place so the sheet reflects changes immediately
+              setSelectedShot(prev => prev?.id === shotId ? { ...prev, ...fields } as Shot : prev)
+            }).catch(err => console.error('Failed to update shot:', err))
+          }} />
       </Sheet>
 
       {/* New shot sheet */}
