@@ -464,6 +464,15 @@ export async function updateScene(
   if (error) { console.error('[updateScene] FAILED:', error); throw error }
 }
 
+export async function deleteScene(sceneId: string): Promise<void> {
+  const db = createClient()
+  // Delete all shots in this scene first
+  const { error: shotErr } = await db.from('Shot').delete().eq('sceneId', sceneId)
+  if (shotErr) { console.error('[deleteScene] Failed to delete shots:', shotErr); throw shotErr }
+  const { error } = await db.from('Scene').delete().eq('id', sceneId)
+  if (error) { console.error('[deleteScene] FAILED:', error); throw error }
+}
+
 // ── SHOTS (was sm_shots) ──────────────────────────────────
 
 export async function getShots(sceneId: string) {

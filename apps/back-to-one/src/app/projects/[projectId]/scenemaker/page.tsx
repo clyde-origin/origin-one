@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useProject, useScenes } from '@/lib/hooks/useOriginOne'
-import { getShotsByProject, updateShotOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene } from '@/lib/db/queries'
+import { getShotsByProject, updateShotOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene, deleteScene } from '@/lib/db/queries'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Sheet } from '@/components/ui/Sheet'
@@ -90,14 +90,19 @@ function NewShotSheet({ autoId, accent, onSave, onClose }: {
 
 // ── SHOTLIST VIEW ─────────────────────────────────────────
 
-function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInsert, onReorder }: {
+function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInsert, onReorder, onRenameScene, onDeleteScene }: {
   scenes: Scene[]; shots: Shot[]; accent: string
   onTapShot: (s: Shot) => void; onTapThumbnail: (s: Shot) => void
   onInsert: (index: number, sceneId: string) => void
   onReorder: (shotId: string, newIndex: number) => void
+  onRenameScene: (sceneId: string, title: string) => void
+  onDeleteScene: (sceneId: string) => void
 }) {
   const [collapsedScenes, setCollapsedScenes] = useState<Set<string>>(new Set())
   const [wiggleMode, setWiggleMode] = useState(false)
+  const [editingSceneId, setEditingSceneId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const totalScenes = scenes.length
 
   // ── Shot number blink after reorder ──
@@ -320,26 +325,73 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
         return (
           <div key={scene.id}>
             {/* Scene divider header */}
-            <div className="flex items-center select-none cursor-pointer"
+            <div className="flex items-center select-none"
               data-scene-header={scene.id}
-              style={{ gap: 8, padding: '11px 14px 7px' }}
-              onClick={() => !wiggleMode && toggleScene(scene.id)}>
-              <span className="flex-shrink-0" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', color: sceneColor, minWidth: 20 }}>
+              style={{ gap: 8, padding: '11px 14px 7px' }}>
+              <span className="flex-shrink-0 cursor-pointer" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', color: sceneColor, minWidth: 20 }}
+                onClick={() => !wiggleMode && toggleScene(scene.id)}>
                 {scene.sceneNumber}
               </span>
-              <span className="flex-1 truncate" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor, opacity: 0.7 }}>
-                {scene.title ?? ''}
-              </span>
+              {editingSceneId === scene.id ? (
+                <input
+                  autoFocus
+                  value={editingTitle}
+                  onChange={e => setEditingTitle(e.target.value)}
+                  onBlur={() => {
+                    const trimmed = editingTitle.trim()
+                    if (trimmed !== (scene.title ?? '')) onRenameScene(scene.id, trimmed)
+                    setEditingSceneId(null)
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
+                    if (e.key === 'Escape') setEditingSceneId(null)
+                  }}
+                  className="flex-1 min-w-0 outline-none"
+                  style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor, background: 'rgba(255,255,255,0.06)', border: `1px solid ${sceneColor}40`, borderRadius: 4, padding: '2px 6px' }}
+                />
+              ) : (
+                <span className="flex-1 truncate cursor-pointer" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor, opacity: 0.7 }}
+                  onClick={() => {
+                    if (wiggleMode) return
+                    toggleScene(scene.id)
+                  }}
+                  onDoubleClick={() => {
+                    setEditingTitle(scene.title ?? '')
+                    setEditingSceneId(scene.id)
+                  }}>
+                  {scene.title || 'Untitled'}
+                </span>
+              )}
               <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', color: '#62627a', opacity: 0.55 }}>
                 {sceneShots.length}
               </span>
-              {!wiggleMode && (
-                <svg width="5" height="9" viewBox="0 0 5 9" fill="none" className="flex-shrink-0"
-                  style={{ opacity: 0.5, transition: 'transform 0.2s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+              {wiggleMode && (
+                <button className="flex-shrink-0 cursor-pointer flex items-center justify-center"
+                  style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(232,86,74,0.1)', border: '1px solid rgba(232,86,74,0.25)' }}
+                  onClick={(e) => { e.stopPropagation(); haptic('warning'); setConfirmDeleteId(scene.id) }}>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 2l6 6M8 2l-6 6" stroke="#e8564a" strokeWidth="1.3" strokeLinecap="round" /></svg>
+                </button>
+              )}
+              {!wiggleMode && editingSceneId !== scene.id && (
+                <svg width="5" height="9" viewBox="0 0 5 9" fill="none" className="flex-shrink-0 cursor-pointer"
+                  style={{ opacity: 0.5, transition: 'transform 0.2s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                  onClick={() => toggleScene(scene.id)}>
                   <path d="M1 1L4 4.5L1 8" stroke={sceneColor} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
             </div>
+            {/* Delete confirmation */}
+            {confirmDeleteId === scene.id && (
+              <div style={{ padding: '6px 14px 8px', display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(232,86,74,0.06)', borderRadius: 6, margin: '0 14px 4px' }}>
+                <span style={{ fontSize: '0.56rem', color: '#e8564a', flex: 1 }}>Delete scene {scene.sceneNumber} and {sceneShots.length} shot{sceneShots.length !== 1 ? 's' : ''}?</span>
+                <button className="font-mono uppercase cursor-pointer"
+                  style={{ fontSize: '0.4rem', letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 10, background: 'rgba(232,86,74,0.15)', border: '1px solid rgba(232,86,74,0.3)', color: '#e8564a' }}
+                  onClick={(e) => { e.stopPropagation(); onDeleteScene(scene.id); setConfirmDeleteId(null) }}>Delete</button>
+                <button className="font-mono uppercase cursor-pointer"
+                  style={{ fontSize: '0.4rem', letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#a0a0b8' }}
+                  onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null) }}>Cancel</button>
+              </div>
+            )}
             <div style={{ height: 1, margin: '0 14px 4px', background: sceneColor, opacity: 0.5 }} />
 
             {(isOpen || wiggleMode) && (
@@ -710,7 +762,18 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
     console.log('[SceneMaker] handleUpdateScene', sceneId, fields)
     updateScene(sceneId, fields).then(() => {
       qc.invalidateQueries({ queryKey: ['scenes', projectId] })
+      qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
     })
+  }, [projectId, qc])
+
+  // ── DELETE SCENE HANDLER ────────────────────────────────
+  const handleDeleteScene = useCallback((sceneId: string) => {
+    deleteScene(sceneId)
+      .then(() => {
+        qc.invalidateQueries({ queryKey: ['scenes', projectId] })
+        qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
+      })
+      .catch(err => console.error('[SceneMaker] deleteScene FAILED:', err))
   }, [projectId, qc])
 
   // ── ADD SCENE HANDLER (creates DB record at cursor position) ──
@@ -835,7 +898,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
     }
     if (mode === 'shotlist') {
       return [
-        { label: 'New Scene', color: '#e8a020', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" /><path d="M13 10v4M11 12h4" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" /></svg>, action: () => { /* TODO */ } },
+        { label: 'New Scene', color: '#e8a020', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" /><path d="M13 10v4M11 12h4" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" /></svg>, action: () => { handleAddScene() } },
         { label: 'New Shot', color: accent, icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="8" height="6" rx="1" stroke={accent} strokeWidth="1.3" /><path d="M10 7L14 9L10 11V7Z" fill={accent} opacity="0.8" /></svg>, action: () => {
           const firstScene = allScenes[0]
           if (firstScene) {
@@ -854,7 +917,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           setNewShotAt({ index: sceneShots.length, sceneId: firstScene.id })
         }
       }},
-      { label: 'Add Scene', color: accent, icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke={accent} strokeWidth="1.3" strokeLinecap="round" /><path d="M13 10v4M11 12h4" stroke={accent} strokeWidth="1.3" strokeLinecap="round" /></svg>, action: () => { /* TODO */ } },
+      { label: 'Add Scene', color: accent, icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke={accent} strokeWidth="1.3" strokeLinecap="round" /><path d="M13 10v4M11 12h4" stroke={accent} strokeWidth="1.3" strokeLinecap="round" /></svg>, action: () => { handleAddScene() } },
     ]
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, accent, allScenes.length, allShots.length, handleAddScene])
@@ -904,7 +967,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           <>
             {mode === 'script' && (() => { console.log('[SceneMaker] rendering ScriptView, mode=', mode, 'scenes=', allScenes.length, 'sceneIds=', allScenes.map(s => s.id)); return null })()}
             {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} onUpdateScene={handleUpdateScene} />}
-            {mode === 'shotlist' && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} />}
+            {mode === 'shotlist' && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} />}
             {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} onTapShot={setSelectedShot} onReorder={handleReorder} />}
           </>
         )}
