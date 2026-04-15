@@ -450,6 +450,13 @@ function ShotRow({ shot, sceneColor, dragState, onTapDetail, onDescChange, onSwi
           {shot.shotNumber}
         </span>
 
+        {/* Size pill */}
+        {shot.size && (
+          <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}>
+            {shot.size}
+          </span>
+        )}
+
         {/* Description — tap to edit inline */}
         {editing ? (
           <input value={editValue} onChange={e => setEditValue(e.target.value)}
@@ -464,15 +471,8 @@ function ShotRow({ shot, sceneColor, dragState, onTapDetail, onDescChange, onSwi
           </span>
         )}
 
-        {/* Size badge */}
-        {shot.size && (
-          <span className="font-mono flex-shrink-0" style={{ fontSize: '0.42rem', letterSpacing: '0.04em', color: sceneColor, opacity: 0.7 }}>
-            {shot.size}
-          </span>
-        )}
-
-        {/* Thumbnail placeholder */}
-        <div className="flex-shrink-0 overflow-hidden cursor-pointer" style={{ width: 52, height: 34, borderRadius: 5, marginLeft: 'auto' }}
+        {/* Thumbnail */}
+        <div className="flex-shrink-0 overflow-hidden cursor-pointer" style={{ width: 72, height: 44, borderRadius: 6, marginLeft: 'auto' }}
           onClick={onTapDetail}>
           <div className="w-full h-full" style={{ background: `linear-gradient(135deg, ${sceneColor}18, ${sceneColor}08)` }} />
         </div>
