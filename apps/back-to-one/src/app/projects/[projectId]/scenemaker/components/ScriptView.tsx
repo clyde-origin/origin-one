@@ -78,6 +78,8 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
 
   // ID of a newly added block to auto-focus (with setTimeout for mobile)
   const newBlockIdRef = useRef<string | null>(null)
+  // When true, place cursor at end of focused element (for Backspace focus-prev)
+  const cursorToEndRef = useRef(false)
 
   // Pending edits + debounce
   const pendingEdits = useRef<Map<string, { title?: string; description?: string }>>(new Map())
@@ -136,10 +138,21 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
   useEffect(() => {
     if (newBlockIdRef.current) {
       const id = newBlockIdRef.current
+      const placeCursorAtEnd = cursorToEndRef.current
       newBlockIdRef.current = null
+      cursorToEndRef.current = false
       setTimeout(() => {
         const el = document.querySelector(`[data-block-id="${id}"]`) as HTMLElement | null
-        if (el) el.focus()
+        if (!el) return
+        el.focus()
+        if (placeCursorAtEnd && el.childNodes.length > 0) {
+          const range = document.createRange()
+          const sel = window.getSelection()
+          range.selectNodeContents(el)
+          range.collapse(false) // false = collapse to end
+          sel?.removeAllRanges()
+          sel?.addRange(range)
+        }
       }, 50)
     }
   }, [blocksVersion])
@@ -232,18 +245,17 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
     blockType: ContentBlock['type'],
     e: React.KeyboardEvent<HTMLDivElement>,
   ) => {
-    // Backspace on empty scene_heading → delete it, focus previous block
-    if (e.key === 'Backspace' && blockType === 'scene_heading') {
+    // Backspace on any empty block → delete it, focus previous block at end of text
+    if (e.key === 'Backspace') {
       const content = e.currentTarget.textContent?.trim() ?? ''
       if (!content) {
         e.preventDefault()
         const blocks = blocksRef.current.get(sceneId) || []
-        // Find what to focus: previous block, or scene title if first block
         const focusTarget = blockIndex > 0
           ? blocks[blockIndex - 1].id
           : `title-${sceneId}`
         blocks.splice(blockIndex, 1)
-        // If no blocks left, add a default action
+        cursorToEndRef.current = true
         if (blocks.length === 0) {
           const fallback = mkBlock('action')
           blocks.push(fallback)
