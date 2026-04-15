@@ -1104,16 +1104,21 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       {/* Script subheader: Characters / Locations / Props */}
       {mode === 'script' && (
         <div className="flex items-center justify-center flex-shrink-0" style={{ height: 44, padding: '0 14px', gap: 10, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          {(['characters', 'locations', 'props'] as const).map(panel => (
-            <button key={panel} className="font-mono uppercase cursor-pointer select-none transition-colors"
-              style={{
-                fontSize: '0.46rem', letterSpacing: '0.06em', padding: '6px 18px', borderRadius: 16,
-                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#a0a0b8',
-              }}
-              onClick={() => { haptic('light'); setScriptPanel(panel) }}>
-              {panel}
-            </button>
-          ))}
+          {(['characters', 'locations', 'props'] as const).map(panel => {
+            const active = scriptPanel === panel
+            return (
+              <button key={panel} className="font-mono uppercase cursor-pointer select-none transition-colors"
+                style={{
+                  fontSize: '0.46rem', letterSpacing: '0.06em', padding: '6px 18px', borderRadius: 16,
+                  background: active ? `${accent}1a` : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${active ? `${accent}40` : 'rgba(255,255,255,0.08)'}`,
+                  color: active ? accent : '#a0a0b8',
+                }}
+                onClick={() => { haptic('light'); setScriptPanel(active ? null : panel) }}>
+                {panel}
+              </button>
+            )
+          })}
         </div>
       )}
 
