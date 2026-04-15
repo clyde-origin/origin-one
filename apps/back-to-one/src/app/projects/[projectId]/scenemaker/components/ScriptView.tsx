@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react'
+import { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback } from 'react'
 import { getSceneColor } from '@/lib/utils/phase'
 import type { Scene } from '@/types'
 
@@ -8,20 +8,38 @@ export interface ScriptViewHandle {
   addScene: () => void
   addAction: () => void
   addDialogue: () => void
+  flush: () => void
 }
 
 interface ScriptViewProps {
   scenes: Scene[]
   accent: string
+  onUpdateScene: (sceneId: string, fields: { title?: string; description?: string }) => void
 }
 
-export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function ScriptView({ scenes, accent }, ref) {
+export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function ScriptView({ scenes, accent, onUpdateScene }, ref) {
   const [insertedBlocks, setInsertedBlocks] = useState<Array<{ type: 'scene' | 'action' | 'dialogue'; id: string }>>([])
   const newBlockRef = useRef<HTMLDivElement | null>(null)
   const [dialogueStep, setDialogueStep] = useState<'char' | 'line' | null>(null)
   const dialogueCharRef = useRef<HTMLDivElement | null>(null)
   const dialogueLineRef = useRef<HTMLDivElement | null>(null)
   const totalScenes = scenes.length
+
+  // Track pending edits per scene so we can flush on unmount / tab switch
+  const pendingEdits = useRef<Map<string, { title?: string; description?: string }>>(new Map())
+
+  const queueEdit = useCallback((sceneId: string, fields: { title?: string; description?: string }) => {
+    const existing = pendingEdits.current.get(sceneId) ?? {}
+    pendingEdits.current.set(sceneId, { ...existing, ...fields })
+  }, [])
+
+  const flushEdits = useCallback(() => {
+    pendingEdits.current.forEach((fields, sceneId) => {
+      console.log('[ScriptView] flushing edit', sceneId, fields)
+      onUpdateScene(sceneId, fields)
+    })
+    pendingEdits.current.clear()
+  }, [onUpdateScene])
 
   // Focus newly inserted block
   useEffect(() => {
@@ -41,6 +59,18 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
     }
   }, [dialogueStep])
 
+  // Flush on unmount
+  useEffect(() => {
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      pendingEdits.current.forEach((fields, sceneId) => {
+        console.log('[ScriptView] flush on unmount', sceneId, fields)
+        onUpdateScene(sceneId, fields)
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useImperativeHandle(ref, () => ({
     addScene: () => {
       const id = `ins-scene-${Date.now()}`
@@ -53,16 +83,44 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
     addDialogue: () => {
       setDialogueStep('char')
     },
+    flush: flushEdits,
   }))
 
   const focusStyle = (e: React.FocusEvent<HTMLDivElement>) => {
     e.currentTarget.style.background = `${accent}0d`
     e.currentTarget.style.boxShadow = `0 0 0 4px ${accent}0d`
   }
-  const blurStyle = (e: React.FocusEvent<HTMLDivElement>) => {
+
+  const handleTitleBlur = useCallback((sceneId: string, original: string, e: React.FocusEvent<HTMLDivElement>) => {
     e.currentTarget.style.background = ''
     e.currentTarget.style.boxShadow = ''
-  }
+    const newVal = e.currentTarget.textContent?.trim() ?? ''
+    if (newVal !== original) {
+      queueEdit(sceneId, { title: newVal })
+      // Save immediately on blur
+      const pending = pendingEdits.current.get(sceneId)
+      if (pending) {
+        console.log('[ScriptView] saving on blur', sceneId, pending)
+        onUpdateScene(sceneId, pending)
+        pendingEdits.current.delete(sceneId)
+      }
+    }
+  }, [queueEdit, onUpdateScene])
+
+  const handleDescBlur = useCallback((sceneId: string, original: string, e: React.FocusEvent<HTMLDivElement>) => {
+    e.currentTarget.style.background = ''
+    e.currentTarget.style.boxShadow = ''
+    const newVal = e.currentTarget.textContent?.trim() ?? ''
+    if (newVal !== original) {
+      queueEdit(sceneId, { description: newVal })
+      const pending = pendingEdits.current.get(sceneId)
+      if (pending) {
+        console.log('[ScriptView] saving on blur', sceneId, pending)
+        onUpdateScene(sceneId, pending)
+        pendingEdits.current.delete(sceneId)
+      }
+    }
+  }, [queueEdit, onUpdateScene])
 
   if (scenes.length === 0 && insertedBlocks.length === 0) return (
     <div className="flex flex-col items-center justify-center" style={{ minHeight: '60vh', gap: 10 }}>
@@ -78,6 +136,8 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
       {scenes.map((scene, si) => {
         const sceneNum = parseInt(scene.sceneNumber) || (si + 1)
         const sceneColor = getSceneColor(sceneNum, totalScenes)
+        const origTitle = scene.title ?? ''
+        const origDesc = scene.description ?? ''
         return (
           <div key={scene.id} style={{ padding: '20px 20px 0', borderTop: si > 0 ? '1px solid rgba(255,255,255,0.05)' : undefined }}>
             {/* Scene number badge + Slug */}
@@ -87,19 +147,20 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
               </span>
               <div contentEditable suppressContentEditableWarning
                 style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '0.78rem', fontWeight: 700, color: '#dddde8', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.4, outline: 'none', borderRadius: 4, cursor: 'text', flex: 1 }}
-                onFocus={focusStyle} onBlur={blurStyle}>
-                {scene.title ?? ''}
+                onFocus={focusStyle}
+                onBlur={e => handleTitleBlur(scene.id, origTitle, e)}>
+                {origTitle}
               </div>
             </div>
 
             {/* Description as action block */}
-            {scene.description && (
-              <div contentEditable suppressContentEditableWarning
-                style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '0.74rem', color: '#a0a0b8', lineHeight: 1.65, marginBottom: 10, outline: 'none', borderRadius: 4, cursor: 'text' }}
-                onFocus={focusStyle} onBlur={blurStyle}>
-                {scene.description}
-              </div>
-            )}
+            <div contentEditable suppressContentEditableWarning
+              data-placeholder="Action description..."
+              style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '0.74rem', color: '#a0a0b8', lineHeight: 1.65, marginBottom: 10, outline: 'none', borderRadius: 4, cursor: 'text', minHeight: 20 }}
+              onFocus={focusStyle}
+              onBlur={e => handleDescBlur(scene.id, origDesc, e)}>
+              {origDesc}
+            </div>
           </div>
         )
       })}
@@ -117,7 +178,8 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
                   ref={el => { if (el && !el.textContent) newBlockRef.current = el }}
                   data-placeholder="INT./EXT. LOCATION — TIME"
                   style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '0.78rem', fontWeight: 700, color: '#dddde8', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.4, outline: 'none', borderRadius: 4, cursor: 'text', flex: 1, minHeight: 24 }}
-                  onFocus={focusStyle} onBlur={blurStyle} />
+                  onFocus={focusStyle}
+                  onBlur={e => { e.currentTarget.style.background = ''; e.currentTarget.style.boxShadow = '' }} />
               </div>
             </div>
           )
@@ -129,7 +191,8 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
                 ref={el => { if (el && !el.textContent) newBlockRef.current = el }}
                 data-placeholder="Action description..."
                 style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '0.74rem', color: '#a0a0b8', lineHeight: 1.65, marginBottom: 10, outline: 'none', borderRadius: 4, cursor: 'text', minHeight: 20 }}
-                onFocus={focusStyle} onBlur={blurStyle} />
+                onFocus={focusStyle}
+                onBlur={e => { e.currentTarget.style.background = ''; e.currentTarget.style.boxShadow = '' }} />
             </div>
           )
         }
@@ -139,7 +202,6 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
       {/* Inline dialogue insertion — 2-step flow */}
       {dialogueStep && (
         <div style={{ padding: '10px 20px 10px 52px' }}>
-          {/* Step 1: Character name */}
           <div contentEditable suppressContentEditableWarning
             ref={dialogueCharRef}
             data-placeholder="CHARACTER NAME"
@@ -152,7 +214,6 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
                 setDialogueStep('line')
               }
             }} />
-          {/* Step 2: Dialogue line */}
           {dialogueStep === 'line' && (
             <div contentEditable suppressContentEditableWarning
               ref={dialogueLineRef}

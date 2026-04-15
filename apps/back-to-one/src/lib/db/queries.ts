@@ -381,6 +381,19 @@ export async function getScenes(projectId: string) {
   return data
 }
 
+export async function updateScene(
+  sceneId: string,
+  fields: { title?: string; description?: string }
+): Promise<void> {
+  const db = createClient()
+  console.log('[updateScene]', sceneId, fields)
+  const { error } = await db
+    .from('Scene')
+    .update(fields)
+    .eq('id', sceneId)
+  if (error) { console.error('[updateScene] FAILED:', error); throw error }
+}
+
 // ── SHOTS (was sm_shots) ──────────────────────────────────
 
 export async function getShots(sceneId: string) {

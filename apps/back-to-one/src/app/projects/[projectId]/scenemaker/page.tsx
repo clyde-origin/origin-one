@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useProject, useScenes } from '@/lib/hooks/useOriginOne'
-import { getShotsByProject, updateShotOrder, createShot, uploadStoryboardImage, updateShot } from '@/lib/db/queries'
+import { getShotsByProject, updateShotOrder, createShot, uploadStoryboardImage, updateShot, updateScene } from '@/lib/db/queries'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Sheet } from '@/components/ui/Sheet'
@@ -751,6 +751,14 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
   const loading = loadingScenes || loadingShots
 
+  // ── SCENE UPDATE HANDLER (script mode) ──────────────────
+  const handleUpdateScene = useCallback((sceneId: string, fields: { title?: string; description?: string }) => {
+    console.log('[SceneMaker] handleUpdateScene', sceneId, fields)
+    updateScene(sceneId, fields).then(() => {
+      qc.invalidateQueries({ queryKey: ['scenes', projectId] })
+    })
+  }, [projectId, qc])
+
   // ── REORDER HANDLER ──────────────────────────────────────
 
   const handleReorder = useCallback((shotId: string, newIndex: number) => {
@@ -892,7 +900,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           {(['script', 'shotlist', 'storyboard'] as SceneMakerMode[]).map(m => (
             <button key={m} className="flex-1 text-center uppercase cursor-pointer select-none relative transition-colors"
               style={{ fontFamily: "'Geist', sans-serif", fontWeight: 700, padding: '11px 0', fontSize: '0.52rem', letterSpacing: '0.08em', color: mode === m ? '#dddde8' : '#62627a' }}
-              onClick={() => setMode(m)}>
+              onClick={() => { if (mode === 'script') scriptRef.current?.flush(); setMode(m) }}>
               {m}
               {mode === m && <div className="absolute bottom-0" style={{ left: '10%', right: '10%', height: 2, background: accent, borderRadius: '2px 2px 0 0' }} />}
             </button>
@@ -913,7 +921,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       <div className="flex-1 overflow-y-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 100 }}>
         {loading ? <LoadingState /> : (
           <>
-            {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} />}
+            {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} onUpdateScene={handleUpdateScene} />}
             {mode === 'shotlist' && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} />}
             {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} onTapShot={setSelectedShot} onReorder={handleReorder} />}
           </>
