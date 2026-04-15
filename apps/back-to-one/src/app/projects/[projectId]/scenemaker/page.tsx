@@ -42,6 +42,11 @@ function PillSelector({ label, options, value, onChange, accent }: {
 
 const SHOT_SIZES = ['CU', 'MS', 'WS', 'ECU', 'POV', 'MCU']
 
+const SIZE_ABBREV: Record<string, string> = {
+  extreme_wide: 'EWS', wide: 'WIDE', full: 'FS', medium: 'MED',
+  medium_close_up: 'MCU', close_up: 'CU', extreme_close_up: 'ECU', insert: 'INS',
+}
+
 function NewShotSheet({ autoId, accent, onSave, onClose }: {
   autoId: string; accent: string
   onSave: (data: { description: string; size: string }) => void
@@ -453,7 +458,7 @@ function ShotRow({ shot, sceneColor, dragState, onTapDetail, onDescChange, onSwi
         {/* Size pill */}
         {shot.size && (
           <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}>
-            {shot.size}
+            {SIZE_ABBREV[shot.size] ?? shot.size}
           </span>
         )}
 
