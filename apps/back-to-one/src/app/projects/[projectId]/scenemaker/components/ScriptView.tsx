@@ -6,16 +6,26 @@ import type { Scene } from '@/types'
 
 // ── Content block types ──────────────────────────────────
 type ContentBlock =
+  | { type: 'scene_heading'; id: string; content: string }
   | { type: 'action'; id: string; content: string }
-  | { type: 'dialogue'; id: string; character: string; content: string }
+  | { type: 'character'; id: string; content: string }
+  | { type: 'dialogue'; id: string; content: string }
 
 function parseBlocks(description: string | null): ContentBlock[] {
   if (!description) return []
   try {
     const parsed = JSON.parse(description)
     if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.type) {
-      // Ensure every block has an id
-      return parsed.map((b: ContentBlock) => ({ ...b, id: b.id || crypto.randomUUID() }))
+      // Migrate old combined dialogue blocks → separate character + dialogue
+      return parsed.flatMap((b: any) => {
+        if (b.type === 'dialogue' && b.character !== undefined) {
+          return [
+            { type: 'character' as const, id: crypto.randomUUID(), content: b.character },
+            { type: 'dialogue' as const, id: b.id || crypto.randomUUID(), content: b.content ?? '' },
+          ]
+        }
+        return [{ ...b, id: b.id || crypto.randomUUID() }]
+      })
     }
   } catch { /* not JSON — treat as plain text */ }
   return description.trim()
@@ -25,6 +35,18 @@ function parseBlocks(description: string | null): ContentBlock[] {
 
 function serializeBlocks(blocks: ContentBlock[]): string {
   return JSON.stringify(blocks)
+}
+
+function mkBlock(type: ContentBlock['type'], content = ''): ContentBlock {
+  return { type, id: crypto.randomUUID(), content } as ContentBlock
+}
+
+// ── Block placeholders ───────────────────────────────────
+const PLACEHOLDER: Record<string, string> = {
+  scene_heading: 'INT./EXT. LOCATION — TIME',
+  action: 'Action...',
+  character: 'CHARACTER NAME',
+  dialogue: 'Dialogue...',
 }
 
 // ── Public handle ────────────────────────────────────────
@@ -43,20 +65,17 @@ interface ScriptViewProps {
 }
 
 export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function ScriptView({ scenes, accent, onUpdateScene }, ref) {
-  console.log('ScriptView rendered', { sceneCount: scenes.length, accent })
-
   const totalScenes = scenes.length
   const focusedSceneIndex = useRef(0)
 
-  // Structural version counter — increment to re-render when blocks are added/removed
+  // Structural version — increment to re-render on block add/remove
   const [blocksVersion, setBlocksVersion] = useState(0)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  void blocksVersion // used implicitly via setBlocksVersion triggering re-render
+  void blocksVersion // eslint-disable-line
 
   // Block data per scene (cached so React doesn't overwrite contentEditable)
   const blocksRef = useRef<Map<string, ContentBlock[]>>(new Map())
 
-  // ID of a newly added block to auto-focus
+  // ID of a newly added block to auto-focus (with setTimeout for mobile)
   const newBlockIdRef = useRef<string | null>(null)
 
   // Pending edits + debounce
@@ -67,7 +86,7 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
   const getSceneBlocks = useCallback((scene: Scene): ContentBlock[] => {
     if (blocksRef.current.has(scene.id)) return blocksRef.current.get(scene.id)!
     const blocks = parseBlocks(scene.description)
-    if (blocks.length === 0) blocks.push({ type: 'action', id: crypto.randomUUID(), content: '' })
+    if (blocks.length === 0) blocks.push(mkBlock('action'))
     blocksRef.current.set(scene.id, blocks)
     return blocks
   }, [])
@@ -97,19 +116,30 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
     const existing = debounceTimers.current.get(sceneId)
     if (existing) clearTimeout(existing)
     const timer = setTimeout(() => {
-      console.log('[ScriptView] debounce fired for', sceneId)
       saveScene(sceneId)
       debounceTimers.current.delete(sceneId)
     }, 2000)
     debounceTimers.current.set(sceneId, timer)
   }, [saveScene])
 
-  // ── Auto-focus newly added blocks ──────────────────────
+  /** Mutate blocks array, queue save, trigger re-render, schedule focus */
+  const commitBlocks = useCallback((sceneId: string, blocks: ContentBlock[], focusId: string) => {
+    blocksRef.current.set(sceneId, blocks)
+    queueEdit(sceneId, { description: serializeBlocks(blocks) })
+    scheduleDebounceSave(sceneId)
+    newBlockIdRef.current = focusId
+    setBlocksVersion(v => v + 1)
+  }, [queueEdit, scheduleDebounceSave])
+
+  // ── Auto-focus with mobile delay ───────────────────────
   useEffect(() => {
     if (newBlockIdRef.current) {
-      const el = document.querySelector(`[data-block-id="${newBlockIdRef.current}"]`) as HTMLElement | null
-      if (el) el.focus()
+      const id = newBlockIdRef.current
       newBlockIdRef.current = null
+      setTimeout(() => {
+        const el = document.querySelector(`[data-block-id="${id}"]`) as HTMLElement | null
+        if (el) el.focus()
+      }, 50)
     }
   }, [blocksVersion])
 
@@ -120,7 +150,6 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
       debounceTimers.current.forEach(t => clearTimeout(t))
       // eslint-disable-next-line react-hooks/exhaustive-deps
       pendingEdits.current.forEach((fields, sceneId) => {
-        console.log('[ScriptView] flush on unmount', sceneId, fields)
         onUpdateScene(sceneId, fields)
       })
     }
@@ -129,29 +158,22 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
 
   // ── Imperative handle ──────────────────────────────────
   useImperativeHandle(ref, () => ({
-    addScene: () => {}, // handled by parent via handleAddScene
+    addScene: () => {}, // handled by parent
     addAction: () => {
       const sceneId = scenes[focusedSceneIndex.current]?.id
       if (!sceneId) return
       const blocks = blocksRef.current.get(sceneId) || []
-      const newBlock: ContentBlock = { type: 'action', id: crypto.randomUUID(), content: '' }
-      blocks.push(newBlock)
-      blocksRef.current.set(sceneId, blocks)
-      queueEdit(sceneId, { description: serializeBlocks(blocks) })
-      scheduleDebounceSave(sceneId)
-      newBlockIdRef.current = newBlock.id
-      setBlocksVersion(v => v + 1)
+      const nb = mkBlock('action')
+      blocks.push(nb)
+      commitBlocks(sceneId, blocks, nb.id)
     },
     addDialogue: () => {
       const sceneId = scenes[focusedSceneIndex.current]?.id
       if (!sceneId) return
       const blocks = blocksRef.current.get(sceneId) || []
-      const newBlock: ContentBlock = { type: 'dialogue', id: crypto.randomUUID(), character: '', content: '' }
-      blocks.push(newBlock)
-      blocksRef.current.set(sceneId, blocks)
-      queueEdit(sceneId, { description: serializeBlocks(blocks) })
-      newBlockIdRef.current = newBlock.id
-      setBlocksVersion(v => v + 1)
+      const nb = mkBlock('character')
+      blocks.push(nb)
+      commitBlocks(sceneId, blocks, nb.id)
     },
     flush: flushEdits,
     getFocusedSceneIndex: () => focusedSceneIndex.current,
@@ -179,11 +201,11 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
     saveScene(sceneId)
   }, [saveScene])
 
-  const handleBlockInput = useCallback((sceneId: string, blockIndex: number, field: 'content' | 'character', e: React.FormEvent<HTMLDivElement>) => {
+  const handleBlockInput = useCallback((sceneId: string, blockIndex: number, e: React.FormEvent<HTMLDivElement>) => {
     const val = e.currentTarget.textContent?.trim() ?? ''
     const blocks = blocksRef.current.get(sceneId)
     if (!blocks || !blocks[blockIndex]) return
-    ;(blocks[blockIndex] as any)[field] = val
+    blocks[blockIndex].content = val
     queueEdit(sceneId, { description: serializeBlocks(blocks) })
     scheduleDebounceSave(sceneId)
   }, [queueEdit, scheduleDebounceSave])
@@ -192,6 +214,109 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
     blurStyle(e)
     saveScene(sceneId)
   }, [saveScene])
+
+  // ── Enter key: Final Draft flow ────────────────────────
+  const handleTitleKeyDown = useCallback((sceneId: string, e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+    const blocks = blocksRef.current.get(sceneId) || []
+    const nb = mkBlock('action')
+    blocks.splice(0, 0, nb) // insert as first block
+    commitBlocks(sceneId, blocks, nb.id)
+  }, [commitBlocks])
+
+  const handleBlockKeyDown = useCallback((
+    sceneId: string,
+    blockIndex: number,
+    blockType: ContentBlock['type'],
+    e: React.KeyboardEvent<HTMLDivElement>,
+  ) => {
+    if (e.key !== 'Enter') return
+    e.preventDefault()
+
+    const blocks = blocksRef.current.get(sceneId) || []
+    const content = e.currentTarget.textContent?.trim() ?? ''
+    let nb: ContentBlock
+
+    switch (blockType) {
+      case 'scene_heading': {
+        // → new action
+        nb = mkBlock('action')
+        blocks.splice(blockIndex + 1, 0, nb)
+        commitBlocks(sceneId, blocks, nb.id)
+        break
+      }
+      case 'action': {
+        if (content) {
+          // → new character
+          nb = mkBlock('character')
+          blocks.splice(blockIndex + 1, 0, nb)
+          commitBlocks(sceneId, blocks, nb.id)
+        } else {
+          // Empty → delete this action, insert scene_heading in its place
+          blocks.splice(blockIndex, 1)
+          nb = mkBlock('scene_heading')
+          blocks.splice(blockIndex, 0, nb)
+          commitBlocks(sceneId, blocks, nb.id)
+        }
+        break
+      }
+      case 'character': {
+        if (content) {
+          // → new dialogue
+          nb = mkBlock('dialogue')
+          blocks.splice(blockIndex + 1, 0, nb)
+          commitBlocks(sceneId, blocks, nb.id)
+        } else {
+          // Empty → delete this character, insert action in its place
+          blocks.splice(blockIndex, 1)
+          nb = mkBlock('action')
+          blocks.splice(blockIndex, 0, nb)
+          commitBlocks(sceneId, blocks, nb.id)
+        }
+        break
+      }
+      case 'dialogue': {
+        // → new character
+        nb = mkBlock('character')
+        blocks.splice(blockIndex + 1, 0, nb)
+        commitBlocks(sceneId, blocks, nb.id)
+        break
+      }
+    }
+  }, [commitBlocks])
+
+  // ── Block style per type ───────────────────────────────
+  const getBlockStyle = useCallback((type: ContentBlock['type']): React.CSSProperties => {
+    switch (type) {
+      case 'scene_heading':
+        return {
+          fontFamily: "'Geist', sans-serif", fontSize: '0.78rem', fontWeight: 700,
+          color: accent, textTransform: 'uppercase', letterSpacing: '0.04em',
+          lineHeight: 1.4, marginBottom: 10, outline: 'none', borderRadius: 4,
+          cursor: 'text', minHeight: 20,
+        }
+      case 'action':
+        return {
+          fontFamily: "'Courier New', Courier, monospace", fontSize: '0.74rem',
+          color: '#dddde8', lineHeight: 1.65, marginBottom: 10, outline: 'none',
+          borderRadius: 4, cursor: 'text', minHeight: 20,
+        }
+      case 'character':
+        return {
+          fontFamily: "'Courier New', Courier, monospace", fontSize: '0.72rem',
+          fontWeight: 700, color: '#a0a0b8', textTransform: 'uppercase',
+          letterSpacing: '0.04em', textAlign: 'center', marginBottom: 3,
+          outline: 'none', cursor: 'text', minHeight: 18,
+        }
+      case 'dialogue':
+        return {
+          fontFamily: "'Courier New', Courier, monospace", fontSize: '0.72rem',
+          color: '#dddde8', lineHeight: 1.55, paddingLeft: 24, marginBottom: 10,
+          outline: 'none', cursor: 'text', minHeight: 18,
+        }
+    }
+  }, [accent])
 
   // ── Empty state ────────────────────────────────────────
   if (scenes.length === 0) return (
@@ -216,85 +341,52 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
             style={{ padding: '20px 20px 0', borderTop: si > 0 ? '1px solid rgba(255,255,255,0.05)' : undefined }}
             onFocus={() => { focusedSceneIndex.current = si }}>
 
-            {/* Scene number badge + Title */}
+            {/* Scene number badge + Scene title (primary heading) */}
             <div className="flex items-start" style={{ gap: 8, marginBottom: 12 }}>
               <span className="font-mono flex-shrink-0" style={{ fontSize: '0.52rem', fontWeight: 700, color: sceneColor, background: `${sceneColor}1a`, borderRadius: 4, padding: '2px 5px', marginTop: 2 }}>
                 {scene.sceneNumber.padStart(2, '0')}
               </span>
               <div contentEditable suppressContentEditableWarning
+                data-block-id={`title-${scene.id}`}
                 ref={el => {
                   if (el && !el.getAttribute('data-init')) {
                     el.textContent = scene.title ?? ''
                     el.setAttribute('data-init', '1')
                   }
                 }}
-                style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '0.78rem', fontWeight: 700, color: '#dddde8', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.4, outline: 'none', borderRadius: 4, cursor: 'text', flex: 1, minHeight: 20 }}
+                data-placeholder="INT./EXT. LOCATION — TIME"
+                style={{
+                  fontFamily: "'Geist', sans-serif", fontSize: '0.78rem', fontWeight: 700,
+                  color: accent, textTransform: 'uppercase', letterSpacing: '0.04em',
+                  lineHeight: 1.4, outline: 'none', borderRadius: 4, cursor: 'text',
+                  flex: 1, minHeight: 20,
+                }}
                 onFocus={focusStyle}
                 onInput={e => handleTitleInput(scene.id, e)}
                 onBlur={e => handleTitleBlur(scene.id, e)}
+                onKeyDown={e => handleTitleKeyDown(scene.id, e)}
               />
             </div>
 
             {/* Content blocks */}
-            {blocks.map((block, bi) => {
-              if (block.type === 'action') {
-                return (
-                  <div key={block.id}
-                    data-block-id={block.id}
-                    contentEditable suppressContentEditableWarning
-                    ref={el => {
-                      if (el && !el.getAttribute('data-init')) {
-                        el.textContent = block.content
-                        el.setAttribute('data-init', '1')
-                      }
-                    }}
-                    data-placeholder="Action description..."
-                    style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '0.74rem', color: '#a0a0b8', lineHeight: 1.65, marginBottom: 10, outline: 'none', borderRadius: 4, cursor: 'text', minHeight: 20 }}
-                    onFocus={focusStyle}
-                    onInput={e => handleBlockInput(scene.id, bi, 'content', e)}
-                    onBlur={e => handleBlockBlur(scene.id, e)}
-                  />
-                )
-              }
-
-              if (block.type === 'dialogue') {
-                return (
-                  <div key={block.id} style={{ padding: '6px 0 6px 32px', marginBottom: 10 }}>
-                    <div
-                      data-block-id={block.id}
-                      contentEditable suppressContentEditableWarning
-                      ref={el => {
-                        if (el && !el.getAttribute('data-init')) {
-                          el.textContent = block.character
-                          el.setAttribute('data-init', '1')
-                        }
-                      }}
-                      data-placeholder="CHARACTER NAME"
-                      style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '0.72rem', fontWeight: 700, color: accent, textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'center', marginBottom: 3, outline: 'none', cursor: 'text', minHeight: 18 }}
-                      onFocus={focusStyle}
-                      onInput={e => handleBlockInput(scene.id, bi, 'character', e)}
-                      onBlur={e => handleBlockBlur(scene.id, e)}
-                    />
-                    <div
-                      contentEditable suppressContentEditableWarning
-                      ref={el => {
-                        if (el && !el.getAttribute('data-init')) {
-                          el.textContent = block.content
-                          el.setAttribute('data-init', '1')
-                        }
-                      }}
-                      data-placeholder="Dialogue text..."
-                      style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '0.72rem', color: '#a0a0b8', lineHeight: 1.55, textAlign: 'center', maxWidth: 220, margin: '0 auto', outline: 'none', cursor: 'text', minHeight: 18 }}
-                      onFocus={focusStyle}
-                      onInput={e => handleBlockInput(scene.id, bi, 'content', e)}
-                      onBlur={e => handleBlockBlur(scene.id, e)}
-                    />
-                  </div>
-                )
-              }
-
-              return null
-            })}
+            {blocks.map((block, bi) => (
+              <div key={block.id}
+                data-block-id={block.id}
+                contentEditable suppressContentEditableWarning
+                ref={el => {
+                  if (el && !el.getAttribute('data-init')) {
+                    el.textContent = block.content
+                    el.setAttribute('data-init', '1')
+                  }
+                }}
+                data-placeholder={PLACEHOLDER[block.type] ?? ''}
+                style={getBlockStyle(block.type)}
+                onFocus={focusStyle}
+                onInput={e => handleBlockInput(scene.id, bi, e)}
+                onBlur={e => handleBlockBlur(scene.id, e)}
+                onKeyDown={e => handleBlockKeyDown(scene.id, bi, block.type, e)}
+              />
+            ))}
           </div>
         )
       })}
