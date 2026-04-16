@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useProject, useScenes } from '@/lib/hooks/useOriginOne'
 import { getShotsByProject, updateShotOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene, deleteScene } from '@/lib/db/queries'
-import { LoadingState } from '@/components/ui'
+import { LoadingState, ThreadsIcon } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Sheet } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
@@ -1491,7 +1491,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
             transition: 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.28s',
           }}
           onClick={() => router.push(`/projects/${projectId}/threads`)}>
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 2h8a1 1 0 011 1v4.5a1 1 0 01-1 1H5l-2.5 2.5V3a1 1 0 011-1z" stroke="rgba(255,255,255,0.45)" strokeWidth="1.1" strokeLinejoin="round" /></svg>
+          <ThreadsIcon size={13} color="rgba(255,255,255,0.45)" />
         </div>
 
       </div>

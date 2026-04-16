@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { haptic } from '@/lib/utils/haptics'
+import { ThreadsIcon } from '@/components/ui/ThreadsIcon'
 
 interface SideFabsProps {
   projectId: string
@@ -44,11 +45,7 @@ export function SideFabs({ projectId, hideLeft, hideRight }: SideFabsProps) {
           onClick={() => { haptic('light'); router.push(`/projects/${projectId}/resources`) }}
           aria-label="Threads"
         >
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-            <rect x="3" y="4" width="14" height="2.5" rx="1.2" stroke="white" strokeWidth="1.3" opacity="0.7" />
-            <rect x="3" y="9" width="14" height="2.5" rx="1.2" stroke="white" strokeWidth="1.3" opacity="0.7" />
-            <rect x="3" y="14" width="8" height="2.5" rx="1.2" stroke="white" strokeWidth="1.3" opacity="0.7" />
-          </svg>
+          <ThreadsIcon size={18} color="rgba(255,255,255,0.7)" />
         </button>
       )}
     </>

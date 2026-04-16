@@ -11,7 +11,7 @@ import {
   useScenes, useMoodboard, useThreads,
   useLocations, useArtItems, useCastRoles, useWorkflowNodes,
 } from '@/lib/hooks/useOriginOne'
-import { CrewAvatar } from '@/components/ui'
+import { CrewAvatar, ThreadsIcon } from '@/components/ui'
 import { HubSkeleton } from '@/components/hub/HubSkeleton'
 import { CrewPanel } from '@/components/hub/CrewPanel'
 import { CreateTaskSheet, CreateMilestoneSheet, CreateCreativeSheet } from '@/components/create'
@@ -1190,12 +1190,7 @@ export function HubContent({ projectId }: { projectId: string }) {
             cursor: 'pointer', pointerEvents: fabOpen ? 'auto' : 'none',
           }}
         >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M3 3h8M3 6h6M3 9h7M3 12h4" stroke="rgba(255,255,255,0.55)" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>
-          {unreadThreads > 0 && (
-            <div style={{ position: 'absolute', top: -1, right: -1, width: 7, height: 7, borderRadius: '50%', background: '#4ab8e8', border: '1.5px solid #04040a' }} />
-          )}
+          <ThreadsIcon size={14} unreadCount={unreadThreads} />
         </motion.div>
       </div>
 

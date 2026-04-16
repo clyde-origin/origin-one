@@ -3,6 +3,7 @@ import type { Phase } from '@/lib/utils/phase'
 
 export { Sigil } from './Sigil'
 export { DestructiveSheet } from './DestructiveSheet'
+export { ThreadsIcon } from './ThreadsIcon'
 export { SkeletonLine, SkeletonAvatar, SkeletonCard } from './Skeleton'
 
 // ── PHASE PILL ──────────────────────────────────────────────

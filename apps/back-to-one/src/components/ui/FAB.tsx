@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { haptic } from '@/lib/utils/haptics'
+import { ThreadsIcon } from '@/components/ui/ThreadsIcon'
 
 // ── Types ────────────────────────────────────────────────
 
@@ -192,7 +193,7 @@ export function FAB({ accent, projectId, branches = [], onPress, hideBack, hideC
               transition: 'transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.28s',
             }}
             onClick={() => router.push(`/projects/${projectId}/threads`)}>
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M3 3h8M3 6h6M3 9h7M3 12h4" stroke="rgba(255,255,255,0.7)" strokeWidth="1.2" strokeLinecap="round" /></svg>
+            <ThreadsIcon size={13} color="rgba(255,255,255,0.7)" />
           </div>
         )}
       </div>
