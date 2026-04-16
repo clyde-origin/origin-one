@@ -146,32 +146,28 @@ function CrewDetail({ member, accent, projectId, onBack, onRemoved }: {
   )
 }
 
-// ── CREW ROW (shared) ────────────────────────────────────
+// ── CREW CELL (avatar + name + role, horizontal grid) ───
 
-function CrewRow({ member, onTap }: { member: TeamMember; onTap: () => void }) {
-  const [swiped, setSwiped] = useState(false)
-
+function CrewCell({ member, onTap }: { member: TeamMember; onTap: () => void }) {
   return (
-    <div className="relative overflow-hidden" style={{ minHeight: 44 }}>
-      {/* Swipe reveal */}
-      {swiped && (
-        <div className="absolute right-0 top-0 bottom-0 flex items-center pr-4" style={{ background: 'rgba(232,86,74,0.15)' }}>
-          <span className="font-mono uppercase" style={{ fontSize: '0.46rem', color: '#e8564a', letterSpacing: '0.06em' }}>Remove</span>
-        </div>
-      )}
-      <motion.div
-        className="flex items-center gap-3 px-5 py-2.5 cursor-pointer active:bg-white/[0.03] relative bg-surface"
-        style={{ minHeight: 44 }}
-        drag="x" dragConstraints={{ left: -80, right: 0 }} dragElastic={0.1}
-        onDragEnd={(_, info: PanInfo) => setSwiped(info.offset.x < -40)}
-        onClick={() => { if (!swiped) onTap(); else setSwiped(false) }}
-      >
-        <CrewAvatar name={member.User.name} size={36} />
-        <div className="flex-1 min-w-0">
-          <div className="text-text truncate" style={{ fontSize: '0.86rem', fontWeight: 600 }}>{member.User.name}</div>
-          <div className="text-text2" style={{ fontSize: '0.74rem' }}>{member.role}</div>
-        </div>
-      </motion.div>
+    <div
+      className="flex flex-col items-center cursor-pointer active:opacity-70"
+      style={{ width: 68, gap: 4 }}
+      onClick={onTap}
+    >
+      <CrewAvatar name={member.User.name} size={42} />
+      <div className="text-center w-full" style={{
+        fontSize: '0.62rem', fontWeight: 500, color: '#dddde8', lineHeight: 1.25,
+        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
+        overflow: 'hidden', wordBreak: 'break-word' as const,
+      }}>
+        {member.User.name}
+      </div>
+      <div className="text-center w-full" style={{
+        fontSize: '0.48rem', color: '#62627a', lineHeight: 1.2, marginTop: -1,
+      }}>
+        {member.role}
+      </div>
     </div>
   )
 }
@@ -253,18 +249,26 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                 </button>
               </div>
 
-              {/* Crew list — grouped by department */}
-              <div className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+              {/* Crew grid — grouped by department */}
+              <div className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch', padding: '0 16px 20px' }}>
                 {groupByDepartment(allCrew).map(({ department, members }) => (
-                  <div key={department ?? '__none'}>
-                    {department && (
-                      <div className="font-mono uppercase px-5" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.08em', padding: '14px 20px 4px' }}>
-                        {department}
+                  <div key={department ?? '__none'} style={{ marginTop: 16 }}>
+                    {/* Section header */}
+                    <div style={{ marginBottom: 10 }}>
+                      <div className="uppercase" style={{
+                        fontSize: 13, fontWeight: 600, color: accent,
+                        letterSpacing: '0.08em', paddingBottom: 6,
+                      }}>
+                        {department ?? 'Crew (untagged)'}
                       </div>
-                    )}
-                    {members.map(m => (
-                      <CrewRow key={m.id} member={m} onTap={() => { haptic('light'); setSelectedMember(m); setLayer('detail') }} />
-                    ))}
+                      <div style={{ height: 1, background: `${accent}20` }} />
+                    </div>
+                    {/* Avatar row — wrapping flex */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+                      {members.map(m => (
+                        <CrewCell key={m.id} member={m} onTap={() => { haptic('light'); setSelectedMember(m); setLayer('detail') }} />
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
