@@ -651,10 +651,45 @@ export async function getAllThreads() {
 }
 
 // ── NOT YET IN SCHEMA (stubs) ─────────────────────────────
-// These tables were removed from the old schema and have no
-// equivalent in the new Prisma schema yet. Functions return
-// empty data so consuming code doesn't crash.
+// ── SHOTLIST VERSIONS ─────────────────────────────────────
 
+export async function getShotlistVersions(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ShotlistVersion')
+    .select('*')
+    .eq('projectId', projectId)
+    .order('versionNumber', { ascending: false })
+  if (error) { console.error('getShotlistVersions failed:', error); throw error }
+  return data ?? []
+}
+
+export async function createShotlistVersion(version: {
+  projectId: string
+  versionNumber: number
+  label?: string | null
+  shots: any
+}) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ShotlistVersion')
+    .insert(version)
+    .select()
+    .single()
+  if (error) { console.error('createShotlistVersion failed:', error); throw error }
+  return data
+}
+
+export async function updateShotlistVersionLabel(id: string, label: string | null) {
+  const db = createClient()
+  const { error } = await db
+    .from('ShotlistVersion')
+    .update({ label })
+    .eq('id', id)
+  if (error) { console.error('updateShotlistVersionLabel failed:', error); throw error }
+}
+
+// Legacy stubs — kept for backward compat
 export async function getSceneMakerVersions(_projectId: string): Promise<any[]> { return [] }
 export async function getSMScenes(_versionId: string): Promise<any[]> { return [] }
 export async function getSMShots(_versionId: string): Promise<any[]> { return [] }

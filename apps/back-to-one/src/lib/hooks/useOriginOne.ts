@@ -12,6 +12,7 @@ export const keys = {
   allActionItems:     () => ['allActionItems'] as const,
   allMilestones:      () => ['allMilestones'] as const,
   allThreads:         () => ['allThreads'] as const,
+  shotlistVersions: (projectId: string) => ['shotlistVersions', projectId] as const,
   smVersions:     (projectId: string) => ['smVersions', projectId] as const,
   smScenes:       (versionId: string) => ['smScenes', versionId] as const,
   smShots:        (versionId: string) => ['smShots', versionId] as const,
@@ -304,6 +305,34 @@ export function useCreateShot(versionId: string) {
   return useMutation({
     mutationFn: (shot: Parameters<typeof db.createShot>[0]) => db.createShot(shot),
     onSuccess: () => { qc.invalidateQueries({ queryKey: keys.smShots(versionId) }) },
+  })
+}
+
+// ── SHOTLIST VERSIONS ────────────────────────────────────
+
+export function useShotlistVersions(projectId: string) {
+  return useQuery({
+    queryKey: keys.shotlistVersions(projectId),
+    queryFn:  () => db.getShotlistVersions(projectId),
+    enabled:  !!projectId,
+  })
+}
+
+export function useCreateShotlistVersion(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (version: { versionNumber: number; label?: string | null; shots: any }) =>
+      db.createShotlistVersion({ projectId, ...version }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: keys.shotlistVersions(projectId) }) },
+  })
+}
+
+export function useUpdateShotlistVersionLabel(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, label }: { id: string; label: string | null }) =>
+      db.updateShotlistVersionLabel(id, label),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: keys.shotlistVersions(projectId) }) },
   })
 }
 

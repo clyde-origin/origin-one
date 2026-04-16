@@ -4,7 +4,8 @@ import { useState, useRef, useCallback, useMemo } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useProject, useScenes } from '@/lib/hooks/useOriginOne'
+import { motion } from 'framer-motion'
+import { useProject, useScenes, useShotlistVersions, useCreateShotlistVersion, useUpdateShotlistVersionLabel } from '@/lib/hooks/useOriginOne'
 import { getShotsByProject, updateShotOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene, deleteScene } from '@/lib/db/queries'
 import { LoadingState, ThreadsIcon } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -956,6 +957,121 @@ function BoardCard({ shot, sceneColor, isDragging, isShifted, onTap, onDragStart
   )
 }
 
+// ── TIME AGO HELPER ──────────────────────────────────────
+
+function timeAgo(dateStr: string): string {
+  const now = Date.now()
+  const d = new Date(dateStr).getTime()
+  const diff = now - d
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d ago`
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+// ── VERSION HISTORY PANEL ────────────────────────────────
+
+function VersionHistoryPanel({ versions, accent, activeVersionId, onSelectVersion, onUpdateLabel, onClose }: {
+  versions: any[]
+  accent: string
+  activeVersionId: string | null
+  onSelectVersion: (v: { versionNumber: number; label?: string | null; shots: any; createdAt: string }) => void
+  onUpdateLabel: (id: string, label: string | null) => void
+  onClose: () => void
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingLabel, setEditingLabel] = useState('')
+
+  return (
+    <motion.div
+      initial={{ x: '100%' }}
+      animate={{ x: 0 }}
+      exit={{ x: '100%' }}
+      transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+      style={{
+        position: 'absolute', top: 0, right: 0, bottom: 0,
+        width: 240, background: '#08081a',
+        borderLeft: '1px solid rgba(255,255,255,0.08)',
+        display: 'flex', flexDirection: 'column',
+        zIndex: 10,
+      }}>
+      {/* Header */}
+      <div className="flex items-center flex-shrink-0" style={{ height: 44, padding: '0 12px', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <span className="font-mono uppercase flex-1" style={{ fontSize: '0.44rem', letterSpacing: '0.08em', color: '#a0a0b8' }}>Version History</span>
+        <button className="flex items-center justify-center cursor-pointer" style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }}
+          onClick={onClose}>
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1l-6 6" stroke="#62627a" strokeWidth="1.2" strokeLinecap="round" /></svg>
+        </button>
+      </div>
+
+      {/* Version list */}
+      <div className="flex-1 overflow-y-auto no-scrollbar" style={{ padding: '6px 0' }}>
+        {versions.length === 0 && (
+          <div className="flex flex-col items-center justify-center" style={{ padding: '40px 16px', gap: 8 }}>
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="none"><path d="M8 3v5l3 1.5" stroke="#62627a" strokeWidth="1.1" strokeLinecap="round" /><circle cx="8" cy="8" r="6" stroke="#62627a" strokeWidth="1" /></svg>
+            <span className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a', textAlign: 'center', lineHeight: 1.4 }}>No saved versions yet.<br />Tap + to save one.</span>
+          </div>
+        )}
+        {versions.map((v: any) => {
+          const isActive = activeVersionId === String(v.versionNumber)
+          return (
+            <div key={v.id}
+              className="cursor-pointer select-none"
+              style={{
+                padding: '10px 12px', margin: '0 6px 2px', borderRadius: 8,
+                background: isActive ? `${accent}14` : 'transparent',
+                border: isActive ? `1px solid ${accent}30` : '1px solid transparent',
+                transition: 'background 0.15s, border 0.15s',
+              }}
+              onClick={() => onSelectVersion({ versionNumber: v.versionNumber, label: v.label, shots: v.shots, createdAt: v.createdAt })}>
+              <div className="flex items-center" style={{ gap: 8 }}>
+                <span className="font-mono flex-shrink-0" style={{ fontSize: '0.56rem', fontWeight: 700, color: isActive ? accent : '#dddde8' }}>
+                  v{v.versionNumber}
+                </span>
+                {editingId === v.id ? (
+                  <input
+                    autoFocus
+                    value={editingLabel}
+                    onChange={e => setEditingLabel(e.target.value)}
+                    onBlur={() => {
+                      const trimmed = editingLabel.trim()
+                      onUpdateLabel(v.id, trimmed || null)
+                      setEditingId(null)
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                      if (e.key === 'Escape') setEditingId(null)
+                    }}
+                    className="flex-1 min-w-0 outline-none"
+                    style={{ fontSize: '0.48rem', color: '#dddde8', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, padding: '2px 6px' }}
+                    onClick={e => e.stopPropagation()}
+                  />
+                ) : (
+                  <span className="flex-1 min-w-0 truncate cursor-text" style={{ fontSize: '0.48rem', color: v.label ? '#a0a0b8' : '#62627a', fontStyle: v.label ? 'normal' : 'italic' }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setEditingLabel(v.label ?? '')
+                      setEditingId(v.id)
+                    }}>
+                    {v.label || 'Add label...'}
+                  </span>
+                )}
+              </div>
+              <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a', marginTop: 3, display: 'block' }}>
+                {timeAgo(v.createdAt)}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </motion.div>
+  )
+}
+
 // ── MAIN PAGE ─────────────────────────────────────────────
 
 export default function SceneMakerPage({ params }: { params: { projectId: string } }) {
@@ -974,6 +1090,8 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const [scriptPanel, setScriptPanel] = useState<ScriptPanel>(null)
   const [shotOrder, setShotOrder] = useState<'story' | 'shooting'>('story')
   const [showExport, setShowExport] = useState(false)
+  const [showVersionPanel, setShowVersionPanel] = useState(false)
+  const [previewVersion, setPreviewVersion] = useState<{ versionNumber: number; label?: string | null; shots: any; createdAt: string } | null>(null)
   const scriptRef = useRef<ScriptViewHandle>(null)
   const thumbFileRef = useRef<HTMLInputElement>(null)
   const pendingUploadShotRef = useRef<string | null>(null)
@@ -982,6 +1100,9 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const closeFab = () => setFabOpen(false)
 
   const qc = useQueryClient()
+  const { data: shotlistVersions } = useShotlistVersions(projectId)
+  const createVersion = useCreateShotlistVersion(projectId)
+  const updateVersionLabel = useUpdateShotlistVersionLabel(projectId)
   const { data: scenes, isLoading: loadingScenes } = useScenes(projectId)
   const { data: scenesWithShots, isLoading: loadingShots } = useQuery({
     queryKey: ['shotsByProject', projectId],
@@ -1172,6 +1293,68 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
     e.target.value = ''
   }, [handleUploadImage])
 
+  // ── SAVE SHOTLIST VERSION ──────────────────────────────────
+  const handleSaveVersion = useCallback(() => {
+    const nextVersion = (shotlistVersions?.[0]?.versionNumber ?? 0) + 1
+    const snapshot = allScenes.map(scene => ({
+      sceneId: scene.id,
+      sceneNumber: scene.sceneNumber,
+      title: scene.title,
+      shots: allShots
+        .filter(s => s.sceneId === scene.id)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map(s => ({
+          id: s.id,
+          sceneId: s.sceneId,
+          shotNumber: s.shotNumber,
+          size: s.size,
+          description: s.description,
+          notes: (s as any).notes ?? null,
+          imageUrl: s.imageUrl,
+          status: s.status,
+          sortOrder: s.sortOrder,
+        })),
+    }))
+    createVersion.mutate({ versionNumber: nextVersion, shots: snapshot })
+    haptic('medium')
+  }, [shotlistVersions, allScenes, allShots, createVersion])
+
+  // ── PREVIEW VERSION DATA ──────────────────────────────────
+  const previewScenes: Scene[] = useMemo(() => {
+    if (!previewVersion) return []
+    return (previewVersion.shots as any[]).map((s: any) => ({
+      id: s.sceneId,
+      projectId,
+      sceneNumber: s.sceneNumber,
+      title: s.title ?? null,
+      description: null,
+      sortOrder: 0,
+      createdAt: '',
+      updatedAt: '',
+    }))
+  }, [previewVersion, projectId])
+
+  const previewShots: Shot[] = useMemo(() => {
+    if (!previewVersion) return []
+    return (previewVersion.shots as any[]).flatMap((s: any) =>
+      (s.shots ?? []).map((sh: any) => ({
+        id: sh.id,
+        sceneId: sh.sceneId,
+        shotNumber: sh.shotNumber,
+        size: sh.size ?? null,
+        description: sh.description ?? null,
+        imageUrl: sh.imageUrl ?? null,
+        status: sh.status ?? 'planned',
+        sortOrder: sh.sortOrder ?? 0,
+        createdAt: '',
+        updatedAt: '',
+      }))
+    )
+  }, [previewVersion])
+
+  const displayScenes = previewVersion ? previewScenes : allScenes
+  const displayShots = previewVersion ? previewShots : allShots
+
   // Contextual branch options per mode
   type BranchDef = { label: string; color: string; icon: React.ReactNode; action: () => void }
   const branches: BranchDef[] = useMemo(() => {
@@ -1309,14 +1492,22 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           {/* Version selector */}
           <div className="flex items-center" style={{ gap: 5 }}>
             <button className="flex items-center gap-1.5 cursor-pointer select-none"
-              style={{ padding: '6px 12px', borderRadius: 16, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-              onClick={() => haptic('light')}>
-              <span className="font-mono" style={{ fontSize: '0.5rem', fontWeight: 700, color: '#a0a0b8' }}>V1</span>
-              <svg width="7" height="7" viewBox="0 0 6 6" fill="none"><path d="M1.5 2.5L3 4L4.5 2.5" stroke="#62627a" strokeWidth="0.9" strokeLinecap="round" /></svg>
+              style={{
+                padding: '6px 12px', borderRadius: 16,
+                background: showVersionPanel ? `${accent}1a` : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${showVersionPanel ? `${accent}40` : 'rgba(255,255,255,0.08)'}`,
+              }}
+              onClick={() => { haptic('light'); setShowVersionPanel(v => !v) }}>
+              <span className="font-mono" style={{ fontSize: '0.5rem', fontWeight: 700, color: showVersionPanel ? accent : '#a0a0b8' }}>
+                {previewVersion ? `v${previewVersion.versionNumber}` : shotlistVersions?.[0] ? `v${shotlistVersions[0].versionNumber}` : 'v0'}
+              </span>
+              <svg width="7" height="7" viewBox="0 0 6 6" fill="none" style={{ transform: showVersionPanel ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                <path d="M1.5 2.5L3 4L4.5 2.5" stroke={showVersionPanel ? accent : '#62627a'} strokeWidth="0.9" strokeLinecap="round" />
+              </svg>
             </button>
             <button className="flex items-center justify-center cursor-pointer"
               style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-              onClick={() => haptic('light')}>
+              onClick={() => { handleSaveVersion() }}>
               <svg width="10" height="10" viewBox="0 0 8 8" fill="none"><path d="M4 1.5v5M1.5 4h5" stroke="#62627a" strokeWidth="0.9" strokeLinecap="round" /></svg>
             </button>
           </div>
@@ -1348,16 +1539,53 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         </div>
       )}
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 100 }}>
-        {loading ? <LoadingState /> : (
-          <>
-            {mode === 'script' && (() => { console.log('[SceneMaker] rendering ScriptView, mode=', mode, 'scenes=', allScenes.length, 'sceneIds=', allScenes.map(s => s.id)); return null })()}
-            {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} onUpdateScene={handleUpdateScene} />}
-            {mode === 'shotlist' && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onReorderToScene={handleReorderToScene} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} onUpdateShot={(shotId, fields) => { updateShot(shotId, fields).then(() => qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })).catch(err => console.error('Failed to update shot:', err)) }} />}
-            {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} scale={boardScale} onTapShot={setSelectedShot} onReorder={handleReorder} />}
-          </>
-        )}
+      {/* Preview banner */}
+      {previewVersion && mode === 'shotlist' && (
+        <div className="flex items-center flex-shrink-0" style={{ height: 36, padding: '0 14px', gap: 8, background: `${accent}12`, borderBottom: `1px solid ${accent}30` }}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2v4l2.5 1.5" stroke={accent} strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" /><circle cx="6" cy="6" r="4.5" stroke={accent} strokeWidth="1" /></svg>
+          <span className="font-mono" style={{ fontSize: '0.5rem', fontWeight: 700, color: accent }}>
+            Viewing v{previewVersion.versionNumber}
+            {previewVersion.label ? ` — ${previewVersion.label}` : ''}
+            {' — '}
+            {new Date(previewVersion.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </span>
+          <div className="flex-1" />
+          <button className="font-mono uppercase cursor-pointer select-none"
+            style={{ fontSize: '0.42rem', letterSpacing: '0.06em', padding: '4px 12px', borderRadius: 12, background: `${accent}1f`, border: `1px solid ${accent}40`, color: accent }}
+            onClick={() => { haptic('light'); setPreviewVersion(null) }}>
+            Back to current
+          </button>
+        </div>
+      )}
+
+      {/* Content + Version Panel */}
+      <div className="flex flex-1 overflow-hidden" style={{ position: 'relative' }}>
+        {/* Main content */}
+        <div className="flex-1 overflow-y-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 100 }}>
+          {loading ? <LoadingState /> : (
+            <>
+              {mode === 'script' && (() => { console.log('[SceneMaker] rendering ScriptView, mode=', mode, 'scenes=', allScenes.length, 'sceneIds=', allScenes.map(s => s.id)); return null })()}
+              {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} onUpdateScene={handleUpdateScene} />}
+              {mode === 'shotlist' && !previewVersion && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onReorderToScene={handleReorderToScene} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} onUpdateShot={(shotId, fields) => { updateShot(shotId, fields).then(() => qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })).catch(err => console.error('Failed to update shot:', err)) }} />}
+              {mode === 'shotlist' && previewVersion && <ShotlistView scenes={displayScenes} shots={displayShots} accent={accent} onTapShot={() => {}} onTapThumbnail={() => {}} onInsert={() => {}} onReorder={() => {}} onReorderToScene={() => {}} onRenameScene={() => {}} onDeleteScene={() => {}} onUpdateShot={() => {}} />}
+              {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} scale={boardScale} onTapShot={setSelectedShot} onReorder={handleReorder} />}
+            </>
+          )}
+        </div>
+
+        {/* Version history panel — slides in from right */}
+        <AnimatePresence>
+          {showVersionPanel && mode === 'shotlist' && (
+            <VersionHistoryPanel
+              versions={shotlistVersions ?? []}
+              accent={accent}
+              activeVersionId={previewVersion ? String(previewVersion.versionNumber) : null}
+              onSelectVersion={(v) => { setPreviewVersion(v); haptic('light') }}
+              onUpdateLabel={(id, label) => updateVersionLabel.mutate({ id, label })}
+              onClose={() => setShowVersionPanel(false)}
+            />
+          )}
+        </AnimatePresence>
       </div>
 
       {/* ── BRANCHING FAB SYSTEM ── */}
