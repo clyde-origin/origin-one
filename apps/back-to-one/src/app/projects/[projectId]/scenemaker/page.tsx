@@ -96,19 +96,23 @@ function NewShotSheet({ autoId, accent, onSave, onClose }: {
 
 // ── SHOTLIST VIEW ─────────────────────────────────────────
 
-function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInsert, onReorder, onRenameScene, onDeleteScene }: {
+function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInsert, onReorder, onReorderToScene, onRenameScene, onDeleteScene, onUpdateShot }: {
   scenes: Scene[]; shots: Shot[]; accent: string
   onTapShot: (s: Shot) => void; onTapThumbnail: (s: Shot) => void
   onInsert: (index: number, sceneId: string) => void
   onReorder: (shotId: string, newIndex: number) => void
+  onReorderToScene: (shotId: string, sceneId: string) => void
   onRenameScene: (sceneId: string, title: string) => void
   onDeleteScene: (sceneId: string) => void
+  onUpdateShot: (shotId: string, fields: { description?: string }) => void
 }) {
   const [collapsedScenes, setCollapsedScenes] = useState<Set<string>>(new Set())
   const [wiggleMode, setWiggleMode] = useState(false)
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [editingDescShotId, setEditingDescShotId] = useState<string | null>(null)
+  const [editingDescValue, setEditingDescValue] = useState('')
   const totalScenes = scenes.length
 
   // ── Shot number blink after reorder ──
@@ -120,6 +124,8 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
   const dragShotIdRef = useRef<string | null>(null)
   const [dragTargetIdx, setDragTargetIdx] = useState(-1)
   const dragTargetIdxRef = useRef(-1)
+  const [dragOverSceneId, setDragOverSceneId] = useState<string | null>(null)
+  const dragOverSceneIdRef = useRef<string | null>(null)
   const dragElRef = useRef<HTMLDivElement | null>(null)
   const dragOriginY = useRef(0)
   const flatShotOrder = useRef<string[]>([])
@@ -174,6 +180,8 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
     return getShotDisplayNumber(shot)
   }, [dragShotId, dragTargetIdx, shots, scenes, getShotDisplayNumber])
 
+  const sceneHeaderRectsRef = useRef<Map<string, DOMRect>>(new Map())
+
   const snapshotRects = useCallback(() => {
     const map = new Map<string, DOMRect>()
     flatShotOrder.current.forEach(id => {
@@ -181,7 +189,14 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
       if (el) map.set(id, el.getBoundingClientRect())
     })
     shotRectsRef.current = map
-  }, [])
+    // Also snapshot scene header rects
+    const sceneMap = new Map<string, DOMRect>()
+    scenes.forEach(s => {
+      const el = document.querySelector(`[data-scene-header="${s.id}"]`) as HTMLElement | null
+      if (el) sceneMap.set(s.id, el.getBoundingClientRect())
+    })
+    sceneHeaderRectsRef.current = sceneMap
+  }, [scenes])
 
   const handleDragStart = useCallback((shotId: string, touchY: number, el: HTMLDivElement) => {
     const allFlat = [...shots].sort((a, b) => a.sortOrder - b.sortOrder).map(s => s.id)
@@ -202,6 +217,15 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
     dragElRef.current.style.transform = `translateY(${dy}px)`
     dragElRef.current.style.transition = 'none'
 
+    // Check if touch is over a scene header (drop zone)
+    let overScene: string | null = null
+    sceneHeaderRectsRef.current.forEach((rect, sceneId) => {
+      if (touchY >= rect.top && touchY <= rect.bottom + 20) {
+        // Check that we're not also closer to a shot card
+        overScene = sceneId
+      }
+    })
+
     const order = flatShotOrder.current
     let targetIdx = dragTargetIdxRef.current
     let closest = { dist: Infinity, idx: targetIdx }
@@ -212,15 +236,26 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
       const idx = order.indexOf(id)
       if (dist < closest.dist) closest = { dist, idx }
     })
-    const closestRect = shotRectsRef.current.get(order[closest.idx])
-    if (closestRect) {
-      const mid = closestRect.top + closestRect.height / 2
-      const fromIdx = order.indexOf(dragShotIdRef.current!)
-      if (touchY < mid && closest.idx < fromIdx) targetIdx = closest.idx
-      if (touchY > mid && closest.idx > fromIdx) targetIdx = closest.idx
+
+    // If closest shot is nearer than scene header, prefer the shot
+    const closestShotRect = closest.idx >= 0 ? shotRectsRef.current.get(order[closest.idx]) : null
+    const closestShotDist = closestShotRect ? Math.abs(touchY - (closestShotRect.top + closestShotRect.height / 2)) : Infinity
+    if (overScene && closestShotDist < 30) overScene = null
+
+    dragOverSceneIdRef.current = overScene
+    setDragOverSceneId(overScene)
+
+    if (!overScene) {
+      const closestRect = shotRectsRef.current.get(order[closest.idx])
+      if (closestRect) {
+        const mid = closestRect.top + closestRect.height / 2
+        const fromIdx = order.indexOf(dragShotIdRef.current!)
+        if (touchY < mid && closest.idx < fromIdx) targetIdx = closest.idx
+        if (touchY > mid && closest.idx > fromIdx) targetIdx = closest.idx
+      }
+      const firstRect = shotRectsRef.current.get(order[0])
+      if (firstRect && touchY < firstRect.top + firstRect.height / 2) targetIdx = 0
     }
-    const firstRect = shotRectsRef.current.get(order[0])
-    if (firstRect && touchY < firstRect.top + firstRect.height / 2) targetIdx = 0
     dragTargetIdxRef.current = targetIdx
     setDragTargetIdx(targetIdx)
   }, [])
@@ -232,7 +267,14 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
     }
     const shotId = dragShotIdRef.current
     const targetIdx = dragTargetIdxRef.current
-    if (shotId && targetIdx >= 0) {
+    const overSceneId = dragOverSceneIdRef.current
+    if (shotId && overSceneId) {
+      // Dropped onto a scene header — move shot to top of that scene
+      onReorderToScene(shotId, overSceneId)
+      // Blink the dragged shot
+      setBlinkIds(new Set([shotId]))
+      setTimeout(() => setBlinkIds(new Set()), 700)
+    } else if (shotId && targetIdx >= 0) {
       // Snapshot display numbers before reorder
       const before = new Map<string, string>()
       shots.forEach(s => before.set(s.id, getShotDisplayNumber(s)))
@@ -257,8 +299,10 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
     setDragShotId(null)
     dragTargetIdxRef.current = -1
     setDragTargetIdx(-1)
+    dragOverSceneIdRef.current = null
+    setDragOverSceneId(null)
     dragElRef.current = null
-  }, [onReorder, shots, getShotDisplayNumber])
+  }, [onReorder, onReorderToScene, shots, getShotDisplayNumber])
 
   const getDragState = useCallback((shotId: string): 'idle' | 'dragging' | 'displaced-down' | 'displaced-up' => {
     if (!dragShotId) return 'idle'
@@ -333,7 +377,11 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
             {/* Scene divider header */}
             <div className="flex items-center select-none"
               data-scene-header={scene.id}
-              style={{ gap: 8, padding: '11px 14px 7px' }}>
+              style={{
+                gap: 8, padding: '11px 14px 7px',
+                ...(dragOverSceneId === scene.id ? { background: `${sceneColor}12`, borderRadius: 6, margin: '0 4px' } : {}),
+                transition: 'background 0.15s, margin 0.15s',
+              }}>
               <span className="flex-shrink-0 cursor-pointer" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', color: sceneColor, minWidth: 20 }}
                 onClick={() => !wiggleMode && toggleScene(scene.id)}>
                 {scene.sceneNumber}
@@ -402,6 +450,22 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
 
             {(isOpen || wiggleMode) && (
               <>
+                {/* Empty scene drop zone in wiggle mode */}
+                {wiggleMode && sceneShots.length === 0 && (
+                  <div data-scene-dropzone={scene.id}
+                    style={{
+                      margin: '0 14px 8px', padding: '16px 0',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      borderRadius: 8,
+                      border: dragOverSceneId === scene.id ? `1.5px dashed ${sceneColor}60` : '1.5px dashed rgba(255,255,255,0.08)',
+                      background: dragOverSceneId === scene.id ? `${sceneColor}08` : 'transparent',
+                      transition: 'all 0.15s',
+                    }}>
+                    <span className="font-mono uppercase" style={{ fontSize: '0.36rem', color: '#62627a', letterSpacing: '0.06em' }}>
+                      Drop shot here
+                    </span>
+                  </div>
+                )}
                 {sceneShots.map((shot, i) => {
                   const displayNum = dragShotId ? getProjectedDisplayNumber(shot, scene.id) : getShotDisplayNumber(shot)
                   const ds = getDragState(shot.id)
@@ -474,11 +538,36 @@ function ShotlistView({ scenes, shots, accent, onTapShot, onTapThumbnail, onInse
                             </span>
                           )}
 
-                          {/* Description */}
-                          <span className="flex-1 min-w-0 truncate" style={{ fontSize: '0.58rem', fontWeight: 500, color: '#a0a0b8', lineHeight: 1.35 }}
-                            onClick={() => !wiggleMode && onTapShot(shot)}>
-                            {shot.description || '—'}
-                          </span>
+                          {/* Description — inline editable */}
+                          {editingDescShotId === shot.id ? (
+                            <input
+                              autoFocus
+                              value={editingDescValue}
+                              onChange={e => setEditingDescValue(e.target.value)}
+                              onBlur={() => {
+                                const trimmed = editingDescValue.trim()
+                                if (trimmed !== (shot.description ?? '')) onUpdateShot(shot.id, { description: trimmed })
+                                setEditingDescShotId(null)
+                              }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
+                                if (e.key === 'Escape') setEditingDescShotId(null)
+                              }}
+                              className="flex-1 min-w-0 outline-none"
+                              style={{ fontSize: '0.58rem', fontWeight: 500, color: '#dddde8', lineHeight: 1.35, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, padding: '2px 6px' }}
+                              onClick={e => e.stopPropagation()}
+                            />
+                          ) : (
+                            <span className="flex-1 min-w-0 truncate cursor-text" style={{ fontSize: '0.58rem', fontWeight: 500, color: '#a0a0b8', lineHeight: 1.35 }}
+                              onClick={(e) => {
+                                if (wiggleMode) return
+                                e.stopPropagation()
+                                setEditingDescValue(shot.description ?? '')
+                                setEditingDescShotId(shot.id)
+                              }}>
+                              {shot.description || '—'}
+                            </span>
+                          )}
 
                           {/* Thumbnail */}
                           {!wiggleMode && (
@@ -994,6 +1083,52 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
     )).catch(err => console.error('Failed to persist reorder:', err))
   }, [allShots, projectId, qc])
 
+  // ── REORDER TO SCENE HANDLER (drop onto scene header) ──
+  const handleReorderToScene = useCallback((shotId: string, targetSceneId: string) => {
+    const sorted = [...allShots].sort((a, b) => a.sortOrder - b.sortOrder)
+    const moved = sorted.find(s => s.id === shotId)
+    if (!moved) return
+    // Find first shot in target scene to place before it, or use scene boundary
+    const sceneShotsSorted = sorted.filter(s => s.sceneId === targetSceneId)
+    const without = sorted.filter(s => s.id !== shotId)
+    // Insert at position of first shot in the target scene (top of scene)
+    let insertAt: number
+    if (sceneShotsSorted.length > 0) {
+      insertAt = without.findIndex(s => s.id === sceneShotsSorted[0].id)
+      if (insertAt < 0) insertAt = without.length
+    } else {
+      // Empty scene — insert after all shots belonging to scenes before this one
+      const sceneIdx = allScenes.findIndex(s => s.id === targetSceneId)
+      const precedingSceneIds = new Set(allScenes.slice(0, sceneIdx + 1).map(s => s.id))
+      insertAt = without.filter(s => precedingSceneIds.has(s.sceneId)).length
+    }
+    without.splice(insertAt, 0, moved)
+
+    const updates = without.map((s, i) => ({
+      id: s.id,
+      order: i,
+      sceneId: s.id === shotId ? targetSceneId : s.sceneId,
+    }))
+
+    // Optimistic local update
+    qc.setQueryData(['shotsByProject', projectId], (old: any[] | undefined) => {
+      if (!old) return old
+      return old.map((scene: any) => ({
+        ...scene,
+        Shot: (scene.Shot ?? []).map((s: Shot) => {
+          const u = updates.find(u => u.id === s.id)
+          if (!u) return s
+          return { ...s, sortOrder: u.order, sceneId: u.sceneId }
+        }),
+      }))
+    })
+
+    // Persist
+    Promise.all(updates.map(u =>
+      updateShotOrder(u.id, { sortOrder: u.order, ...(u.id === shotId ? { sceneId: targetSceneId } : {}) })
+    )).catch(err => console.error('Failed to persist reorder to scene:', err))
+  }, [allShots, allScenes, projectId, qc])
+
   /** Auto-generate next shot number for a scene (e.g. if scene 2 has 2A-2C, returns "2D") */
   const nextShotNumber = useCallback((sceneId: string) => {
     const scene = allScenes.find(s => s.id === sceneId)
@@ -1219,7 +1354,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           <>
             {mode === 'script' && (() => { console.log('[SceneMaker] rendering ScriptView, mode=', mode, 'scenes=', allScenes.length, 'sceneIds=', allScenes.map(s => s.id)); return null })()}
             {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} onUpdateScene={handleUpdateScene} />}
-            {mode === 'shotlist' && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} />}
+            {mode === 'shotlist' && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onReorderToScene={handleReorderToScene} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} onUpdateShot={(shotId, fields) => { updateShot(shotId, fields).then(() => qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })).catch(err => console.error('Failed to update shot:', err)) }} />}
             {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} scale={boardScale} onTapShot={setSelectedShot} onReorder={handleReorder} />}
           </>
         )}

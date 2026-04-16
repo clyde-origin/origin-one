@@ -259,8 +259,10 @@ export function PdfExport({ scenes, shots, projectName, clientName, onClose }: {
       exit={{ y: '100%' }}
       transition={{ type: 'spring', damping: 28, stiffness: 300 }}
       style={{
-        position: 'fixed', inset: 0, zIndex: 100,
+        position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 100,
+        top: 'var(--safe-top, 0px)',
         background: '#080808', display: 'flex', flexDirection: 'column',
+        borderTopLeftRadius: 12, borderTopRightRadius: 12,
       }}>
       {/* ── Export Header ── */}
       <div style={{
