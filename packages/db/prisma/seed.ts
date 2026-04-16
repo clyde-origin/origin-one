@@ -163,6 +163,17 @@ async function main() {
     { talentId: p1tDanielle.id, entityId: p1Sec.id },
   ]})
 
+  // P1 — Art (props, wardrobe, hmu)
+  await prisma.entity.createMany({ data: [
+    { projectId: p1.id, type: 'prop',     name: 'Skincare Product Hero Set', description: 'Full Lumière lineup — serum, moisturizer, cleanser. Arranged on marble.', metadata: { status: 'confirmed' } },
+    { projectId: p1.id, type: 'prop',     name: 'Vanity Mirror',             description: 'Circular brass vanity mirror. Catches light in bathroom scene.',       metadata: { status: 'confirmed' } },
+    { projectId: p1.id, type: 'prop',     name: 'Marble Surface Tiles',      description: 'Calacatta marble tiles for tabletop product shots.',                  metadata: { status: 'confirmed' } },
+    { projectId: p1.id, type: 'wardrobe', name: 'Hero — Clean White/Cream',  description: 'Luxury silk robe, cream camisole. Effortless morning look.',           metadata: { status: 'confirmed' } },
+    { projectId: p1.id, type: 'wardrobe', name: 'Secondary — Soft Neutrals', description: 'Linen blouse, taupe trousers. Lifestyle/garden scene.',                metadata: { status: 'confirmed' } },
+    { projectId: p1.id, type: 'hmu',      name: 'Hero — Flawless Dewy',      description: 'Dewy skin focus, luminous finish. Highlight cheekbones and brow bone.', metadata: { status: 'confirmed' } },
+    { projectId: p1.id, type: 'hmu',      name: 'Secondary — Fresh Natural', description: 'Minimal base, natural lip, soft brows. Supporting, not competing.',    metadata: { status: 'confirmed' } },
+  ]})
+
   await prisma.document.create({ data: {
     projectId: p1.id, type: 'script', version: 1, createdBy: sofiaReyes.id,
     title: 'Simple Skin Promo — :60 Hero Spot',
@@ -393,6 +404,17 @@ FADE TO BLACK.`,
     { talentId: p2tKai.id,   entityId: p2Surfer.id },
   ]})
 
+  // P2 — Art (props, wardrobe, hmu)
+  await prisma.entity.createMany({ data: [
+    { projectId: p2.id, type: 'prop',     name: 'Vanta Camera Hero Unit',       description: 'Hero product. Mounted and handheld configs. Clean, no scuffs.',         metadata: { status: 'confirmed' } },
+    { projectId: p2.id, type: 'prop',     name: 'Skate Deck (Branded)',         description: 'Custom Vanta-branded deck. Matte black with logo. Skatepark scene.',    metadata: { status: 'confirmed' } },
+    { projectId: p2.id, type: 'prop',     name: 'Chalk Bag',                    description: 'Climbing chalk bag. Worn, authentic. Climber close-ups.',               metadata: { status: 'confirmed' } },
+    { projectId: p2.id, type: 'wardrobe', name: 'Skater — Urban Street',        description: 'Oversized tee, cargo pants, skate shoes. No visible logos.',            metadata: { status: 'confirmed' } },
+    { projectId: p2.id, type: 'wardrobe', name: 'Climber — Technical Outdoor',  description: 'Tank top, climbing pants, approach shoes. Functional, not styled.',     metadata: { status: 'confirmed' } },
+    { projectId: p2.id, type: 'wardrobe', name: 'Surfer — Coastal Casual',      description: 'Boardshorts, rash guard. Salt-faded, lived-in.',                       metadata: { status: 'confirmed' } },
+    { projectId: p2.id, type: 'hmu',      name: 'All Athletes — Performance',   description: 'Sweat-proof base, sunscreen layer. Natural skin, no coverage.',        metadata: { status: 'confirmed' } },
+  ]})
+
   await prisma.document.create({ data: {
     projectId: p2.id, type: 'script', version: 1, createdBy: jakeMorales.id,
     title: 'Full Send — :60 Spot',
@@ -604,6 +626,17 @@ CUT TO BLACK.`,
     { talentId: p3tOliver.id, entityId: p3Host.id },
   ]})
 
+  // P3 — Art (props, wardrobe, hmu)
+  await prisma.entity.createMany({ data: [
+    { projectId: p3.id, type: 'prop',     name: 'Wine Barrel',                   description: 'French oak barrel, branded estate stamp. Cellar scene hero.',            metadata: { status: 'confirmed' } },
+    { projectId: p3.id, type: 'prop',     name: 'Estate Signage',                description: 'Hand-painted estate entrance sign. Vineyard arrival establishing shot.', metadata: { status: 'confirmed' } },
+    { projectId: p3.id, type: 'prop',     name: 'Harvest Basket',                description: 'Traditional wicker grape harvest basket. Golden hour vineyard scene.',    metadata: { status: 'confirmed' } },
+    { projectId: p3.id, type: 'wardrobe', name: 'Winemaker — Estate Attire',     description: 'Worn work shirt, canvas apron, boots. Authentic, not costume.',          metadata: { status: 'confirmed' } },
+    { projectId: p3.id, type: 'wardrobe', name: 'Host — Smart Casual',           description: 'Linen blazer, open collar, warm earth tones. Polished but approachable.', metadata: { status: 'confirmed' } },
+    { projectId: p3.id, type: 'hmu',      name: 'Winemaker — Natural Documentary', description: 'No makeup. Documentary real. Skin and hands as-is.',                  metadata: { status: 'confirmed' } },
+    { projectId: p3.id, type: 'hmu',      name: 'Host — Polished Relaxed',       description: 'Light base, groomed brows, matte finish. Camera-ready but not heavy.',   metadata: { status: 'confirmed' } },
+  ]})
+
   await prisma.document.create({ data: {
     projectId: p3.id, type: 'script', version: 1, createdBy: eliseMarchetti.id,
     title: 'In Vino Veritas — Treatment and Interview Guide',
@@ -813,6 +846,17 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
   // P4 — Talent (only Lead Instructor assigned; Student is uncast)
   const p4tKaia = await prisma.talent.create({ data: { projectId: p4.id, name: 'Kaia Mori', role: 'Lead Actor' } })
   await prisma.talentAssignment.create({ data: { talentId: p4tKaia.id, entityId: p4Lead.id } })
+
+  // P4 — Art (props, wardrobe, hmu)
+  await prisma.entity.createMany({ data: [
+    { projectId: p4.id, type: 'prop',     name: 'Yoga Mat (Branded Kaia Mori)', description: 'Custom mat with subtle Kaia Mori branding. All sequences.',             metadata: { status: 'sourced' } },
+    { projectId: p4.id, type: 'prop',     name: 'Yoga Blocks',                  description: 'Cork yoga blocks x2. Standing balance and grounding sequences.',        metadata: { status: 'sourced' } },
+    { projectId: p4.id, type: 'prop',     name: 'Bolster',                      description: 'Linen bolster cushion. Seated and supine sequences.',                    metadata: { status: 'needed' } },
+    { projectId: p4.id, type: 'wardrobe', name: 'Kaia — Signature Activewear',  description: 'Kaia Mori branded set. Muted sage/charcoal. Two looks for two days.',   metadata: { status: 'sourced' } },
+    { projectId: p4.id, type: 'wardrobe', name: 'Student — Neutral Activewear', description: 'Plain leggings and tank. Neutral tones, no branding. Supporting.',      metadata: { status: 'needed' } },
+    { projectId: p4.id, type: 'hmu',      name: 'Kaia — Clean Glow',            description: 'Camera-ready natural. Light base, bronzer, clean brows. Sweat-proof.',  metadata: { status: 'sourced' } },
+    { projectId: p4.id, type: 'hmu',      name: 'Student — Minimal',            description: 'Translucent powder only. Natural skin, no character look.',             metadata: { status: 'needed' } },
+  ]})
 
   await prisma.document.create({ data: {
     projectId: p4.id, type: 'script', version: 1, createdBy: simonePark.id,
@@ -1027,6 +1071,14 @@ END EPISODE 1.`,
   const p5tSimone = await prisma.talent.create({ data: { projectId: p5.id, name: 'Simone Achebe', role: 'VO Artist' } })
   await prisma.talentAssignment.create({ data: { talentId: p5tSimone.id, entityId: p5VO.id } })
 
+  // P5 — Art (props, wardrobe, hmu)
+  await prisma.entity.createMany({ data: [
+    { projectId: p5.id, type: 'prop',     name: 'Data Terminal (Hero Practical)', description: 'Futuristic data display terminal. Hero insert shot for GFX composite.', metadata: { status: 'confirmed' } },
+    { projectId: p5.id, type: 'prop',     name: 'Branded Climate Report',        description: 'Meridian-branded printed report. Desk scene insert.',                    metadata: { status: 'confirmed' } },
+    { projectId: p5.id, type: 'wardrobe', name: 'VO Artist — Minimal',           description: 'On-camera corrective only. Dark solid top for potential behind-scenes.',  metadata: { status: 'confirmed' } },
+    { projectId: p5.id, type: 'hmu',      name: 'VO Artist — Base Look',         description: 'Translucent base, no character. Corrective only for behind-scenes BTS.', metadata: { status: 'confirmed' } },
+  ]})
+
   await prisma.document.create({ data: {
     projectId: p5.id, type: 'script', version: 1, createdBy: rafiTorres.id,
     title: 'Natural Order — VO Script',
@@ -1216,6 +1268,17 @@ FADE TO BLACK.`,
     { talentId: p6tMarcus.id, entityId: p6Eli.id },
     { talentId: p6tSola.id,   entityId: p6Mara.id },
     { talentId: p6tJin.id,    entityId: p6Stranger.id },
+  ]})
+
+  // P6 — Art (props, wardrobe, hmu)
+  await prisma.entity.createMany({ data: [
+    { projectId: p6.id, type: 'prop',     name: 'Journal (Mara\'s)',            description: 'Leather-bound journal, hand-written pages. Ravine scene, close-ups.',   metadata: { status: 'confirmed' } },
+    { projectId: p6.id, type: 'prop',     name: 'Worn Rope',                    description: 'Frayed hemp rope, aged. Desert and ravine scenes. Symbolic prop.',      metadata: { status: 'confirmed' } },
+    { projectId: p6.id, type: 'prop',     name: 'Handheld Lantern',             description: 'Oil lantern, practical flame. Night exterior Scene 3.',                 metadata: { status: 'confirmed' } },
+    { projectId: p6.id, type: 'wardrobe', name: 'Eli — Desert Layers',          description: 'Worn denim jacket, faded henley, dusty boots. Weathered, lived-in.',   metadata: { status: 'confirmed' } },
+    { projectId: p6.id, type: 'wardrobe', name: 'Mara — Light Linen',           description: 'Flowing linen shirt, earth-tone trousers. Natural, windswept.',        metadata: { status: 'confirmed' } },
+    { projectId: p6.id, type: 'hmu',      name: 'Eli — Dusty Sun-Worn',         description: 'Weathered skin, cracked lips, dust in hair. Days in the desert.',      metadata: { status: 'confirmed' } },
+    { projectId: p6.id, type: 'hmu',      name: 'Mara — Natural Minimal',       description: 'Clean skin, no makeup visible. Wind-tousled hair. Organic.',           metadata: { status: 'confirmed' } },
   ]})
 
   await prisma.document.create({ data: {
