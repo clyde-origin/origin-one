@@ -11,7 +11,8 @@ import { LoadingState, ThreadsIcon } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Sheet } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor, getSceneColor, statusHex, statusLabel } from '@/lib/utils/phase'
+import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
+import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { ScriptView, type ScriptViewHandle } from './components/ScriptView'
 import { ShotDetailSheet } from './components/ShotDetailSheet'
 import { EntityDrawer } from './components/EntityDrawer'
@@ -97,8 +98,8 @@ function NewShotSheet({ autoId, accent, onSave, onClose }: {
 
 // ── SHOTLIST VIEW ─────────────────────────────────────────
 
-function ShotlistView({ scenes, shots, accent, sortMode = 'story', onTapShot, onTapThumbnail, onInsert, onReorder, onReorderToScene, onRenameScene, onDeleteScene, onUpdateShot, onShootReorder }: {
-  scenes: Scene[]; shots: Shot[]; accent: string
+function ShotlistView({ scenes, shots, accent, sceneTitle: sceneTokenTitle, sceneNum: sceneTokenNum, sortMode = 'story', onTapShot, onTapThumbnail, onInsert, onReorder, onReorderToScene, onRenameScene, onDeleteScene, onUpdateShot, onShootReorder }: {
+  scenes: Scene[]; shots: Shot[]; accent: string; sceneTitle: string; sceneNum: string
   sortMode?: 'story' | 'shooting'
   onTapShot: (s: Shot) => void; onTapThumbnail: (s: Shot) => void
   onInsert: (index: number, sceneId: string) => void
@@ -116,7 +117,7 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', onTapShot, on
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [editingDescShotId, setEditingDescShotId] = useState<string | null>(null)
   const [editingDescValue, setEditingDescValue] = useState('')
-  const totalScenes = scenes.length
+
 
   // ── Shot number blink after reorder ──
   const [blinkIds, setBlinkIds] = useState<Set<string>>(new Set())
@@ -462,7 +463,7 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', onTapShot, on
 
     const renderShootCard = (shot: Shot) => {
       const scene = scenes.find(s => s.id === shot.sceneId)
-      const sceneColor = scene ? getSceneColor(parseInt(scene.sceneNumber), totalScenes) : '#c45adc'
+      const sceneColor = sceneTokenTitle
       const ds = getShootDragState(shot.id)
       const cardH = 70
       const transform = ds === 'displaced-down' ? `translateY(${cardH}px)` : ds === 'displaced-up' ? `translateY(-${cardH}px)` : 'translateY(0)'
@@ -519,13 +520,13 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', onTapShot, on
             )}
 
             {/* Shot number — permanent identifier, never changes */}
-            <span className="flex-shrink-0 cursor-pointer" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
+            <span className="flex-shrink-0 cursor-pointer" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneTokenNum }}
               onClick={() => !shootWiggle && onTapShot(shot)}>
               {shot.shotNumber}
             </span>
             {/* Size pill */}
             {shot.size && (
-              <span className="font-mono uppercase flex-shrink-0 cursor-pointer" style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}
+              <span className="font-mono uppercase flex-shrink-0 cursor-pointer" style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneTokenNum}14`, border: `1px solid ${sceneTokenNum}30`, color: sceneTokenNum }}
                 onClick={() => !shootWiggle && onTapShot(shot)}>
                 {SIZE_ABBREV[shot.size] ?? shot.size}
               </span>
@@ -617,7 +618,7 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', onTapShot, on
 
       {scenes.map(scene => {
         const sceneShots = shots.filter(s => s.sceneId === scene.id).sort((a, b) => a.sortOrder - b.sortOrder)
-        const sceneColor = getSceneColor(parseInt(scene.sceneNumber), totalScenes)
+        const sceneColor = sceneTokenTitle
         const isOpen = !collapsedScenes.has(scene.id)
 
         return (
@@ -773,14 +774,14 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', onTapShot, on
                           )}
 
                           {/* Shot number */}
-                          <span className={`flex-shrink-0 cursor-pointer${blinkIds.has(shot.id) ? ' number-blink' : ''}`} style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
+                          <span className={`flex-shrink-0 cursor-pointer${blinkIds.has(shot.id) ? ' number-blink' : ''}`} style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneTokenNum }}
                             onClick={() => !wiggleMode && onTapShot(shot)}>
                             {displayNum}
                           </span>
 
                           {/* Size pill */}
                           {shot.size && (
-                            <span className="font-mono uppercase flex-shrink-0 cursor-pointer" style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}
+                            <span className="font-mono uppercase flex-shrink-0 cursor-pointer" style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneTokenNum}14`, border: `1px solid ${sceneTokenNum}30`, color: sceneTokenNum }}
                               onClick={() => !wiggleMode && onTapShot(shot)}>
                               {SIZE_ABBREV[shot.size] ?? shot.size}
                             </span>
@@ -850,11 +851,11 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', onTapShot, on
 
 // ── STORYBOARD VIEW ──────────────────────────────────────
 
-function StoryboardView({ scenes, shots, scale, onTapShot, onReorder }: {
-  scenes: Scene[]; shots: Shot[]; scale: StoryboardScale; onTapShot: (s: Shot) => void
+function StoryboardView({ scenes, shots, scale, sceneTitle: sceneTokenTitle, onTapShot, onReorder }: {
+  scenes: Scene[]; shots: Shot[]; scale: StoryboardScale; sceneTitle: string; onTapShot: (s: Shot) => void
   onReorder: (shotId: string, newIndex: number) => void
 }) {
-  const totalScenes = scenes.length
+
   const sorted = [...shots].sort((a, b) => a.sortOrder - b.sortOrder)
   // 2-up split state
   const [leftShotId, setLeftShotId] = useState<string | null>(null)
@@ -892,10 +893,9 @@ function StoryboardView({ scenes, shots, scale, onTapShot, onReorder }: {
     return 'idle'
   }, [dragId, dragTargetIdx, sorted])
 
-  const getSceneColorForShot = useCallback((shot: Shot) => {
-    const scene = scenes.find(s => s.id === shot.sceneId)
-    return scene ? getSceneColor(parseInt(scene.sceneNumber), totalScenes) : '#c45adc'
-  }, [scenes, totalScenes])
+  const getSceneColorForShot = useCallback((_shot: Shot) => {
+    return sceneTokenTitle
+  }, [sceneTokenTitle])
 
   if (shots.length === 0) return (
     <div className="flex flex-col items-center justify-center" style={{ minHeight: '60vh', gap: 10 }}>
@@ -1325,7 +1325,8 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const { projectId } = params
   const router = useRouter()
   const { data: project } = useProject(projectId)
-  const accent = project?.color || getProjectColor(projectId)
+  const colors = deriveProjectColors(project?.color || getProjectColor(projectId) || DEFAULT_PROJECT_HEX)
+  const accent = colors.primary
 
   const searchParams = useSearchParams()
   const initialMode = (searchParams.get('mode') as SceneMakerMode) || 'shotlist'
@@ -1884,9 +1885,9 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
             <>
               {mode === 'script' && (() => { console.log('[SceneMaker] rendering ScriptView, mode=', mode, 'scenes=', allScenes.length, 'sceneIds=', allScenes.map(s => s.id)); return null })()}
               {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} onUpdateScene={handleUpdateScene} />}
-              {mode === 'shotlist' && !previewVersion && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} sortMode={shotOrder} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onReorderToScene={handleReorderToScene} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} onUpdateShot={(shotId, fields) => { updateShot(shotId, fields).then(() => qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })).catch(err => console.error('Failed to update shot:', err)) }} onShootReorder={handleShootReorder} />}
-              {mode === 'shotlist' && previewVersion && <ShotlistView scenes={displayScenes} shots={displayShots} accent={accent} sortMode={shotOrder} onTapShot={() => {}} onTapThumbnail={() => {}} onInsert={() => {}} onReorder={() => {}} onReorderToScene={() => {}} onRenameScene={() => {}} onDeleteScene={() => {}} onUpdateShot={() => {}} />}
-              {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} scale={boardScale} onTapShot={setSelectedShot} onReorder={handleReorder} />}
+              {mode === 'shotlist' && !previewVersion && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} sceneTitle={colors.sceneTitle} sceneNum={colors.sceneNum} sortMode={shotOrder} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onReorderToScene={handleReorderToScene} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} onUpdateShot={(shotId, fields) => { updateShot(shotId, fields).then(() => qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })).catch(err => console.error('Failed to update shot:', err)) }} onShootReorder={handleShootReorder} />}
+              {mode === 'shotlist' && previewVersion && <ShotlistView scenes={displayScenes} shots={displayShots} accent={accent} sceneTitle={colors.sceneTitle} sceneNum={colors.sceneNum} sortMode={shotOrder} onTapShot={() => {}} onTapThumbnail={() => {}} onInsert={() => {}} onReorder={() => {}} onReorderToScene={() => {}} onRenameScene={() => {}} onDeleteScene={() => {}} onUpdateShot={() => {}} />}
+              {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} scale={boardScale} sceneTitle={colors.sceneTitle} onTapShot={setSelectedShot} onReorder={handleReorder} />}
             </>
           )}
         </div>

@@ -11,6 +11,7 @@ import {
   useScenes, useMoodboard, useThreads,
   useLocations, useArtItems, useCastRoles, useWorkflowNodes,
 } from '@/lib/hooks/useOriginOne'
+import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { CrewAvatar, ThreadsIcon } from '@/components/ui'
 import { HubSkeleton } from '@/components/hub/HubSkeleton'
 import { CrewPanel } from '@/components/hub/CrewPanel'
@@ -585,8 +586,9 @@ function CrewDetailSheet({ member, onClose }: { member: CrewMember | null; onClo
 export function HubContent({ projectId }: { projectId: string }) {
   const router = useRouter()
   const { data: project, isLoading: loadingProject } = useProject(projectId)
-  const projectColor = project?.color || getProjectColor(projectId)
-  const [pr, pg, pb] = hexToRgb(projectColor)
+  const colors = deriveProjectColors(project?.color || getProjectColor(projectId) || DEFAULT_PROJECT_HEX)
+  const projectColor = colors.primary
+  const [pr, pg, pb] = hexToRgb(colors.primary)
   const { data: actionItems, isLoading: loadingAI } = useActionItems(projectId)
   const { data: milestones, isLoading: loadingMS } = useMilestones(projectId)
   const { data: crew, isLoading: loadingCrew } = useCrew(projectId)

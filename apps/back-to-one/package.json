@@ -13,6 +13,7 @@
   "dependencies": {
     "@hookform/resolvers": "^3.6.0",
     "@origin-one/auth": "workspace:*",
+    "@origin-one/ui": "workspace:*",
     "@supabase/ssr": "^0.3.0",
     "@supabase/supabase-js": "^2.43.1",
     "@tanstack/react-query": "^5.40.0",
