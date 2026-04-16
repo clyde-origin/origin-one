@@ -432,31 +432,26 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
       />
 
       {/* Tab bar */}
-      <div style={{
-        display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)',
-        flexShrink: 0, position: 'relative', zIndex: 2,
-      }}>
+      <div className="flex">
         {TABS.map(tab => {
           const isActive = activeTab === tab.key
           return (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className="font-mono uppercase"
+              className="flex-1 text-center uppercase cursor-pointer select-none relative transition-colors"
               style={{
-                flex: 1, textAlign: 'center', padding: '11px 0',
-                fontSize: '0.44rem', letterSpacing: '0.12em',
-                color: isActive ? '#fff' : 'rgba(255,255,255,0.28)',
-                cursor: 'pointer', position: 'relative',
+                fontFamily: "'Geist', sans-serif", fontWeight: 700,
+                padding: '11px 0', fontSize: '0.52rem', letterSpacing: '0.08em',
+                color: isActive ? '#dddde8' : '#62627a',
                 background: 'transparent', border: 'none',
-                transition: 'color 0.18s',
               }}
             >
               {tab.label}
               {isActive && (
-                <div style={{
-                  position: 'absolute', bottom: -1, left: 16, right: 16,
-                  height: 2, background: accent, borderRadius: 1,
+                <div className="absolute bottom-0" style={{
+                  left: '10%', right: '10%', height: 2,
+                  background: accent, borderRadius: '2px 2px 0 0',
                 }} />
               )}
             </button>
