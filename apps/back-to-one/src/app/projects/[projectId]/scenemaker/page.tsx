@@ -12,6 +12,7 @@ import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, getSceneColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { ScriptView, type ScriptViewHandle } from './components/ScriptView'
 import { ShotDetailSheet } from './components/ShotDetailSheet'
+import { EntityDrawer } from './components/EntityDrawer'
 import type { Scene, Shot, SceneMakerMode } from '@/types'
 
 type StoryboardScale = 'feed' | '3up' | '2up' | 'all'
@@ -1104,18 +1105,22 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       {/* Script subheader: Characters / Locations / Props */}
       {mode === 'script' && (
         <div className="flex items-center justify-center flex-shrink-0" style={{ height: 44, padding: '0 14px', gap: 10, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          {(['characters', 'locations', 'props'] as const).map(panel => {
-            const active = scriptPanel === panel
+          {([
+            { key: 'characters' as const, color: '#67E8F9', bg: 'rgba(103,232,249,0.1)', border: 'rgba(103,232,249,0.28)' },
+            { key: 'locations' as const,  color: '#A78BFA', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.28)' },
+            { key: 'props' as const,      color: '#FCD34D', bg: 'rgba(252,211,77,0.08)', border: 'rgba(252,211,77,0.22)' },
+          ]).map(({ key, color, bg, border }) => {
+            const active = scriptPanel === key
             return (
-              <button key={panel} className="font-mono uppercase cursor-pointer select-none transition-colors"
+              <button key={key} className="font-mono uppercase cursor-pointer select-none transition-colors"
                 style={{
                   fontSize: '0.46rem', letterSpacing: '0.06em', padding: '6px 18px', borderRadius: 16,
-                  background: active ? `${accent}1a` : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${active ? `${accent}40` : 'rgba(255,255,255,0.08)'}`,
-                  color: active ? accent : '#a0a0b8',
+                  background: active ? bg : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${active ? border : 'rgba(255,255,255,0.08)'}`,
+                  color: active ? color : '#a0a0b8',
                 }}
-                onClick={() => { haptic('light'); setScriptPanel(active ? null : panel) }}>
-                {panel}
+                onClick={() => { haptic('light'); setScriptPanel(active ? null : key) }}>
+                {key}
               </button>
             )
           })}
@@ -1382,45 +1387,10 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         />
       </Sheet>
 
-      {/* Script panel sheets — Characters / Locations / Props */}
-      <Sheet open={scriptPanel === 'characters'} onClose={() => setScriptPanel(null)} maxHeight="70vh">
-        <div style={{ padding: '8px 20px 20px' }}>
-          <span style={{ fontFamily: "'Geist', sans-serif", fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8' }}>Characters</span>
-        </div>
-        <div className="flex flex-col items-center justify-center" style={{ padding: '40px 20px', gap: 12 }}>
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <circle cx="16" cy="12" r="5" stroke="#62627a" strokeWidth="1.5" />
-            <path d="M8 26c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="#62627a" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          <span style={{ fontSize: '0.7rem', color: '#62627a', textAlign: 'center', lineHeight: 1.5 }}>Characters will be extracted from your script</span>
-        </div>
-      </Sheet>
-
-      <Sheet open={scriptPanel === 'locations'} onClose={() => setScriptPanel(null)} maxHeight="70vh">
-        <div style={{ padding: '8px 20px 20px' }}>
-          <span style={{ fontFamily: "'Geist', sans-serif", fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8' }}>Locations</span>
-        </div>
-        <div className="flex flex-col items-center justify-center" style={{ padding: '40px 20px', gap: 12 }}>
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <path d="M16 4c-5 0-9 4-9 9 0 7 9 15 9 15s9-8 9-15c0-5-4-9-9-9z" stroke="#62627a" strokeWidth="1.5" />
-            <circle cx="16" cy="13" r="3" stroke="#62627a" strokeWidth="1.5" />
-          </svg>
-          <span style={{ fontSize: '0.7rem', color: '#62627a', textAlign: 'center', lineHeight: 1.5 }}>Locations will be extracted from your script</span>
-        </div>
-      </Sheet>
-
-      <Sheet open={scriptPanel === 'props'} onClose={() => setScriptPanel(null)} maxHeight="70vh">
-        <div style={{ padding: '8px 20px 20px' }}>
-          <span style={{ fontFamily: "'Geist', sans-serif", fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8' }}>Props</span>
-        </div>
-        <div className="flex flex-col items-center justify-center" style={{ padding: '40px 20px', gap: 12 }}>
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-            <rect x="6" y="8" width="20" height="16" rx="2" stroke="#62627a" strokeWidth="1.5" />
-            <path d="M12 8V6a4 4 0 018 0v2" stroke="#62627a" strokeWidth="1.5" />
-          </svg>
-          <span style={{ fontSize: '0.7rem', color: '#62627a', textAlign: 'center', lineHeight: 1.5 }}>Props will be extracted from your script</span>
-        </div>
-      </Sheet>
+      {/* Entity drawers — Characters / Locations / Props */}
+      <EntityDrawer type="characters" projectId={projectId} open={scriptPanel === 'characters'} onClose={() => setScriptPanel(null)} />
+      <EntityDrawer type="locations" projectId={projectId} open={scriptPanel === 'locations'} onClose={() => setScriptPanel(null)} />
+      <EntityDrawer type="props" projectId={projectId} open={scriptPanel === 'props'} onClose={() => setScriptPanel(null)} />
     </div>
   )
 }

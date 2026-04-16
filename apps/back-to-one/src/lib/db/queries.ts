@@ -857,6 +857,52 @@ export async function deleteLocation(id: string): Promise<void> {
   const { error } = await db.from('Location').delete().eq('id', id)
   if (error) { console.error('deleteLocation failed:', error); throw error }
 }
+// ── ENTITIES (characters, props) ─────────────────────────
+
+export async function getEntities(projectId: string, type?: 'character' | 'prop') {
+  const db = createClient()
+  let q = db.from('Entity').select('*').eq('projectId', projectId).order('createdAt', { ascending: true })
+  if (type) q = q.eq('type', type)
+  const { data, error } = await q
+  if (error) throw error
+  return data
+}
+
+export async function createEntity(entity: {
+  projectId: string; type: 'character' | 'prop'; name: string; description?: string; metadata?: Record<string, any>
+}) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Entity')
+    .insert({
+      id: crypto.randomUUID(),
+      projectId: entity.projectId,
+      type: entity.type,
+      name: entity.name,
+      description: entity.description ?? null,
+      metadata: entity.metadata ?? null,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createEntity failed:', error); throw error }
+  return data
+}
+
+export async function updateEntity(
+  id: string,
+  fields: { name?: string; description?: string | null; metadata?: Record<string, any> | null }
+): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('Entity').update(fields).eq('id', id)
+  if (error) { console.error('updateEntity failed:', error); throw error }
+}
+
+export async function deleteEntity(id: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('Entity').delete().eq('id', id)
+  if (error) { console.error('deleteEntity failed:', error); throw error }
+}
+
 export async function getCastRoles(_projectId: string): Promise<any[]> { return [] }
 export async function updateCastRole(_id: string, _updates: any) {}
 export async function getArtItems(_projectId: string): Promise<any[]> { return [] }
