@@ -509,6 +509,18 @@ export async function updateShotOrder(
   if (error) throw error
 }
 
+export async function updateShootOrder(
+  updates: { id: string; shootOrder: number }[]
+): Promise<void> {
+  const db = createClient()
+  await Promise.all(
+    updates.map(u =>
+      db.from('Shot').update({ shootOrder: u.shootOrder }).eq('id', u.id)
+        .then(({ error }) => { if (error) throw error })
+    )
+  )
+}
+
 export async function createShot(shot: {
   sceneId: string
   shotNumber: string

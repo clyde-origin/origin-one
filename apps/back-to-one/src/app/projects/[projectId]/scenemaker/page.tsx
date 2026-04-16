@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { useProject, useScenes, useShotlistVersions, useCreateShotlistVersion, useUpdateShotlistVersionLabel } from '@/lib/hooks/useOriginOne'
-import { getShotsByProject, updateShotOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene, deleteScene } from '@/lib/db/queries'
+import { getShotsByProject, updateShotOrder, updateShootOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene, deleteScene } from '@/lib/db/queries'
 import { LoadingState, ThreadsIcon } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Sheet } from '@/components/ui/Sheet'
@@ -97,7 +97,7 @@ function NewShotSheet({ autoId, accent, onSave, onClose }: {
 
 // ── SHOTLIST VIEW ─────────────────────────────────────────
 
-function ShotlistView({ scenes, shots, accent, sortMode = 'story', onTapShot, onTapThumbnail, onInsert, onReorder, onReorderToScene, onRenameScene, onDeleteScene, onUpdateShot }: {
+function ShotlistView({ scenes, shots, accent, sortMode = 'story', onTapShot, onTapThumbnail, onInsert, onReorder, onReorderToScene, onRenameScene, onDeleteScene, onUpdateShot, onShootReorder }: {
   scenes: Scene[]; shots: Shot[]; accent: string
   sortMode?: 'story' | 'shooting'
   onTapShot: (s: Shot) => void; onTapThumbnail: (s: Shot) => void
@@ -107,6 +107,7 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', onTapShot, on
   onRenameScene: (sceneId: string, title: string) => void
   onDeleteScene: (sceneId: string) => void
   onUpdateShot: (shotId: string, fields: { description?: string }) => void
+  onShootReorder?: (shotId: string, newIndex: number) => void
 }) {
   const [collapsedScenes, setCollapsedScenes] = useState<Set<string>>(new Set())
   const [wiggleMode, setWiggleMode] = useState(false)
@@ -358,72 +359,247 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', onTapShot, on
     </div>
   )
 
-  // ── SHOOTING ORDER: flat list sorted alphanumerically by shotNumber ──
-  // PLACEHOLDER: This uses shotNumber as a stand-in for real shoot scheduling
-  // data (shoot day / shoot sequence). Once a shootOrder field exists on Shot,
-  // replace this sort with: .sort((a, b) => a.shootOrder - b.shootOrder)
+  // ── SHOOTING ORDER: sorted by shootOrder, with long-press reorder ──
+  // Drag state for shoot mode reordering
+  const [shootDragId, setShootDragId] = useState<string | null>(null)
+  const shootDragIdRef = useRef<string | null>(null)
+  const [shootDragTargetIdx, setShootDragTargetIdx] = useState(-1)
+  const shootDragTargetIdxRef = useRef(-1)
+  const shootDragElRef = useRef<HTMLDivElement | null>(null)
+  const shootDragOriginY = useRef(0)
+  const shootFlatOrder = useRef<string[]>([])
+  const shootRectsRef = useRef<Map<string, DOMRect>>(new Map())
+  const shootLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [shootWiggle, setShootWiggle] = useState(false)
+
+  const snapshotShootRects = useCallback(() => {
+    const map = new Map<string, DOMRect>()
+    shootFlatOrder.current.forEach(id => {
+      const el = document.querySelector(`[data-shoot-id="${id}"]`) as HTMLElement | null
+      if (el) map.set(id, el.getBoundingClientRect())
+    })
+    shootRectsRef.current = map
+  }, [])
+
+  const handleShootDragStart = useCallback((shotId: string, touchY: number, el: HTMLDivElement) => {
+    shootFlatOrder.current = shootFlatOrder.current // already set in render
+    shootDragElRef.current = el
+    shootDragOriginY.current = touchY
+    shootDragIdRef.current = shotId
+    setShootDragId(shotId)
+    shootDragTargetIdxRef.current = shootFlatOrder.current.indexOf(shotId)
+    setShootDragTargetIdx(shootDragTargetIdxRef.current)
+    haptic('medium')
+    requestAnimationFrame(snapshotShootRects)
+  }, [snapshotShootRects])
+
+  const handleShootDragMove = useCallback((touchY: number) => {
+    if (!shootDragIdRef.current || !shootDragElRef.current) return
+    const dy = touchY - shootDragOriginY.current
+    shootDragElRef.current.style.transform = `translateY(${dy}px)`
+    shootDragElRef.current.style.transition = 'none'
+
+    const order = shootFlatOrder.current
+    let targetIdx = shootDragTargetIdxRef.current
+    let closest = { dist: Infinity, idx: targetIdx }
+    shootRectsRef.current.forEach((rect, id) => {
+      if (id === shootDragIdRef.current) return
+      const mid = rect.top + rect.height / 2
+      const dist = Math.abs(touchY - mid)
+      const idx = order.indexOf(id)
+      if (dist < closest.dist) closest = { dist, idx }
+    })
+    const closestRect = shootRectsRef.current.get(order[closest.idx])
+    if (closestRect) {
+      const mid = closestRect.top + closestRect.height / 2
+      const fromIdx = order.indexOf(shootDragIdRef.current!)
+      if (touchY < mid && closest.idx < fromIdx) targetIdx = closest.idx
+      if (touchY > mid && closest.idx > fromIdx) targetIdx = closest.idx
+    }
+    const firstRect = shootRectsRef.current.get(order[0])
+    if (firstRect && touchY < firstRect.top + firstRect.height / 2) targetIdx = 0
+    shootDragTargetIdxRef.current = targetIdx
+    setShootDragTargetIdx(targetIdx)
+  }, [])
+
+  const handleShootDragEnd = useCallback(() => {
+    if (shootDragElRef.current) {
+      shootDragElRef.current.style.transform = ''
+      shootDragElRef.current.style.transition = ''
+    }
+    const shotId = shootDragIdRef.current
+    const targetIdx = shootDragTargetIdxRef.current
+    if (shotId && targetIdx >= 0 && onShootReorder) {
+      onShootReorder(shotId, targetIdx)
+    }
+    shootDragIdRef.current = null
+    setShootDragId(null)
+    shootDragTargetIdxRef.current = -1
+    setShootDragTargetIdx(-1)
+    shootDragElRef.current = null
+  }, [onShootReorder])
+
+  const getShootDragState = useCallback((shotId: string): 'idle' | 'dragging' | 'displaced-down' | 'displaced-up' => {
+    if (!shootDragId) return 'idle'
+    if (shotId === shootDragId) return 'dragging'
+    const order = shootFlatOrder.current
+    const fromIdx = order.indexOf(shootDragId)
+    const myIdx = order.indexOf(shotId)
+    if (fromIdx < 0 || myIdx < 0) return 'idle'
+    if (shootDragTargetIdx > fromIdx && myIdx > fromIdx && myIdx <= shootDragTargetIdx) return 'displaced-up'
+    if (shootDragTargetIdx < fromIdx && myIdx >= shootDragTargetIdx && myIdx < fromIdx) return 'displaced-down'
+    return 'idle'
+  }, [shootDragId, shootDragTargetIdx])
+
   if (sortMode === 'shooting') {
-    const sorted = [...shots].sort((a, b) => a.shotNumber.localeCompare(b.shotNumber, undefined, { numeric: true }))
+    // Split into scheduled (shootOrder != null) and unscheduled (null)
+    const scheduled = shots.filter(s => s.shootOrder != null).sort((a, b) => a.shootOrder! - b.shootOrder!)
+    const unscheduled = shots.filter(s => s.shootOrder == null).sort((a, b) => a.shotNumber.localeCompare(b.shotNumber, undefined, { numeric: true }))
+    const allOrdered = [...scheduled, ...unscheduled]
+
+    // Keep flat order ref in sync for drag calculations
+    shootFlatOrder.current = allOrdered.map(s => s.id)
+
+    const renderShootCard = (shot: Shot) => {
+      const scene = scenes.find(s => s.id === shot.sceneId)
+      const sceneColor = scene ? getSceneColor(parseInt(scene.sceneNumber), totalScenes) : '#c45adc'
+      const ds = getShootDragState(shot.id)
+      const cardH = 70
+      const transform = ds === 'displaced-down' ? `translateY(${cardH}px)` : ds === 'displaced-up' ? `translateY(-${cardH}px)` : 'translateY(0)'
+
+      return (
+        <div key={shot.id} data-shoot-id={shot.id}
+          className={shootWiggle && ds !== 'dragging' ? 'wiggle' : ''}
+          style={{
+            padding: '0 14px 3px', position: 'relative',
+            ...(ds === 'dragging' ? { zIndex: 50 } : { transform, transition: 'transform 0.2s cubic-bezier(0.25,0.1,0.25,1)', zIndex: 1 }),
+          }}>
+          <div className="flex items-center select-none"
+            style={{
+              gap: 9,
+              background: ds === 'dragging' ? 'rgba(10,10,18,0.85)' : 'rgba(10,10,18,0.42)',
+              backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+              border: ds === 'dragging' ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.07)',
+              borderRadius: 8, padding: '9px 10px',
+              boxShadow: ds === 'dragging' ? '0 8px 32px rgba(0,0,0,0.6)' : 'none',
+            }}
+            onTouchStart={e => {
+              if (shootWiggle) {
+                e.stopPropagation()
+                const el = e.currentTarget as HTMLDivElement
+                const startY = e.touches[0].clientY
+                handleShootDragStart(shot.id, startY, el)
+                const onMove = (ev: TouchEvent) => { ev.preventDefault(); handleShootDragMove(ev.touches[0].clientY) }
+                const onEnd = () => { handleShootDragEnd(); window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onEnd) }
+                window.addEventListener('touchmove', onMove, { passive: false })
+                window.addEventListener('touchend', onEnd)
+              } else {
+                shootLongPressTimer.current = setTimeout(() => {
+                  haptic('medium')
+                  setShootWiggle(true)
+                }, 500)
+              }
+            }}
+            onTouchMove={() => {
+              if (shootLongPressTimer.current) { clearTimeout(shootLongPressTimer.current); shootLongPressTimer.current = null }
+            }}
+            onTouchEnd={() => {
+              if (shootLongPressTimer.current) { clearTimeout(shootLongPressTimer.current); shootLongPressTimer.current = null }
+            }}
+            onClick={e => { if (shootWiggle) e.stopPropagation() }}>
+
+            {/* Drag handle — visible in wiggle mode */}
+            {shootWiggle && (
+              <div className="flex flex-col items-center justify-center flex-shrink-0"
+                style={{ gap: 2.5, opacity: 0.4, minHeight: 44, width: 20 }}>
+                <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
+                <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
+                <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
+              </div>
+            )}
+
+            {/* Shot number — permanent identifier, never changes */}
+            <span className="flex-shrink-0 cursor-pointer" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
+              onClick={() => !shootWiggle && onTapShot(shot)}>
+              {shot.shotNumber}
+            </span>
+            {/* Size pill */}
+            {shot.size && (
+              <span className="font-mono uppercase flex-shrink-0 cursor-pointer" style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}
+                onClick={() => !shootWiggle && onTapShot(shot)}>
+                {SIZE_ABBREV[shot.size] ?? shot.size}
+              </span>
+            )}
+            {/* Description */}
+            <span className="flex-1 min-w-0 truncate cursor-pointer" style={{ fontSize: '0.58rem', fontWeight: 500, color: '#a0a0b8', lineHeight: 1.35 }}
+              onClick={() => !shootWiggle && onTapShot(shot)}>
+              {shot.description || '—'}
+            </span>
+            {/* Thumbnail */}
+            {!shootWiggle && (
+              <div className="flex-shrink-0 overflow-hidden cursor-pointer" style={{ width: 72, height: 44, borderRadius: 6, marginLeft: 'auto' }}
+                onClick={() => onTapThumbnail(shot)}>
+                {shot.imageUrl ? (
+                  <img src={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${sceneColor}18, ${sceneColor}08)` }}>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <rect x="2" y="3" width="10" height="8" rx="1.5" stroke={sceneColor} strokeWidth="1" opacity="0.35" />
+                      <path d="M7 5.5v3M5.5 7h3" stroke={sceneColor} strokeWidth="1" strokeLinecap="round" opacity="0.35" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+
     return (
-      <div>
-        {/* Shooting order header */}
+      <div onClick={shootWiggle && !shootDragId ? () => setShootWiggle(false) : undefined}>
+        {/* Wiggle mode Done button */}
+        {shootWiggle && (
+          <div className="flex justify-center" style={{ padding: '8px 14px 4px' }}>
+            <button className="font-mono uppercase cursor-pointer"
+              style={{ fontSize: '0.44rem', letterSpacing: '0.06em', padding: '5px 16px', borderRadius: 14, background: `${accent}1f`, border: `1px solid ${accent}40`, color: accent }}
+              onClick={(e) => { e.stopPropagation(); haptic('light'); setShootWiggle(false) }}>Done</button>
+          </div>
+        )}
+
+        {/* Scheduled shots header */}
         <div className="flex items-center" style={{ gap: 8, padding: '11px 14px 7px' }}>
           <span style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: '#a0a0b8', opacity: 0.7 }}>
             Shoot Order
           </span>
           <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', color: '#62627a', opacity: 0.55 }}>
-            {sorted.length}
+            {scheduled.length}
           </span>
         </div>
         <div style={{ height: 1, margin: '0 14px 4px', background: '#a0a0b8', opacity: 0.15 }} />
-        {sorted.map(shot => {
-          const scene = scenes.find(s => s.id === shot.sceneId)
-          const sceneColor = scene ? getSceneColor(parseInt(scene.sceneNumber), totalScenes) : '#c45adc'
-          return (
-            <div key={shot.id} style={{ padding: '0 14px 3px' }}>
-              <div className="flex items-center select-none"
-                style={{
-                  gap: 9,
-                  background: 'rgba(10,10,18,0.42)',
-                  backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-                  border: '1px solid rgba(255,255,255,0.07)',
-                  borderRadius: 8, padding: '9px 10px',
-                }}>
-                {/* Shot number */}
-                <span className="flex-shrink-0 cursor-pointer" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
-                  onClick={() => onTapShot(shot)}>
-                  {shot.shotNumber}
-                </span>
-                {/* Size pill */}
-                {shot.size && (
-                  <span className="font-mono uppercase flex-shrink-0 cursor-pointer" style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}
-                    onClick={() => onTapShot(shot)}>
-                    {SIZE_ABBREV[shot.size] ?? shot.size}
-                  </span>
-                )}
-                {/* Description */}
-                <span className="flex-1 min-w-0 truncate cursor-pointer" style={{ fontSize: '0.58rem', fontWeight: 500, color: '#a0a0b8', lineHeight: 1.35 }}
-                  onClick={() => onTapShot(shot)}>
-                  {shot.description || '—'}
-                </span>
-                {/* Thumbnail */}
-                <div className="flex-shrink-0 overflow-hidden cursor-pointer" style={{ width: 72, height: 44, borderRadius: 6, marginLeft: 'auto' }}
-                  onClick={() => onTapThumbnail(shot)}>
-                  {shot.imageUrl ? (
-                    <img src={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${sceneColor}18, ${sceneColor}08)` }}>
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <rect x="2" y="3" width="10" height="8" rx="1.5" stroke={sceneColor} strokeWidth="1" opacity="0.35" />
-                        <path d="M7 5.5v3M5.5 7h3" stroke={sceneColor} strokeWidth="1" strokeLinecap="round" opacity="0.35" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-              </div>
+
+        {scheduled.length === 0 && unscheduled.length > 0 && (
+          <div className="flex items-center justify-center" style={{ padding: '16px 14px 8px' }}>
+            <span className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a' }}>No shoot order set yet</span>
+          </div>
+        )}
+        {scheduled.map(renderShootCard)}
+
+        {/* Unscheduled shots section */}
+        {unscheduled.length > 0 && (
+          <>
+            <div className="flex items-center" style={{ gap: 8, padding: '16px 14px 7px' }}>
+              <span style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: '#62627a', opacity: 0.7 }}>
+                Unscheduled
+              </span>
+              <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', color: '#62627a', opacity: 0.4 }}>
+                {unscheduled.length}
+              </span>
             </div>
-          )
-        })}
+            <div style={{ height: 1, margin: '0 14px 4px', background: '#62627a', opacity: 0.15 }} />
+            {unscheduled.map(renderShootCard)}
+          </>
+        )}
       </div>
     )
   }
@@ -1321,6 +1497,77 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
     )).catch(err => console.error('Failed to persist reorder to scene:', err))
   }, [allShots, allScenes, projectId, qc])
 
+  // ── SHOOT ORDER REORDER HANDLER ────────────────────────────
+  const handleShootReorder = useCallback((shotId: string, newIndex: number) => {
+    // Build ordered list: scheduled first (by shootOrder), then unscheduled
+    const scheduled = allShots.filter(s => s.shootOrder != null).sort((a, b) => a.shootOrder! - b.shootOrder!)
+    const unscheduled = allShots.filter(s => s.shootOrder == null).sort((a, b) => a.shotNumber.localeCompare(b.shotNumber, undefined, { numeric: true }))
+    const allOrdered = [...scheduled, ...unscheduled]
+
+    const without = allOrdered.filter(s => s.id !== shotId)
+    const moved = allOrdered.find(s => s.id === shotId)
+    if (!moved) return
+    const clamped = Math.max(0, Math.min(newIndex, without.length))
+    without.splice(clamped, 0, moved)
+
+    // Assign shootOrder to all shots in their new positions
+    const updates = without.map((s, i) => ({ id: s.id, shootOrder: i }))
+
+    // Optimistic local update
+    qc.setQueryData(['shotsByProject', projectId], (old: any[] | undefined) => {
+      if (!old) return old
+      return old.map((scene: any) => ({
+        ...scene,
+        Shot: (scene.Shot ?? []).map((s: Shot) => {
+          const u = updates.find(u => u.id === s.id)
+          if (!u) return s
+          return { ...s, shootOrder: u.shootOrder }
+        }),
+      }))
+    })
+
+    // Persist — only updates shootOrder, never touches sortOrder or sceneId
+    updateShootOrder(updates).catch(err => console.error('Failed to persist shoot reorder:', err))
+  }, [allShots, projectId, qc])
+
+  // ── AUTO-INITIALIZE SHOOT ORDER ──────────────────────────
+  // When switching to shoot mode for the first time, if all shots
+  // have null shootOrder, populate from story order (sortOrder)
+  const shootOrderInitialized = useRef(false)
+  const prevShotOrder = useRef(shotOrder)
+
+  if (shotOrder === 'shooting' && prevShotOrder.current !== 'shooting') {
+    shootOrderInitialized.current = false
+  }
+  prevShotOrder.current = shotOrder
+
+  if (
+    shotOrder === 'shooting' &&
+    !shootOrderInitialized.current &&
+    allShots.length > 0 &&
+    allShots.every(s => s.shootOrder == null)
+  ) {
+    shootOrderInitialized.current = true
+    const sorted = [...allShots].sort((a, b) => a.sortOrder - b.sortOrder)
+    const updates = sorted.map((s, i) => ({ id: s.id, shootOrder: i }))
+
+    // Optimistic local update
+    qc.setQueryData(['shotsByProject', projectId], (old: any[] | undefined) => {
+      if (!old) return old
+      return old.map((scene: any) => ({
+        ...scene,
+        Shot: (scene.Shot ?? []).map((s: Shot) => {
+          const u = updates.find(u => u.id === s.id)
+          if (!u) return s
+          return { ...s, shootOrder: u.shootOrder }
+        }),
+      }))
+    })
+
+    // Persist
+    updateShootOrder(updates).catch(err => console.error('Failed to initialize shoot order:', err))
+  }
+
   /** Auto-generate next shot number for a scene (e.g. if scene 2 has 2A-2C, returns "2D") */
   const nextShotNumber = useCallback((sceneId: string) => {
     const scene = allScenes.find(s => s.id === sceneId)
@@ -1637,7 +1884,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
             <>
               {mode === 'script' && (() => { console.log('[SceneMaker] rendering ScriptView, mode=', mode, 'scenes=', allScenes.length, 'sceneIds=', allScenes.map(s => s.id)); return null })()}
               {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} onUpdateScene={handleUpdateScene} />}
-              {mode === 'shotlist' && !previewVersion && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} sortMode={shotOrder} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onReorderToScene={handleReorderToScene} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} onUpdateShot={(shotId, fields) => { updateShot(shotId, fields).then(() => qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })).catch(err => console.error('Failed to update shot:', err)) }} />}
+              {mode === 'shotlist' && !previewVersion && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} sortMode={shotOrder} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onReorderToScene={handleReorderToScene} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} onUpdateShot={(shotId, fields) => { updateShot(shotId, fields).then(() => qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })).catch(err => console.error('Failed to update shot:', err)) }} onShootReorder={handleShootReorder} />}
               {mode === 'shotlist' && previewVersion && <ShotlistView scenes={displayScenes} shots={displayShots} accent={accent} sortMode={shotOrder} onTapShot={() => {}} onTapThumbnail={() => {}} onInsert={() => {}} onReorder={() => {}} onReorderToScene={() => {}} onRenameScene={() => {}} onDeleteScene={() => {}} onUpdateShot={() => {}} />}
               {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} scale={boardScale} onTapShot={setSelectedShot} onReorder={handleReorder} />}
             </>

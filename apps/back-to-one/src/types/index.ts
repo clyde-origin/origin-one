@@ -171,6 +171,7 @@ export interface Shot {
   imageUrl: string | null
   status: 'planned' | 'in_progress' | 'completed' | 'omitted'
   sortOrder: number
+  shootOrder: number | null
   createdAt: string
   updatedAt: string
 }
