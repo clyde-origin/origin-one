@@ -9,6 +9,62 @@ import type { TeamMember } from '@/types'
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 40 }
 
+// ── DEPARTMENT ORDERING ─────────────────────────────────
+
+const DEPARTMENT_ORDER = [
+  'Production',
+  'Directing',
+  'Camera',
+  'Art',
+  'Sound',
+  'Lighting',
+  'G&E',
+] as const
+
+/** Get the department string from a crew member (field exists on ProjectMember but not yet on the TS type) */
+function getMemberDepartment(member: TeamMember): string | null {
+  return (member as TeamMember & { department?: string | null }).department ?? null
+}
+
+/** Group crew by department in fixed display order, nulls last */
+function groupByDepartment(crew: TeamMember[]): { department: string | null; members: TeamMember[] }[] {
+  const groups: Record<string, TeamMember[]> = {}
+  const nullGroup: TeamMember[] = []
+
+  for (const m of crew) {
+    const dept = getMemberDepartment(m)
+    if (dept === null) {
+      nullGroup.push(m)
+    } else {
+      if (!groups[dept]) groups[dept] = []
+      groups[dept].push(m)
+    }
+  }
+
+  // Sort members within each group alphabetically by name
+  const sortMembers = (arr: TeamMember[]) => arr.sort((a: TeamMember, b: TeamMember) => a.User.name.localeCompare(b.User.name))
+  Object.keys(groups).forEach(k => sortMembers(groups[k]))
+  sortMembers(nullGroup)
+
+  // Build ordered result: known departments first (in fixed order), then extras, then null
+  const result: { department: string | null; members: TeamMember[] }[] = []
+  const seen = new Set<string>()
+
+  for (const dept of DEPARTMENT_ORDER) {
+    if (groups[dept]) { result.push({ department: dept, members: groups[dept] }); seen.add(dept) }
+  }
+
+  // Any departments not in the fixed order (future-proofing)
+  Object.keys(groups).forEach(dept => {
+    if (!seen.has(dept)) result.push({ department: dept, members: groups[dept] })
+  })
+
+  // Null department last
+  if (nullGroup.length > 0) result.push({ department: null, members: nullGroup })
+
+  return result
+}
+
 // ── LAYER 2A: CREW MEMBER DETAIL ─────────────────────────
 
 function CrewDetail({ member, accent, projectId, onBack, onRemoved }: {
@@ -197,10 +253,19 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                 </button>
               </div>
 
-              {/* Crew list */}
+              {/* Crew list — grouped by department */}
               <div className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
-                {allCrew.map(m => (
-                  <CrewRow key={m.id} member={m} onTap={() => { haptic('light'); setSelectedMember(m); setLayer('detail') }} />
+                {groupByDepartment(allCrew).map(({ department, members }) => (
+                  <div key={department ?? '__none'}>
+                    {department && (
+                      <div className="font-mono uppercase px-5" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.08em', padding: '14px 20px 4px' }}>
+                        {department}
+                      </div>
+                    )}
+                    {members.map(m => (
+                      <CrewRow key={m.id} member={m} onTap={() => { haptic('light'); setSelectedMember(m); setLayer('detail') }} />
+                    ))}
+                  </div>
                 ))}
               </div>
             </motion.div>
