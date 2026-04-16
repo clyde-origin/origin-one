@@ -952,6 +952,51 @@ export async function deleteEntity(id: string): Promise<void> {
 
 export async function getCastRoles(_projectId: string): Promise<any[]> { return [] }
 export async function updateCastRole(_id: string, _updates: any) {}
-export async function getArtItems(_projectId: string): Promise<any[]> { return [] }
+export async function getArtItems(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Entity')
+    .select('*')
+    .eq('projectId', projectId)
+    .in('type', ['prop', 'wardrobe', 'hmu'])
+    .order('createdAt', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function createArtItem(item: {
+  projectId: string; type: 'prop' | 'wardrobe' | 'hmu'; name: string; description?: string; metadata?: Record<string, any>
+}) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Entity')
+    .insert({
+      id: crypto.randomUUID(),
+      projectId: item.projectId,
+      type: item.type,
+      name: item.name,
+      description: item.description ?? null,
+      metadata: item.metadata ?? null,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createArtItem failed:', error); throw error }
+  return data
+}
+
+export async function updateArtItem(
+  id: string,
+  fields: { name?: string; description?: string | null; metadata?: Record<string, any> | null }
+): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('Entity').update(fields).eq('id', id)
+  if (error) { console.error('updateArtItem failed:', error); throw error }
+}
+
+export async function deleteArtItem(id: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('Entity').delete().eq('id', id)
+  if (error) { console.error('deleteArtItem failed:', error); throw error }
+}
 export async function getWorkflowNodes(_projectId: string): Promise<any[]> { return [] }
 export async function updateProjectOrder(_projectId: string, _fields: any) {}

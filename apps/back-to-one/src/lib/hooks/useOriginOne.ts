@@ -454,6 +454,31 @@ export function useArtItems(projectId: string) {
   })
 }
 
+export function useCreateArtItem(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createArtItem,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.artItems(projectId) }),
+  })
+}
+
+export function useUpdateArtItem(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: { name?: string; description?: string | null; metadata?: Record<string, any> | null } }) =>
+      db.updateArtItem(id, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.artItems(projectId) }),
+  })
+}
+
+export function useDeleteArtItem(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteArtItem,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.artItems(projectId) }),
+  })
+}
+
 // ── MOODBOARD ──────────────────────────────────────────────
 
 export function useMoodboardTabs(projectId: string) {

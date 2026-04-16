@@ -1,117 +1,563 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { useProject, useArtItems } from '@/lib/hooks/useOriginOne'
-
-import { LoadingState, EmptyState, StatusBadge } from '@/components/ui'
-import { GhostRow, GhostCircle, GhostRect, GhostPill, SectionLabel, EmptyCTA } from '@/components/ui/EmptyState'
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useProject, useArtItems, useCreateArtItem, useUpdateArtItem, useDeleteArtItem } from '@/lib/hooks/useOriginOne'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { FAB } from '@/components/ui/FAB'
-import { getProjectColor , statusHex, statusLabel } from '@/lib/utils/phase'
-import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
-import type { ArtItem, ArtCategory } from '@/types'
+import { haptic } from '@/lib/utils/haptics'
+import { getProjectColor, statusHex, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
+import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 
-const CATEGORIES: { key: ArtCategory; label: string }[] = [
-  { key: 'props',    label: 'Props' },
-  { key: 'hmu',      label: 'Hair / Makeup' },
-  { key: 'wardrobe', label: 'Wardrobe' },
-]
+// ── Types ───────────────────────────────────────────────
 
-const catColor: Record<ArtCategory, string> = {
-  props:    'text-prod bg-prod/10',
-  hmu:      'text-pre bg-pre/10',
-  wardrobe: 'text-post bg-post/10',
+type ArtEntityType = 'wardrobe' | 'prop' | 'hmu'
+type ArtStatus = 'needed' | 'sourced' | 'confirmed' | 'hero'
+
+interface ArtEntity {
+  id: string
+  projectId: string
+  type: ArtEntityType
+  name: string
+  description: string | null
+  metadata: { status?: ArtStatus; imageUrl?: string; tags?: string[] } | null
+  createdAt: string
+  updatedAt: string
 }
 
-function ArtRow({ item, onTap }: { item: ArtItem; onTap: (i: ArtItem) => void }) {
+// ── Constants ───────────────────────────────────────────
+
+const TABS: { key: ArtEntityType; label: string }[] = [
+  { key: 'wardrobe', label: 'Wardrobe' },
+  { key: 'prop',     label: 'Set Dec / Props' },
+  { key: 'hmu',      label: 'HMU' },
+]
+
+const STATUS_STYLES: Record<ArtStatus, { bg: string; border: string; color: string }> = {
+  needed:    { bg: 'rgba(252,165,0,0.1)',   border: 'rgba(252,165,0,0.2)',   color: '#FCA500' },
+  sourced:   { bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.18)',  color: '#22C55E' },
+  confirmed: { bg: 'rgba(103,232,249,0.08)', border: 'rgba(103,232,249,0.18)', color: '#67E8F9' },
+  hero:      { bg: 'rgba(224,123,57,0.1)',  border: 'rgba(224,123,57,0.22)', color: '#E07B39' },
+}
+
+const STATUS_LABELS: Record<ArtStatus, string> = {
+  needed: 'Needed', sourced: 'Sourced', confirmed: 'Confirmed', hero: 'Hero',
+}
+
+const ALL_STATUSES: ArtStatus[] = ['needed', 'sourced', 'confirmed', 'hero']
+
+function getStatus(entity: ArtEntity): ArtStatus {
+  return (entity.metadata?.status as ArtStatus) ?? 'needed'
+}
+
+// ── Status Badge ────────────────────────────────────────
+
+function ArtStatusBadge({ status }: { status: ArtStatus }) {
+  const s = STATUS_STYLES[status]
+  return (
+    <span className="font-mono uppercase" style={{
+      fontSize: '0.42rem', letterSpacing: '0.1em',
+      padding: '3px 8px', borderRadius: 20,
+      background: s.bg, border: `1px solid ${s.border}`, color: s.color,
+    }}>
+      {STATUS_LABELS[status]}
+    </span>
+  )
+}
+
+// ── Art Item Card ───────────────────────────────────────
+
+function ArtItemCard({ item, accent, onTap }: { item: ArtEntity; accent: string; onTap: () => void }) {
+  const status = getStatus(item)
+  const imgUrl = item.metadata?.imageUrl
+  const tags = item.metadata?.tags ?? []
+
   return (
     <div
-      className="flex items-center gap-3 px-4 py-3 border-b border-border cursor-pointer transition-colors active:bg-surface2"
-      onClick={() => onTap(item)}
+      className="flex cursor-pointer active:opacity-90 transition-opacity"
+      style={{
+        gap: 14, padding: 12, borderRadius: 16,
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        alignItems: 'flex-start',
+      }}
+      onClick={onTap}
     >
-      <div className="w-9 h-9 rounded-lg flex-shrink-0" style={{ background: item.gradient || 'linear-gradient(135deg,#1a1a2e,#2a2a4e)' }} />
-      <div className="flex-1 min-w-0">
-        <div className="text-base leading-snug text-text truncate">{item.name}</div>
-        {item.note && <div className="font-mono text-xs text-muted truncate">{item.note}</div>}
+      {/* Image */}
+      <div style={{
+        width: 80, height: 80, borderRadius: 10, flexShrink: 0, overflow: 'hidden',
+        background: 'rgba(255,255,255,0.05)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {imgUrl ? (
+          <img src={imgUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} />
+        ) : (
+          <div style={{
+            width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: 10, border: '1px dashed rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.15)', fontSize: 20,
+          }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.3" />
+              <circle cx="8" cy="10" r="2" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M2 16l5-4 3 2 4-5 8 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        )}
       </div>
-      <StatusBadge status={item.status} />
+
+      {/* Text */}
+      <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#fff', marginBottom: 3, lineHeight: 1.2 }}>
+          {item.name}
+        </div>
+        {item.description && (
+          <div style={{
+            fontSize: '0.62rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.5,
+            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden',
+          }}>
+            {item.description}
+          </div>
+        )}
+        {tags.length > 0 && (
+          <div style={{ display: 'flex', gap: 5, marginTop: 7, flexWrap: 'wrap' }}>
+            {tags.map(t => (
+              <span key={t} className="font-mono uppercase" style={{
+                fontSize: '0.38rem', letterSpacing: '0.1em',
+                padding: '3px 8px', borderRadius: 20,
+                background: `${accent}18`, border: `1px solid ${accent}33`, color: accent,
+              }}>{t}</span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Status */}
+      <div style={{ flexShrink: 0 }}>
+        <ArtStatusBadge status={status} />
+      </div>
     </div>
   )
 }
 
-function DetailSheet({ item, onClose }: { item: ArtItem | null; onClose: () => void }) {
-  if (!item) return null
+// ── Detail Sheet ────────────────────────────────────────
+
+function ArtDetailSheet({
+  item, accent, projectId, isCreate, onClose,
+}: {
+  item: ArtEntity | null
+  accent: string
+  projectId: string
+  isCreate: boolean
+  onClose: () => void
+}) {
+  const createArt = useCreateArtItem(projectId)
+  const updateArt = useUpdateArtItem(projectId)
+  const deleteArt = useDeleteArtItem(projectId)
+
+  const [name, setName] = useState('')
+  const [notes, setNotes] = useState('')
+  const [status, setStatus] = useState<ArtStatus>('needed')
+  const [itemType, setItemType] = useState<ArtEntityType>('prop')
+
+  useEffect(() => {
+    if (item) {
+      setName(item.name)
+      setNotes(item.description ?? '')
+      setStatus(getStatus(item))
+      setItemType(item.type)
+    } else {
+      setName('')
+      setNotes('')
+      setStatus('needed')
+      setItemType('prop')
+    }
+  }, [item])
+
+  const imgUrl = item?.metadata?.imageUrl
+
+  function handleSave() {
+    if (!name.trim()) return
+    haptic('light')
+    if (isCreate) {
+      createArt.mutate({
+        projectId,
+        type: itemType,
+        name: name.trim(),
+        description: notes || undefined,
+        metadata: { status },
+      })
+    } else if (item) {
+      updateArt.mutate({
+        id: item.id,
+        fields: {
+          name: name.trim(),
+          description: notes || null,
+          metadata: { ...(item.metadata ?? {}), status },
+        },
+      })
+    }
+    onClose()
+  }
+
+  function handleDelete() {
+    if (!item) return
+    haptic('warning')
+    deleteArt.mutate(item.id)
+    onClose()
+  }
+
+  function handleStatusTap(s: ArtStatus) {
+    setStatus(s)
+    if (!isCreate && item) {
+      updateArt.mutate({
+        id: item.id,
+        fields: { metadata: { ...(item.metadata ?? {}), status: s } },
+      })
+    }
+  }
+
+  const inputStyle = {
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.05)',
+    borderRadius: 7, padding: '10px 12px',
+    color: '#dddde8', fontSize: '0.82rem',
+    width: '100%', outline: 'none',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-geist-mono)',
+    fontSize: '0.44rem', color: 'rgba(255,255,255,0.28)',
+    letterSpacing: '0.13em', textTransform: 'uppercase',
+    display: 'block', marginBottom: 6,
+  }
+
   return (
     <>
-      <SheetHeader title={item.name} onClose={onClose} />
-      <SheetBody>
-        <div className="h-32 w-full rounded-lg mb-4" style={{ background: item.gradient || 'linear-gradient(135deg,#1a1a2e,#2a2a4e)' }} />
+      {/* Handle */}
+      <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.13)', margin: '12px auto 0', flexShrink: 0 }} />
 
-        <div className="flex items-center gap-2 mb-4 p-3 bg-surface2 rounded-lg border border-border">
-          <StatusBadge status={item.status} />
-          <span className={`font-mono text-xs px-2 py-1 rounded-sm ml-auto ${catColor[item.cat]}`}>
-            {CATEGORIES.find(c => c.key === item.cat)?.label ?? item.cat}
-          </span>
-        </div>
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
+      }}>
+        <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#fff' }}>
+          {isCreate ? 'New Item' : item?.name ?? 'Item Detail'}
+        </span>
+        <span
+          style={{ fontSize: '0.78rem', fontWeight: 600, color: accent, cursor: 'pointer' }}
+          onClick={handleSave}
+        >
+          Done
+        </span>
+      </div>
 
-        {item.note && (
-          <div className="mb-4">
-            <span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Note</span>
-            <div className="text-base text-text2 leading-relaxed p-3 bg-surface2 rounded-lg border border-border">{item.note}</div>
+      {/* Hero image */}
+      <div style={{
+        width: '100%', aspectRatio: '4/3',
+        background: 'rgba(255,255,255,0.04)',
+        position: 'relative', flexShrink: 0, overflow: 'hidden',
+      }}>
+        {imgUrl ? (
+          <>
+            <img src={imgUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div className="font-mono uppercase" style={{
+              position: 'absolute', bottom: 10, right: 10,
+              background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.15)',
+              borderRadius: 8, padding: '5px 10px',
+              fontSize: '0.44rem', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.6)',
+              cursor: 'pointer',
+            }}>Edit Photo</div>
+          </>
+        ) : (
+          <div style={{
+            width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 8,
+            color: 'rgba(255,255,255,0.15)', cursor: 'pointer',
+          }}>
+            <span style={{ fontSize: 28 }}>+</span>
+            <span className="font-mono uppercase" style={{ fontSize: '0.48rem', letterSpacing: '0.1em' }}>
+              Add Reference Image
+            </span>
           </div>
         )}
-      </SheetBody>
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Name */}
+        <div>
+          <label style={labelStyle}>Name</label>
+          {isCreate ? (
+            <input
+              type="text" value={name} onChange={e => setName(e.target.value)}
+              placeholder="Item name" autoFocus autoComplete="off" spellCheck={false}
+              style={inputStyle}
+            />
+          ) : (
+            <input
+              type="text" value={name} onChange={e => setName(e.target.value)}
+              onBlur={() => { if (item && name.trim() !== item.name) handleSave() }}
+              autoComplete="off" spellCheck={false}
+              style={inputStyle}
+            />
+          )}
+        </div>
+
+        {/* Notes */}
+        <div>
+          <label style={labelStyle}>Notes</label>
+          <textarea
+            value={notes} onChange={e => setNotes(e.target.value)}
+            onBlur={() => { if (!isCreate && item) handleSave() }}
+            placeholder="Description or notes"
+            rows={3}
+            style={{ ...inputStyle, resize: 'none' }}
+          />
+        </div>
+
+        {/* Type (create mode only) */}
+        {isCreate && (
+          <div>
+            <label style={labelStyle}>Category</label>
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+              {TABS.map(t => (
+                <button key={t.key} onClick={() => setItemType(t.key)} className="font-mono uppercase" style={{
+                  fontSize: '0.44rem', letterSpacing: '0.08em',
+                  padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
+                  background: itemType === t.key ? `${accent}1a` : 'transparent',
+                  border: `1px solid ${itemType === t.key ? `${accent}40` : 'rgba(255,255,255,0.09)'}`,
+                  color: itemType === t.key ? accent : 'rgba(255,255,255,0.3)',
+                }}>{t.label}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Status pills */}
+        <div>
+          <label style={labelStyle}>Status</label>
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+            {ALL_STATUSES.map(s => {
+              const sel = status === s
+              const st = STATUS_STYLES[s]
+              return (
+                <button key={s} onClick={() => handleStatusTap(s)} className="font-mono uppercase" style={{
+                  fontSize: '0.44rem', letterSpacing: '0.08em',
+                  padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
+                  background: sel ? st.bg : 'transparent',
+                  border: `1px solid ${sel ? st.border : 'rgba(255,255,255,0.09)'}`,
+                  color: sel ? st.color : 'rgba(255,255,255,0.3)',
+                  transition: 'all 0.14s',
+                }}>{STATUS_LABELS[s]}</button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Delete (edit mode only) */}
+        {!isCreate && item && (
+          <button onClick={handleDelete} style={{
+            marginTop: 8, width: '100%', padding: '10px', borderRadius: 8,
+            background: 'rgba(232,86,74,0.08)', border: '1px solid rgba(232,86,74,0.2)',
+            color: '#e8564a', fontFamily: 'var(--font-geist-mono)', fontSize: '0.44rem',
+            letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer',
+          }}>Delete Item</button>
+        )}
+      </div>
     </>
   )
 }
 
+// ── Empty State ─────────────────────────────────────────
+
+function ArtEmptyState() {
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      padding: '60px 30px', gap: 10, textAlign: 'center',
+    }}>
+      <div style={{ fontSize: 32, opacity: 0.2 }}>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+          <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.3" />
+          <circle cx="8" cy="10" r="2" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M2 16l5-4 3 2 4-5 8 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+      <div className="font-mono" style={{
+        fontSize: '0.56rem', color: 'rgba(255,255,255,0.2)',
+        letterSpacing: '0.06em', lineHeight: 1.6,
+      }}>
+        No items added yet.<br />Tap + to add your first item.
+      </div>
+    </div>
+  )
+}
+
+// ── Main Page ───────────────────────────────────────────
+
 export default function ArtPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
   const { data: project } = useProject(projectId)
-  const accent = project?.color || getProjectColor(projectId)
-  const [selected, setSelected] = useState<ArtItem | null>(null)
-
+  const colors = deriveProjectColors(project?.color || getProjectColor(projectId) || DEFAULT_PROJECT_HEX)
+  const accent = colors.primary
   const { data: items, isLoading } = useArtItems(projectId)
-  const allItems = items ?? []
+  const allItems = (items ?? []) as ArtEntity[]
 
-  const grouped = CATEGORIES
-    .map(c => ({ ...c, items: allItems.filter(i => i.cat === c.key) }))
-    .filter(g => g.items.length > 0)
+  const [activeTab, setActiveTab] = useState<ArtEntityType>('wardrobe')
+  const [selected, setSelected] = useState<ArtEntity | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
+
+  const tabItems = allItems.filter(i => i.type === activeTab)
+
+  // Counts for the section label
+  const confirmed = tabItems.filter(i => getStatus(i) === 'confirmed').length
+  const needed = tabItems.filter(i => getStatus(i) === 'needed').length
 
   return (
     <div className="screen">
-      <PageHeader projectId={projectId} title="Art Department" meta={project ? (<div className="flex flex-col items-center gap-1.5"><span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''} />
+      <PageHeader
+        projectId={projectId}
+        title="Art"
+        meta={project ? (
+          <div className="flex flex-col items-center gap-1.5">
+            <span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span>
+            <span className="font-mono uppercase" style={{
+              fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12,
+              background: `${statusHex(project.status)}18`, color: statusHex(project.status),
+            }}>{projectStatusLabel(project.status)}</span>
+          </div>
+        ) : ''}
+        noBorder
+      />
 
-      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 24 }}>
-        {isLoading ? <LoadingState /> : (
-          allItems.length === 0 ? (
-            <>
-              <SectionLabel>Needed</SectionLabel>
-              <GhostRow><GhostCircle size={28} /><div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}><GhostRect w={100} h={11} /><GhostRect w={130} h={9} /></div><div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}><GhostPill w={52} h={18} /><GhostPill w={36} h={16} /></div></GhostRow>
-              <GhostRow><GhostCircle size={28} /><div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}><GhostRect w={88} h={11} /><GhostRect w={110} h={9} /></div><div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}><GhostPill w={52} h={18} /><GhostPill w={36} h={16} /></div></GhostRow>
-              <SectionLabel>Ready</SectionLabel>
-              <GhostRow><GhostCircle size={28} /><div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}><GhostRect w={112} h={11} /><GhostRect w={90} h={9} /></div><div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}><GhostPill w={40} h={18} /></div></GhostRow>
-              <EmptyCTA icon="🎨" headline="Track your art." sub="Props, sets, palette — all in one place." addLabel="+ Add art item" />
-            </>
-          ) : (
-            grouped.map(({ key, label, items: catItems }) => (
-              <div key={key}>
-                <div className="px-4 py-2 font-mono text-sm text-muted tracking-widest uppercase border-b border-border">
-                  <span className={`px-1.5 py-0.5 rounded-sm ${catColor[key]}`}>{label}</span>
-                  <span className="ml-2 text-muted">{catItems.length}</span>
-                </div>
-                {catItems.map(item => <ArtRow key={item.id} item={item} onTap={setSelected} />)}
-              </div>
-            ))
+      {/* Tab bar */}
+      <div style={{
+        display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)',
+        flexShrink: 0, position: 'relative', zIndex: 2,
+      }}>
+        {TABS.map(tab => {
+          const isActive = activeTab === tab.key
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className="font-mono uppercase"
+              style={{
+                flex: 1, textAlign: 'center', padding: '11px 0',
+                fontSize: '0.44rem', letterSpacing: '0.12em',
+                color: isActive ? '#fff' : 'rgba(255,255,255,0.28)',
+                cursor: 'pointer', position: 'relative',
+                background: 'transparent', border: 'none',
+                transition: 'color 0.18s',
+              }}
+            >
+              {tab.label}
+              {isActive && (
+                <div style={{
+                  position: 'absolute', bottom: -1, left: 16, right: 16,
+                  height: 2, background: accent, borderRadius: 1,
+                }} />
+              )}
+            </button>
           )
+        })}
+      </div>
+
+      {/* Scroll area */}
+      <div
+        className="flex-1 overflow-y-auto no-scrollbar"
+        style={{ WebkitOverflowScrolling: 'touch', padding: '14px 16px 100px', position: 'relative', zIndex: 1 }}
+      >
+        {isLoading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[0, 1, 2].map(i => (
+              <div key={i} style={{
+                display: 'flex', gap: 14, padding: 12, borderRadius: 16,
+                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+              }}>
+                <div style={{ width: 80, height: 80, borderRadius: 10, background: 'rgba(255,255,255,0.05)', flexShrink: 0 }} />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4 }}>
+                  <div style={{ width: 140, height: 12, borderRadius: 4, background: 'rgba(255,255,255,0.06)' }} />
+                  <div style={{ width: 200, height: 9, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
+                  <div style={{ width: 100, height: 9, borderRadius: 4, background: 'rgba(255,255,255,0.03)' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : tabItems.length === 0 ? (
+          <ArtEmptyState />
+        ) : (
+          <>
+            {/* Section label */}
+            <div className="font-mono uppercase" style={{
+              fontSize: '0.44rem', letterSpacing: '0.15em',
+              color: 'rgba(255,255,255,0.2)',
+              marginBottom: 8, marginTop: 4, paddingLeft: 2,
+            }}>
+              {tabItems.length} items · {confirmed} confirmed · {needed} needed
+            </div>
+
+            {/* Item cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {tabItems.map(item => (
+                <ArtItemCard
+                  key={item.id}
+                  item={item}
+                  accent={accent}
+                  onTap={() => { haptic('light'); setSelected(item) }}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
 
-      <Sheet open={!!selected} onClose={() => setSelected(null)}>
-        <DetailSheet item={selected} onClose={() => setSelected(null)} />
-      </Sheet>
-      <FAB accent={accent} projectId={projectId} />
+      {/* FAB */}
+      <FAB accent={accent} projectId={projectId} onPress={() => { haptic('light'); setShowCreate(true) }} />
+
+      {/* Detail / Create Sheet */}
+      <AnimatePresence>
+        {(selected || showCreate) && (
+          <>
+            <motion.div
+              key="art-overlay"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => { setSelected(null); setShowCreate(false) }}
+              style={{
+                position: 'fixed', inset: 0, zIndex: 50,
+                background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
+              }}
+            />
+            <motion.div
+              key="art-sheet"
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              drag="y" dragConstraints={{ top: 0 }} dragElastic={0.1}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 100) { setSelected(null); setShowCreate(false) }
+              }}
+              style={{
+                position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 51,
+                background: '#111', borderTop: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: '24px 24px 0 0',
+                height: '88%', overflowY: 'auto',
+                display: 'flex', flexDirection: 'column',
+                paddingBottom: 'env(safe-area-inset-bottom, 24px)',
+              }}
+              className="no-scrollbar"
+            >
+              <ArtDetailSheet
+                item={selected}
+                accent={accent}
+                projectId={projectId}
+                isCreate={showCreate && !selected}
+                onClose={() => { setSelected(null); setShowCreate(false) }}
+              />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
