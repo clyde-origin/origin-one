@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useMemo } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useProject, useScenes } from '@/lib/hooks/useOriginOne'
@@ -13,6 +14,7 @@ import { getProjectColor, getSceneColor, statusHex, statusLabel } from '@/lib/ut
 import { ScriptView, type ScriptViewHandle } from './components/ScriptView'
 import { ShotDetailSheet } from './components/ShotDetailSheet'
 import { EntityDrawer } from './components/EntityDrawer'
+import { PdfExport } from './components/PdfExport'
 import type { Scene, Shot, SceneMakerMode } from '@/types'
 
 type StoryboardScale = 'feed' | '3up' | '2up' | 'all'
@@ -882,6 +884,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const [boardScale, setBoardScale] = useState<StoryboardScale>('3up')
   const [scriptPanel, setScriptPanel] = useState<ScriptPanel>(null)
   const [shotOrder, setShotOrder] = useState<'story' | 'shooting'>('story')
+  const [showExport, setShowExport] = useState(false)
   const scriptRef = useRef<ScriptViewHandle>(null)
   const thumbFileRef = useRef<HTMLInputElement>(null)
   const pendingUploadShotRef = useRef<string | null>(null)
@@ -1084,6 +1087,17 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
               <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span>
             </div>
           ) : ''}
+          right={
+            <button
+              className="flex items-center justify-center cursor-pointer"
+              style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+              onClick={() => { haptic('light'); setShowExport(true) }}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3 9.5V11.5h8V9.5" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M7 2v7M4.5 6.5L7 9l2.5-2.5" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          }
           noBorder
         />
 
@@ -1133,7 +1147,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           {/* Export PDF */}
           <button className="flex items-center gap-2 cursor-pointer select-none"
             style={{ padding: '6px 14px', borderRadius: 16, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-            onClick={() => haptic('light')}>
+            onClick={() => { haptic('light'); setShowExport(true) }}>
             <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 7V8.5h6V7" stroke="#a0a0b8" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /><path d="M5 1v5M3 4l2 2 2-2" stroke="#a0a0b8" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
             <span className="font-mono uppercase" style={{ fontSize: '0.46rem', letterSpacing: '0.06em', color: '#a0a0b8' }}>PDF</span>
           </button>
@@ -1391,6 +1405,19 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       <EntityDrawer type="characters" projectId={projectId} open={scriptPanel === 'characters'} onClose={() => setScriptPanel(null)} />
       <EntityDrawer type="locations" projectId={projectId} open={scriptPanel === 'locations'} onClose={() => setScriptPanel(null)} />
       <EntityDrawer type="props" projectId={projectId} open={scriptPanel === 'props'} onClose={() => setScriptPanel(null)} />
+
+      {/* PDF Export overlay */}
+      <AnimatePresence>
+        {showExport && (
+          <PdfExport
+            scenes={allScenes}
+            shots={allShots}
+            projectName={project?.name ?? 'Untitled'}
+            clientName={project?.client ?? ''}
+            onClose={() => setShowExport(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
