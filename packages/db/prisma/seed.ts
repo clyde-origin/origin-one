@@ -56,6 +56,8 @@ async function main() {
   console.log('Seeding — Origin Point projects...\n')
 
   // ── Wipe in reverse-dependency order ──────────────────────────────────────
+  await prisma.talentAssignment.deleteMany()
+  await prisma.talent.deleteMany()
   await prisma.moodboardRef.deleteMany()
   await prisma.moodboardTab.deleteMany()
   await prisma.location.deleteMany()
@@ -148,8 +150,17 @@ async function main() {
 
   await prisma.entity.createMany({ data: [
     { projectId: p1.id, type: 'location',  name: 'Bel Air Estate', description: 'Private estate, Bel Air CA. Three shooting areas: bathroom, garden, salon.' },
-    { projectId: p1.id, type: 'character', name: 'Aria Stone',     description: 'Lead talent. Celebrity. On-camera throughout all three scenes.' },
     { projectId: p1.id, type: 'prop',      name: 'Lumiere Serum',  description: 'Hero product. Small amber bottle. On camera in scenes 1 and 2.' },
+  ]})
+  const p1Hero = await prisma.entity.create({ data: { projectId: p1.id, type: 'character', name: 'Hero Talent',      description: 'Face of the brand. Primary on-camera.' } })
+  const p1Sec  = await prisma.entity.create({ data: { projectId: p1.id, type: 'character', name: 'Secondary Talent', description: 'Lifestyle, background/supporting.' } })
+
+  // P1 — Talent
+  const p1tCamille  = await prisma.talent.create({ data: { projectId: p1.id, name: 'Camille Rousseau', role: 'Lead Actor' } })
+  const p1tDanielle = await prisma.talent.create({ data: { projectId: p1.id, name: 'Danielle Park',    role: 'Supporting' } })
+  await prisma.talentAssignment.createMany({ data: [
+    { talentId: p1tCamille.id,  entityId: p1Hero.id },
+    { talentId: p1tDanielle.id, entityId: p1Sec.id },
   ]})
 
   await prisma.document.create({ data: {
@@ -367,9 +378,19 @@ FADE TO BLACK.`,
     { projectId: p2.id, type: 'location',  name: 'Malibu Point',           description: 'Dawn surf location. Day 1 — completed.' },
     { projectId: p2.id, type: 'location',  name: 'Griffith Park Ridge',    description: 'Pre-dawn trail run location. Day 2 — shooting today.' },
     { projectId: p2.id, type: 'location',  name: 'DTLA Memorial Skatepark',description: 'Afternoon skate location. Day 3 — tomorrow.' },
-    { projectId: p2.id, type: 'character', name: 'Marco Silva',            description: 'Athlete, surf. Day 1.' },
-    { projectId: p2.id, type: 'character', name: 'Zoe Park',               description: 'Athlete, trail run. Day 2.' },
-    { projectId: p2.id, type: 'character', name: 'Dev Okafor',             description: 'Athlete, skate. Day 3.' },
+  ]})
+  const p2Skater  = await prisma.entity.create({ data: { projectId: p2.id, type: 'character', name: 'The Skater',  description: 'Urban, technical. Sport 1.' } })
+  const p2Climber = await prisma.entity.create({ data: { projectId: p2.id, type: 'character', name: 'The Climber', description: 'Outdoor, vertical. Sport 2.' } })
+  const p2Surfer  = await prisma.entity.create({ data: { projectId: p2.id, type: 'character', name: 'The Surfer',  description: 'Coastal, fluid. Sport 3.' } })
+
+  // P2 — Talent
+  const p2tDex   = await prisma.talent.create({ data: { projectId: p2.id, name: 'Dex Morales',   role: 'Lead Actor' } })
+  const p2tAmara = await prisma.talent.create({ data: { projectId: p2.id, name: 'Amara Singh',   role: 'Lead Actor' } })
+  const p2tKai   = await prisma.talent.create({ data: { projectId: p2.id, name: 'Kai Nakamura',  role: 'Lead Actor' } })
+  await prisma.talentAssignment.createMany({ data: [
+    { talentId: p2tDex.id,   entityId: p2Skater.id },
+    { talentId: p2tAmara.id, entityId: p2Climber.id },
+    { talentId: p2tKai.id,   entityId: p2Surfer.id },
   ]})
 
   await prisma.document.create({ data: {
@@ -571,9 +592,16 @@ CUT TO BLACK.`,
     { projectId: p3.id, type: 'location',  name: 'Oakville Vineyard Estate', description: 'Day 1 location, vine rows, golden hour. Done.' },
     { projectId: p3.id, type: 'location',  name: 'St. Helena Barrel Cellar', description: 'Day 2 location, underground, available light only. Shooting today.' },
     { projectId: p3.id, type: 'location',  name: 'Napa Valley Road',         description: 'Day 3 location, valley drive, vista points.' },
-    { projectId: p3.id, type: 'character', name: 'Paul Navarro',             description: 'Subject. Day 3 closing interview.' },
-    { projectId: p3.id, type: 'character', name: 'Marcus Trent',             description: 'Subject. Day 2 barrel cellar interview.' },
-    { projectId: p3.id, type: 'character', name: 'Jin Ho',                   description: 'Subject. Day 1 vineyard interview.' },
+  ]})
+  const p3Winemaker = await prisma.entity.create({ data: { projectId: p3.id, type: 'character', name: 'The Winemaker', description: 'Documentary subject. Owns the estate.' } })
+  const p3Host      = await prisma.entity.create({ data: { projectId: p3.id, type: 'character', name: 'The Host',      description: 'Narrator/guide. On-camera presence.' } })
+
+  // P3 — Talent
+  const p3tRenata = await prisma.talent.create({ data: { projectId: p3.id, name: 'Renata Vasquez', role: 'Lead Actor' } })
+  const p3tOliver = await prisma.talent.create({ data: { projectId: p3.id, name: 'Oliver Strand',  role: 'Lead Actor' } })
+  await prisma.talentAssignment.createMany({ data: [
+    { talentId: p3tRenata.id, entityId: p3Winemaker.id },
+    { talentId: p3tOliver.id, entityId: p3Host.id },
   ]})
 
   await prisma.document.create({ data: {
@@ -777,8 +805,14 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
   await prisma.entity.createMany({ data: [
     { projectId: p4.id, type: 'location',  name: 'Cyc Studio, Downtown LA', description: 'White cyc studio. All interior sequences. Two shoot days.' },
     { projectId: p4.id, type: 'location',  name: 'Will Rogers State Park',  description: 'Outdoor location. Barefoot exterior sequences.' },
-    { projectId: p4.id, type: 'character', name: 'Kaia Mori',               description: 'Instructor and on-camera talent. All sequences.' },
   ]})
+  const p4Lead    = await prisma.entity.create({ data: { projectId: p4.id, type: 'character', name: 'Lead Instructor', description: 'Kaia Mori herself. On-camera talent.' } })
+  /* Student — no talent assigned yet (pre-production) */
+  await prisma.entity.create({ data: { projectId: p4.id, type: 'character', name: 'Student', description: 'Supporting presence. Practices alongside.' } })
+
+  // P4 — Talent (only Lead Instructor assigned; Student is uncast)
+  const p4tKaia = await prisma.talent.create({ data: { projectId: p4.id, name: 'Kaia Mori', role: 'Lead Actor' } })
+  await prisma.talentAssignment.create({ data: { talentId: p4tKaia.id, entityId: p4Lead.id } })
 
   await prisma.document.create({ data: {
     projectId: p4.id, type: 'script', version: 1, createdBy: simonePark.id,
@@ -987,10 +1021,11 @@ END EPISODE 1.`,
     { sceneId: p5s3.id, shotNumber: 'S3D', size: 'insert',          status: 'planned', sortOrder: 4, description: 'Title card — Natural Order. Meridian Climate. URL. Fade to black.' },
   ]})
 
-  await prisma.entity.createMany({ data: [
-    { projectId: p5.id, type: 'character', name: 'James North', description: 'VO talent. Recorded remotely Apr 10. All three sequences.' },
-    { projectId: p5.id, type: 'character', name: 'Sarah Osei',  description: 'Brand Director, Meridian Climate. Client contact for all reviews.' },
-  ]})
+  const p5VO = await prisma.entity.create({ data: { projectId: p5.id, type: 'character', name: 'VO Artist', description: 'The only talent. Voice only.' } })
+
+  // P5 — Talent
+  const p5tSimone = await prisma.talent.create({ data: { projectId: p5.id, name: 'Simone Achebe', role: 'VO Artist' } })
+  await prisma.talentAssignment.create({ data: { talentId: p5tSimone.id, entityId: p5VO.id } })
 
   await prisma.document.create({ data: {
     projectId: p5.id, type: 'script', version: 1, createdBy: rafiTorres.id,
@@ -1168,8 +1203,19 @@ FADE TO BLACK.`,
     { projectId: p6.id, type: 'location',  name: 'Desert Flats, Mojave',   description: 'Day 1 location. Eli sequences. Done.' },
     { projectId: p6.id, type: 'location',  name: 'Ravine, Malibu Creek',   description: 'Day 2 location. Mara sequences. Done.' },
     { projectId: p6.id, type: 'location',  name: 'Joshua Tree, Night Ext', description: 'Day 3 location. Collision scene. Tonight — call time 7PM.' },
-    { projectId: p6.id, type: 'character', name: 'Eli',                    description: 'Lead — played by Leo Marsh. Drifting. The farthest point from everything.' },
-    { projectId: p6.id, type: 'character', name: 'Mara',                   description: "Lead — played by Vera Koss. At the edge. Held by something we can't see." },
+  ]})
+  const p6Eli      = await prisma.entity.create({ data: { projectId: p6.id, type: 'character', name: 'Eli',          description: 'Solitary, desert archetype. Lead.' } })
+  const p6Mara     = await prisma.entity.create({ data: { projectId: p6.id, type: 'character', name: 'Mara',         description: 'Mirror character, ravine edge. Lead.' } })
+  const p6Stranger = await prisma.entity.create({ data: { projectId: p6.id, type: 'character', name: 'The Stranger', description: 'Appears Scene 3. Catalyst.' } })
+
+  // P6 — Talent
+  const p6tMarcus = await prisma.talent.create({ data: { projectId: p6.id, name: 'Marcus Webb',   role: 'Lead Actor' } })
+  const p6tSola   = await prisma.talent.create({ data: { projectId: p6.id, name: 'Sola Adeyemi',  role: 'Lead Actor' } })
+  const p6tJin    = await prisma.talent.create({ data: { projectId: p6.id, name: 'Jin Park',      role: 'Supporting' } })
+  await prisma.talentAssignment.createMany({ data: [
+    { talentId: p6tMarcus.id, entityId: p6Eli.id },
+    { talentId: p6tSola.id,   entityId: p6Mara.id },
+    { talentId: p6tJin.id,    entityId: p6Stranger.id },
   ]})
 
   await prisma.document.create({ data: {
@@ -1366,31 +1412,35 @@ FADE TO BLACK.`,
 
   // ── Final count ───────────────────────────────────────────────────────────
   const counts = {
-    projects:       await prisma.project.count(),
-    scenes:         await prisma.scene.count(),
-    shots:          await prisma.shot.count(),
-    entities:       await prisma.entity.count(),
-    documents:      await prisma.document.count(),
-    users:          await prisma.user.count(),
-    teamMembers:    await prisma.teamMember.count(),
-    projectMembers: await prisma.projectMember.count(),
-    milestones:     await prisma.milestone.count(),
-    actionItems:    await prisma.actionItem.count(),
-    locations:      await prisma.location.count(),
+    projects:          await prisma.project.count(),
+    scenes:            await prisma.scene.count(),
+    shots:             await prisma.shot.count(),
+    entities:          await prisma.entity.count(),
+    documents:         await prisma.document.count(),
+    users:             await prisma.user.count(),
+    teamMembers:       await prisma.teamMember.count(),
+    projectMembers:    await prisma.projectMember.count(),
+    milestones:        await prisma.milestone.count(),
+    actionItems:       await prisma.actionItem.count(),
+    locations:         await prisma.location.count(),
+    talents:           await prisma.talent.count(),
+    talentAssignments: await prisma.talentAssignment.count(),
   }
 
   console.log('  ─────────────────────────────')
-  console.log(`  Projects:        ${counts.projects}`)
-  console.log(`  Scenes:          ${counts.scenes}`)
-  console.log(`  Shots:           ${counts.shots}`)
-  console.log(`  Entities:        ${counts.entities}`)
-  console.log(`  Documents:       ${counts.documents}`)
-  console.log(`  Users:           ${counts.users}`)
-  console.log(`  TeamMembers:     ${counts.teamMembers}`)
-  console.log(`  ProjectMembers:  ${counts.projectMembers}`)
-  console.log(`  Milestones:      ${counts.milestones}`)
-  console.log(`  ActionItems:     ${counts.actionItems}`)
-  console.log(`  Locations:       ${counts.locations}`)
+  console.log(`  Projects:           ${counts.projects}`)
+  console.log(`  Scenes:             ${counts.scenes}`)
+  console.log(`  Shots:              ${counts.shots}`)
+  console.log(`  Entities:           ${counts.entities}`)
+  console.log(`  Documents:          ${counts.documents}`)
+  console.log(`  Users:              ${counts.users}`)
+  console.log(`  TeamMembers:        ${counts.teamMembers}`)
+  console.log(`  ProjectMembers:     ${counts.projectMembers}`)
+  console.log(`  Milestones:         ${counts.milestones}`)
+  console.log(`  ActionItems:        ${counts.actionItems}`)
+  console.log(`  Locations:          ${counts.locations}`)
+  console.log(`  Talents:            ${counts.talents}`)
+  console.log(`  TalentAssignments:  ${counts.talentAssignments}`)
   console.log('  ─────────────────────────────')
   console.log('  Done.\n')
 }
