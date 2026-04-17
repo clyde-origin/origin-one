@@ -17,6 +17,7 @@ export const keys = {
   scenes:         (projectId: string) => ['scenes', projectId] as const,
   shots:          (sceneId: string) => ['shots', sceneId] as const,
   moodboard:      (projectId: string) => ['moodboard', projectId] as const,
+  moodboardTabs:  (projectId: string) => ['moodboardTabs', projectId] as const,
   locations:      (projectId: string) => ['locations', projectId] as const,
   castRoles:      (projectId: string) => ['castRoles', projectId] as const,
   artItems:       (projectId: string) => ['artItems', projectId] as const,
@@ -591,17 +592,18 @@ export function useDeleteArtItem(projectId: string) {
 
 export function useMoodboardTabs(projectId: string) {
   return useQuery({
-    queryKey: ['moodboardTabs', projectId],
+    queryKey: keys.moodboardTabs(projectId),
     queryFn:  () => db.getMoodboardTabs(projectId),
     enabled:  !!projectId,
   })
 }
 
+
 export function useCreateMoodboardTab(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: db.createMoodboardTab,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['moodboardTabs', projectId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.moodboardTabs(projectId) }),
   })
 }
 
@@ -610,7 +612,7 @@ export function useUpdateMoodboardTab(projectId: string) {
   return useMutation({
     mutationFn: ({ id, fields }: { id: string; fields: { name?: string; sortOrder?: number } }) =>
       db.updateMoodboardTab(id, fields),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['moodboardTabs', projectId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.moodboardTabs(projectId) }),
   })
 }
 
@@ -619,7 +621,7 @@ export function useDeleteMoodboardTab(projectId: string) {
   return useMutation({
     mutationFn: db.deleteMoodboardTab,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['moodboardTabs', projectId] })
+      qc.invalidateQueries({ queryKey: keys.moodboardTabs(projectId) })
       qc.invalidateQueries({ queryKey: keys.moodboard(projectId) })
     },
   })
