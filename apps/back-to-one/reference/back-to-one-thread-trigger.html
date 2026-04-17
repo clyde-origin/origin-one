@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Back to One — Thread Trigger · Reference</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;700&family=Geist:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Thread system colors — fixed, never project-derived */
+:root {
+  --tv: #7C3AED;
+  --tv-bg: rgba(124,58,237,0.12);
+  --tv-border: rgba(124,58,237,0.25);
+  --ta: #F59E0B;
+  --ta-bg: rgba(245,158,11,0.12);
+}
+
+body {
+  background: #060606; font-family: 'Geist', sans-serif; color: #fff;
+  min-height: 100vh; padding: 40px 24px 80px;
+  display: flex; flex-direction: column; align-items: center; gap: 28px;
+}
+.label { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(255,255,255,0.2); }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 860px; }
+.btn { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; padding: 7px 14px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: rgba(255,255,255,0.35); cursor: pointer; transition: all 0.18s; }
+.btn:hover { color: rgba(255,255,255,0.7); }
+.btn.on { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18); color: #fff; }
+
+/* Phone */
+.phone { width: 390px; height: 844px; background: #080808; border-radius: 48px; border: 1px solid rgba(255,255,255,0.07); overflow: hidden; position: relative; flex-shrink: 0; display: flex; flex-direction: column; }
+
+/* App chrome */
+.status-bar { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; flex-shrink: 0; position: relative; z-index: 2; }
+.status-time { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+.status-right { font-size: 12px; color: rgba(255,255,255,0.7); }
+.app-header { text-align: center; padding: 2px 24px 12px; position: relative; z-index: 2; flex-shrink: 0; }
+.app-arc { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #6B5CE7; margin-bottom: 3px; }
+.app-title { font-size: 26px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1; margin-bottom: 6px; }
+.app-tabs { display: flex; border-bottom: 1px solid rgba(255,255,255,0.07); flex-shrink: 0; position: relative; z-index: 2; }
+.app-tab { flex: 1; text-align: center; padding: 10px 0; font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.28); position: relative; }
+.app-tab.act { color: #fff; }
+.app-tab.act::after { content: ''; position: absolute; bottom: -1px; left: 16px; right: 16px; height: 2px; background: #6B5CE7; border-radius: 1px; }
+.sub-pills { display: flex; justify-content: center; gap: 8px; padding: 10px 20px; flex-shrink: 0; position: relative; z-index: 2; }
+.sub-pill { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.3); }
+.sub-pill.act { background: rgba(107,92,231,0.1); border-color: rgba(107,92,231,0.25); color: #6B5CE7; }
+
+/* Shot list */
+.shot-list { flex: 1; overflow-y: auto; scrollbar-width: none; padding: 4px 18px 20px; position: relative; z-index: 1; }
+.shot-list::-webkit-scrollbar { display: none; }
+.scene-hdr { display: flex; align-items: center; gap: 9px; padding: 10px 0 6px; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 6px; }
+.scene-n { font-family: 'Geist Mono', monospace; font-size: 9px; font-weight: 700; border-radius: 4px; padding: 2px 6px; letter-spacing: 0.05em; background: rgba(107,92,231,0.15); color: #9B8FE8; }
+.scene-t { font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #9B8FE8; }
+
+.shot-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.02);
+  margin-bottom: 6px; cursor: pointer;
+  position: relative; /* for dot badge */
+  transition: background 0.15s;
+}
+.shot-row:hover { background: rgba(255,255,255,0.04); }
+.shot-n { font-family: 'Geist Mono', monospace; font-size: 12px; font-weight: 700; min-width: 34px; color: #6B5CE7; }
+.shot-d { font-size: 12px; color: rgba(255,255,255,0.5); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shot-sz { font-family: 'Geist Mono', monospace; font-size: 9px; color: rgba(255,255,255,0.25); }
+
+/* Thread dot badge on shot row */
+.thread-dot {
+  position: absolute;
+  bottom: -6px; right: -6px;
+  min-width: 20px; height: 20px;
+  border-radius: 10px;
+  background: var(--tv);
+  border: 2px solid #080808;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Geist Mono', monospace;
+  font-size: 9px; font-weight: 700; color: #fff;
+  padding: 0 5px;
+  z-index: 2;
+}
+.thread-dot.unread { background: #D97706; color: #fff; } /* darker amber for readability */
+
+/* ======================== */
+/* DETAIL SHEET             */
+/* Two-zone: sticky + scroll*/
+/* ======================== */
+.detail-sheet {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: #111; border-top: 1px solid rgba(255,255,255,0.07);
+  border-radius: 24px 24px 0 0; height: 90%;
+  transform: translateY(100%);
+  transition: transform 0.38s cubic-bezier(0.32,0.72,0,1);
+  z-index: 20;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.detail-sheet.open { transform: translateY(0); }
+
+/* Zone 1 — sticky: handle + header + image + fields */
+.sheet-sticky { flex-shrink: 0; }
+.sheet-handle { width: 36px; height: 4px; background: rgba(255,255,255,0.13); border-radius: 2px; margin: 12px auto 0; }
+.sheet-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.sheet-type { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.3); }
+.sheet-right { display: flex; align-items: center; gap: 14px; }
+
+/* Thread icon button in header */
+.ti-btn { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; transition: background 0.15s; flex-shrink: 0; }
+.ti-btn:hover { background: rgba(255,255,255,0.06); }
+.ti-svg { width: 18px; height: 18px; }
+.ti-badge {
+  position: absolute; top: -2px; right: -2px;
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 1.5px solid #111;
+}
+
+.sheet-done { font-size: 14px; font-weight: 600; color: #6B5CE7; cursor: pointer; }
+
+/* Shot hero image */
+.shot-img { width: 100%; aspect-ratio: 16/9; position: relative; overflow: hidden; flex-shrink: 0; }
+.shot-img-fill { width: 100%; height: 100%; }
+.shot-badge-overlay { position: absolute; top: 10px; left: 10px; font-family: 'Geist Mono', monospace; font-size: 10px; font-weight: 700; padding: 4px 9px; border-radius: 6px; background: rgba(107,92,231,0.2); border: 1px solid rgba(107,92,231,0.3); color: #9B8FE8; }
+
+/* Fields */
+.sheet-fields { padding: 14px 20px 12px; display: flex; flex-direction: column; gap: 12px; }
+.fld-lbl { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.13em; text-transform: uppercase; color: rgba(255,255,255,0.25); margin-bottom: 4px; }
+.fld-val { font-size: 14px; color: rgba(255,255,255,0.7); line-height: 1.5; }
+.fld-meta { font-size: 12px; color: rgba(255,255,255,0.35); line-height: 1.55; }
+
+/* Thread preview row */
+.thread-row {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px; padding: 9px 12px; cursor: pointer;
+  transition: background 0.15s; margin-top: 4px;
+}
+.thread-row:hover { background: rgba(255,255,255,0.05); }
+
+/* Stacked avatars in thread row */
+.stack { display: flex; align-items: center; }
+.sa {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 7px; font-weight: 700;
+  border: 1.5px solid #111; margin-left: -5px; flex-shrink: 0;
+}
+.sa:first-child { margin-left: 0; }
+
+.thread-row-text { flex: 1; min-width: 0; }
+.thread-row-count { font-family: 'Geist Mono', monospace; font-size: 9px; color: var(--tv); margin-bottom: 2px; }
+.thread-row-last { font-size: 12px; color: rgba(255,255,255,0.45); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread-chev { font-size: 14px; color: rgba(255,255,255,0.2); transition: transform 0.2s; flex-shrink: 0; }
+.thread-chev.open { transform: rotate(90deg); }
+
+/* Thread divider */
+.thread-divider { height: 1px; background: rgba(255,255,255,0.07); display: none; }
+.thread-divider.show { display: block; }
+
+/* Zone 2 — scrollable thread messages */
+.thread-zone {
+  flex: 1; overflow-y: auto; scrollbar-width: none;
+  display: none; flex-direction: column;
+  min-height: 0;
+}
+.thread-zone::-webkit-scrollbar { display: none; }
+.thread-zone.open { display: flex; }
+
+.thread-msgs { flex: 1; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; scrollbar-width: none; }
+.thread-msgs::-webkit-scrollbar { display: none; }
+
+/* Message bubble */
+.mb-row { display: flex; gap: 8px; align-items: flex-end; }
+.mb-row.me { flex-direction: row-reverse; }
+.mb-av { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; flex-shrink: 0; }
+.mb-col { display: flex; flex-direction: column; gap: 2px; max-width: 75%; }
+.mb-row.me .mb-col { align-items: flex-end; }
+.mb-name { font-family: 'Geist Mono', monospace; font-size: 8px; letter-spacing: 0.06em; color: rgba(255,255,255,0.28); text-transform: uppercase; }
+.mb-bubble { padding: 8px 11px; border-radius: 12px; font-size: 12px; color: rgba(255,255,255,0.82); line-height: 1.5; }
+.mb-bubble.other { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.07); border-bottom-left-radius: 3px; }
+.mb-bubble.me { border-bottom-right-radius: 3px; }
+.mb-time { font-family: 'Geist Mono', monospace; font-size: 8px; color: rgba(255,255,255,0.2); }
+
+/* Reply bar */
+.reply-bar { flex-shrink: 0; padding: 8px 14px 16px; border-top: 1px solid rgba(255,255,255,0.06); }
+.reply-input-row { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 7px 12px; }
+.reply-av { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; flex-shrink: 0; }
+.reply-input { flex: 1; background: transparent; border: none; outline: none; font-family: 'Geist', sans-serif; font-size: 12px; color: #fff; }
+.reply-input::placeholder { color: rgba(255,255,255,0.22); }
+.reply-send { font-size: 14px; color: var(--tv); font-weight: 700; cursor: pointer; flex-shrink: 0; }
+
+/* START THREAD SHEET */
+.start-sheet {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: #181818; border-top: 1px solid rgba(255,255,255,0.08);
+  border-radius: 24px 24px 0 0;
+  transform: translateY(100%);
+  transition: transform 0.35s cubic-bezier(0.32,0.72,0,1);
+  z-index: 30; padding: 0 0 34px;
+}
+.start-sheet.open { transform: translateY(0); }
+.ss-handle { width: 36px; height: 4px; background: rgba(255,255,255,0.13); border-radius: 2px; margin: 12px auto 0; }
+.ss-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 14px 20px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.ss-on { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.22); margin-bottom: 3px; }
+.ss-title { font-size: 16px; font-weight: 700; color: #fff; }
+.ss-cancel { font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.3); cursor: pointer; padding-top: 4px; }
+.ss-context { display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.ss-ctx-img { width: 44px; height: 28px; border-radius: 5px; flex-shrink: 0; }
+.ss-ctx-lbl { font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase; color: rgba(255,255,255,0.3); }
+.ss-compose { display: flex; align-items: flex-start; gap: 11px; padding: 14px 20px; }
+.ss-av { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+.ss-textarea { flex: 1; background: transparent; border: none; outline: none; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px; font-family: 'Geist', sans-serif; font-size: 14px; color: #fff; min-height: 70px; resize: none; line-height: 1.55; }
+.ss-textarea::placeholder { color: rgba(255,255,255,0.2); }
+.ss-footer { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px 0; }
+.ss-tools { display: flex; gap: 16px; }
+.ss-tool { font-size: 18px; opacity: 0.2; cursor: pointer; }
+.ss-post { padding: 9px 22px; border-radius: 20px; font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; cursor: pointer; background: var(--tv-bg); border: 1px solid var(--tv-border); color: var(--tv); }
+
+.home-bar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 134px; height: 5px; background: rgba(255,255,255,0.18); border-radius: 3px; z-index: 50; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<div class="label">Back to One · Thread Trigger · Reference Spec · April 2026</div>
+
+<div class="controls">
+  <button class="btn on"  onclick="go('list',this)">Shotlist</button>
+  <button class="btn"     onclick="go('no-thread',this)">No Thread</button>
+  <button class="btn"     onclick="go('has-thread',this)">Has Thread</button>
+  <button class="btn"     onclick="go('thread-open',this)">Thread Open</button>
+  <button class="btn"     onclick="go('start',this)">Start Thread</button>
+</div>
+
+<div class="phone" id="phone">
+
+  <div class="status-bar" style="position:relative;z-index:2;">
+    <span class="status-time">9:41</span>
+    <span class="status-right">▲▲▲ ▐▌</span>
+  </div>
+
+  <div class="app-header">
+    <div class="app-arc">One Arc</div>
+    <div class="app-title">The Weave</div>
+  </div>
+
+  <div class="app-tabs">
+    <div class="app-tab">Script</div>
+    <div class="app-tab act">Shotlist</div>
+    <div class="app-tab">Storyboard</div>
+  </div>
+
+  <div class="sub-pills">
+    <div class="sub-pill act">Story</div>
+    <div class="sub-pill">Shooting</div>
+    <div class="sub-pill">v1 ↓</div>
+  </div>
+
+  <!-- Shot list -->
+  <div class="shot-list">
+    <div class="scene-hdr">
+      <span class="scene-n">01</span>
+      <span class="scene-t">Apogee — Eli</span>
+    </div>
+
+    <!-- No thread -->
+    <div class="shot-row" onclick="go('no-thread',null)">
+      <span class="shot-n">01A</span>
+      <span class="shot-d">Eli silhouetted against horizon</span>
+      <span class="shot-sz">EWS</span>
+    </div>
+
+    <!-- Unread thread — amber badge bottom-right of row -->
+    <div class="shot-row" onclick="go('has-thread',null)" style="position:relative;">
+      <span class="shot-n">01B</span>
+      <span class="shot-d">Eyes — scanning the distance</span>
+      <span class="shot-sz">CU</span>
+      <div class="thread-dot unread">4</div>
+    </div>
+
+    <div class="scene-hdr" style="margin-top:8px;">
+      <span class="scene-n">02</span>
+      <span class="scene-t">The Edge — Mara</span>
+    </div>
+
+    <!-- Seen thread — violet badge bottom-right of row -->
+    <div class="shot-row" onclick="go('has-thread',null)" style="position:relative;">
+      <span class="shot-n">02A</span>
+      <span class="shot-d">Mara at ravine edge, full body</span>
+      <span class="shot-sz">WS</span>
+      <div class="thread-dot">2</div>
+    </div>
+
+    <!-- No thread -->
+    <div class="shot-row" onclick="go('no-thread',null)">
+      <span class="shot-n">02B</span>
+      <span class="shot-d">Her hands on the rock face</span>
+      <span class="shot-sz">MCU</span>
+    </div>
+  </div>
+
+  <!-- ======================== -->
+  <!-- DETAIL SHEET             -->
+  <!-- ======================== -->
+  <div class="detail-sheet" id="detailSheet">
+
+    <!-- ZONE 1: Sticky -->
+    <div class="sheet-sticky">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <span class="sheet-type">Shot</span>
+        <div class="sheet-right">
+          <!-- Thread icon — state set by JS -->
+          <div class="ti-btn" id="tiBtnWrapper" onclick="openStartOrExpand()">
+            <svg class="ti-svg" viewBox="0 0 20 20" fill="none">
+              <path id="tiPath" d="M3 5C3 3.9 3.9 3 5 3h10c1.1 0 2 .9 2 2v7c0 1.1-.9 2-2 2H7l-4 3V5z" stroke-width="1.5" stroke-linejoin="round"/>
+              <line id="tiLine" x1="7" y1="8" x2="13" y2="8" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <div class="ti-badge" id="tiBadge" style="display:none;"></div>
+          </div>
+          <span class="sheet-done">Done</span>
+        </div>
+      </div>
+
+      <!-- Hero image -->
+      <div class="shot-img">
+        <div class="shot-img-fill" id="heroFill" style="height:100%;background:linear-gradient(135deg,#0d0d1a,#1a1a3a);"></div>
+        <div class="shot-badge-overlay" id="heroBadge">01B · CU</div>
+      </div>
+
+      <!-- Fields -->
+      <div class="sheet-fields">
+        <div>
+          <div class="fld-lbl">Description</div>
+          <div class="fld-val">Eyes — scanning the distance. The weight of the choice visible.</div>
+        </div>
+        <div>
+          <div class="fld-lbl">Notes</div>
+          <div class="fld-meta">Tight. No air. The iris fills the frame.</div>
+        </div>
+
+        <!-- Thread preview row — only shown when thread exists -->
+        <div id="threadRowWrap" style="display:none;">
+          <div class="fld-lbl">Thread</div>
+          <div class="thread-row" onclick="toggleThread()">
+            <div class="stack">
+              <div class="sa" style="background:rgba(231,76,60,0.2);color:#E74C3C;">JH</div>
+              <div class="sa" style="background:rgba(39,174,96,0.2);color:#27AE60;">CS</div>
+              <div class="sa" style="background:rgba(124,58,237,0.2);color:#7C3AED;">NV</div>
+            </div>
+            <div class="thread-row-text">
+              <div class="thread-row-count">4 replies</div>
+              <div class="thread-row-last">35mm gives us the breathing room — let's lock it</div>
+            </div>
+            <div class="thread-chev" id="threadChev">›</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="thread-divider" id="threadDivider"></div>
+    </div>
+
+    <!-- ZONE 2: Scrollable thread -->
+    <div class="thread-zone" id="threadZone">
+      <div class="thread-msgs">
+        <div class="mb-row">
+          <div class="mb-av" style="background:rgba(231,76,60,0.18);border:1px solid rgba(231,76,60,0.3);color:#E74C3C;">JH</div>
+          <div class="mb-col">
+            <div class="mb-name">Jess H.</div>
+            <div class="mb-bubble other">35mm gives us the breathing room we need. Let's lock it.</div>
+            <div class="mb-time">9:20 AM</div>
+          </div>
+        </div>
+        <div class="mb-row">
+          <div class="mb-av" style="background:rgba(39,174,96,0.18);border:1px solid rgba(39,174,96,0.3);color:#27AE60;">CS</div>
+          <div class="mb-col">
+            <div class="mb-name">Caleb S.</div>
+            <div class="mb-bubble other">Bringing both. Decide on location based on available light.</div>
+            <div class="mb-time">9:22 AM</div>
+          </div>
+        </div>
+        <div class="mb-row me">
+          <div class="mb-av" style="background:rgba(107,92,231,0.18);border:1px solid rgba(107,92,231,0.3);color:#6B5CE7;">NV</div>
+          <div class="mb-col">
+            <div class="mb-bubble me" style="background:rgba(107,92,231,0.65);">Perfect. Let's decide on location.</div>
+            <div class="mb-time">9:25 AM</div>
+          </div>
+        </div>
+        <div class="mb-row">
+          <div class="mb-av" style="background:rgba(26,188,156,0.18);border:1px solid rgba(26,188,156,0.3);color:#1ABC9C;">SK</div>
+          <div class="mb-col">
+            <div class="mb-name">Sam K.</div>
+            <div class="mb-bubble other">More space = cleaner sound. I'm for the wider lens.</div>
+            <div class="mb-time">9:26 AM</div>
+          </div>
+        </div>
+      </div>
+      <div class="reply-bar">
+        <div class="reply-input-row">
+          <div class="reply-av" style="background:rgba(107,92,231,0.18);border:1px solid rgba(107,92,231,0.3);color:#6B5CE7;">NV</div>
+          <input class="reply-input" placeholder="Reply…">
+          <span class="reply-send">↑</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end detail-sheet -->
+
+  <!-- START THREAD SHEET -->
+  <div class="start-sheet" id="startSheet">
+    <div class="ss-handle"></div>
+    <div class="ss-header">
+      <div>
+        <div class="ss-on">Start Thread on</div>
+        <div class="ss-title">Shot 01A · EWS</div>
+      </div>
+      <div class="ss-cancel" onclick="closeStart()">Cancel</div>
+    </div>
+    <div class="ss-context">
+      <div class="ss-ctx-img" style="background:linear-gradient(135deg,#1a1a2e,#16213e);"></div>
+      <span class="ss-ctx-lbl">Shot 01A · EWS · Scene 01</span>
+    </div>
+    <div class="ss-compose">
+      <div class="ss-av" style="background:rgba(107,92,231,0.18);border:1px solid rgba(107,92,231,0.3);color:#6B5CE7;">NV</div>
+      <textarea class="ss-textarea" placeholder="Start a discussion about this shot…"></textarea>
+    </div>
+    <div class="ss-footer">
+      <div class="ss-tools">
+        <span class="ss-tool">📎</span>
+        <span class="ss-tool">🖼</span>
+      </div>
+      <div class="ss-post">Post Thread ↑</div>
+    </div>
+  </div>
+
+  <div class="home-bar"></div>
+</div>
+
+<script>
+let threadOpen = false;
+let currentState = 'list';
+
+function go(state, btn) {
+  if (btn) {
+    document.querySelectorAll('.btn').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+  }
+  currentState = state;
+  threadOpen = false;
+
+  // Close everything first
+  document.getElementById('detailSheet').classList.remove('open');
+  document.getElementById('startSheet').classList.remove('open');
+  setThreadZone(false);
+
+  if (state === 'list') return;
+
+  if (state === 'no-thread') {
+    setupDetail(false);
+    document.getElementById('detailSheet').classList.add('open');
+  }
+  if (state === 'has-thread') {
+    setupDetail(true);
+    document.getElementById('detailSheet').classList.add('open');
+  }
+  if (state === 'thread-open') {
+    setupDetail(true);
+    document.getElementById('detailSheet').classList.add('open');
+    setTimeout(() => { threadOpen = false; toggleThread(); }, 60);
+  }
+  if (state === 'start') {
+    setupDetail(false);
+    document.getElementById('detailSheet').classList.add('open');
+    setTimeout(() => document.getElementById('startSheet').classList.add('open'), 60);
+  }
+}
+
+function setupDetail(hasThread) {
+  // Thread icon
+  const path = document.getElementById('tiPath');
+  const line = document.getElementById('tiLine');
+  const badge = document.getElementById('tiBadge');
+
+  if (hasThread) {
+    path.setAttribute('stroke', '#7C3AED');
+    line.setAttribute('stroke', '#7C3AED');
+    path.style.opacity = '1';
+    line.style.opacity = '1';
+    badge.style.display = 'block';
+    badge.style.background = '#F59E0B';
+    badge.style.width = '10px';
+    badge.style.height = '10px';
+  } else {
+    path.setAttribute('stroke', '#7C3AED');
+    line.setAttribute('stroke', '#7C3AED');
+    path.style.opacity = '1';
+    line.style.opacity = '1';
+    path.style.opacity = '0.45';
+    line.style.opacity = '0.45';
+    badge.style.display = 'none';
+  }
+
+  // Thread row
+  document.getElementById('threadRowWrap').style.display = hasThread ? 'block' : 'none';
+}
+
+function toggleThread() {
+  threadOpen = !threadOpen;
+  setThreadZone(threadOpen);
+  document.getElementById('threadChev').classList.toggle('open', threadOpen);
+  document.getElementById('threadDivider').classList.toggle('show', threadOpen);
+}
+
+function setThreadZone(open) {
+  const zone = document.getElementById('threadZone');
+  zone.classList.toggle('open', open);
+}
+
+function openStartOrExpand() {
+  if (currentState === 'has-thread' || currentState === 'thread-open') {
+    toggleThread();
+  } else {
+    document.getElementById('startSheet').classList.add('open');
+  }
+}
+
+function closeStart() {
+  document.getElementById('startSheet').classList.remove('open');
+}
+
+// Init
+go('list', document.querySelector('.btn.on'));
+</script>
+</body>
+</html>

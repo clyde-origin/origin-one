@@ -1,213 +1,409 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { useProject, useThreads, useCreateThread, usePostMessage, useCrew } from '@/lib/hooks/useOriginOne'
-
-import { LoadingState, CrewAvatar } from '@/components/ui'
-import { GhostRect, GhostPill, GhostCircle, SectionLabel, EmptyCTA } from '@/components/ui/EmptyState'
-import { PageHeader } from '@/components/ui/PageHeader'
-import { FAB } from '@/components/ui/FAB'
-import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
+import { useProject, useThreads, usePostMessage, useCrew } from '@/lib/hooks/useOriginOne'
+import { useThreadContexts, type ThreadContext } from '@/lib/thread-context'
+import { Sheet } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor , statusHex, statusLabel } from '@/lib/utils/phase'
 import type { Thread, ThreadMessage, TeamMember } from '@/types'
 
-// ── Helpers ───────────────────────────────────────────────
+// Thread-system fixed colors — never project-derived
+const TV = '#7C3AED'
+const TA = '#F59E0B'
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  const days = Math.floor(hrs / 24)
-  return `${days}d ago`
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  return (name[0] ?? '?').toUpperCase()
 }
 
-// ── Thread List Item ──────────────────────────────────────
+function avatarStyle(seed: string): { bg: string; color: string } {
+  const palette = [
+    { bg: 'rgba(124,58,237,0.2)', color: '#a78bfa' },
+    { bg: 'rgba(100,112,243,0.2)', color: '#818cf8' },
+    { bg: 'rgba(20,184,166,0.2)', color: '#5eead4' },
+    { bg: 'rgba(74,222,128,0.2)', color: '#86efac' },
+    { bg: 'rgba(239,68,68,0.2)', color: '#fca5a5' },
+    { bg: 'rgba(245,158,11,0.2)', color: '#fbbf24' },
+  ]
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) | 0
+  return palette[Math.abs(hash) % palette.length]
+}
 
-function ThreadRow({ thread, onTap }: { thread: Thread; onTap: (t: Thread) => void }) {
-  const lastMsg = thread.messages.length > 0
-    ? thread.messages[thread.messages.length - 1]
-    : null
+function timeStamp(dateStr: string): string {
+  const d = new Date(dateStr)
+  const now = new Date()
+  const sameDay = d.toDateString() === now.toDateString()
+  if (sameDay) {
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  }
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
+const GRADIENTS: Record<string, string> = {
+  'th-shot':      'linear-gradient(135deg, #1a1030, #0d1a2e)',
+  'th-cast':      'linear-gradient(135deg, #1a0e0e, #2a1218)',
+  'th-location':  'linear-gradient(135deg, #0a1a14, #081a1a)',
+  'th-art':       'linear-gradient(135deg, #0d1a0a, #0a180d)',
+  'th-task':      'linear-gradient(135deg, #1a1506, #1a1208)',
+  'th-milestone': 'linear-gradient(135deg, #0c0e1a, #0a0c1e)',
+  'th-scene':     'linear-gradient(135deg, #080e1a, #06101e)',
+}
+
+const CHIP_STYLES: Record<string, { bg: string; border: string; color: string }> = {
+  'obj-shot':      { bg: 'rgba(124,58,237,0.1)',  border: 'rgba(124,58,237,0.22)',  color: 'rgba(167,139,250,0.9)' },
+  'obj-task':      { bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.22)',  color: 'rgba(251,191,36,0.9)' },
+  'obj-milestone': { bg: 'rgba(100,112,243,0.1)', border: 'rgba(100,112,243,0.22)', color: 'rgba(129,140,248,0.9)' },
+  'obj-location':  { bg: 'rgba(0,184,148,0.1)',   border: 'rgba(0,184,148,0.22)',   color: 'rgba(52,211,153,0.9)' },
+  'obj-cast':      { bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.22)',   color: 'rgba(252,165,165,0.9)' },
+  'obj-art':       { bg: 'rgba(74,222,128,0.1)',  border: 'rgba(74,222,128,0.22)',  color: 'rgba(134,239,172,0.9)' },
+  'obj-scene':     { bg: 'rgba(56,189,248,0.1)',  border: 'rgba(56,189,248,0.22)',  color: 'rgba(125,211,252,0.9)' },
+}
+
+// ── Sub-components ────────────────────────────────────────
+
+function ObjChip({ chipType, children, style }: { chipType: string; children: React.ReactNode; style?: React.CSSProperties }) {
+  const s = CHIP_STYLES[chipType] ?? CHIP_STYLES['obj-task']
+  return (
+    <span
+      className="font-mono uppercase"
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        padding: '2px 8px', borderRadius: 20,
+        fontSize: 8, letterSpacing: '0.06em',
+        background: s.bg, border: `1px solid ${s.border}`, color: s.color,
+        marginBottom: 5,
+        ...style,
+      }}
+    >
+      {children}
+    </span>
+  )
+}
+
+function Thumbnail({ ctx, size = 52 }: { ctx: ThreadContext; size?: number }) {
+  const bg = GRADIENTS[ctx.thumbnailGradient] ?? GRADIENTS['th-task']
+  return (
+    <div
+      style={{
+        width: size, height: size,
+        borderRadius: size >= 48 ? 7 : 6,
+        flexShrink: 0, overflow: 'hidden',
+        position: 'relative',
+        border: '1px solid rgba(255,255,255,0.07)',
+        background: bg,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      {ctx.thumbnailType === 'image' && ctx.thumbnailValue?.startsWith('http') ? (
+        <img src={ctx.thumbnailValue} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      ) : ctx.thumbnailType === 'avatar' && ctx.thumbnailValue ? (
+        <div style={{
+          width: 28, height: 28, borderRadius: '50%',
+          ...avatarStyle(ctx.thumbnailValue),
+          border: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 9, fontWeight: 700,
+        }}>{initialsOf(ctx.thumbnailValue)}</div>
+      ) : ctx.thumbnailGradient === 'th-task' ? (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <rect x="3" y="3" width="12" height="12" rx="2" stroke="rgba(251,191,36,0.5)" strokeWidth="1.2"/>
+          <path d="M6 9l2 2 4-4" stroke="rgba(251,191,36,0.7)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      ) : ctx.thumbnailGradient === 'th-milestone' ? (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="5.5" stroke="rgba(129,140,248,0.5)" strokeWidth="1.2"/>
+          <path d="M9 6v3l2 1.5" stroke="rgba(129,140,248,0.7)" strokeWidth="1.2" strokeLinecap="round"/>
+        </svg>
+      ) : ctx.thumbnailGradient === 'th-location' ? (
+        <svg width="16" height="18" viewBox="0 0 16 18" fill="none">
+          <path d="M8 1C5.24 1 3 3.24 3 6c0 3.75 5 11 5 11s5-7.25 5-11c0-2.76-2.24-5-5-5z" stroke="rgba(52,211,153,0.6)" strokeWidth="1.2" fill="rgba(52,211,153,0.1)"/>
+          <circle cx="8" cy="6" r="1.5" stroke="rgba(52,211,153,0.7)" strokeWidth="1.2"/>
+        </svg>
+      ) : ctx.thumbnailGradient === 'th-art' ? (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <rect x="3" y="5" width="12" height="8" rx="1.5" stroke="rgba(134,239,172,0.5)" strokeWidth="1.2"/>
+          <path d="M3 8h12" stroke="rgba(134,239,172,0.4)" strokeWidth="1"/>
+          <circle cx="6" cy="6.5" r="1" fill="rgba(134,239,172,0.5)"/>
+        </svg>
+      ) : ctx.thumbnailGradient === 'th-scene' ? (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <rect x="3" y="4" width="12" height="10" rx="1.5" stroke="rgba(125,211,252,0.5)" strokeWidth="1.2"/>
+          <path d="M3 7h12" stroke="rgba(125,211,252,0.4)" strokeWidth="1"/>
+        </svg>
+      ) : ctx.thumbnailGradient === 'th-shot' && ctx.thumbnailValue ? (
+        <div style={{
+          position: 'absolute', bottom: 4, right: 4,
+          fontFamily: "'Geist Mono', monospace", fontSize: 8, fontWeight: 700,
+          letterSpacing: '0.04em', padding: '1px 4px', borderRadius: 3,
+          background: 'rgba(0,0,0,0.5)', color: 'rgba(167,139,250,0.9)',
+        }}>{ctx.thumbnailValue}</div>
+      ) : null}
+    </div>
+  )
+}
+
+function ThreadCard({
+  thread, context, crew, onTap, resolved = false,
+}: {
+  thread: Thread
+  context: ThreadContext
+  crew: TeamMember[]
+  onTap: () => void
+  resolved?: boolean
+}) {
+  const lastMsg = thread.messages[thread.messages.length - 1] ?? null
+  const sender = lastMsg ? crew.find(c => c.userId === lastMsg.createdBy) : null
+  const senderName = sender?.User?.name ?? (lastMsg ? 'Unknown' : '')
+
+  const participantIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (thread.createdBy) ids.add(thread.createdBy)
+    for (const m of thread.messages) if (m.createdBy) ids.add(m.createdBy)
+    return Array.from(ids)
+  }, [thread])
 
   return (
     <div
-      className="flex items-start gap-3 px-4 py-3 border-b border-border cursor-pointer transition-colors active:bg-surface2"
-      onClick={() => onTap(thread)}
+      onClick={() => { haptic('light'); onTap() }}
+      style={{
+        margin: '0 14px 6px',
+        background: 'rgba(255,255,255,0.025)',
+        border: `1px solid ${thread.unread ? 'rgba(124,58,237,0.2)' : 'rgba(255,255,255,0.06)'}`,
+        borderRadius: 12,
+        padding: '10px 12px 10px 10px',
+        cursor: 'pointer',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex', gap: 10, alignItems: 'flex-start',
+        opacity: resolved ? 0.4 : 1,
+      }}
     >
-      {/* Thread icon */}
-      <div className="w-9 h-9 rounded-lg bg-surface2 border border-border flex items-center justify-center flex-shrink-0 mt-0.5">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-muted">
-          <path d="M2 4a2 2 0 012-2h8a2 2 0 012 2v6a2 2 0 01-2 2H6l-3 2V12a2 2 0 01-1-1.73V4z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </div>
+      {thread.unread && (
+        <div style={{
+          position: 'absolute', left: 0, top: 10, bottom: 10,
+          width: 2.5, background: TA, borderRadius: '0 2px 2px 0',
+        }} />
+      )}
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-base leading-snug text-text truncate font-medium">{thread.title}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {lastMsg ? (
-            <span className="font-mono text-xs text-muted truncate">{lastMsg.content.slice(0, 60)}{lastMsg.content.length > 60 ? '...' : ''}</span>
-          ) : (
-            <span className="font-mono text-xs text-muted">No messages yet</span>
-          )}
-        </div>
-      </div>
+      <Thumbnail ctx={context} />
 
-      {/* Time + count */}
-      <div className="flex flex-col items-end flex-shrink-0 gap-1">
-        <span className="font-mono text-[0.5rem] text-muted">{timeAgo(thread.updatedAt)}</span>
-        {thread.messages.length > 0 && (
-          <span className="font-mono text-[0.5rem] text-muted">{thread.messages.length}</span>
-        )}
-      </div>
-    </div>
-  )
-}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <ObjChip chipType={context.chipType} style={resolved ? { opacity: 0.7 } : undefined}>
+          {context.displayLabel}
+        </ObjChip>
 
-// ── Message Bubble ────────────────────────────────────────
-
-function MessageBubble({ message, crew }: { message: ThreadMessage; crew: TeamMember[] }) {
-  const author = message.createdBy ? crew.find(c => c.userId === message.createdBy) : null
-  const authorName = author ? author.User.name : null
-
-  return (
-    <div className="px-4 py-2.5">
-      <div className="flex items-start gap-2.5">
-        {authorName ? (
-          <CrewAvatar name={authorName} size={28} />
-        ) : (
-          <div className="w-7 h-7 rounded-full bg-surface3 border border-border flex items-center justify-center flex-shrink-0">
-            <span className="font-mono text-[0.45rem] text-muted">?</span>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 7 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 11.5, color: 'rgba(255,255,255,0.5)',
+              lineHeight: 1.45,
+              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+            }}>
+              {lastMsg ? (
+                <>
+                  <span style={{ color: 'rgba(255,255,255,0.65)', fontWeight: 600 }}>{senderName}:</span>{' '}
+                  {lastMsg.content}
+                </>
+              ) : (
+                <span style={{ color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>No messages yet</span>
+              )}
+            </div>
           </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="font-mono text-xs font-medium text-text">
-              {authorName ?? 'Anonymous'}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
+            <span className="font-mono" style={{ fontSize: 9, color: 'rgba(255,255,255,0.22)' }}>
+              {timeStamp(thread.updatedAt)}
             </span>
-            <span className="font-mono text-[0.5rem] text-muted">{timeAgo(message.createdAt)}</span>
+            {resolved ? (
+              <span className="font-mono uppercase" style={{
+                fontSize: 8, letterSpacing: '0.08em', padding: '2px 6px', borderRadius: 10,
+                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                color: 'rgba(255,255,255,0.22)',
+              }}>Done</span>
+            ) : thread.unread ? (
+              <div style={{
+                width: 17, height: 17, borderRadius: '50%', background: TA,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: "'Geist Mono', monospace", fontSize: 8, fontWeight: 700, color: '#fff',
+              }}>{thread.messages.length}</div>
+            ) : null}
           </div>
-          <div className="text-sm text-text2 leading-relaxed">{message.content}</div>
         </div>
+
+        {!resolved && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              {participantIds.slice(0, 3).map((uid, i) => {
+                const c = crew.find(m => m.userId === uid)
+                const name = c?.User?.name ?? '?'
+                const av = avatarStyle(name)
+                return (
+                  <div key={uid} style={{
+                    width: 18, height: 18, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 6, fontWeight: 700,
+                    marginLeft: i === 0 ? 0 : -4,
+                    border: '1.5px solid #080808',
+                    flexShrink: 0,
+                    background: av.bg, color: av.color,
+                  }}>{initialsOf(name)}</div>
+                )
+              })}
+            </div>
+            {thread.messages.length > 0 && (
+              <span className="font-mono" style={{ fontSize: 9, color: 'rgba(255,255,255,0.22)' }}>
+                {thread.messages.length} {thread.messages.length === 1 ? 'reply' : 'replies'}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-// ── Thread Detail Sheet ───────────────────────────────────
+// ── Thread Sheet (full conversation view) ─────────────────
 
-function ThreadSheet({ thread, crew, projectId, onClose }: {
-  thread: Thread | null; crew: TeamMember[]; projectId: string; onClose: () => void
+function ThreadDetailSheet({
+  thread, context, crew, projectId, meId, onClose,
+}: {
+  thread: Thread | null
+  context: ThreadContext | null
+  crew: TeamMember[]
+  projectId: string
+  meId: string | null
+  onClose: () => void
 }) {
   const [reply, setReply] = useState('')
   const postMessage = usePostMessage(projectId)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Scroll to bottom when messages change
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [thread?.messages.length])
 
-  if (!thread) return null
+  if (!thread || !context) return null
 
   const handleSend = () => {
-    if (!reply.trim()) return
-    postMessage.mutate({ threadId: thread.id, createdBy: '', content: reply.trim() })
+    if (!reply.trim() || !meId) return
+    postMessage.mutate({ threadId: thread.id, createdBy: meId, content: reply.trim() })
     setReply('')
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }
+  const meMember = meId ? crew.find(c => c.userId === meId) : null
+  const meName = meMember?.User?.name ?? ''
 
   return (
-    <>
-      <SheetHeader title={thread.title} onClose={onClose} />
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '82vh' }}>
+      {/* Sheet header — thumb + chip + project, Done button */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '12px 18px',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        flexShrink: 0,
+      }}>
+        <Thumbnail ctx={context} size={48} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <ObjChip chipType={context.chipType}>{context.displayLabel}</ObjChip>
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            fontSize: 13, fontWeight: 600, color: TV,
+            background: 'transparent', border: 'none', cursor: 'pointer',
+            padding: '4px 8px',
+          }}
+        >
+          Done
+        </button>
+      </div>
+
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-0 pt-3 pb-2" style={{ maxHeight: '50vh' }}>
+      <div ref={scrollRef} style={{
+        flex: 1, overflowY: 'auto', padding: '14px 16px',
+        display: 'flex', flexDirection: 'column', gap: 12,
+      }}>
         {thread.messages.length === 0 ? (
-          <div className="flex items-center justify-center py-8">
-            <span className="font-mono text-xs text-muted">No messages yet — start the conversation</span>
+          <div style={{ padding: '40px 0', textAlign: 'center' }}>
+            <span className="font-mono" style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)' }}>
+              No messages yet — start the conversation
+            </span>
           </div>
         ) : (
-          <div className="divide-y divide-border">
-            {thread.messages
-              .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-              .map(msg => <MessageBubble key={msg.id} message={msg} crew={crew} />)
-            }
-          </div>
+          [...thread.messages]
+            .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+            .map(msg => {
+              const author = crew.find(c => c.userId === msg.createdBy)
+              const name = author?.User?.name ?? 'Unknown'
+              const role = author?.role ?? ''
+              const av = avatarStyle(name)
+              return (
+                <div key={msg.id} style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 9, fontWeight: 700, flexShrink: 0,
+                    background: av.bg, color: av.color,
+                    border: `1px solid ${av.color}30`,
+                  }}>{initialsOf(name)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.65)', marginBottom: 3 }}>
+                      {name}{role ? ` · ${role}` : ''}
+                    </div>
+                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.55 }}>
+                      {msg.content}
+                    </div>
+                    <div className="font-mono" style={{ fontSize: 9, color: 'rgba(255,255,255,0.22)', marginTop: 4 }}>
+                      {timeStamp(msg.createdAt)}
+                    </div>
+                  </div>
+                </div>
+              )
+            })
         )}
       </div>
-      {/* Composer */}
-      <div className="px-4 pt-2 pb-2 border-t border-border">
-        <div className="flex items-end gap-2">
-          <textarea
+
+      {/* Reply bar */}
+      <div style={{ padding: '10px 14px 14px', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 9,
+          background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 22, padding: '8px 10px 8px 12px',
+        }}>
+          {meName && (
+            <div style={{
+              width: 24, height: 24, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 8, fontWeight: 700, flexShrink: 0,
+              ...avatarStyle(meName),
+            }}>{initialsOf(meName)}</div>
+          )}
+          <input
             value={reply}
             onChange={e => setReply(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Write a reply..."
-            rows={1}
-            className="flex-1 bg-surface2 border border-border2 rounded-lg px-3 py-2.5 text-text text-sm outline-none focus:border-accent transition-colors resize-none"
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSend() } }}
+            placeholder="Reply…"
+            style={{
+              flex: 1, background: 'transparent', border: 'none', outline: 'none',
+              fontSize: 13, color: '#fff',
+            }}
           />
           <button
             onClick={handleSend}
-            disabled={!reply.trim()}
-            className="w-9 h-9 rounded-lg bg-accent flex items-center justify-center transition-opacity disabled:opacity-40 active:opacity-80 flex-shrink-0"
-            aria-label="Send"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M14 2L7 9M14 2l-4 12-3-5-5-3 12-4z" stroke="white" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
+            disabled={!reply.trim() || !meId}
+            style={{
+              width: 28, height: 28, borderRadius: '50%',
+              background: TV, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: 'none', cursor: 'pointer', flexShrink: 0,
+              fontSize: 13, color: '#fff',
+              opacity: reply.trim() && meId ? 1 : 0.4,
+            }}
+          >↑</button>
         </div>
       </div>
-    </>
-  )
-}
-
-// ── New Thread Sheet ──────────────────────────────────────
-
-function NewThreadSheet({ projectId, onClose, onCreate }: {
-  projectId: string
-  onClose: () => void
-  onCreate: (data: { title: string; createdBy: string }) => void
-}) {
-  const [title, setTitle] = useState('')
-
-  const handleSubmit = () => {
-    if (!title.trim()) return
-    onCreate({ title: title.trim(), createdBy: '' })
-    onClose()
-  }
-
-  return (
-    <>
-      <SheetHeader title="New Thread" onClose={onClose} />
-      <SheetBody>
-        <div className="flex flex-col gap-4">
-          <div>
-            <label className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Title</label>
-            <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="What's this about?"
-              onKeyDown={e => { if (e.key === 'Enter') handleSubmit() }}
-              className="w-full bg-surface2 border border-border2 rounded-lg px-3 py-2.5 text-text text-base outline-none focus:border-accent transition-colors" />
-          </div>
-          <button onClick={handleSubmit} disabled={!title.trim()}
-            className="w-full py-3 rounded-lg bg-accent text-white font-semibold text-base transition-opacity disabled:opacity-40 active:opacity-80">
-            Create Thread
-          </button>
-        </div>
-      </SheetBody>
-    </>
+    </div>
   )
 }
 
@@ -215,62 +411,160 @@ function NewThreadSheet({ projectId, onClose, onCreate }: {
 
 export default function ThreadsPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
+  const router = useRouter()
   const { data: project } = useProject(projectId)
-  const accent = project?.color || getProjectColor(projectId)
-  const [selected, setSelected] = useState<Thread | null>(null)
-  const [creating, setCreating] = useState(false)
-
   const { data: threads, isLoading: loadingThreads } = useThreads(projectId)
-  const { data: crew, isLoading: loadingCrew }       = useCrew(projectId)
-  const createThread = useCreateThread(projectId)
+  const { data: crew, isLoading: loadingCrew } = useCrew(projectId)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const allThreads = threads ?? []
-  const allCrew    = crew ?? []
+  const allThreads: Thread[] = useMemo(() => (threads ?? []) as Thread[], [threads])
+  const allCrew: TeamMember[] = useMemo(() => (crew ?? []) as TeamMember[], [crew])
+  const meId: string | null = allCrew[0]?.userId ?? null
 
-  // Keep selected thread in sync with fresh data
-  const liveSelected = selected ? allThreads.find(t => t.id === selected.id) ?? selected : null
+  const contexts = useThreadContexts(projectId, allThreads)
+
+  // Partition: unread / recent / resolved (resolved is always empty — no resolvedAt field yet)
+  const unreadThreads = allThreads.filter(t => t.unread && !(t as any).resolvedAt)
+  const recentThreads = allThreads.filter(t => !t.unread && !(t as any).resolvedAt)
+  const resolvedThreads = allThreads.filter(t => !!(t as any).resolvedAt)
+
+  const activeCount = allThreads.length - resolvedThreads.length
+  const unreadCount = unreadThreads.length
+
+  const selected = selectedId ? allThreads.find(t => t.id === selectedId) ?? null : null
+  const selectedContext = selected ? contexts.get(selected.id) ?? null : null
+
+  const projectName = project?.name ?? ''
 
   return (
-    <div className="screen">
-      <PageHeader projectId={projectId} title="Threads" meta={project ? (<div className="flex flex-col items-center gap-1.5"><span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''} />
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      minHeight: '100vh', background: '#060606', color: '#fff',
+    }}>
+      {/* Page header — matches reference exactly */}
+      <div style={{ textAlign: 'center', padding: '16px 20px 0', position: 'relative' }}>
+        <button
+          onClick={() => router.back()}
+          aria-label="Back"
+          style={{
+            position: 'absolute', left: 16, top: 12,
+            width: 32, height: 32, borderRadius: '50%',
+            background: 'rgba(255,255,255,0.05)', border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'rgba(255,255,255,0.5)', fontSize: 16,
+          }}
+        >‹</button>
+        <div className="font-mono uppercase" style={{
+          fontSize: 9, letterSpacing: '0.16em', color: TV, marginBottom: 3,
+        }}>{projectName}</div>
+        <div style={{
+          fontSize: 22, fontWeight: 700, letterSpacing: '0.05em',
+          textTransform: 'uppercase', lineHeight: 1, marginBottom: 5,
+        }}>Threads</div>
+        <div className="font-mono" style={{
+          fontSize: 10, color: 'rgba(255,255,255,0.22)',
+          letterSpacing: '0.05em', marginBottom: 12,
+        }}>
+          {activeCount} active · {unreadCount} unread
+        </div>
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.07)' }} />
+      </div>
 
-      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 80 }}>
-        {loadingThreads || loadingCrew ? <LoadingState /> : (
-          allThreads.length === 0 ? (
-            <>
-              <SectionLabel>Threads</SectionLabel>
-              <div style={{ margin: '0 16px 8px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.06)', borderRadius: 9, padding: 14 }}>
-                <GhostPill w={64} h={18} />
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 8 }}>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}><GhostRect w={140} h={12} /><GhostRect w="100%" h={10} /><GhostRect w="80%" h={10} /></div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}><GhostRect w={36} h={10} /><GhostCircle size={18} /></div>
-                </div>
-              </div>
-              <div style={{ margin: '0 16px 8px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.06)', borderRadius: 9, padding: 14 }}>
-                <GhostPill w={80} h={18} />
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 8 }}>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}><GhostRect w={120} h={12} /><GhostRect w="100%" h={10} /></div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}><GhostRect w={36} h={10} /></div>
-                </div>
-              </div>
-              <EmptyCTA icon="🧵" headline="Start a thread." sub="Tie conversations to shots, tasks, locations — anything." />
-            </>
-          ) : (
-            allThreads.map(t => <ThreadRow key={t.id} thread={t} onTap={setSelected} />)
-          )
+      {/* Scroll area */}
+      <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 32 }}>
+        {loadingThreads || loadingCrew ? (
+          <div style={{ padding: 24, textAlign: 'center' }}>
+            <span className="font-mono" style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)' }}>Loading…</span>
+          </div>
+        ) : allThreads.length === 0 ? (
+          <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', marginBottom: 8 }}>No threads yet</div>
+            <div className="font-mono" style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)', letterSpacing: '0.04em', lineHeight: 1.6 }}>
+              Start one from any shot, scene, task, or item.
+            </div>
+          </div>
+        ) : (
+          <>
+            {unreadThreads.length > 0 && (
+              <>
+                <SectionLabel label="Unread" count={unreadThreads.length} />
+                {unreadThreads.map(t => (
+                  <ThreadCard
+                    key={t.id}
+                    thread={t}
+                    context={contexts.get(t.id) ?? fallbackContext()}
+                    crew={allCrew}
+                    onTap={() => setSelectedId(t.id)}
+                  />
+                ))}
+              </>
+            )}
+            {recentThreads.length > 0 && (
+              <>
+                <SectionLabel label="Recent" count={recentThreads.length} topMargin={unreadThreads.length > 0 ? 4 : 0} />
+                {recentThreads.map(t => (
+                  <ThreadCard
+                    key={t.id}
+                    thread={t}
+                    context={contexts.get(t.id) ?? fallbackContext()}
+                    crew={allCrew}
+                    onTap={() => setSelectedId(t.id)}
+                  />
+                ))}
+              </>
+            )}
+            {resolvedThreads.length > 0 && (
+              <>
+                <SectionLabel label="Resolved" count={resolvedThreads.length} topMargin={4} />
+                {resolvedThreads.map(t => (
+                  <ThreadCard
+                    key={t.id}
+                    thread={t}
+                    context={contexts.get(t.id) ?? fallbackContext()}
+                    crew={allCrew}
+                    onTap={() => setSelectedId(t.id)}
+                    resolved
+                  />
+                ))}
+              </>
+            )}
+          </>
         )}
       </div>
 
-      <FAB accent={accent} projectId={projectId} onPress={() => { haptic('light'); setCreating(true) }} />
-
-      <Sheet open={!!selected} onClose={() => setSelected(null)} maxHeight="90vh">
-        <ThreadSheet thread={liveSelected} crew={allCrew} projectId={projectId} onClose={() => setSelected(null)} />
-      </Sheet>
-
-      <Sheet open={creating} onClose={() => setCreating(false)}>
-        <NewThreadSheet projectId={projectId} onClose={() => setCreating(false)}
-          onCreate={(data) => createThread.mutate(data)} />
+      <Sheet open={!!selected} onClose={() => setSelectedId(null)} maxHeight="88vh">
+        <ThreadDetailSheet
+          thread={selected}
+          context={selectedContext}
+          crew={allCrew}
+          projectId={projectId}
+          meId={meId}
+          onClose={() => setSelectedId(null)}
+        />
       </Sheet>
     </div>
   )
+}
+
+function SectionLabel({ label, count, topMargin = 0 }: { label: string; count: number; topMargin?: number }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '14px 20px 6px',
+      marginTop: topMargin,
+    }} className="font-mono uppercase">
+      <span style={{ fontSize: 9, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.22)' }}>{label}</span>
+      <span style={{ fontSize: 9, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.22)' }}>{count}</span>
+    </div>
+  )
+}
+
+function fallbackContext(): ThreadContext {
+  return {
+    displayLabel: 'Thread',
+    chipType: 'obj-task',
+    thumbnailType: 'icon',
+    thumbnailValue: null,
+    thumbnailGradient: 'th-task',
+  }
 }

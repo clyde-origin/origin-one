@@ -5,7 +5,7 @@ import { AnimatePresence } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { useProject, useScenes, useShotlistVersions, useCreateShotlistVersion, useUpdateShotlistVersionLabel } from '@/lib/hooks/useOriginOne'
+import { useProject, useScenes, useShotlistVersions, useCreateShotlistVersion, useUpdateShotlistVersionLabel, useThreads } from '@/lib/hooks/useOriginOne'
 import { getShotsByProject, updateShotOrder, updateShootOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene, deleteScene } from '@/lib/db/queries'
 import { LoadingState, ThreadsIcon } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -98,9 +98,10 @@ function NewShotSheet({ autoId, accent, onSave, onClose }: {
 
 // ── SHOTLIST VIEW ─────────────────────────────────────────
 
-function ShotlistView({ scenes, shots, accent, sortMode = 'story', onTapShot, onTapThumbnail, onInsert, onReorder, onReorderToScene, onRenameScene, onDeleteScene, onUpdateShot, onShootReorder }: {
+function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotId, onTapShot, onTapThumbnail, onInsert, onReorder, onReorderToScene, onRenameScene, onDeleteScene, onUpdateShot, onShootReorder }: {
   scenes: Scene[]; shots: Shot[]; accent: string
   sortMode?: 'story' | 'shooting'
+  threadByShotId?: Map<string, { count: number; unread: boolean }>
   onTapShot: (s: Shot) => void; onTapThumbnail: (s: Shot) => void
   onInsert: (index: number, sceneId: string) => void
   onReorder: (shotId: string, newIndex: number) => void
@@ -835,6 +836,24 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', onTapShot, on
                               )}
                             </div>
                           )}
+
+                          {/* Thread dot badge — violet if read, amber if unread */}
+                          {(() => {
+                            const td = threadByShotId?.get(shot.id)
+                            if (!td) return null
+                            return (
+                              <div style={{
+                                position: 'absolute', bottom: -6, right: -6,
+                                minWidth: 20, height: 20, borderRadius: 10,
+                                background: td.unread ? '#D97706' : '#7C3AED',
+                                border: '2px solid #080808',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontFamily: "'Geist Mono', monospace",
+                                fontSize: 9, fontWeight: 700, color: '#fff',
+                                padding: '0 5px', zIndex: 2,
+                              }}>{td.count}</div>
+                            )
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -1334,6 +1353,15 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const initialMode = (searchParams.get('mode') as SceneMakerMode) || 'shotlist'
   const [mode, setMode] = useState<SceneMakerMode>(initialMode)
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null)
+  const { data: threadsData } = useThreads(projectId)
+  const threadByShotId = useMemo(() => {
+    const map = new Map<string, { count: number; unread: boolean }>()
+    for (const t of (threadsData ?? [])) {
+      if (t.attachedToType !== 'shot') continue
+      map.set(t.attachedToId, { count: t.messages?.length ?? 0, unread: !!t.unread })
+    }
+    return map
+  }, [threadsData])
   const [newShotAt, setNewShotAt] = useState<{ index: number; sceneId: string } | null>(null)
   const [fabOpen, setFabOpen] = useState(false)
   const [boardScale, setBoardScale] = useState<StoryboardScale>('3up')
@@ -1887,7 +1915,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
             <>
               {mode === 'script' && (() => { console.log('[SceneMaker] rendering ScriptView, mode=', mode, 'scenes=', allScenes.length, 'sceneIds=', allScenes.map(s => s.id)); return null })()}
               {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} onUpdateScene={handleUpdateScene} />}
-              {mode === 'shotlist' && !previewVersion && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} sortMode={shotOrder} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onReorderToScene={handleReorderToScene} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} onUpdateShot={(shotId, fields) => { updateShot(shotId, fields).then(() => qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })).catch(err => console.error('Failed to update shot:', err)) }} onShootReorder={handleShootReorder} />}
+              {mode === 'shotlist' && !previewVersion && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} sortMode={shotOrder} threadByShotId={threadByShotId} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onReorderToScene={handleReorderToScene} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} onUpdateShot={(shotId, fields) => { updateShot(shotId, fields).then(() => qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })).catch(err => console.error('Failed to update shot:', err)) }} onShootReorder={handleShootReorder} />}
               {mode === 'shotlist' && previewVersion && <ShotlistView scenes={displayScenes} shots={displayShots} accent={accent} sortMode={shotOrder} onTapShot={() => {}} onTapThumbnail={() => {}} onInsert={() => {}} onReorder={() => {}} onReorderToScene={() => {}} onRenameScene={() => {}} onDeleteScene={() => {}} onUpdateShot={() => {}} />}
               {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} scale={boardScale} onTapShot={setSelectedShot} onReorder={handleReorder} />}
             </>
@@ -2050,7 +2078,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
       {/* Shot detail sheet */}
       <Sheet open={!!selectedShot} onClose={() => setSelectedShot(null)} maxHeight="95vh">
-        <ShotDetailSheet shot={selectedShot} accent={accent} onClose={() => setSelectedShot(null)} onUploadImage={handleUploadImage}
+        <ShotDetailSheet shot={selectedShot} accent={accent} projectId={projectId} onClose={() => setSelectedShot(null)} onUploadImage={handleUploadImage}
           onUpdateShot={(shotId, fields) => {
             updateShot(shotId, fields).then(() => {
               qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })

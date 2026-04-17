@@ -561,22 +561,24 @@ export async function getThreads(projectId: string) {
   return data.map((t: any) => ({
     ...t,
     messages: t.ThreadMessage ?? [],
+    unread: false,
   }))
 }
 
 export async function createThread(
   projectId: string,
-  title: string,
+  attachedToType: string,
+  attachedToId: string,
   createdBy: string,
 ) {
   const db = createClient()
   const { data, error } = await db
     .from('Thread')
-    .insert({ id: crypto.randomUUID(), projectId, title, createdBy })
+    .insert({ id: crypto.randomUUID(), projectId, attachedToType, attachedToId, createdBy })
     .select()
     .single()
   if (error) { console.error('createThread failed:', error); throw error }
-  return { ...data, messages: [] }
+  return { ...data, messages: [], unread: false }
 }
 
 export async function postMessage(
@@ -660,6 +662,7 @@ export async function getAllThreads() {
   return data.map((t: any) => ({
     ...t,
     messages: t.ThreadMessage ?? [],
+    unread: false,
   }))
 }
 

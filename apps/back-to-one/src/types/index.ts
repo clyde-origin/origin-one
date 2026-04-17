@@ -117,12 +117,26 @@ export interface Milestone {
 
 // ── THREAD ─────────────────────────────────────────────────
 
+export type ThreadAttachmentType =
+  | 'shot'
+  | 'scene'
+  | 'actionItem'
+  | 'cast'
+  | 'art'
+  | 'deliverable'
+  | 'location'
+  | 'milestone'
+  | 'crew'
+  | 'chatMessage'
+
 export interface Thread {
   id: string
   projectId: string
-  title: string
+  attachedToType: ThreadAttachmentType
+  attachedToId: string
   createdBy: string
   messages: ThreadMessage[]
+  unread: boolean
   createdAt: string
   updatedAt: string
 }

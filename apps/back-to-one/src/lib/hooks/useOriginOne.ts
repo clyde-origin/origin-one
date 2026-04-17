@@ -320,9 +320,19 @@ export function useThreads(projectId: string) {
 export function useCreateThread(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ title, createdBy }: { title: string; createdBy?: string }) =>
-      db.createThread(projectId, title, createdBy ?? ''),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.threads(projectId) }),
+    mutationFn: ({
+      attachedToType,
+      attachedToId,
+      createdBy,
+    }: {
+      attachedToType: string
+      attachedToId: string
+      createdBy: string
+    }) => db.createThread(projectId, attachedToType, attachedToId, createdBy),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.threads(projectId) })
+      qc.invalidateQueries({ queryKey: keys.allThreads() })
+    },
   })
 }
 

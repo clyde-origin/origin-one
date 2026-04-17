@@ -46,6 +46,22 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+function genericThreadLabel(attachedToType: string): string {
+  switch (attachedToType) {
+    case 'shot':        return 'Shot'
+    case 'scene':       return 'Scene'
+    case 'actionItem':  return 'Action'
+    case 'cast':        return 'Cast'
+    case 'art':         return 'Art'
+    case 'deliverable': return 'Deliverable'
+    case 'location':    return 'Location'
+    case 'milestone':   return 'Milestone'
+    case 'crew':        return 'Crew'
+    case 'chatMessage': return 'Chat'
+    default:            return 'Thread'
+  }
+}
+
 function isToday(dateStr: string): boolean {
   return daysUntil(dateStr) === 0
 }
@@ -498,7 +514,8 @@ function ThreadsPanel({ threads, projects }: { threads: Thread[]; projects: Proj
     const lastMsg = t.messages[t.messages.length - 1]
     const preview = lastMsg?.content ?? ''
     const timeAgo = t.updatedAt ? formatDate(t.updatedAt) : ''
-    const initials = t.title.slice(0, 2).toUpperCase()
+    const label = genericThreadLabel(t.attachedToType)
+    const initials = label.slice(0, 2).toUpperCase()
 
     return (
       <div key={t.id} style={{
@@ -516,7 +533,7 @@ function ThreadsPanel({ threads, projects }: { threads: Thread[]; projects: Proj
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-            <div style={{ fontWeight: 600, fontSize: 12, color: '#dddde8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</div>
+            <div style={{ fontWeight: 600, fontSize: 12, color: '#dddde8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
             <span className="font-mono" style={{ fontSize: 9, color: '#62627a', flexShrink: 0 }}>{timeAgo}</span>
           </div>
           {preview && (

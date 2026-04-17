@@ -146,34 +146,6 @@ export const SMShotSchema = z.object({
   updated_at:  z.string(),
 })
 
-// ── THREADS ────────────────────────────────────────────────
-
-export const ThreadMessageSchema = z.object({
-  id:         z.string().uuid(),
-  thread_id:  z.string().uuid(),
-  author_id:  z.string().uuid().nullable(),
-  tagged:     z.array(z.string().uuid()),
-  text:       z.string().min(1),
-  created_at: z.string(),
-})
-
-export const ThreadSchema = z.object({
-  id:            z.string().uuid(),
-  project_id:    z.string().uuid(),
-  context_type:  z.string(),
-  context_label: z.string(),
-  context_ref:   z.string(),
-  subject:       z.string(),
-  messages:      z.array(ThreadMessageSchema),
-  created_at:    z.string(),
-  updated_at:    z.string(),
-})
-
-export const PostMessageSchema = z.object({
-  text:   z.string().min(1, 'Message cannot be empty'),
-  tagged: z.array(z.string().uuid()).default([]),
-})
-
 // ── FORMS (used with React Hook Form) ─────────────────────
 
 export const NewActionItemFormSchema = z.object({
@@ -215,8 +187,6 @@ export type Milestone          = z.infer<typeof MilestoneSchema>
 export type SMVersion          = z.infer<typeof SMVersionSchema>
 export type SMScene            = z.infer<typeof SMSceneSchema>
 export type SMShot             = z.infer<typeof SMShotSchema>
-export type Thread             = z.infer<typeof ThreadSchema>
-export type ThreadMessage      = z.infer<typeof ThreadMessageSchema>
 export type NewActionItemForm  = z.infer<typeof NewActionItemFormSchema>
 export type NewMilestoneForm   = z.infer<typeof NewMilestoneFormSchema>
 export type NewCrewMemberForm  = z.infer<typeof NewCrewMemberFormSchema>
