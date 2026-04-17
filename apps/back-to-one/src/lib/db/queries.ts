@@ -998,5 +998,158 @@ export async function deleteArtItem(id: string): Promise<void> {
   const { error } = await db.from('Entity').delete().eq('id', id)
   if (error) { console.error('deleteArtItem failed:', error); throw error }
 }
-export async function getWorkflowNodes(_projectId: string): Promise<any[]> { return [] }
+// ── WORKFLOW NODES ───────────────────────────────────────
+
+export async function getWorkflowNodes(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('WorkflowNode')
+    .select('*')
+    .eq('projectId', projectId)
+    .order('sortOrder', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function createWorkflowNode(node: {
+  projectId: string; label: string; type: string; software?: string; notes?: string; assigneeId?: string | null; sortOrder?: number
+}) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('WorkflowNode')
+    .insert({
+      id: crypto.randomUUID().replace(/-/g, '').slice(0, 25),
+      projectId: node.projectId,
+      label: node.label,
+      type: node.type,
+      software: node.software ?? null,
+      notes: node.notes ?? null,
+      assigneeId: node.assigneeId ?? null,
+      sortOrder: node.sortOrder ?? 0,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createWorkflowNode failed:', error); throw error }
+  return data
+}
+
+export async function updateWorkflowNode(
+  id: string,
+  fields: { label?: string; type?: string; software?: string | null; notes?: string | null; assigneeId?: string | null; sortOrder?: number }
+): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('WorkflowNode').update(fields).eq('id', id)
+  if (error) { console.error('updateWorkflowNode failed:', error); throw error }
+}
+
+export async function deleteWorkflowNode(id: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('WorkflowNode').delete().eq('id', id)
+  if (error) { console.error('deleteWorkflowNode failed:', error); throw error }
+}
+
+// ── WORKFLOW EDGES ───────────────────────────────────────
+
+export async function getWorkflowEdges(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('WorkflowEdge')
+    .select('*')
+    .eq('projectId', projectId)
+    .order('createdAt', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function createWorkflowEdge(edge: {
+  projectId: string; sourceId: string; targetId: string; format?: string; inputFormat?: string; outputFormat?: string; handoff?: string; notes?: string
+}) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('WorkflowEdge')
+    .insert({
+      id: crypto.randomUUID().replace(/-/g, '').slice(0, 25),
+      projectId: edge.projectId,
+      sourceId: edge.sourceId,
+      targetId: edge.targetId,
+      format: edge.format ?? null,
+      inputFormat: edge.inputFormat ?? null,
+      outputFormat: edge.outputFormat ?? null,
+      handoff: edge.handoff ?? null,
+      notes: edge.notes ?? null,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createWorkflowEdge failed:', error); throw error }
+  return data
+}
+
+export async function updateWorkflowEdge(
+  id: string,
+  fields: { format?: string | null; inputFormat?: string | null; outputFormat?: string | null; handoff?: string | null; notes?: string | null }
+): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('WorkflowEdge').update(fields).eq('id', id)
+  if (error) { console.error('updateWorkflowEdge failed:', error); throw error }
+}
+
+export async function deleteWorkflowEdge(id: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('WorkflowEdge').delete().eq('id', id)
+  if (error) { console.error('deleteWorkflowEdge failed:', error); throw error }
+}
+
+// ── DELIVERABLES ─────────────────────────────────────────
+
+export async function getDeliverables(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Deliverable')
+    .select('*')
+    .eq('projectId', projectId)
+    .order('sortOrder', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function createDeliverable(del: {
+  projectId: string; title: string; length?: string; format?: string; aspectRatio?: string; resolution?: string; colorSpace?: string; soundSpecs?: string; notes?: string; sortOrder?: number
+}) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Deliverable')
+    .insert({
+      id: crypto.randomUUID().replace(/-/g, '').slice(0, 25),
+      projectId: del.projectId,
+      title: del.title,
+      length: del.length ?? null,
+      format: del.format ?? null,
+      aspectRatio: del.aspectRatio ?? null,
+      resolution: del.resolution ?? null,
+      colorSpace: del.colorSpace ?? null,
+      soundSpecs: del.soundSpecs ?? null,
+      notes: del.notes ?? null,
+      sortOrder: del.sortOrder ?? 0,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createDeliverable failed:', error); throw error }
+  return data
+}
+
+export async function updateDeliverable(
+  id: string,
+  fields: { title?: string; length?: string | null; format?: string | null; aspectRatio?: string | null; resolution?: string | null; colorSpace?: string | null; soundSpecs?: string | null; notes?: string | null; sortOrder?: number }
+): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('Deliverable').update(fields).eq('id', id)
+  if (error) { console.error('updateDeliverable failed:', error); throw error }
+}
+
+export async function deleteDeliverable(id: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('Deliverable').delete().eq('id', id)
+  if (error) { console.error('deleteDeliverable failed:', error); throw error }
+}
+
 export async function updateProjectOrder(_projectId: string, _fields: any) {}

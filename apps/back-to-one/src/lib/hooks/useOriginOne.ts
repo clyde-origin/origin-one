@@ -26,6 +26,8 @@ export const keys = {
   folders:        (projectId: string) => ['folders', projectId] as const,
   resources:      (projectId: string) => ['resources', projectId] as const,
   workflowNodes:  (projectId: string) => ['workflowNodes', projectId] as const,
+  workflowEdges:  (projectId: string) => ['workflowEdges', projectId] as const,
+  deliverables:   (projectId: string) => ['deliverables', projectId] as const,
   allCrew:        () => ['allCrew'] as const,
 }
 
@@ -396,6 +398,102 @@ export function useWorkflowNodes(projectId: string) {
     queryKey: keys.workflowNodes(projectId),
     queryFn:  () => db.getWorkflowNodes(projectId),
     enabled:  !!projectId,
+  })
+}
+
+export function useCreateWorkflowNode(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createWorkflowNode,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.workflowNodes(projectId) }),
+  })
+}
+
+export function useUpdateWorkflowNode(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: { label?: string; type?: string; software?: string | null; notes?: string | null; assigneeId?: string | null; sortOrder?: number } }) =>
+      db.updateWorkflowNode(id, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.workflowNodes(projectId) }),
+  })
+}
+
+export function useDeleteWorkflowNode(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteWorkflowNode,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.workflowNodes(projectId) })
+      qc.invalidateQueries({ queryKey: keys.workflowEdges(projectId) })
+    },
+  })
+}
+
+export function useWorkflowEdges(projectId: string) {
+  return useQuery({
+    queryKey: keys.workflowEdges(projectId),
+    queryFn:  () => db.getWorkflowEdges(projectId),
+    enabled:  !!projectId,
+  })
+}
+
+export function useCreateWorkflowEdge(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createWorkflowEdge,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.workflowEdges(projectId) }),
+  })
+}
+
+export function useUpdateWorkflowEdge(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: { format?: string | null; inputFormat?: string | null; outputFormat?: string | null; handoff?: string | null; notes?: string | null } }) =>
+      db.updateWorkflowEdge(id, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.workflowEdges(projectId) }),
+  })
+}
+
+export function useDeleteWorkflowEdge(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteWorkflowEdge,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.workflowEdges(projectId) }),
+  })
+}
+
+// ── DELIVERABLES ──────────────────────────────────────────
+
+export function useDeliverables(projectId: string) {
+  return useQuery({
+    queryKey: keys.deliverables(projectId),
+    queryFn:  () => db.getDeliverables(projectId),
+    enabled:  !!projectId,
+  })
+}
+
+export function useCreateDeliverable(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createDeliverable,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.deliverables(projectId) }),
+  })
+}
+
+export function useUpdateDeliverable(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: { title?: string; length?: string | null; format?: string | null; aspectRatio?: string | null; resolution?: string | null; colorSpace?: string | null; soundSpecs?: string | null; notes?: string | null; sortOrder?: number } }) =>
+      db.updateDeliverable(id, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.deliverables(projectId) }),
+  })
+}
+
+export function useDeleteDeliverable(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteDeliverable,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.deliverables(projectId) }),
   })
 }
 
