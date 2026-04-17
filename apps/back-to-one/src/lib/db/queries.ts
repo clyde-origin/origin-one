@@ -1015,10 +1015,11 @@ export async function createWorkflowNode(node: {
   projectId: string; label: string; type: string; software?: string; notes?: string; assigneeId?: string | null; sortOrder?: number
 }) {
   const db = createClient()
+  const now = new Date().toISOString()
   const { data, error } = await db
     .from('WorkflowNode')
     .insert({
-      id: crypto.randomUUID().replace(/-/g, '').slice(0, 25),
+      id: crypto.randomUUID(),
       projectId: node.projectId,
       label: node.label,
       type: node.type,
@@ -1026,6 +1027,8 @@ export async function createWorkflowNode(node: {
       notes: node.notes ?? null,
       assigneeId: node.assigneeId ?? null,
       sortOrder: node.sortOrder ?? 0,
+      createdAt: now,
+      updatedAt: now,
     })
     .select()
     .single()
@@ -1038,7 +1041,7 @@ export async function updateWorkflowNode(
   fields: { label?: string; type?: string; software?: string | null; notes?: string | null; assigneeId?: string | null; sortOrder?: number }
 ): Promise<void> {
   const db = createClient()
-  const { error } = await db.from('WorkflowNode').update(fields).eq('id', id)
+  const { error } = await db.from('WorkflowNode').update({ ...fields, updatedAt: new Date().toISOString() }).eq('id', id)
   if (error) { console.error('updateWorkflowNode failed:', error); throw error }
 }
 
@@ -1068,7 +1071,7 @@ export async function createWorkflowEdge(edge: {
   const { data, error } = await db
     .from('WorkflowEdge')
     .insert({
-      id: crypto.randomUUID().replace(/-/g, '').slice(0, 25),
+      id: crypto.randomUUID(),
       projectId: edge.projectId,
       sourceId: edge.sourceId,
       targetId: edge.targetId,
@@ -1116,10 +1119,11 @@ export async function createDeliverable(del: {
   projectId: string; title: string; length?: string; format?: string; aspectRatio?: string; resolution?: string; colorSpace?: string; soundSpecs?: string; notes?: string; sortOrder?: number
 }) {
   const db = createClient()
+  const now = new Date().toISOString()
   const { data, error } = await db
     .from('Deliverable')
     .insert({
-      id: crypto.randomUUID().replace(/-/g, '').slice(0, 25),
+      id: crypto.randomUUID(),
       projectId: del.projectId,
       title: del.title,
       length: del.length ?? null,
@@ -1130,6 +1134,8 @@ export async function createDeliverable(del: {
       soundSpecs: del.soundSpecs ?? null,
       notes: del.notes ?? null,
       sortOrder: del.sortOrder ?? 0,
+      createdAt: now,
+      updatedAt: now,
     })
     .select()
     .single()
@@ -1142,7 +1148,7 @@ export async function updateDeliverable(
   fields: { title?: string; length?: string | null; format?: string | null; aspectRatio?: string | null; resolution?: string | null; colorSpace?: string | null; soundSpecs?: string | null; notes?: string | null; sortOrder?: number }
 ): Promise<void> {
   const db = createClient()
-  const { error } = await db.from('Deliverable').update(fields).eq('id', id)
+  const { error } = await db.from('Deliverable').update({ ...fields, updatedAt: new Date().toISOString() }).eq('id', id)
   if (error) { console.error('updateDeliverable failed:', error); throw error }
 }
 
