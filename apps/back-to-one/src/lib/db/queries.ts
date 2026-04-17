@@ -1417,18 +1417,24 @@ export function subscribeToChatMessages(
   let channelName = 'chat-msgs'
   if (filter.channelId) channelName += `-c-${filter.channelId}`
   if (filter.projectId) channelName += `-p-${filter.projectId}`
-  const ch = db
-    .channel(channelName)
-    .on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'ChatMessage' },
-      (payload: any) => {
-        const m = payload.new
-        if (filter.channelId !== undefined && m.channelId !== filter.channelId) return
-        if (filter.projectId && m.projectId !== filter.projectId) return
-        onInsert(m)
-      },
-    )
-    .subscribe()
+  // Unique per subscription instance so repeat mounts don't collide on the same Supabase channel
+  channelName += `-${crypto.randomUUID()}`
+
+  const ch = db.channel(channelName)
+
+  // Register listeners BEFORE subscribing
+  ch.on(
+    'postgres_changes',
+    { event: 'INSERT', schema: 'public', table: 'ChatMessage' },
+    (payload: any) => {
+      const m = payload.new
+      if (filter.channelId !== undefined && m.channelId !== filter.channelId) return
+      if (filter.projectId && m.projectId !== filter.projectId) return
+      onInsert(m)
+    },
+  )
+
+  ch.subscribe()
+
   return () => { db.removeChannel(ch) }
 }
