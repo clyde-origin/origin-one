@@ -245,19 +245,31 @@ export interface Location {
 export interface CastRole {
   id: string
   projectId: string
-  name: string
-  desc: string
-  status: CastStatus
+  role: string
+  roleDesc: string
+  section: string
   scenes: string[]
+  roleNotes: string
+  assignmentId: string | null
+  cast: boolean
   talent: CastTalent | null
   createdAt: string
   updatedAt: string
 }
 
 export interface CastTalent {
+  id: string
   name: string
   initials: string
-  note: string
+  agency: string
+  email: string
+  phone: string
+  repName: string
+  repEmail: string
+  repPhone: string
+  dietary: string
+  shootDates: string[]
+  notes: string
 }
 
 export interface ArtItem {
