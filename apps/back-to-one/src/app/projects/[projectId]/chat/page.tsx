@@ -18,12 +18,10 @@ import { FAB } from '@/components/ui/FAB'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
+import { initials } from '@/lib/utils/formatting'
 
 // ── Helpers ────────────────────────────────────────────────
 
-function initials(name: string) {
-  return (name ?? '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?'
-}
 function stableColor(s: string) {
   let h = 0
   for (let i = 0; i < s.length; i++) h = s.charCodeAt(i) + ((h << 5) - h)

@@ -711,24 +711,24 @@ export function useCreateChatChannel(projectId: string) {
 
 export function useChannelMessages(channelId: string | null) {
   return useQuery({
-    queryKey: channelId ? keys.chatMessages(channelId) : ['chatMessages', 'none'],
-    queryFn:  () => channelId ? db.getChannelMessages(channelId) : Promise.resolve([]),
+    queryKey: keys.chatMessages(channelId ?? ''),
+    queryFn:  () => db.getChannelMessages(channelId as string),
     enabled:  !!channelId,
   })
 }
 
 export function useDMMessages(projectId: string, meId: string | null, partnerId: string | null) {
   return useQuery({
-    queryKey: meId && partnerId ? keys.dmMessages(projectId, meId, partnerId) : ['dmMessages', 'none'],
-    queryFn:  () => meId && partnerId ? db.getDMMessages(projectId, meId, partnerId) : Promise.resolve([]),
+    queryKey: keys.dmMessages(projectId, meId ?? '', partnerId ?? ''),
+    queryFn:  () => db.getDMMessages(projectId, meId as string, partnerId as string),
     enabled:  !!meId && !!partnerId,
   })
 }
 
 export function useDMList(projectId: string, meId: string | null) {
   return useQuery({
-    queryKey: meId ? keys.dmList(projectId, meId) : ['dmList', 'none'],
-    queryFn:  () => meId ? db.getDMList(projectId, meId) : Promise.resolve([]),
+    queryKey: keys.dmList(projectId, meId ?? ''),
+    queryFn:  () => db.getDMList(projectId, meId as string),
     enabled:  !!meId,
   })
 }

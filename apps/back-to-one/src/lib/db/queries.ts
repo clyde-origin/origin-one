@@ -1,4 +1,5 @@
 import { createBrowserAuthClient as createClient } from '@origin-one/auth'
+import { initials } from '@/lib/utils/formatting'
 
 // ── STORAGE ───────────────────────────────────────────────
 
@@ -956,8 +957,6 @@ export async function getCastRoles(projectId: string) {
     .order('createdAt', { ascending: true })
   if (error) { console.error('getCastRoles failed:', error); throw error }
 
-  const initials = (n: string) => (n ?? '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '+'
-
   return (data ?? []).map((e: any) => {
     const md = (e.metadata ?? {}) as { section?: string; scenes?: string[]; notes?: string }
     const assignment = (e.TalentAssignment ?? [])[0]
@@ -975,7 +974,7 @@ export async function getCastRoles(projectId: string) {
       talent: t ? {
         id: t.id,
         name: t.name ?? '',
-        initials: initials(t.name ?? ''),
+        initials: initials(t.name ?? '', '+'),
         agency: t.agency ?? '',
         email: t.email ?? '',
         phone: t.phone ?? '',
