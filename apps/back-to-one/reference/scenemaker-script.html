@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en" style="background:#04040a">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>SceneMaker Script</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+:root {
+  --bg:#04040a; --card:rgba(10,10,18,0.42); --border:rgba(255,255,255,0.07);
+  --text:#dddde8; --text2:#a0a0b8; --muted:#62627a; --accent:#c45adc;
+  --mono:'SF Mono','Fira Code','Menlo',monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;
+  --courier:'Courier New',Courier,monospace;
+}
+body { background:#04040a; font-family:var(--sans); color:var(--text); display:flex; justify-content:center; gap:24px; padding:24px 16px 48px; flex-wrap:wrap; }
+.col { display:flex; flex-direction:column; align-items:center; gap:10px; }
+.col-label { font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; }
+
+.phone { width:300px; height:620px; border-radius:36px; border:1px solid rgba(255,255,255,0.08); background:#04040a; display:flex; flex-direction:column; overflow:hidden; position:relative; }
+.bg-glow { position:absolute; inset:0; pointer-events:none; z-index:0; background: radial-gradient(ellipse 20% 25% at 50% 0%, rgba(214,110,240,0.08) 0%, transparent 100%), radial-gradient(ellipse 35% 45% at 50% 40%, rgba(214,110,240,0.07) 0%, transparent 100%), radial-gradient(ellipse 50% 55% at 50% 90%, rgba(196,90,220,0.09) 0%, transparent 100%), linear-gradient(90deg, #04040a 0%, #04040a 8%, rgba(4,4,10,0.5) 30%, transparent 50%, rgba(4,4,10,0.5) 70%, #04040a 92%, #04040a 100%); }
+.inner { position:relative; z-index:1; display:flex; flex-direction:column; height:100%; }
+
+.hdr { flex-shrink:0; padding:38px 16px 0; text-align:center; }
+.hdr-client { font-family:var(--mono); font-size:0.38rem; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:3px; }
+.hdr-project { font-weight:800; font-size:1.1rem; letter-spacing:-0.03em; color:var(--text); line-height:1; }
+.hdr-shots { font-family:var(--mono); font-size:0.38rem; color:var(--muted); letter-spacing:0.08em; margin-top:4px; }
+.mode-bar { display:flex; align-items:center; justify-content:center; padding:8px 14px 0; }
+.mode-toggle { display:flex; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:20px; padding:2px; }
+.mode-btn { font-family:var(--mono); font-size:0.38rem; letter-spacing:0.05em; text-transform:uppercase; padding:3px 9px; border-radius:16px; cursor:pointer; color:var(--muted); }
+.mode-btn.on { background:rgba(255,255,255,0.08); color:var(--text); }
+.ver-bar { display:flex; justify-content:center; padding:5px 14px 0; }
+.ver-pill { font-family:var(--mono); font-size:0.38rem; color:var(--muted); background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:4px; padding:2px 6px; }
+.hdr-line { height:1px; background:var(--border); margin:7px 14px 0; }
+
+.scroll { flex:1; overflow-y:auto; padding:10px 16px 120px; }
+.scroll::-webkit-scrollbar { display:none; }
+
+/* SCRIPT CONTENT */
+.scene-slug { font-family:var(--courier); font-size:0.65rem; font-weight:700; color:var(--text); letter-spacing:0.06em; text-transform:uppercase; padding:10px 0 4px; display:flex; align-items:center; gap:8px; }
+.scene-num-badge { font-family:var(--mono); font-size:0.38rem; font-weight:700; padding:1px 5px; border-radius:3px; letter-spacing:0.04em; }
+.action { font-family:var(--courier); font-size:0.6rem; color:var(--text2); line-height:1.7; padding:4px 0 6px; }
+.char-name { font-family:var(--courier); font-size:0.6rem; font-weight:700; color:var(--text); text-align:center; text-transform:uppercase; padding:6px 20% 0; letter-spacing:0.04em; }
+.dialogue { font-family:var(--courier); font-size:0.6rem; color:var(--text2); line-height:1.65; text-align:center; padding:1px 14% 6px; }
+.scene-divider { height:1px; background:var(--border); margin:8px 0 4px; }
+
+/* OVERLAY */
+.overlay { position:absolute; inset:0; background:rgba(4,4,10,0.8); backdrop-filter:blur(6px); z-index:20; opacity:0; pointer-events:none; transition:opacity 0.25s; border-radius:36px; }
+.overlay.on { opacity:1; pointer-events:all; }
+
+/* FAB */
+.fab-system { position:absolute; bottom:56px; left:50%; transform:translateX(-50%); width:0; height:0; z-index:30; }
+.back-fab { position:absolute; top:-15px; left:-84px; width:28px; height:28px; border-radius:50%; background:rgba(196,90,220,0.08); backdrop-filter:blur(12px); border:1px solid rgba(196,90,220,0.15); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1),opacity 0.25s ease; }
+.main-fab { position:absolute; top:-25px; left:-25px; width:50px; height:50px; border-radius:50%; background:rgba(196,90,220,0.15); backdrop-filter:blur(16px); border:1.5px solid rgba(196,90,220,0.45); box-shadow:0 4px 20px rgba(196,90,220,0.25),inset 0 1px 0 rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; z-index:31; cursor:pointer; transition:transform 0.28s cubic-bezier(0.34,1.56,0.64,1),box-shadow 0.2s; }
+.sf { position:absolute; top:-15px; left:-17px; width:34px; height:34px; border-radius:50%; background:rgba(196,90,220,0.08); backdrop-filter:blur(12px); border:1px solid rgba(196,90,220,0.2); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; cursor:pointer; transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1),opacity 0.25s ease; }
+.unread-dot { position:absolute; top:-1px; right:-1px; width:7px; height:7px; border-radius:50%; background:#4ab8e8; border:1.5px solid #04040a; }
+.branch-opt { position:absolute; display:flex; flex-direction:column; align-items:center; gap:5px; opacity:0; pointer-events:none; transform:translateY(16px); transition:opacity 0.22s ease,transform 0.32s cubic-bezier(0.34,1.56,0.64,1); }
+.branch-opt.on { opacity:1; pointer-events:all; transform:translateY(0); }
+.opt-circle { width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:1px solid; backdrop-filter:blur(16px); }
+.opt-label { font-family:var(--mono); font-size:0.33rem; letter-spacing:0.06em; text-transform:uppercase; white-space:nowrap; }
+.br-svg { position:absolute; bottom:-4px; left:-80px; opacity:0; transition:opacity 0.2s ease; pointer-events:none; }
+</style>
+</head>
+<body>
+
+<!-- SCRIPT — COLLAPSED FAB -->
+<div class="col">
+  <div class="col-label">Script mode</div>
+  <div class="phone" id="ph1">
+    <div class="bg-glow"></div>
+    <div class="inner">
+      <div class="hdr">
+        <div class="hdr-client">Origin Point</div>
+        <div class="hdr-project">Drifting</div>
+        <div class="hdr-shots">2 scenes &nbsp;·&nbsp; 13 shots</div>
+      </div>
+      <div class="mode-bar">
+        <div class="mode-toggle">
+          <div class="mode-btn on">Script</div>
+          <div class="mode-btn">Shotlist</div>
+          <div class="mode-btn">Storyboard</div>
+        </div>
+      </div>
+      <div class="ver-bar"><div class="ver-pill">v2</div></div>
+      <div class="hdr-line"></div>
+
+      <div class="scroll">
+
+        <!-- Scene 1 — warm amber -->
+        <div class="scene-slug">
+          <span class="scene-num-badge" style="background:rgba(232,160,32,0.12);color:#e8a020;">01</span>
+          <span style="color:rgba(232,160,32,0.8);">INT. ORIGIN STATION — NIGHT</span>
+        </div>
+        <div class="action">The station is cavernous and nearly empty. A departures board flickers overhead. LOHM (30s, weathered) enters, pack over one shoulder, and stops beneath the board. His breath fogs in the cold air.</div>
+        <div class="char-name" style="color:#e8a020;">LOHM</div>
+        <div class="dialogue">Last train. Of course it's the last train.</div>
+        <div class="action">He checks the platform number. Adjusts the strap. Walks.</div>
+
+        <div class="scene-divider"></div>
+
+        <!-- Scene 12 — cool violet -->
+        <div class="scene-slug">
+          <span class="scene-num-badge" style="background:rgba(196,90,220,0.12);color:#c45adc;">12</span>
+          <span style="color:rgba(196,90,220,0.7);">EXT. RAVINE EDGE — DUSK</span>
+        </div>
+        <div class="action">The ravine falls away below. LOHM stands at the edge, looking down. Wind moves through his hair. Far below, ALEPH (late 20s, deliberate) watches from a narrow ledge.</div>
+        <div class="char-name" style="color:#c45adc;">ALEPH</div>
+        <div class="dialogue">You came back.</div>
+        <div class="action">Lohm doesn't answer. He looks out across the ravine — the last bruise of light bleeding out of the sky.</div>
+        <div class="char-name" style="color:#c45adc;">LOHM</div>
+        <div class="dialogue">I didn't have anywhere else to go.</div>
+
+      </div>
+
+      <div class="overlay" id="ov1" onclick="closeAll(1)"></div>
+
+      <div class="fab-system" id="fs1">
+        <svg class="br-svg" id="br1" width="200" height="90" viewBox="0 0 200 90">
+          <line x1="100" y1="86" x2="28" y2="24" stroke="rgba(196,90,220,0.22)" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="100" y1="86" x2="100" y2="14" stroke="rgba(196,90,220,0.22)" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="100" y1="86" x2="172" y2="24" stroke="rgba(196,90,220,0.22)" stroke-width="1" stroke-dasharray="3 3"/>
+          <circle cx="100" cy="86" r="2.5" fill="rgba(196,90,220,0.4)"/>
+          <circle cx="28" cy="24" r="2" fill="rgba(232,160,32,0.5)"/>
+          <circle cx="100" cy="14" r="2" fill="rgba(100,112,243,0.5)"/>
+          <circle cx="172" cy="24" r="2" fill="rgba(196,90,220,0.5)"/>
+        </svg>
+
+        <!-- Add Scene — left -->
+        <div class="branch-opt" id="ns1" style="bottom:22px;left:-90px;">
+          <div class="opt-circle" style="background:rgba(232,160,32,0.1);border-color:rgba(232,160,32,0.3);">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:block;"><path d="M2 5h12M2 8h8M2 11h5" stroke="#e8a020" stroke-width="1.3" stroke-linecap="round"/><path d="M13 10v4M11 12h4" stroke="#e8a020" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <span class="opt-label" style="color:#e8a020;">Add Scene</span>
+        </div>
+
+        <!-- Add Description — center, rises highest -->
+        <div class="branch-opt" id="nd1" style="bottom:72px;left:-22px;">
+          <div class="opt-circle" style="background:rgba(100,112,243,0.1);border-color:rgba(100,112,243,0.3);">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:block;"><path d="M2 4h12M2 7h12M2 10h8" stroke="#6470f3" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <span class="opt-label" style="color:#6470f3;">Add Action</span>
+        </div>
+
+        <!-- Add Dialogue — right -->
+        <div class="branch-opt" id="ndl1" style="bottom:22px;left:46px;">
+          <div class="opt-circle" style="background:rgba(196,90,220,0.1);border-color:rgba(196,90,220,0.3);">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:block;"><path d="M3 3h10a1 1 0 011 1v4a1 1 0 01-1 1H8.5L5 11.5V9H3a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="#c45adc" stroke-width="1.3" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="opt-label" style="color:#c45adc;">Add Dialogue</span>
+        </div>
+
+        <div class="back-fab" id="bk1">
+          <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="rgba(255,255,255,0.4)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="sf" id="ch1">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="display:block;"><path d="M2 2.5h10a1 1 0 011 1v5a1 1 0 01-1 1H5L2 12V3.5a1 1 0 010-1z" stroke="rgba(255,255,255,0.45)" stroke-width="1.1" stroke-linejoin="round"/><path d="M4.5 5.5h5M4.5 7.5h3" stroke="rgba(255,255,255,0.3)" stroke-width="0.9" stroke-linecap="round"/></svg>
+        </div>
+        <div class="main-fab" id="mf1" onclick="toggleFab(1)">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:block;"><path d="M8 2V14M2 8H14" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="sf" id="th1">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="display:block;"><path d="M2 2h7.5a1 1 0 011 1v3a1 1 0 01-1 1H4.5L2 9.5V3a1 1 0 010-1z" stroke="rgba(255,255,255,0.45)" stroke-width="1.1" stroke-linejoin="round"/><path d="M5 6.5h6a1 1 0 011 1V10l-2-1H6a1 1 0 01-1-1V6.5" stroke="rgba(255,255,255,0.3)" stroke-width="1" stroke-linejoin="round"/></svg>
+          <div class="unread-dot"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FAB EXPANDED -->
+<div class="col">
+  <div class="col-label">FAB open</div>
+  <div class="phone">
+    <div class="bg-glow"></div>
+    <div class="inner">
+      <div class="hdr">
+        <div class="hdr-client">Origin Point</div>
+        <div class="hdr-project">Drifting</div>
+        <div class="hdr-shots">2 scenes &nbsp;·&nbsp; 13 shots</div>
+      </div>
+      <div class="mode-bar">
+        <div class="mode-toggle">
+          <div class="mode-btn on">Script</div>
+          <div class="mode-btn">Shotlist</div>
+          <div class="mode-btn">Storyboard</div>
+        </div>
+      </div>
+      <div class="ver-bar"><div class="ver-pill">v2</div></div>
+      <div class="hdr-line"></div>
+
+      <div class="scroll">
+        <div class="scene-slug">
+          <span class="scene-num-badge" style="background:rgba(232,160,32,0.12);color:#e8a020;">01</span>
+          <span style="color:rgba(232,160,32,0.8);">INT. ORIGIN STATION — NIGHT</span>
+        </div>
+        <div class="action">The station is cavernous and nearly empty. A departures board flickers overhead. LOHM enters, pack over one shoulder, and stops beneath the board.</div>
+        <div class="char-name" style="color:#e8a020;">LOHM</div>
+        <div class="dialogue">Last train. Of course it's the last train.</div>
+        <div class="scene-divider"></div>
+        <div class="scene-slug">
+          <span class="scene-num-badge" style="background:rgba(196,90,220,0.12);color:#c45adc;">12</span>
+          <span style="color:rgba(196,90,220,0.7);">EXT. RAVINE EDGE — DUSK</span>
+        </div>
+        <div class="action">The ravine falls away below. LOHM stands at the edge. ALEPH watches from a narrow ledge far below.</div>
+        <div class="char-name" style="color:#c45adc;">ALEPH</div>
+        <div class="dialogue">You came back.</div>
+      </div>
+
+      <!-- overlay open -->
+      <div class="overlay on"></div>
+
+      <div class="fab-system">
+        <!-- branches open -->
+        <svg class="br-svg" style="opacity:1;" width="200" height="90" viewBox="0 0 200 90">
+          <line x1="100" y1="86" x2="28" y2="24" stroke="rgba(196,90,220,0.22)" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="100" y1="86" x2="100" y2="14" stroke="rgba(196,90,220,0.22)" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="100" y1="86" x2="172" y2="24" stroke="rgba(196,90,220,0.22)" stroke-width="1" stroke-dasharray="3 3"/>
+          <circle cx="100" cy="86" r="2.5" fill="rgba(196,90,220,0.4)"/>
+          <circle cx="28" cy="24" r="2" fill="rgba(232,160,32,0.5)"/>
+          <circle cx="100" cy="14" r="2" fill="rgba(100,112,243,0.5)"/>
+          <circle cx="172" cy="24" r="2" fill="rgba(196,90,220,0.5)"/>
+        </svg>
+
+        <!-- Add Scene left -->
+        <div class="branch-opt on" style="bottom:22px;left:-90px;">
+          <div class="opt-circle" style="background:rgba(232,160,32,0.1);border-color:rgba(232,160,32,0.3);">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:block;"><path d="M2 5h12M2 8h8M2 11h5" stroke="#e8a020" stroke-width="1.3" stroke-linecap="round"/><path d="M13 10v4M11 12h4" stroke="#e8a020" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <span class="opt-label" style="color:#e8a020;">Add Scene</span>
+        </div>
+
+        <!-- Add Action center -->
+        <div class="branch-opt on" style="bottom:72px;left:-22px;transition-delay:0.05s;">
+          <div class="opt-circle" style="background:rgba(100,112,243,0.1);border-color:rgba(100,112,243,0.3);">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:block;"><path d="M2 4h12M2 7h12M2 10h8" stroke="#6470f3" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <span class="opt-label" style="color:#6470f3;">Add Action</span>
+        </div>
+
+        <!-- Add Dialogue right -->
+        <div class="branch-opt on" style="bottom:22px;left:46px;">
+          <div class="opt-circle" style="background:rgba(196,90,220,0.1);border-color:rgba(196,90,220,0.3);">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:block;"><path d="M3 3h10a1 1 0 011 1v4a1 1 0 01-1 1H8.5L5 11.5V9H3a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="#c45adc" stroke-width="1.3" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="opt-label" style="color:#c45adc;">Add Dialogue</span>
+        </div>
+
+        <!-- back slid off -->
+        <div class="back-fab" style="transform:translateX(-300px);opacity:0;">
+          <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="rgba(255,255,255,0.4)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <!-- chat open -->
+        <div class="sf" style="opacity:1;transform:translateX(-78px);pointer-events:all;">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="display:block;"><path d="M2 2.5h10a1 1 0 011 1v5a1 1 0 01-1 1H5L2 12V3.5a1 1 0 010-1z" stroke="rgba(255,255,255,0.45)" stroke-width="1.1" stroke-linejoin="round"/><path d="M4.5 5.5h5M4.5 7.5h3" stroke="rgba(255,255,255,0.3)" stroke-width="0.9" stroke-linecap="round"/></svg>
+        </div>
+        <!-- main FAB rotated -->
+        <div class="main-fab" style="transform:rotate(45deg);box-shadow:0 6px 32px rgba(196,90,220,0.55);">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:block;"><path d="M8 2V14M2 8H14" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <!-- threads open -->
+        <div class="sf" style="opacity:1;transform:translateX(78px);pointer-events:all;">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="display:block;"><path d="M2 2h7.5a1 1 0 011 1v3a1 1 0 01-1 1H4.5L2 9.5V3a1 1 0 010-1z" stroke="rgba(255,255,255,0.45)" stroke-width="1.1" stroke-linejoin="round"/><path d="M5 6.5h6a1 1 0 011 1V10l-2-1H6a1 1 0 01-1-1V6.5" stroke="rgba(255,255,255,0.3)" stroke-width="1" stroke-linejoin="round"/></svg>
+          <div class="unread-dot"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let open = false;
+function toggleFab(n) {
+  open = !open;
+  const mf=document.getElementById('mf'+n), ov=document.getElementById('ov'+n), br=document.getElementById('br'+n);
+  const ns=document.getElementById('ns'+n), nd=document.getElementById('nd'+n), ndl=document.getElementById('ndl'+n);
+  const ch=document.getElementById('ch'+n), th=document.getElementById('th'+n), bk=document.getElementById('bk'+n);
+  if (open) {
+    mf.style.transform='rotate(45deg)'; mf.style.boxShadow='0 6px 32px rgba(196,90,220,0.55)';
+    ov.classList.add('on'); br.style.opacity='1';
+    ns.classList.add('on'); nd.classList.add('on'); ndl.classList.add('on');
+    ch.style.opacity='1'; ch.style.transform='translateX(-78px)'; ch.style.pointerEvents='all';
+    th.style.opacity='1'; th.style.transform='translateX(78px)'; th.style.pointerEvents='all';
+    bk.style.transform='translateX(-300px)'; bk.style.opacity='0'; bk.style.pointerEvents='none';
+  } else { closeAll(n); }
+}
+function closeAll(n) {
+  open=false;
+  const mf=document.getElementById('mf'+n), ov=document.getElementById('ov'+n), br=document.getElementById('br'+n);
+  const ns=document.getElementById('ns'+n), nd=document.getElementById('nd'+n), ndl=document.getElementById('ndl'+n);
+  const ch=document.getElementById('ch'+n), th=document.getElementById('th'+n), bk=document.getElementById('bk'+n);
+  if(!mf) return;
+  mf.style.transform=''; mf.style.boxShadow='';
+  ov.classList.remove('on'); br.style.opacity='0';
+  ns.classList.remove('on'); nd.classList.remove('on'); ndl.classList.remove('on');
+  ch.style.opacity='0'; ch.style.transform='translateX(0)'; ch.style.pointerEvents='none';
+  th.style.opacity='0'; th.style.transform='translateX(0)'; th.style.pointerEvents='none';
+  bk.style.transform=''; bk.style.opacity='1'; bk.style.pointerEvents='all';
+}
+</script>
+</body>
+</html>

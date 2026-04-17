@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en" style="background:#04040a">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Action Items</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+:root {
+  --bg:#04040a; --card:#0a0a12; --border:rgba(255,255,255,0.05);
+  --text:#dddde8; --text2:#a0a0b8; --muted:#62627a;
+  --accent:#c45adc; --phase:#6470f3; --amber:#e8a020; --danger:#e8564a;
+  --r:9px;
+  --mono:'SF Mono','Fira Code','Menlo',monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;
+}
+
+body {
+  background: #04040a;
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+}
+
+/* ── PHONE SHELL ── */
+.shell {
+  max-width: 390px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: #04040a;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ── HEADER ── */
+.hdr {
+  display:flex; align-items:center; gap:12px;
+  padding:44px 16px 14px;
+  background:#04040a;
+  border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:20;
+}
+.back {
+  width:32px; height:32px; border-radius:50%;
+  background:rgba(255,255,255,0.05); border:1px solid var(--border);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; flex-shrink:0;
+}
+.hdr-text { flex:1; min-width:0; }
+.hdr-title { font-size:1.15rem; font-weight:800; letter-spacing:-0.02em; }
+.hdr-sub { font-family:var(--mono); font-size:0.46rem; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; margin-top:2px; }
+.hdr-sub b { color:var(--phase); font-weight:400; }
+
+/* ── TABS ── */
+.tabs {
+  display:flex; padding:0 16px;
+  background:#04040a; border-bottom:1px solid var(--border);
+  position:sticky; top:73px; z-index:19;
+}
+.tab {
+  flex:1; display:flex; align-items:center; justify-content:center; gap:5px;
+  padding:15px 0; cursor:pointer; position:relative;
+  font-weight:700; font-size:0.88rem; color:var(--muted);
+  user-select:none; transition:color 0.15s;
+}
+.tab.on { color:var(--text); }
+.tab.on::after {
+  content:''; position:absolute; bottom:0; left:12%; right:12%;
+  height:2px; background:var(--accent); border-radius:2px 2px 0 0;
+}
+.badge {
+  font-family:var(--mono); font-size:0.46rem; letter-spacing:0.04em;
+  padding:2px 5px; border-radius:20px;
+  background:rgba(255,255,255,0.06); color:var(--muted); transition:all 0.15s;
+}
+.tab.on .badge { background:rgba(196,90,220,0.15); color:var(--accent); }
+
+/* ── PANELS ── */
+.panel { display:none; padding-bottom:100px; }
+.panel.on { display:block; }
+
+/* ── SECTION HEAD ── */
+.sec-head {
+  display:flex; align-items:center;
+  padding:14px 16px 8px;
+}
+.sec-label { font-family:var(--mono); font-size:0.48rem; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; flex:1; }
+.sec-count { font-family:var(--mono); font-size:0.46rem; color:var(--muted); }
+
+/* ── TASK WRAP + SWIPE ── */
+.tw { position:relative; overflow:hidden; margin:0 16px 2px; border-radius:var(--r); }
+.sw-ok {
+  position:absolute; inset:0; display:flex; align-items:center;
+  padding-left:18px; gap:7px;
+  background:rgba(0,184,148,0.12); opacity:0; pointer-events:none;
+  transition:opacity 0.1s; border-radius:var(--r);
+}
+.sw-ok span { font-family:var(--mono); font-size:0.48rem; color:#00b894; letter-spacing:0.08em; text-transform:uppercase; }
+.sw-del {
+  position:absolute; inset:0; display:flex; align-items:center;
+  justify-content:flex-end; padding-right:18px; gap:7px;
+  background:rgba(232,86,74,0.1); opacity:0; pointer-events:none;
+  transition:opacity 0.1s; border-radius:var(--r);
+}
+.sw-del span { font-family:var(--mono); font-size:0.48rem; color:var(--danger); letter-spacing:0.08em; text-transform:uppercase; }
+
+.ti {
+  display:flex; align-items:flex-start; gap:11px;
+  padding:12px 13px;
+  background:var(--card); border:1px solid var(--border); border-radius:var(--r);
+  cursor:pointer; position:relative; overflow:hidden;
+  transition:background 0.15s; touch-action:pan-y; user-select:none;
+}
+.ti:active { background:#0d0d18; }
+.ti.hi::before {
+  content:''; position:absolute; left:0; top:6px; bottom:6px;
+  width:2.5px; background:var(--accent); border-radius:0 2px 2px 0;
+}
+
+.chk {
+  width:16px; height:16px; border-radius:50%; border:1.5px solid var(--accent);
+  flex-shrink:0; margin-top:1px; display:flex; align-items:center; justify-content:center;
+}
+.chk.o { border-color:var(--muted); }
+.chk.done { background:rgba(196,90,220,0.15); }
+
+.tb { flex:1; min-width:0; }
+.tn { font-size:0.8rem; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.3; }
+.tn.o { color:var(--text2); }
+.tn.done { text-decoration:line-through; color:var(--muted); }
+.tm { display:flex; align-items:center; gap:7px; margin-top:3px; }
+.td { font-family:var(--mono); font-size:0.48rem; color:var(--muted); letter-spacing:0.04em; }
+.td.ov { color:var(--amber); }
+.tdept { font-family:var(--mono); font-size:0.44rem; color:var(--muted); text-transform:uppercase; background:rgba(255,255,255,0.04); border-radius:3px; padding:1px 4px; }
+.tass { font-family:var(--mono); font-size:0.46rem; color:var(--muted); opacity:0.6; margin-left:auto; }
+
+/* ── BUCKET DIVIDERS ── */
+.bucket { display:flex; align-items:center; gap:10px; padding:16px 16px 7px; }
+.bl { font-family:var(--mono); font-size:0.5rem; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; flex-shrink:0; }
+.bl.t { color:var(--accent); }
+.bline { flex:1; height:1px; background:var(--border); }
+
+/* ── DEPT ── */
+.dh {
+  display:flex; align-items:center; gap:9px;
+  padding:14px 16px 9px; cursor:pointer; user-select:none;
+}
+.dd { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.dn { font-weight:700; font-size:0.78rem; color:var(--text2); flex:1; }
+.dc { font-family:var(--mono); font-size:0.46rem; color:var(--muted); }
+.dchev { opacity:0.3; transition:transform 0.2s; }
+.dchev.op { transform:rotate(90deg); }
+.dtasks { display:none; }
+.dtasks.op { display:block; }
+
+/* ── COMPLETED ── */
+.comp-hdr {
+  display:flex; align-items:center; gap:9px;
+  padding:14px 16px 10px; cursor:pointer; user-select:none;
+  margin-top:6px; border-top:1px solid var(--border);
+}
+.comp-lbl { font-family:var(--mono); font-size:0.48rem; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; flex:1; }
+.comp-ct { font-family:var(--mono); font-size:0.46rem; color:var(--muted); }
+.comp-chev { opacity:0.3; transition:transform 0.2s; }
+.comp-chev.op { transform:rotate(90deg); }
+.comp-list { display:none; }
+.comp-list.op { display:block; }
+.ti.done-ti .chk { background:rgba(100,112,243,0.12); border-color:var(--phase); }
+
+/* ── FAB ── */
+.fab {
+  position:fixed; bottom:28px; right:calc(50% - 195px + 16px);
+  width:52px; height:52px; border-radius:50%;
+  background:var(--accent); border:none;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; z-index:50;
+  box-shadow:0 4px 24px rgba(196,90,220,0.35);
+  transition:transform 0.15s, box-shadow 0.15s;
+}
+.fab:hover { transform:scale(1.08); box-shadow:0 6px 32px rgba(196,90,220,0.5); }
+.fab:active { transform:scale(0.95); }
+
+/* ── SHEET ── */
+.overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.6);
+  backdrop-filter:blur(3px); z-index:100;
+  opacity:0; pointer-events:none; transition:opacity 0.25s;
+}
+.overlay.op { opacity:1; pointer-events:all; }
+.sheet {
+  position:fixed; bottom:0; left:50%; transform:translateX(-50%) translateY(110%);
+  width:100%; max-width:390px;
+  background:#0e0e1a; border-top:1px solid rgba(255,255,255,0.08);
+  border-radius:20px 20px 0 0; z-index:101;
+  transition:transform 0.3s cubic-bezier(0.32,0.72,0,1);
+  padding-bottom:32px;
+}
+.sheet.op { transform:translateX(-50%) translateY(0); }
+.handle { width:36px; height:4px; border-radius:2px; background:rgba(255,255,255,0.1); margin:12px auto 20px; }
+.s-hdr { padding:0 20px 16px; border-bottom:1px solid var(--border); }
+.s-title { font-size:1rem; font-weight:800; letter-spacing:-0.02em; margin-bottom:6px; }
+.s-pri {
+  display:inline-flex; align-items:center; gap:4px;
+  font-family:var(--mono); font-size:0.46rem; letter-spacing:0.06em; text-transform:uppercase;
+  padding:3px 8px; border-radius:20px;
+  background:rgba(196,90,220,0.1); border:1px solid rgba(196,90,220,0.2); color:var(--accent);
+}
+.s-fields { padding:16px 20px; display:flex; flex-direction:column; gap:13px; }
+.sf { display:flex; align-items:flex-start; gap:12px; }
+.sfl { font-family:var(--mono); font-size:0.46rem; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; width:68px; flex-shrink:0; padding-top:1px; }
+.sfv { font-size:0.78rem; font-weight:600; flex:1; }
+.sfv.ov { color:var(--amber); }
+.s-notes { font-size:0.72rem; color:var(--text2); line-height:1.55; background:rgba(255,255,255,0.03); border-radius:6px; padding:10px 12px; flex:1; }
+.s-btns { padding:4px 20px 0; display:flex; gap:10px; }
+.sbtn {
+  flex:1; padding:13px; border-radius:8px; border:none;
+  font-family:var(--sans); font-weight:700; font-size:0.78rem; cursor:pointer; transition:all 0.15s;
+}
+.sbtn.ok { background:rgba(0,184,148,0.1); border:1px solid rgba(0,184,148,0.2); color:#00b894; }
+.sbtn.ok:hover { background:rgba(0,184,148,0.18); }
+.sbtn.re { background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--text2); }
+.sbtn.re:hover { background:rgba(255,255,255,0.08); }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="back">
+    <svg width="7" height="12" viewBox="0 0 7 12" fill="none"><path d="M6 1L1 6L6 11" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+  <div class="hdr-text">
+    <div class="hdr-title">Action Items</div>
+    <div class="hdr-sub">Drifting &middot; <b>In Production</b></div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab on" onclick="switchTab('me')">Me <span class="badge">4</span></div>
+  <div class="tab" onclick="switchTab('upcoming')">Upcoming <span class="badge">7</span></div>
+  <div class="tab" onclick="switchTab('dept')">Dept <span class="badge">3</span></div>
+</div>
+
+<!-- ── ME ── -->
+<div class="panel on" id="p-me">
+  <div class="sec-head">
+    <span class="sec-label">My open items</span>
+    <span class="sec-count">4 tasks</span>
+  </div>
+
+  <div class="tw" id="tw1">
+    <div class="sw-ok"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5L5 9.5L11 3.5" stroke="#00b894" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Complete</span></div>
+    <div class="sw-del"><span>Delete</span><svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 1.5L9.5 9.5M9.5 1.5L1.5 9.5" stroke="#e8564a" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+    <div class="ti hi" onclick="openSheet('Confirm location permits','High','Apr 03 — Overdue','Production','Location signed off before crew call.','Clyde',true)">
+      <div class="chk"></div>
+      <div class="tb"><div class="tn">Confirm location permits</div><div class="tm"><span class="td ov">Apr 03 — Overdue</span><span class="tdept">Prod</span></div></div>
+    </div>
+  </div>
+
+  <div class="tw" id="tw2">
+    <div class="sw-ok"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5L5 9.5L11 3.5" stroke="#00b894" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Complete</span></div>
+    <div class="sw-del"><span>Delete</span><svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 1.5L9.5 9.5M9.5 1.5L1.5 9.5" stroke="#e8564a" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+    <div class="ti" onclick="openSheet('Send call sheet draft','Normal','Apr 09','Production','Final draft to all dept heads.','Clyde',false)">
+      <div class="chk"></div>
+      <div class="tb"><div class="tn">Send call sheet draft</div><div class="tm"><span class="td">Apr 09</span><span class="tdept">Prod</span></div></div>
+    </div>
+  </div>
+
+  <div class="tw" id="tw3">
+    <div class="sw-ok"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5L5 9.5L11 3.5" stroke="#00b894" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Complete</span></div>
+    <div class="sw-del"><span>Delete</span><svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 1.5L9.5 9.5M9.5 1.5L1.5 9.5" stroke="#e8564a" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+    <div class="ti" onclick="openSheet('Book stunt coordinator','Normal','Apr 11','Camera','Confirm availability for ravine sequence.','Clyde',false)">
+      <div class="chk"></div>
+      <div class="tb"><div class="tn">Book stunt coordinator</div><div class="tm"><span class="td">Apr 11</span><span class="tdept">Camera</span></div></div>
+    </div>
+  </div>
+
+  <div class="tw" id="tw4">
+    <div class="sw-ok"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5L5 9.5L11 3.5" stroke="#00b894" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Complete</span></div>
+    <div class="sw-del"><span>Delete</span><svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 1.5L9.5 9.5M9.5 1.5L1.5 9.5" stroke="#e8564a" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+    <div class="ti hi" onclick="openSheet('Final script lock','High','Apr 14','Production','Sign-off from director before shoot week.','Clyde',false)">
+      <div class="chk"></div>
+      <div class="tb"><div class="tn">Final script lock</div><div class="tm"><span class="td">Apr 14</span><span class="tdept">Prod</span></div></div>
+    </div>
+  </div>
+
+  <!-- COMPLETED -->
+  <div class="comp-hdr" onclick="toggleComp()">
+    <span class="comp-lbl">Completed</span>
+    <span class="comp-ct">3 tasks</span>
+    <svg class="comp-chev" id="cc" width="7" height="11" viewBox="0 0 7 11" fill="none"><path d="M1.5 1.5L5.5 5.5L1.5 9.5" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+  <div class="comp-list" id="cl">
+    <div class="tw"><div class="ti done-ti"><div class="chk done"><svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4L3.5 6L6.5 2" stroke="#6470f3" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="tb"><div class="tn done">Schedule production meeting</div><div class="tm"><span class="td">Apr 01</span></div></div></div></div>
+    <div class="tw"><div class="ti done-ti"><div class="chk done"><svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4L3.5 6L6.5 2" stroke="#6470f3" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="tb"><div class="tn done">Finalize crew list</div><div class="tm"><span class="td">Mar 30</span></div></div></div></div>
+    <div class="tw"><div class="ti done-ti"><div class="chk done"><svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4L3.5 6L6.5 2" stroke="#6470f3" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="tb"><div class="tn done">Insurance paperwork</div><div class="tm"><span class="td">Mar 28</span></div></div></div></div>
+  </div>
+</div>
+
+<!-- ── UPCOMING ── -->
+<div class="panel" id="p-upcoming">
+  <div class="bucket"><span class="bl t">Today</span><div class="bline"></div></div>
+  <div class="tw"><div class="ti hi" onclick="openSheet('Confirm location permits','High','Today — Overdue','Production','','Clyde',true)"><div class="chk"></div><div class="tb"><div class="tn">Confirm location permits</div><div class="tm"><span class="td ov">Today — Overdue</span><span class="tass">Clyde</span></div></div></div></div>
+  <div class="tw"><div class="ti" onclick="openSheet('Lens kit pickup','Normal','Today','Camera','','Jordan R.',false)"><div class="chk o"></div><div class="tb"><div class="tn o">Lens kit pickup</div><div class="tm"><span class="td">Today</span><span class="tass">Jordan R.</span></div></div></div></div>
+
+  <div class="bucket"><span class="bl">This Week</span><div class="bline"></div></div>
+  <div class="tw"><div class="ti" onclick="openSheet('Send call sheet draft','Normal','Apr 09','Production','','Clyde',false)"><div class="chk"></div><div class="tb"><div class="tn">Send call sheet draft</div><div class="tm"><span class="td">Apr 09</span><span class="tass">Clyde</span></div></div></div></div>
+  <div class="tw"><div class="ti" onclick="openSheet('Wardrobe continuity check','Normal','Apr 09','Wardrobe','','Sam K.',false)"><div class="chk o"></div><div class="tb"><div class="tn o">Wardrobe continuity check</div><div class="tm"><span class="td">Apr 09</span><span class="tass">Sam K.</span></div></div></div></div>
+  <div class="tw"><div class="ti hi" onclick="openSheet('Book stunt coordinator','High','Apr 11','Camera','','Clyde',false)"><div class="chk"></div><div class="tb"><div class="tn">Book stunt coordinator</div><div class="tm"><span class="td">Apr 11</span><span class="tass">Clyde</span></div></div></div></div>
+
+  <div class="bucket"><span class="bl">Later</span><div class="bline"></div></div>
+  <div class="tw"><div class="ti hi" onclick="openSheet('Final script lock','High','Apr 14','Production','','Clyde',false)"><div class="chk"></div><div class="tb"><div class="tn">Final script lock</div><div class="tm"><span class="td">Apr 14</span><span class="tass">Clyde</span></div></div></div></div>
+  <div class="tw"><div class="ti" onclick="openSheet('Review color grade pass','Normal','Apr 18','Post','','Jordan R.',false)"><div class="chk o"></div><div class="tb"><div class="tn o">Review color grade pass</div><div class="tm"><span class="td">Apr 18</span><span class="tass">Jordan R.</span></div></div></div></div>
+</div>
+
+<!-- ── DEPT ── -->
+<div class="panel" id="p-dept">
+
+  <div class="dh" onclick="tog('prod')">
+    <div class="dd" style="background:#6470f3"></div>
+    <span class="dn">Production</span><span class="dc">3 open</span>
+    <svg class="dchev op" id="dc-prod" width="7" height="11" viewBox="0 0 7 11" fill="none"><path d="M1.5 1.5L5.5 5.5L1.5 9.5" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+  <div class="dtasks op" id="dt-prod">
+    <div class="tw"><div class="ti hi" onclick="openSheet('Confirm location permits','High','Apr 03','Production','','Clyde',true)"><div class="chk"></div><div class="tb"><div class="tn">Confirm location permits</div><div class="tm"><span class="td ov">Apr 03 — Overdue</span></div></div></div></div>
+    <div class="tw"><div class="ti" onclick="openSheet('Send call sheet draft','Normal','Apr 09','Production','','Clyde',false)"><div class="chk"></div><div class="tb"><div class="tn">Send call sheet draft</div><div class="tm"><span class="td">Apr 09</span></div></div></div></div>
+    <div class="tw"><div class="ti hi" onclick="openSheet('Final script lock','High','Apr 14','Production','','Clyde',false)"><div class="chk"></div><div class="tb"><div class="tn">Final script lock</div><div class="tm"><span class="td">Apr 14</span></div></div></div></div>
+  </div>
+
+  <div class="dh" onclick="tog('cam')">
+    <div class="dd" style="background:#e8a020"></div>
+    <span class="dn">Camera</span><span class="dc">2 open</span>
+    <svg class="dchev op" id="dc-cam" width="7" height="11" viewBox="0 0 7 11" fill="none"><path d="M1.5 1.5L5.5 5.5L1.5 9.5" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+  <div class="dtasks op" id="dt-cam">
+    <div class="tw"><div class="ti" onclick="openSheet('Lens kit pickup','Normal','Today','Camera','','Jordan R.',false)"><div class="chk o"></div><div class="tb"><div class="tn o">Lens kit pickup</div><div class="tm"><span class="td">Today</span><span class="tass">Jordan R.</span></div></div></div></div>
+    <div class="tw"><div class="ti hi" onclick="openSheet('Book stunt coordinator','High','Apr 11','Camera','','Clyde',false)"><div class="chk"></div><div class="tb"><div class="tn">Book stunt coordinator</div><div class="tm"><span class="td">Apr 11</span></div></div></div></div>
+  </div>
+
+  <div class="dh" onclick="tog('ward')">
+    <div class="dd" style="background:#4ab8e8"></div>
+    <span class="dn">Wardrobe</span><span class="dc">1 open</span>
+    <svg class="dchev" id="dc-ward" width="7" height="11" viewBox="0 0 7 11" fill="none"><path d="M1.5 1.5L5.5 5.5L1.5 9.5" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+  <div class="dtasks" id="dt-ward">
+    <div class="tw"><div class="ti" onclick="openSheet('Wardrobe continuity check','Normal','Apr 09','Wardrobe','','Sam K.',false)"><div class="chk o"></div><div class="tb"><div class="tn o">Wardrobe continuity check</div><div class="tm"><span class="td">Apr 09</span><span class="tass">Sam K.</span></div></div></div></div>
+  </div>
+
+</div>
+
+</div><!-- /shell -->
+
+<!-- FAB -->
+<button class="fab" style="right:max(16px, calc(50% - 179px))">
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 3V15M3 9H15" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+</button>
+
+<!-- OVERLAY + SHEET -->
+<div class="overlay" id="ov" onclick="closeSheet()"></div>
+<div class="sheet" id="sh">
+  <div class="handle"></div>
+  <div class="s-hdr">
+    <div class="s-title" id="s-t">—</div>
+    <div class="s-pri" id="s-p">—</div>
+  </div>
+  <div class="s-fields">
+    <div class="sf"><span class="sfl">Due</span><span class="sfv" id="s-d">—</span></div>
+    <div class="sf"><span class="sfl">Dept</span><span class="sfv" id="s-dept">—</span></div>
+    <div class="sf"><span class="sfl">Assigned</span><span class="sfv" id="s-a">—</span></div>
+    <div class="sf" id="s-nw"><span class="sfl">Notes</span><div class="s-notes" id="s-n">—</div></div>
+  </div>
+  <div class="s-btns">
+    <button class="sbtn ok" onclick="closeSheet()">Mark complete</button>
+    <button class="sbtn re" onclick="closeSheet()">Reassign</button>
+  </div>
+</div>
+
+<script>
+// Tab switch
+const tabs = document.querySelectorAll('.tab');
+function switchTab(id) {
+  tabs.forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+  event.currentTarget.classList.add('on');
+  document.getElementById('p-' + id).classList.add('on');
+}
+tabs.forEach((t, i) => {
+  const ids = ['me','upcoming','dept'];
+  t.onclick = () => {
+    tabs.forEach(x => x.classList.remove('on'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('on'));
+    t.classList.add('on');
+    document.getElementById('p-' + ids[i]).classList.add('on');
+  };
+});
+
+// Completed
+function toggleComp() {
+  document.getElementById('cl').classList.toggle('op');
+  document.getElementById('cc').classList.toggle('op');
+}
+
+// Dept
+function tog(id) {
+  document.getElementById('dt-' + id).classList.toggle('op');
+  document.getElementById('dc-' + id).classList.toggle('op');
+}
+
+// Sheet
+function openSheet(title, pri, due, dept, notes, assigned, overdue) {
+  document.getElementById('s-t').textContent = title;
+  const p = document.getElementById('s-p');
+  p.textContent = pri === 'High' ? '↑ High Priority' : 'Normal';
+  p.style.color = pri === 'High' ? 'var(--accent)' : 'var(--muted)';
+  p.style.background = pri === 'High' ? 'rgba(196,90,220,0.1)' : 'rgba(255,255,255,0.05)';
+  p.style.borderColor = pri === 'High' ? 'rgba(196,90,220,0.2)' : 'rgba(255,255,255,0.08)';
+  const d = document.getElementById('s-d');
+  d.textContent = due; d.className = 'sfv' + (overdue ? ' ov' : '');
+  document.getElementById('s-dept').textContent = dept || '—';
+  document.getElementById('s-a').textContent = assigned || 'Clyde';
+  const nw = document.getElementById('s-nw');
+  document.getElementById('s-n').textContent = notes || '—';
+  nw.style.display = notes ? 'flex' : 'none';
+  document.getElementById('ov').classList.add('op');
+  document.getElementById('sh').classList.add('op');
+}
+function closeSheet() {
+  document.getElementById('ov').classList.remove('op');
+  document.getElementById('sh').classList.remove('op');
+}
+
+// Swipe
+document.querySelectorAll('.tw').forEach(wrap => {
+  const item = wrap.querySelector('.ti');
+  const ok = wrap.querySelector('.sw-ok');
+  const del = wrap.querySelector('.sw-del');
+  if (!item) return;
+  let x0 = 0, dx = 0, drag = false;
+  const LIMIT = 70;
+  item.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; drag = true; item.style.transition = ''; }, { passive: true });
+  item.addEventListener('touchmove', e => {
+    if (!drag) return;
+    dx = Math.max(-110, Math.min(110, e.touches[0].clientX - x0));
+    item.style.transform = `translateX(${dx}px)`;
+    if (ok) ok.style.opacity = dx > 20 ? Math.min((dx - 20) / 50, 1) : 0;
+    if (del) del.style.opacity = dx < -20 ? Math.min((-dx - 20) / 50, 1) : 0;
+  }, { passive: true });
+  item.addEventListener('touchend', () => {
+    drag = false;
+    item.style.transition = 'transform 0.25s ease';
+    item.style.transform = 'translateX(0)';
+    if (ok) ok.style.opacity = 0;
+    if (del) del.style.opacity = 0;
+    setTimeout(() => { item.style.transition = ''; }, 260);
+    dx = 0;
+  });
+});
+</script>
+</body>
+</html>

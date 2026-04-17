@@ -1,0 +1,1987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orbit — Seed Projects V1</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --black:#080808;--surface:#111111;--surface2:#181818;--surface3:#1e1e1e;
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.1);
+  --white:#F4EFEA;--muted:rgba(244,239,234,0.38);--muted2:rgba(244,239,234,0.2);
+  --mono:'IBM Plex Mono',monospace;--display:'Cormorant Garamond',serif;--sans:'DM Sans',sans-serif;
+  --accent:#C9A84C;
+}
+html{background:var(--black);color:var(--white);font-family:var(--sans);font-size:14px;-webkit-font-smoothing:antialiased}
+body{min-height:100vh}
+
+/* ── PROJECT TABS ─────────────────────── */
+.project-bar{
+  position:sticky;top:0;z-index:200;
+  background:rgba(8,8,8,0.97);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+}
+.project-bar-inner{
+  display:flex;align-items:stretch;overflow-x:auto;
+  scrollbar-width:none;max-width:100%;
+}
+.project-bar-inner::-webkit-scrollbar{display:none}
+.proj-tab{
+  display:flex;flex-direction:column;justify-content:center;
+  padding:0 20px;min-width:140px;height:56px;
+  cursor:pointer;border-right:1px solid var(--border);
+  border-bottom:2px solid transparent;
+  transition:background .15s,border-color .15s;
+  flex-shrink:0;
+}
+.proj-tab:hover{background:rgba(255,255,255,.03)}
+.proj-tab.active{border-bottom-color:var(--accent)}
+.proj-tab.active .tab-name{color:var(--white)}
+.tab-dot-row{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.tab-dot{width:5px;height:5px;border-radius:50%}
+.tab-name{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tab-client{font-family:var(--sans);font-size:10px;color:var(--muted2);font-weight:300}
+
+/* ── PROJECT PANELS ───────────────────── */
+.project-panel{display:none;animation:fadeIn .2s ease}
+.project-panel.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── PROJECT HEADER ───────────────────── */
+.proj-header{
+  padding:36px 32px 28px;
+  border-bottom:1px solid var(--border);
+}
+.proj-header-top{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  flex-wrap:wrap;gap:16px;margin-bottom:20px;
+}
+.proj-title-block{}
+.proj-eyebrow{
+  font-family:var(--mono);font-size:9px;letter-spacing:.14em;
+  text-transform:uppercase;margin-bottom:6px;
+}
+.proj-title{
+  font-family:var(--display);font-size:38px;font-weight:300;
+  line-height:1.05;color:var(--white);margin-bottom:2px;
+}
+.proj-client-name{
+  font-family:var(--display);font-size:18px;font-style:italic;
+  font-weight:300;color:var(--muted);
+}
+.proj-meta-pills{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pill{
+  font-family:var(--mono);font-size:9px;letter-spacing:.08em;
+  text-transform:uppercase;border-radius:4px;padding:4px 9px;
+  border:1px solid;white-space:nowrap;
+}
+.proj-brief{
+  font-family:var(--display);font-size:17px;font-weight:300;
+  font-style:italic;color:rgba(244,239,234,.65);
+  line-height:1.55;max-width:720px;
+}
+
+/* ── SECTION NAV ──────────────────────── */
+.section-nav{
+  display:flex;gap:0;border-bottom:1px solid var(--border);
+  padding:0 32px;background:var(--surface);
+  overflow-x:auto;scrollbar-width:none;
+}
+.section-nav::-webkit-scrollbar{display:none}
+.sec-tab{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);
+  padding:12px 16px;cursor:pointer;
+  border-bottom:2px solid transparent;
+  transition:color .15s,border-color .15s;
+  white-space:nowrap;
+}
+.sec-tab:hover{color:var(--white)}
+.sec-tab.active{color:var(--white);border-bottom-color:var(--accent)}
+
+/* ── SECTION PANELS ───────────────────── */
+.section-panel{display:none;padding:28px 32px}
+.section-panel.active{display:block}
+
+/* ── CREW ─────────────────────────────── */
+.crew-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.crew-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;padding:12px 14px;
+  transition:border-color .15s;
+}
+.crew-card:hover{border-color:var(--border2)}
+.crew-role{
+  font-family:var(--mono);font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;margin-bottom:3px;
+}
+.crew-name{
+  font-family:var(--sans);font-size:13px;font-weight:500;color:var(--white);
+}
+.crew-type{
+  font-family:var(--sans);font-size:11px;color:var(--muted);
+  font-weight:300;margin-top:1px;
+}
+
+/* ── TIMELINE ─────────────────────────── */
+.timeline{display:flex;flex-direction:column;gap:2px;max-width:680px}
+.milestone{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:10px 14px;border-radius:6px;
+  transition:background .15s;
+}
+.milestone:hover{background:var(--surface)}
+.ms-status{
+  width:18px;height:18px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;margin-top:1px;font-size:9px;
+}
+.ms-status.done{background:rgba(100,180,100,.15);border:1px solid rgba(100,180,100,.3);color:#6db86d}
+.ms-status.active{border:2px solid;animation:pulse 2s infinite}
+.ms-status.upcoming{background:var(--surface2);border:1px solid var(--border)}
+.ms-content{}
+.ms-label{
+  font-family:var(--sans);font-size:13px;font-weight:400;color:var(--white);
+  margin-bottom:2px;
+}
+.ms-date{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.ms-note{font-family:var(--sans);font-size:11px;color:var(--muted);font-weight:300;margin-top:2px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* ── TASKS ────────────────────────────── */
+.tasks-table{width:100%;border-collapse:collapse;max-width:900px}
+.tasks-table th{
+  font-family:var(--mono);font-size:9px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);
+  text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);
+  font-weight:400;
+}
+.tasks-table th:first-child{padding-left:0}
+.tasks-table td{
+  padding:11px 12px;border-bottom:1px solid var(--border);
+  vertical-align:top;
+}
+.tasks-table td:first-child{padding-left:0}
+.tasks-table tr:last-child td{border-bottom:none}
+.tasks-table tr:hover td{background:rgba(255,255,255,.02)}
+.task-name{font-family:var(--sans);font-size:12px;color:var(--white);font-weight:400}
+.task-assign{font-family:var(--sans);font-size:11px;color:var(--muted);font-weight:300}
+.task-due{font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap}
+.status-badge{
+  display:inline-block;font-family:var(--mono);font-size:9px;
+  letter-spacing:.06em;text-transform:uppercase;
+  border-radius:3px;padding:2px 7px;border:1px solid;white-space:nowrap;
+}
+.status-done{color:#6db86d;border-color:rgba(109,184,109,.25);background:rgba(109,184,109,.08)}
+.status-progress{color:#D4A853;border-color:rgba(212,168,83,.25);background:rgba(212,168,83,.08)}
+.status-pending{color:#7B9EC4;border-color:rgba(123,158,196,.25);background:rgba(123,158,196,.08)}
+.status-not{color:var(--muted);border-color:var(--border);background:transparent}
+
+/* ── SCENES ───────────────────────────── */
+.scene-list{display:flex;flex-direction:column;gap:8px;max-width:820px}
+.scene-block{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;overflow:hidden;
+}
+.scene-block-header{
+  display:flex;align-items:stretch;cursor:pointer;
+  transition:background .15s;
+}
+.scene-block-header:hover{background:var(--surface2)}
+.scene-num{
+  width:52px;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;background:var(--surface2);border-right:1px solid var(--border);
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;
+}
+.scene-block-meta{flex:1;padding:13px 16px}
+.scene-int-ext{
+  font-family:var(--mono);font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;padding:2px 6px;border-radius:3px;
+  border:1px solid;display:inline-block;margin-right:6px;
+}
+.scene-title{
+  font-family:var(--display);font-size:17px;font-weight:400;
+  color:var(--white);display:inline;margin-right:8px;
+}
+.scene-time-day{
+  font-family:var(--mono);font-size:9px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--muted);
+}
+.scene-desc{
+  font-family:var(--display);font-size:14px;font-style:italic;
+  font-weight:300;color:var(--muted);margin-top:3px;line-height:1.4;
+}
+.scene-block-right{
+  display:flex;align-items:center;gap:10px;padding:0 14px;flex-shrink:0;
+}
+.shot-badge{
+  font-family:var(--mono);font-size:10px;color:var(--muted);
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:4px;padding:2px 7px;
+}
+.scene-status-tag{
+  font-family:var(--mono);font-size:9px;letter-spacing:.08em;
+  text-transform:uppercase;border-radius:3px;padding:2px 7px;
+  border:1px solid;
+}
+.chevron-icon{color:var(--muted);font-size:10px;transition:transform .2s}
+.scene-block.open .chevron-icon{transform:rotate(180deg)}
+
+.shot-table{border-top:1px solid var(--border);display:none}
+.scene-block.open .shot-table{display:table;width:100%;border-collapse:collapse}
+.shot-row-tr{border-bottom:1px solid var(--border);transition:background .15s}
+.shot-row-tr:last-child{border-bottom:none}
+.shot-row-tr:hover{background:rgba(255,255,255,.02)}
+.shot-id-cell{
+  width:56px;padding:10px 0;text-align:center;
+  border-right:1px solid var(--border);
+  font-family:var(--mono);font-size:10px;vertical-align:top;padding-top:12px;
+}
+.shot-size-cell{
+  width:120px;padding:10px 12px;vertical-align:top;
+}
+.shot-size-tag{
+  font-family:var(--mono);font-size:9px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted);
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:3px;padding:2px 6px;display:inline-block;
+}
+.shot-desc-cell{
+  padding:10px 16px 10px 0;
+  font-family:var(--sans);font-size:12px;color:var(--muted);
+  font-weight:300;line-height:1.5;vertical-align:top;
+}
+
+/* ── OVERVIEW ─────────────────────────── */
+.overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:820px}
+.ov-block{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:18px}
+.ov-label{
+  font-family:var(--mono);font-size:9px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:8px;
+}
+.ov-value{font-family:var(--sans);font-size:13px;color:var(--white);line-height:1.6}
+.ov-value li{list-style:none;padding:3px 0;border-bottom:1px solid var(--border)}
+.ov-value li:last-child{border-bottom:none}
+.ov-value li::before{content:"·";color:var(--muted);margin-right:8px}
+.oneness-block{
+  grid-column:1/-1;background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;padding:18px;border-left-width:3px;border-left-style:solid;
+}
+.oneness-label{
+  font-family:var(--mono);font-size:9px;letter-spacing:.12em;
+  text-transform:uppercase;margin-bottom:6px;
+}
+.oneness-text{
+  font-family:var(--display);font-size:18px;font-style:italic;
+  font-weight:300;color:var(--white);line-height:1.5;
+}
+
+/* ── SECTION HEADER ───────────────────── */
+.section-title{
+  font-family:var(--mono);font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);
+  margin-bottom:18px;display:flex;align-items:center;gap:10px;
+}
+.section-title::after{content:'';flex:1;height:1px;background:var(--border);max-width:400px}
+
+/* ── SCRIPT ────────────────────────────── */
+.script-page{max-width:640px}
+.script-format-label{
+  font-family:var(--mono);font-size:9px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);
+  margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border);
+}
+.script-title-block{text-align:center;margin-bottom:32px;padding:20px 0 24px}
+.script-main-title{
+  font-family:var(--display);font-size:30px;font-weight:300;
+  color:var(--white);display:block;margin-bottom:6px;
+}
+.script-sub{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);display:block;margin-bottom:3px;
+}
+.script-slug{
+  font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--white);
+  margin:28px 0 10px;padding:8px 14px;
+  background:var(--surface2);border-left:2px solid;
+  border-radius:0 4px 4px 0;
+}
+.script-action{
+  font-family:var(--sans);font-size:13px;line-height:1.75;
+  color:rgba(244,239,234,.72);margin-bottom:14px;font-weight:300;
+}
+.script-dialogue-block{
+  margin:14px 0 14px 56px;max-width:360px;
+}
+.script-character{
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--white);margin-bottom:1px;
+}
+.script-paren{
+  font-family:var(--sans);font-size:12px;font-style:italic;
+  color:var(--muted);margin-bottom:2px;font-weight:300;
+}
+.script-line{
+  font-family:var(--sans);font-size:13px;color:rgba(244,239,234,.88);
+  line-height:1.65;font-weight:300;
+}
+.script-super{
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em;
+  text-transform:uppercase;text-align:center;display:block;
+  margin:24px 0;color:var(--white);
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  padding:14px 0;
+}
+.script-transition{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted);
+  text-align:right;margin:14px 0;display:block;
+}
+.script-divider{height:1px;background:var(--border);margin:28px 0}
+/* doc/treatment */
+.script-section-hd{
+  font-family:var(--display);font-size:20px;font-weight:400;
+  font-style:italic;color:var(--white);
+  margin:28px 0 6px;padding-bottom:8px;border-bottom:1px solid var(--border);
+}
+.script-iq{
+  font-family:var(--sans);font-size:12px;color:var(--muted);
+  font-weight:300;padding:5px 0 5px 14px;
+  border-left:2px solid var(--border);margin:5px 0;font-style:italic;
+}
+.script-note{
+  font-family:var(--sans);font-size:11px;color:rgba(244,239,234,.3);
+  font-weight:300;font-style:italic;margin:6px 0;
+}
+/* VO */
+.script-vo-cue{
+  font-family:var(--mono);font-size:9px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);margin:18px 0 5px;
+}
+.script-vo-line{
+  font-family:var(--display);font-size:16px;font-style:italic;
+  font-weight:300;color:var(--white);line-height:1.65;
+  padding-left:16px;border-left:2px solid;
+}
+/* instructional */
+.script-speaker{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--white);margin:20px 0 6px;
+}
+.script-spoken{
+  font-family:var(--display);font-size:15px;font-weight:300;
+  color:rgba(244,239,234,.88);line-height:1.7;
+}
+.script-direction{
+  font-family:var(--sans);font-size:11px;font-style:italic;
+  color:rgba(244,239,234,.3);font-weight:300;margin:8px 0;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     PROJECT TAB BAR
+═══════════════════════════════════════════ -->
+<nav class="project-bar">
+  <div class="project-bar-inner">
+    <div class="proj-tab active" onclick="switchProject(0)" id="ptab-0">
+      <div class="tab-dot-row"><div class="tab-dot" style="background:#C9A84C"></div></div>
+      <div class="tab-name">Simple Skin Promo</div>
+      <div class="tab-client">Lumière Skincare</div>
+    </div>
+    <div class="proj-tab" onclick="switchProject(1)" id="ptab-1">
+      <div class="tab-dot-row"><div class="tab-dot" style="background:#E05C2A"></div></div>
+      <div class="tab-name">Full Send</div>
+      <div class="tab-client">Vanta</div>
+    </div>
+    <div class="proj-tab" onclick="switchProject(2)" id="ptab-2">
+      <div class="tab-dot-row"><div class="tab-dot" style="background:#7BAE6E"></div></div>
+      <div class="tab-name">In Vino Veritas</div>
+      <div class="tab-client">Napa Collective</div>
+    </div>
+    <div class="proj-tab" onclick="switchProject(3)" id="ptab-3">
+      <div class="tab-dot-row"><div class="tab-dot" style="background:#A07EB5"></div></div>
+      <div class="tab-name">Flexibility Course A</div>
+      <div class="tab-client">Kaia Mori</div>
+    </div>
+    <div class="proj-tab" onclick="switchProject(4)" id="ptab-4">
+      <div class="tab-dot-row"><div class="tab-dot" style="background:#5BAAA0"></div></div>
+      <div class="tab-name">Natural Order</div>
+      <div class="tab-client">Meridian Climate</div>
+    </div>
+    <div class="proj-tab" onclick="switchProject(5)" id="ptab-5">
+      <div class="tab-dot-row"><div class="tab-dot" style="background:#7B6DB8"></div></div>
+      <div class="tab-name">The Weave</div>
+      <div class="tab-client">B Story</div>
+    </div>
+  </div>
+</nav>
+
+
+<!-- ═══════════════════════════════════════════
+     PROJECT 1 — SIMPLE SKIN PROMO
+═══════════════════════════════════════════ -->
+<div class="project-panel active" id="panel-0">
+  <div class="proj-header">
+    <div class="proj-header-top">
+      <div class="proj-title-block">
+        <div class="proj-eyebrow" style="color:#C9A84C">Beauty · Luxury Consumer</div>
+        <div class="proj-title">Simple Skin Promo</div>
+        <div class="proj-client-name">Lumière Skincare</div>
+      </div>
+      <div class="proj-meta-pills">
+        <span class="pill" style="color:#C9A84C;border-color:rgba(201,168,76,.3);background:rgba(201,168,76,.08)">Pre-Production</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Shoot in 7 Days</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">:60 + Cutdowns</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Union / 45+ Crew</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Bel Air Estate</span>
+      </div>
+    </div>
+    <div class="proj-brief">A high-budget beauty commercial shooting in seven days at a private Bel Air estate with celebrity talent and a full union crew. The concept is self-recognition — the product doesn't change you, it reveals you. Pre-production is active: scouts happening this week, departments being locked, timeline compressed.</div>
+  </div>
+
+  <div class="section-nav" id="snav-0">
+    <div class="sec-tab active" onclick="switchSection(0,0)">Overview</div>
+    <div class="sec-tab" onclick="switchSection(0,1)">Crew · 24</div>
+    <div class="sec-tab" onclick="switchSection(0,2)">Timeline</div>
+    <div class="sec-tab" onclick="switchSection(0,3)">Tasks · 12</div>
+    <div class="sec-tab" onclick="switchSection(0,4)">Scenes · 3</div>
+    <div class="sec-tab" onclick="switchSection(0,5)">Script</div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="section-panel active" id="sec-0-0">
+    <div class="section-title">Project Overview</div>
+    <div class="overview-grid">
+      <div class="ov-block">
+        <div class="ov-label">Deliverables</div>
+        <div class="ov-value"><ul>
+          <li>:60 Hero Spot — broadcast + digital</li>
+          <li>:30 Cutdown</li>
+          <li>:15 Social Cutdown</li>
+          <li>2× :06 Bumpers</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Key Dates</div>
+        <div class="ov-value"><ul>
+          <li>Tech Scout — Apr 13</li>
+          <li>Shoot Day — Apr 17</li>
+          <li>Rough Cut — Apr 24</li>
+          <li>Final Delivery — May 3</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Talent</div>
+        <div class="ov-value"><ul>
+          <li>Aria Stone — Lead Talent</li>
+          <li>Vera Hastings — Talent Agent</li>
+          <li>Rider confirmed, pickup TBD</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Location</div>
+        <div class="ov-value"><ul>
+          <li>Private estate — Bel Air, CA</li>
+          <li>3 shooting areas: bathroom, garden, salon</li>
+          <li>Scout walk-through Apr 12</li>
+          <li>Permit + insurance pending</li>
+        </ul></div>
+      </div>
+      <div class="oneness-block" style="border-left-color:#C9A84C">
+        <div class="oneness-label" style="color:#C9A84C">The Oneness Thread — The Singular Self</div>
+        <div class="oneness-text">"The product doesn't transform you. It reveals what was always whole. One face. One moment of recognition in the mirror."</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CREW -->
+  <div class="section-panel" id="sec-0-1">
+    <div class="section-title">Crew Roster</div>
+    <div class="crew-grid">
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Director</div><div class="crew-name">Sofia Reyes</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Executive Producer</div><div class="crew-name">Marcus Webb</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Producer</div><div class="crew-name">Dana Park</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">1st AD</div><div class="crew-name">James Calloway</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Director of Photography</div><div class="crew-name">Theo Hartmann</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">1st AC</div><div class="crew-name">Priya Nair</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">2nd AC</div><div class="crew-name">Carlos Vega</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">DIT</div><div class="crew-name">Sam Okafor</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Gaffer</div><div class="crew-name">Rick Souza</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Best Boy Electric</div><div class="crew-name">Tanya Mills</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Key Grip</div><div class="crew-name">Derek Huang</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Best Boy Grip</div><div class="crew-name">Luis Fernandez</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Art Director</div><div class="crew-name">Claire Renault</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Set Decorator</div><div class="crew-name">Nina Osei</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Props Master</div><div class="crew-name">Brendan Walsh</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Wardrobe Stylist</div><div class="crew-name">Isabel Torres</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Key Hair</div><div class="crew-name">Jasmine Bell</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Key MUA</div><div class="crew-name">Fiona Drake</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Production Sound Mixer</div><div class="crew-name">Pete Larsson</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Boom Operator</div><div class="crew-name">Andre Kim</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Production Coordinator</div><div class="crew-name">Mia Chen</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Lead Talent</div><div class="crew-name">Aria Stone</div><div class="crew-type">Celebrity / On-Camera</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Talent Agent</div><div class="crew-name">Vera Hastings</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#C9A84C">Brand Director (Client)</div><div class="crew-name">Dr. Lena Farrow</div><div class="crew-type">Lumière Skincare</div></div>
+    </div>
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="section-panel" id="sec-0-2">
+    <div class="section-title">Production Timeline</div>
+    <div class="timeline">
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Creative brief approved</div><div class="ms-date">Apr 4 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Director and DP attached</div><div class="ms-date">Apr 5 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Talent confirmed — Aria Stone</div><div class="ms-date">Apr 8 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Location shortlist submitted to client</div><div class="ms-date">Apr 7 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status active" style="border-color:#C9A84C"></div><div class="ms-content"><div class="ms-label">Location scout walk-through — Bel Air estate</div><div class="ms-date">Apr 12 · Tomorrow</div><div class="ms-note">Director, DP, and Art Dept attending</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Tech scout with all department heads</div><div class="ms-date">Apr 13</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">All department heads locked and confirmed</div><div class="ms-date">Apr 14</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Call sheet v1 issued to full crew</div><div class="ms-date">Apr 16</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming" style="border-color:#C9A84C"></div><div class="ms-content"><div class="ms-label" style="color:#C9A84C;font-weight:500">SHOOT DAY</div><div class="ms-date">Apr 17 · Bel Air Estate</div><div class="ms-note">Full union crew · 45+ on set</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Selects to client for approval</div><div class="ms-date">Apr 20</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Rough cut v1 delivered</div><div class="ms-date">Apr 24</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Client review — round 1</div><div class="ms-date">Apr 26</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Final delivery — all cuts + formats</div><div class="ms-date">May 3</div></div></div>
+    </div>
+  </div>
+
+  <!-- TASKS -->
+  <div class="section-panel" id="sec-0-3">
+    <div class="section-title">Action Items</div>
+    <table class="tasks-table">
+      <thead><tr><th>Task</th><th>Assigned</th><th>Due</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><div class="task-name">Confirm estate permit + production insurance</div></td><td><div class="task-assign">Dana Park</div></td><td class="task-due">Apr 12</td><td><span class="status-badge status-progress">In Progress</span></td></tr>
+        <tr><td><div class="task-name">Issue talent rider to Aria's team</div></td><td><div class="task-assign">Vera Hastings</div></td><td class="task-due">Apr 12</td><td><span class="status-badge status-pending">Pending</span></td></tr>
+        <tr><td><div class="task-name">Compile department head contact sheet</div></td><td><div class="task-assign">Mia Chen</div></td><td class="task-due">Apr 12</td><td><span class="status-badge status-progress">In Progress</span></td></tr>
+        <tr><td><div class="task-name">Create shot list from director's boards</div></td><td><div class="task-assign">Theo Hartmann</div></td><td class="task-due">Apr 13</td><td><span class="status-badge status-progress">In Progress</span></td></tr>
+        <tr><td><div class="task-name">Submit art department breakdown</div></td><td><div class="task-assign">Claire Renault</div></td><td class="task-due">Apr 13</td><td><span class="status-badge status-pending">Pending</span></td></tr>
+        <tr><td><div class="task-name">Tech scout attendance confirmed — all depts</div></td><td><div class="task-assign">James Calloway</div></td><td class="task-due">Apr 13</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Confirm hair + MUA kit lists and prep day</div></td><td><div class="task-assign">Jasmine Bell · Fiona Drake</div></td><td class="task-due">Apr 13</td><td><span class="status-badge status-pending">Pending</span></td></tr>
+        <tr><td><div class="task-name">Book production trucks and basecamp</div></td><td><div class="task-assign">Dana Park</div></td><td class="task-due">Apr 13</td><td><span class="status-badge status-pending">Pending</span></td></tr>
+        <tr><td><div class="task-name">Submit catering order — 50 person count</div></td><td><div class="task-assign">Mia Chen</div></td><td class="task-due">Apr 14</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+        <tr><td><div class="task-name">Draft call sheet v1</div></td><td><div class="task-assign">James Calloway</div></td><td class="task-due">Apr 15</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+        <tr><td><div class="task-name">Talent pickup and transport logistics</div></td><td><div class="task-assign">Dana Park</div></td><td class="task-due">Apr 15</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+        <tr><td><div class="task-name">Insurance certificate delivered to estate owner</div></td><td><div class="task-assign">Marcus Webb</div></td><td class="task-due">Apr 12</td><td><span class="status-badge status-progress">In Progress</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SCENES -->
+  <div class="section-panel" id="sec-0-4">
+    <div class="section-title">Scene Breakdown · 3 Scenes · 14 Shots</div>
+    <div class="scene-list">
+
+      <div class="scene-block open" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#C9A84C">01</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#C9A84C;border-color:rgba(201,168,76,.3);background:rgba(201,168,76,.08)">INT</span><span class="scene-title">The Ritual</span><span class="scene-time-day">· MORNING</span></div>
+            <div class="scene-desc">Bathroom. Marble surfaces, soft window light. The beginning of the day — and the product.</div>
+          </div>
+          <div class="scene-block-right">
+            <span class="shot-badge">5 shots</span>
+            <span class="chevron-icon">▾</span>
+          </div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#C9A84C">01A</td><td class="shot-size-cell"><span class="shot-size-tag">ECU</span></td><td class="shot-desc-cell">Fingers drawing a single drop from the bottle. The product in motion for the first time.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#C9A84C">01B</td><td class="shot-size-cell"><span class="shot-size-tag">Medium</span></td><td class="shot-desc-cell">Aria at the mirror, unhurried. The quality of her attention. This is her morning.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#C9A84C">01C</td><td class="shot-size-cell"><span class="shot-size-tag">Profile Close</span></td><td class="shot-desc-cell">Light catching the cheekbone. The skin as landscape.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#C9A84C">01D</td><td class="shot-size-cell"><span class="shot-size-tag">ECU</span></td><td class="shot-desc-cell">Eyes closing, then opening. Not a transformation. Recognition.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#C9A84C">01E</td><td class="shot-size-cell"><span class="shot-size-tag">Wide</span></td><td class="shot-desc-cell">Full bathroom frame. The quality of the morning light. The room as a complete world.</td></tr>
+        </table>
+      </div>
+
+      <div class="scene-block" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#C9A84C">02</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#C9A84C;border-color:rgba(201,168,76,.3);background:rgba(201,168,76,.08)">EXT</span><span class="scene-title">The Light</span><span class="scene-time-day">· SOFT AFTERNOON</span></div>
+            <div class="scene-desc">Estate garden. Dappled shade, old stone. The exterior world as an extension of the interior one.</div>
+          </div>
+          <div class="scene-block-right">
+            <span class="shot-badge">5 shots</span>
+            <span class="chevron-icon">▾</span>
+          </div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#C9A84C">02A</td><td class="shot-size-cell"><span class="shot-size-tag">Wide</span></td><td class="shot-desc-cell">Garden path. Aria walking slowly toward camera through dappled light. Unhurried.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#C9A84C">02B</td><td class="shot-size-cell"><span class="shot-size-tag">Medium</span></td><td class="shot-desc-cell">She pauses at a stone wall. Looks up. Not posed. Just present in the afternoon.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#C9A84C">02C</td><td class="shot-size-cell"><span class="shot-size-tag">ECU Product</span></td><td class="shot-desc-cell">Bottle placed on stone surface. Garden softly out of focus behind. Clean beauty shot.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#C9A84C">02D</td><td class="shot-size-cell"><span class="shot-size-tag">Side Track</span></td><td class="shot-desc-cell">Aria moves through the garden. Dappled light across hair and skin. Camera follows slow.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#C9A84C">02E</td><td class="shot-size-cell"><span class="shot-size-tag">Hero</span></td><td class="shot-desc-cell">Aria faces lens. Soft. The closest we get to her. No performance. Just presence.</td></tr>
+        </table>
+      </div>
+
+      <div class="scene-block" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#C9A84C">03</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#C9A84C;border-color:rgba(201,168,76,.3);background:rgba(201,168,76,.08)">INT</span><span class="scene-title">The Mirror</span><span class="scene-time-day">· LATE AFTERNOON</span></div>
+            <div class="scene-desc">Main salon. A full-length mirror. The final image of the film — and the thesis of the campaign.</div>
+          </div>
+          <div class="scene-block-right">
+            <span class="shot-badge">4 shots</span>
+            <span class="chevron-icon">▾</span>
+          </div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#C9A84C">03A</td><td class="shot-size-cell"><span class="shot-size-tag">Over-Shoulder</span></td><td class="shot-desc-cell">Aria sees herself in the full-length mirror. The moment of looking.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#C9A84C">03B</td><td class="shot-size-cell"><span class="shot-size-tag">POV</span></td><td class="shot-desc-cell">What she sees: herself, whole. The reflection is the point.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#C9A84C">03C</td><td class="shot-size-cell"><span class="shot-size-tag">Slow Push</span></td><td class="shot-desc-cell">Pushing slowly into her reflected face. The film ending in recognition.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#C9A84C">03D</td><td class="shot-size-cell"><span class="shot-size-tag">Product Super</span></td><td class="shot-desc-cell">Title card — product name, tagline. Fade to black. Clean.</td></tr>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SCRIPT -->
+  <div class="section-panel" id="sec-0-5">
+    <div class="section-title">Commercial Script · :60 Hero</div>
+    <div class="script-page">
+      <div class="script-format-label">Lumière Skincare · Director: Sofia Reyes · Draft 1 — Apr 8</div>
+      <div class="script-title-block">
+        <span class="script-main-title">Simple Skin Promo</span>
+        <span class="script-sub">:60 Hero Spot + Cutdowns</span>
+      </div>
+
+      <div class="script-slug" style="border-left-color:#C9A84C">SCENE 1 — INT. BATHROOM — DAWN</div>
+      <p class="script-action">The room before the day begins. Marble. Morning light through frosted glass. Silence.</p>
+      <p class="script-action">A HAND enters frame. Fingers close around a small amber bottle — LUMIÈRE SERUM. A single drop is drawn out, held between fingertips in the early light.</p>
+      <p class="script-action">CLOSE ON: A FACE at the mirror. No performance. Just a woman at the beginning of her day, present with herself. She touches her cheek. The light finds the skin.</p>
+      <p class="script-action">Her eyes close.</p>
+      <p class="script-action">They open.</p>
+      <p class="script-action">Something recognized. Not new — always there.</p>
+      <p class="script-direction">[No dialogue. Hold the image. Let it breathe.]</p>
+
+      <div class="script-divider"></div>
+
+      <div class="script-slug" style="border-left-color:#C9A84C">SCENE 2 — EXT. ESTATE GARDEN — SOFT AFTERNOON</div>
+      <p class="script-action">The garden as an extension of the interior world. Stone paths. Old light through old trees. Dappled and slow.</p>
+      <p class="script-action">ARIA moves through it — not walking toward anything. Walking through, the way you move when you belong somewhere completely.</p>
+      <p class="script-action">She pauses at a stone wall. Looks up. The afternoon finds her exactly where she is.</p>
+      <p class="script-action">CLOSE ON: The LUMIÈRE bottle resting on stone. Simple. Present. At home here.</p>
+      <p class="script-action">She turns to the lens. Not posed. Just there.</p>
+      <p class="script-direction">[No dialogue. The garden is enough.]</p>
+
+      <div class="script-divider"></div>
+
+      <div class="script-slug" style="border-left-color:#C9A84C">SCENE 3 — INT. MAIN SALON — LATE AFTERNOON</div>
+      <p class="script-action">The formal room. Long shadows stretching across marble. At the far end — a full-length mirror.</p>
+      <p class="script-action">She walks toward it. Stops.</p>
+      <p class="script-action">She looks.</p>
+      <p class="script-action">Her reflection looks back.</p>
+      <p class="script-action">PUSH SLOWLY INTO the glass — her face in the reflection filling the frame until there is nothing else.</p>
+      <p class="script-action">Not transformed. Not corrected. Recognized.</p>
+      <span class="script-super" style="border-color:rgba(201,168,76,.25)">LUMIÈRE · "You were always this."</span>
+      <span class="script-transition">FADE TO BLACK.</span>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PROJECT 2 — FULL SEND
+═══════════════════════════════════════════ -->
+<div class="project-panel" id="panel-1">
+  <div class="proj-header">
+    <div class="proj-header-top">
+      <div class="proj-title-block">
+        <div class="proj-eyebrow" style="color:#E05C2A">Sports · Action Camera</div>
+        <div class="proj-title">Full Send</div>
+        <div class="proj-client-name">Vanta</div>
+      </div>
+      <div class="proj-meta-pills">
+        <span class="pill" style="color:#E05C2A;border-color:rgba(224,92,42,.3);background:rgba(224,92,42,.08)">Production</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Day 2 of 3</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">:60 Spot</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Run-and-Gun</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">3 Sports · 3 Athletes</span>
+      </div>
+    </div>
+    <div class="proj-brief">A lean run-and-gun :60 spot for an action camera brand, cutting across three sports — surf, trail, skatepark — across three consecutive days. The energy is raw and kinetic, built around the singular moment of total commitment right before you send it. Small crew, fast schedule, no time to overthink.</div>
+  </div>
+
+  <div class="section-nav" id="snav-1">
+    <div class="sec-tab active" onclick="switchSection(1,0)">Overview</div>
+    <div class="sec-tab" onclick="switchSection(1,1)">Crew · 7</div>
+    <div class="sec-tab" onclick="switchSection(1,2)">Timeline</div>
+    <div class="sec-tab" onclick="switchSection(1,3)">Tasks · 8</div>
+    <div class="sec-tab" onclick="switchSection(1,4)">Scenes · 3</div>
+    <div class="sec-tab" onclick="switchSection(1,5)">Script</div>
+  </div>
+
+  <div class="section-panel active" id="sec-1-0">
+    <div class="section-title">Project Overview</div>
+    <div class="overview-grid">
+      <div class="ov-block">
+        <div class="ov-label">Deliverables</div>
+        <div class="ov-value"><ul>
+          <li>:60 Hero Spot</li>
+          <li>:30 Cutdown</li>
+          <li>3× Sport-Specific :15 Clips</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Shoot Schedule</div>
+        <div class="ov-value"><ul>
+          <li>Day 1 — Surf · Malibu ✓ Done</li>
+          <li>Day 2 — Trail Run · Griffith ← Today</li>
+          <li>Day 3 — Skate · DTLA · Tomorrow</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Athletes</div>
+        <div class="ov-value"><ul>
+          <li>Marco Silva — Surf</li>
+          <li>Zoe Park — Trail Run</li>
+          <li>Dev Okafor — Skate</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Camera Strategy</div>
+        <div class="ov-value"><ul>
+          <li>Vanta units as hero cameras on athletes</li>
+          <li>Cinema rig for wide / hero shots</li>
+          <li>Drone for aerials each day</li>
+        </ul></div>
+      </div>
+      <div class="oneness-block" style="border-left-color:#E05C2A">
+        <div class="oneness-label" style="color:#E05C2A">The Oneness Thread — Total Commitment</div>
+        <div class="oneness-text">"The full send is a moment of pure oneness — mind, body, and motion collapsing into a single irreversible decision."</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-1-1">
+    <div class="section-title">Crew Roster</div>
+    <div class="crew-grid">
+      <div class="crew-card"><div class="crew-role" style="color:#E05C2A">Director / DP</div><div class="crew-name">Jake Morales</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#E05C2A">Producer</div><div class="crew-name">Casey Lin</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#E05C2A">Camera B / 1st AC</div><div class="crew-name">Dani Reeves</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#E05C2A">Production Assistant</div><div class="crew-name">Tyler Green</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#E05C2A">Athlete — Surf</div><div class="crew-name">Marco Silva</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#E05C2A">Athlete — Trail Run</div><div class="crew-name">Zoe Park</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#E05C2A">Athlete — Skate</div><div class="crew-name">Dev Okafor</div></div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-1-2">
+    <div class="section-title">Production Timeline</div>
+    <div class="timeline">
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Creative approved</div><div class="ms-date">Apr 1 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Athlete agreements signed</div><div class="ms-date">Apr 3 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Location permits cleared — all 3 sites</div><div class="ms-date">Apr 5 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Day 1 — Surf · Malibu Point · DONE</div><div class="ms-date">Apr 10 · Done</div><div class="ms-note">Marco Silva · Dawn through mid-morning · 5 shots captured</div></div></div>
+      <div class="milestone"><div class="ms-status active" style="border-color:#E05C2A"></div><div class="ms-content"><div class="ms-label">Day 2 — Trail Run · Griffith Park Ridge</div><div class="ms-date">Apr 11 · TODAY</div><div class="ms-note">Zoe Park · Pre-dawn call · 5 shots planned</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Day 3 — Skate · DTLA Memorial Skatepark</div><div class="ms-date">Apr 12</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">All footage transferred and logged</div><div class="ms-date">Apr 13</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Cut v1 delivered to Vanta</div><div class="ms-date">Apr 17</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Client review</div><div class="ms-date">Apr 19</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Final delivery — all formats</div><div class="ms-date">Apr 23</div></div></div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-1-3">
+    <div class="section-title">Action Items</div>
+    <table class="tasks-table">
+      <thead><tr><th>Task</th><th>Assigned</th><th>Due</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><div class="task-name">Transfer Day 1 footage to Vanta shared drive</div></td><td><div class="task-assign">Tyler Green</div></td><td class="task-due">Apr 11</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Confirm skatepark permit for Apr 12</div></td><td><div class="task-assign">Casey Lin</div></td><td class="task-due">Apr 11</td><td><span class="status-badge status-progress">In Progress</span></td></tr>
+        <tr><td><div class="task-name">Athlete release forms — all three signed</div></td><td><div class="task-assign">Casey Lin</div></td><td class="task-due">Apr 11</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Trail rig setup — helmet + chest mounts tested</div></td><td><div class="task-assign">Dani Reeves</div></td><td class="task-due">Apr 11</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Backup Vanta units charged and tested</div></td><td><div class="task-assign">Jake Morales</div></td><td class="task-due">Apr 11</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Day 1 selects log created for editor</div></td><td><div class="task-assign">Jake Morales</div></td><td class="task-due">Apr 12</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+        <tr><td><div class="task-name">Book edit suite for post</div></td><td><div class="task-assign">Casey Lin</div></td><td class="task-due">Apr 12</td><td><span class="status-badge status-pending">Pending</span></td></tr>
+        <tr><td><div class="task-name">Confirm music license direction with Vanta</div></td><td><div class="task-assign">Casey Lin</div></td><td class="task-due">Apr 14</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-panel" id="sec-1-4">
+    <div class="section-title">Scene Breakdown · 3 Scenes · 15 Shots</div>
+    <div class="scene-list">
+
+      <div class="scene-block open" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#E05C2A">01</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#E05C2A;border-color:rgba(224,92,42,.3);background:rgba(224,92,42,.08)">EXT</span><span class="scene-title">The Drop</span><span class="scene-time-day">· DAWN · Malibu Point</span></div>
+            <div class="scene-desc">Surfing. First light. The wave is the commitment. <span style="color:#6db86d;font-family:var(--mono);font-size:10px;letter-spacing:.06em">✓ DONE</span></div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">5 shots</span><span class="scene-status-tag" style="color:#6db86d;border-color:rgba(109,184,109,.3);background:rgba(109,184,109,.08)">Done</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">01A</td><td class="shot-size-cell"><span class="shot-size-tag">Board Mount</span></td><td class="shot-desc-cell">Vanta unit on board nose. Ocean POV paddling out. Water rushing past lens.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">01B</td><td class="shot-size-cell"><span class="shot-size-tag">Aerial Wide</span></td><td class="shot-desc-cell">Drone. Marco drops into a set wave from above. The full scale of the commitment.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">01C</td><td class="shot-size-cell"><span class="shot-size-tag">Water Level</span></td><td class="shot-desc-cell">Camera at break level. Board cutting directly past lens. Speed and spray.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">01D</td><td class="shot-size-cell"><span class="shot-size-tag">ECU Mounted</span></td><td class="shot-desc-cell">Marco's face mid-ride. Eyes locked ahead. Total presence.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">01E</td><td class="shot-size-cell"><span class="shot-size-tag">Slow Wide</span></td><td class="shot-desc-cell">Post-wave. Board flat. Water settling around Marco. The exhale after the send.</td></tr>
+        </table>
+      </div>
+
+      <div class="scene-block open" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#E05C2A">02</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#E05C2A;border-color:rgba(224,92,42,.3);background:rgba(224,92,42,.08)">EXT</span><span class="scene-title">The Edge</span><span class="scene-time-day">· PRE-DAWN · Griffith Ridge</span></div>
+            <div class="scene-desc">Trail run at the ridge. City lights below. The edge between dark and light. <span style="color:#E05C2A;font-family:var(--mono);font-size:10px;letter-spacing:.06em">← TODAY</span></div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">5 shots</span><span class="scene-status-tag" style="color:#E05C2A;border-color:rgba(224,92,42,.3);background:rgba(224,92,42,.08)">Shooting</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">02A</td><td class="shot-size-cell"><span class="shot-size-tag">Chest Mount</span></td><td class="shot-desc-cell">Zoe running the ridge. City glow below, dawn sky above. The world as backdrop.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">02B</td><td class="shot-size-cell"><span class="shot-size-tag">Ground Static</span></td><td class="shot-desc-cell">Camera low on trail surface. Feet pounding past directly over lens.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">02C</td><td class="shot-size-cell"><span class="shot-size-tag">Aerial Track</span></td><td class="shot-desc-cell">Drone tracking Zoe along the ridge. Drop visible on one side. Pure commitment.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">02D</td><td class="shot-size-cell"><span class="shot-size-tag">Head Mount</span></td><td class="shot-desc-cell">Vanta helmet-mounted. POV of the path ahead. Breathing audible. Just the run.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">02E</td><td class="shot-size-cell"><span class="shot-size-tag">Wide Static</span></td><td class="shot-desc-cell">Zoe crests the hill. Stops. Looks out over the city. Breathing hard. First light arrives.</td></tr>
+        </table>
+      </div>
+
+      <div class="scene-block" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#E05C2A">03</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#E05C2A;border-color:rgba(224,92,42,.3);background:rgba(224,92,42,.08)">EXT</span><span class="scene-title">The Send</span><span class="scene-time-day">· AFTERNOON · DTLA Skatepark</span></div>
+            <div class="scene-desc">Urban concrete. The trick that either works or doesn't. The purest form of the full send.</div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">5 shots</span><span class="scene-status-tag" style="color:var(--muted);border-color:var(--border)">Tomorrow</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">03A</td><td class="shot-size-cell"><span class="shot-size-tag">Ground Low</span></td><td class="shot-desc-cell">Camera flat on concrete. Dev rolling toward lens. The texture of the approach.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">03B</td><td class="shot-size-cell"><span class="shot-size-tag">Helmet Mount</span></td><td class="shot-desc-cell">Vanta mounted to helmet. POV of the approach to the drop. The decision point.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">03C</td><td class="shot-size-cell"><span class="shot-size-tag">Wide Static</span></td><td class="shot-desc-cell">Full ramp in frame. Dev launches. The full send, held in a single wide shot.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">03D</td><td class="shot-size-cell"><span class="shot-size-tag">ECU Slow</span></td><td class="shot-desc-cell">Dev's face mid-air. The full send moment. High-speed camera if available.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#E05C2A">03E</td><td class="shot-size-cell"><span class="shot-size-tag">Product Tag</span></td><td class="shot-desc-cell">Vanta unit held up to lens. Post-send grin. "Vanta. Send it." Super over black.</td></tr>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SCRIPT -->
+  <div class="section-panel" id="sec-1-5">
+    <div class="section-title">Action Commercial Script · :60 Spot</div>
+    <div class="script-page">
+      <div class="script-format-label">Vanta Action Camera · Director/DP: Jake Morales · Shooting Apr 10–12</div>
+      <div class="script-title-block">
+        <span class="script-main-title">Full Send</span>
+        <span class="script-sub">Vanta · :60 Hero Spot</span>
+      </div>
+
+      <div class="script-slug" style="border-left-color:#E05C2A">SCENE 1 — EXT. MALIBU POINT — DAWN</div>
+      <p class="script-action">Black. Then ocean.</p>
+      <p class="script-action">First light splits the horizon. Long sets moving in from the west. The water is alive and indifferent.</p>
+      <p class="script-action">MARCO SILVA paddles out. The VANTA CAMERA is mounted to the board nose — the ocean rushing past the lens, water over glass, everything moving.</p>
+      <p class="script-action">A set comes in. Marco reads it, turns, paddles.</p>
+      <p class="script-action">The wave lifts him. He drops in.</p>
+      <p class="script-action">AERIAL: The full drop — board and body committed completely to the wall of water.</p>
+      <p class="script-action">GROUND LEVEL: The board slices past the lens at speed. Nothing but the sound of water and speed.</p>
+      <p class="script-action">CLOSE ON MARCO'S FACE: Eyes locked ahead. Total. In it completely.</p>
+      <p class="script-action">The wave releases him. He floats in the quiet after. The exhale.</p>
+      <p class="script-direction">[No dialogue. Sound design only. The ocean is the score.]</p>
+
+      <div class="script-divider"></div>
+
+      <div class="script-slug" style="border-left-color:#E05C2A">SCENE 2 — EXT. GRIFFITH PARK RIDGE — PRE-DAWN</div>
+      <p class="script-action">The city below, still lit. The sky not yet decided between night and day.</p>
+      <p class="script-action">ZOE PARK runs the ridge — VANTA unit on her chest, the city a glow behind her. She runs toward the drop edge of the ridge. She doesn't slow down.</p>
+      <p class="script-action">GROUND LEVEL: Her feet hit the trail surface and pass directly over the lens. The ground as percussion.</p>
+      <p class="script-action">AERIAL: The ridge, the city on one side, the void on the other — and Zoe threading the exact line between them.</p>
+      <p class="script-action">She crests the hill. She stops. First light arrives.</p>
+      <p class="script-action">She's already in it. Already there.</p>
+      <p class="script-direction">[No dialogue. Her breathing is the only sound we need.]</p>
+
+      <div class="script-divider"></div>
+
+      <div class="script-slug" style="border-left-color:#E05C2A">SCENE 3 — EXT. DTLA MEMORIAL SKATEPARK — AFTERNOON</div>
+      <p class="script-action">Concrete. Hot afternoon light. The sound of wheels on smooth ground.</p>
+      <p class="script-action">DEV OKAFOR approaches the drop. He's been looking at it. Now he rolls.</p>
+      <p class="script-action">CLOSE ON THE APPROACH: From the helmet — the ramp edge coming fast. The last moment before the decision becomes irreversible.</p>
+      <p class="script-action">He launches.</p>
+      <p class="script-action">For one frame — air. No ground. No outcome. Just the send, complete in itself.</p>
+      <p class="script-action">CLOSE ON DEV'S FACE, MID-AIR: Eyes open. The full send.</p>
+      <p class="script-action">He lands. He picks up the VANTA unit from his helmet. Holds it toward the lens. Grins.</p>
+      <span class="script-super" style="border-color:rgba(224,92,42,.25)">VANTA · SEND IT.</span>
+      <span class="script-transition">CUT TO BLACK.</span>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PROJECT 3 — IN VINO VERITAS
+═══════════════════════════════════════════ -->
+<div class="project-panel" id="panel-2">
+  <div class="proj-header">
+    <div class="proj-header-top">
+      <div class="proj-title-block">
+        <div class="proj-eyebrow" style="color:#7BAE6E">Food & Drink · Culture · Doc Pilot</div>
+        <div class="proj-title">In Vino Veritas</div>
+        <div class="proj-client-name">Napa Collective</div>
+      </div>
+      <div class="proj-meta-pills">
+        <span class="pill" style="color:#7BAE6E;border-color:rgba(123,174,110,.3);background:rgba(123,174,110,.08)">Production</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Day 2 of 3</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">~10 Min Pilot</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Verité + Interviews</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Napa Valley</span>
+      </div>
+    </div>
+    <div class="proj-brief">A ~10-minute branded documentary pilot following three men through Napa wine country — vineyards, cellars, open road. It's a show about wine the way all great wine writing is actually about connection, time, and being present. Verité style, interview-driven, with the valley itself as the fourth character.</div>
+  </div>
+
+  <div class="section-nav" id="snav-2">
+    <div class="sec-tab active" onclick="switchSection(2,0)">Overview</div>
+    <div class="sec-tab" onclick="switchSection(2,1)">Crew · 8</div>
+    <div class="sec-tab" onclick="switchSection(2,2)">Timeline</div>
+    <div class="sec-tab" onclick="switchSection(2,3)">Tasks · 8</div>
+    <div class="sec-tab" onclick="switchSection(2,4)">Sequences · 3</div>
+    <div class="sec-tab" onclick="switchSection(2,5)">Treatment</div>
+  </div>
+
+  <div class="section-panel active" id="sec-2-0">
+    <div class="section-title">Project Overview</div>
+    <div class="overview-grid">
+      <div class="ov-block">
+        <div class="ov-label">Deliverables</div>
+        <div class="ov-value"><ul>
+          <li>Pilot episode — ~10 min</li>
+          <li>Series pitch package</li>
+          <li>2× Short clips for social</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Shoot Schedule</div>
+        <div class="ov-value"><ul>
+          <li>Day 1 — Oakville Vineyard Estate ✓</li>
+          <li>Day 2 — St. Helena Barrel Cellar ← Today</li>
+          <li>Day 3 — Valley Road · Tomorrow</li>
+          <li>Interview Pickups — Apr 15</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Subjects</div>
+        <div class="ov-value"><ul>
+          <li>Paul Navarro</li>
+          <li>Marcus Trent</li>
+          <li>Jin Ho</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Style Notes</div>
+        <div class="ov-value"><ul>
+          <li>Verité — no staged moments</li>
+          <li>Natural light only where possible</li>
+          <li>Interviews: one-on-one, location context</li>
+          <li>No narration — subjects carry the story</li>
+        </ul></div>
+      </div>
+      <div class="oneness-block" style="border-left-color:#7BAE6E">
+        <div class="oneness-label" style="color:#7BAE6E">The Oneness Thread — In Wine, Truth</div>
+        <div class="oneness-text">"Three men, one valley, one bottle between them. Wine as the oldest technology for dissolving the distance between people."</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-2-1">
+    <div class="section-title">Crew Roster</div>
+    <div class="crew-grid">
+      <div class="crew-card"><div class="crew-role" style="color:#7BAE6E">Director</div><div class="crew-name">Elise Marchetti</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7BAE6E">Director of Photography</div><div class="crew-name">Owen Blakely</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7BAE6E">Production Sound Mixer</div><div class="crew-name">Tom Vega</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7BAE6E">Producer</div><div class="crew-name">Lucia Fontaine</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7BAE6E">Production Assistant</div><div class="crew-name">Ryan Cole</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7BAE6E">Subject</div><div class="crew-name">Paul Navarro</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7BAE6E">Subject</div><div class="crew-name">Marcus Trent</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7BAE6E">Subject</div><div class="crew-name">Jin Ho</div></div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-2-2">
+    <div class="section-title">Production Timeline</div>
+    <div class="timeline">
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Concept approved by Napa Collective</div><div class="ms-date">Apr 3 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">All three subjects confirmed and briefed</div><div class="ms-date">Apr 7 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Day 1 — Vineyard Estate, Oakville · DONE</div><div class="ms-date">Apr 10 · Done</div><div class="ms-note">Vine rows · golden hour · Jin Ho interview captured</div></div></div>
+      <div class="milestone"><div class="ms-status active" style="border-color:#7BAE6E"></div><div class="ms-content"><div class="ms-label">Day 2 — Barrel Cellar, St. Helena</div><div class="ms-date">Apr 11 · TODAY</div><div class="ms-note">Underground · low light · Marcus Trent interview</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Day 3 — Valley Road + Vista Points</div><div class="ms-date">Apr 12</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Interview pickup day — Paul Navarro solo</div><div class="ms-date">Apr 15</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Assembly cut</div><div class="ms-date">Apr 20</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Director's cut delivered</div><div class="ms-date">Apr 25</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Client screening — Napa Collective</div><div class="ms-date">Apr 28</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Pilot delivery + series pitch package</div><div class="ms-date">May 5</div></div></div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-2-3">
+    <div class="section-title">Action Items</div>
+    <table class="tasks-table">
+      <thead><tr><th>Task</th><th>Assigned</th><th>Due</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><div class="task-name">Log and sync Day 1 footage</div></td><td><div class="task-assign">Owen Blakely</div></td><td class="task-due">Apr 11</td><td><span class="status-badge status-progress">In Progress</span></td></tr>
+        <tr><td><div class="task-name">Interview questions refined for cellar session</div></td><td><div class="task-assign">Elise Marchetti</div></td><td class="task-due">Apr 11</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Barrel room winery access confirmed</div></td><td><div class="task-assign">Ryan Cole</div></td><td class="task-due">Apr 11</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Day 3 road route mapped + vista permits</div></td><td><div class="task-assign">Lucia Fontaine</div></td><td class="task-due">Apr 11</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Transcription service booked for all interviews</div></td><td><div class="task-assign">Lucia Fontaine</div></td><td class="task-due">Apr 13</td><td><span class="status-badge status-pending">Pending</span></td></tr>
+        <tr><td><div class="task-name">Cut structure outline — paper edit from Day 1</div></td><td><div class="task-assign">Elise Marchetti</div></td><td class="task-due">Apr 16</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+        <tr><td><div class="task-name">Temp music selects for assembly</div></td><td><div class="task-assign">Elise Marchetti</div></td><td class="task-due">Apr 19</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+        <tr><td><div class="task-name">Archival wine footage licensing</div></td><td><div class="task-assign">Lucia Fontaine</div></td><td class="task-due">Apr 18</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-panel" id="sec-2-4">
+    <div class="section-title">Documentary Sequences · 3 Sequences · 14 Shots</div>
+    <div class="scene-list">
+
+      <div class="scene-block open" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#7BAE6E">01</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#7BAE6E;border-color:rgba(123,174,110,.3);background:rgba(123,174,110,.08)">EXT</span><span class="scene-title">The Vine</span><span class="scene-time-day">· GOLDEN HOUR · Oakville Estate</span></div>
+            <div class="scene-desc">Morning arrival. Walking the rows. The land as context for everything that follows. <span style="color:#6db86d;font-family:var(--mono);font-size:10px;letter-spacing:.06em">✓ DONE</span></div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">5 shots</span><span class="scene-status-tag" style="color:#6db86d;border-color:rgba(109,184,109,.3);background:rgba(109,184,109,.08)">Done</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7BAE6E">01A</td><td class="shot-size-cell"><span class="shot-size-tag">Wide</span></td><td class="shot-desc-cell">Three men walking into the vine rows at golden hour. The valley spreads behind them.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7BAE6E">01B</td><td class="shot-size-cell"><span class="shot-size-tag">ECU</span></td><td class="shot-desc-cell">Hands touching leaves, then reaching into the soil. Contact with the earth. Tactile and specific.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7BAE6E">01C</td><td class="shot-size-cell"><span class="shot-size-tag">Medium</span></td><td class="shot-desc-cell">Paul crouches, lifts a handful of earth, smells it. Not performed — genuine.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7BAE6E">01D</td><td class="shot-size-cell"><span class="shot-size-tag">Interview</span></td><td class="shot-desc-cell">Jin Ho, medium frame, vineyard behind. "I think wine is just time, made drinkable."</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7BAE6E">01E</td><td class="shot-size-cell"><span class="shot-size-tag">Wide B-Roll</span></td><td class="shot-desc-cell">The valley from the ridge. Scale. Three tiny figures in the rows below.</td></tr>
+        </table>
+      </div>
+
+      <div class="scene-block open" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#7BAE6E">02</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#7BAE6E;border-color:rgba(123,174,110,.3);background:rgba(123,174,110,.08)">INT</span><span class="scene-title">The Dark</span><span class="scene-time-day">· LOW LIGHT · St. Helena Cellar</span></div>
+            <div class="scene-desc">Underground. Barrels and candlelight. The cellar as a place where honesty happens naturally. <span style="color:#7BAE6E;font-family:var(--mono);font-size:10px;letter-spacing:.06em">← TODAY</span></div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">5 shots</span><span class="scene-status-tag" style="color:#7BAE6E;border-color:rgba(123,174,110,.3);background:rgba(123,174,110,.08)">Shooting</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7BAE6E">02A</td><td class="shot-size-cell"><span class="shot-size-tag">Wide</span></td><td class="shot-desc-cell">Three men entering the cellar. Eyes adjusting to the dark. The weight of the space.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7BAE6E">02B</td><td class="shot-size-cell"><span class="shot-size-tag">ECU</span></td><td class="shot-desc-cell">Barrel markings, chalk dates. Years of patience annotated in handwriting.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7BAE6E">02C</td><td class="shot-size-cell"><span class="shot-size-tag">Interview</span></td><td class="shot-desc-cell">Marcus Trent, low light, barrels soft behind. Present tense thoughts on time and making things.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7BAE6E">02D</td><td class="shot-size-cell"><span class="shot-size-tag">Verité</span></td><td class="shot-desc-cell">Wine drawn directly from barrel with a thief. The tasting. Silence and expressions.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7BAE6E">02E</td><td class="shot-size-cell"><span class="shot-size-tag">Medium Group</span></td><td class="shot-desc-cell">All three, glasses up in the low light. No words. The moment when wine does what words can't.</td></tr>
+        </table>
+      </div>
+
+      <div class="scene-block" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#7BAE6E">03</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#7BAE6E;border-color:rgba(123,174,110,.3);background:rgba(123,174,110,.08)">EXT</span><span class="scene-title">The Road</span><span class="scene-time-day">· AFTERNOON · Valley Drive</span></div>
+            <div class="scene-desc">The conversation that only happens inside a moving car. The valley unrolling outside the windows.</div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">4 shots</span><span class="scene-status-tag" style="color:var(--muted);border-color:var(--border)">Tomorrow</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7BAE6E">03A</td><td class="shot-size-cell"><span class="shot-size-tag">Ext Track</span></td><td class="shot-desc-cell">Car moving through valley road. Vines on both sides. The beauty of the place as transition.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7BAE6E">03B</td><td class="shot-size-cell"><span class="shot-size-tag">Interior</span></td><td class="shot-desc-cell">Dashboard POV. Marcus driving, Paul in passenger. The conversation happening naturally between the three.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7BAE6E">03C</td><td class="shot-size-cell"><span class="shot-size-tag">Wide Static</span></td><td class="shot-desc-cell">Car pulled over at an unmarked vista. All three out, looking at the valley. Unprompted. Real.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7BAE6E">03D</td><td class="shot-size-cell"><span class="shot-size-tag">Interview</span></td><td class="shot-desc-cell">Paul, roadside, valley behind. The concluding thought on what the trip was actually about.</td></tr>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TREATMENT -->
+  <div class="section-panel" id="sec-2-5">
+    <div class="section-title">Documentary Treatment + Interview Guide</div>
+    <div class="script-page">
+      <div class="script-format-label">Napa Collective · Director: Elise Marchetti · Doc Pilot</div>
+      <div class="script-title-block">
+        <span class="script-main-title">In Vino Veritas</span>
+        <span class="script-sub">A Napa Collective Film · Pilot Episode</span>
+        <span class="script-sub">Treatment + Interview Guide · v1</span>
+      </div>
+
+      <div class="script-slug" style="border-left-color:#7BAE6E">LOGLINE</div>
+      <p class="script-action">Three men, one valley, one bottle between them. Wine as the oldest technology for dissolving the distance between people.</p>
+
+      <div class="script-slug" style="border-left-color:#7BAE6E">DIRECTOR'S APPROACH</div>
+      <p class="script-action">This is not a wine documentary. Wine is the vehicle. The subject is what happens to men when the distance between them closes — when a glass comes out, when the right place loosens the right words.</p>
+      <p class="script-action">We don't explain wine. We don't interview sommeliers. We follow three friends through a single day in Napa — vineyard to cellar to open road — and we watch what the valley does to them over the course of those hours.</p>
+      <p class="script-action">No narration. No on-screen titles explaining what we're looking at. Just Paul, Marcus, and Jin, moving through a place that has been making people honest for a very long time.</p>
+      <p class="script-note">Camera approach: verité throughout. Follow, don't lead. If you have to choose between the shot and the moment, choose the moment.</p>
+
+      <div class="script-divider"></div>
+
+      <div class="script-slug" style="border-left-color:#7BAE6E">SEQUENCE 1 — THE VINE · Oakville Vineyard · Golden Hour</div>
+      <p class="script-action">We arrive when they arrive. The camera moves with them into the vine rows. No setup, no orientation. Let the land introduce itself.</p>
+      <div class="script-section-hd">Interview — Jin Ho</div>
+      <p class="script-note">Location: End of a vine row, valley behind. Last golden light. Seat him, start rolling, ask him to finish the sentence: "Wine is..."</p>
+      <p class="script-iq">What does this place feel like to you the first time you're in it?</p>
+      <p class="script-iq">What does wine do that conversation can't — or won't?</p>
+      <p class="script-iq">When did you first understand that wine was something more than a drink?</p>
+      <p class="script-iq">What does it mean to make something that requires years to become what it is?</p>
+      <p class="script-note">Don't push for conclusions. If he trails off, let him. The trailing off is the answer.</p>
+
+      <div class="script-divider"></div>
+
+      <div class="script-slug" style="border-left-color:#7BAE6E">SEQUENCE 2 — THE DARK · St. Helena Barrel Cellar · Available Light Only</div>
+      <p class="script-action">The cellar is a different room than the vineyard. Something happens to people underground. Do not add light sources — let the cellar be what it is.</p>
+      <div class="script-section-hd">Interview — Marcus Trent</div>
+      <p class="script-note">Location: Barrel corridor. One practical bare bulb above. Barrels behind him. No fill. If you lose his face in the shadows, that's acceptable — sometimes right.</p>
+      <p class="script-iq">What do you think about when you're in a place like this?</p>
+      <p class="script-iq">Is there something about the dark that changes how you talk to people?</p>
+      <p class="script-iq">Is there something you know now that you didn't know before you started coming here?</p>
+      <p class="script-iq">What's the difference between a bottle you open alone and one you open with the right people?</p>
+      <div class="script-section-hd">The Tasting — No Script</div>
+      <p class="script-note">When the winemaker draws from the barrel, follow it. No direction. Let the silence after the first taste stay in the edit — that silence is worth more than any question.</p>
+
+      <div class="script-divider"></div>
+
+      <div class="script-slug" style="border-left-color:#7BAE6E">SEQUENCE 3 — THE ROAD · Valley Drive + Vista Points · Late Afternoon</div>
+      <p class="script-action">The drive is the third character. The car is a confessional. Mount a small camera on the dash. Keep the main camera loose in the back seat. Let the conversation happen.</p>
+      <div class="script-section-hd">Interview — Paul Navarro</div>
+      <p class="script-note">Roadside, valley behind him. Late afternoon. This is the closing interview — what the day became.</p>
+      <p class="script-iq">What are you taking away from today that you didn't arrive with?</p>
+      <p class="script-iq">Is there a version of this day that happens without the wine? What's different about it?</p>
+      <p class="script-iq">What does it feel like to be in a place that has been doing the same thing for a hundred years?</p>
+      <p class="script-iq">What do you want people to feel watching this?</p>
+      <div class="script-section-hd">Final Image — No Direction</div>
+      <p class="script-note">The car moves away down the valley road. Don't force a close. Let whatever the valley gives you be the ending.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PROJECT 4 — FLEXIBILITY COURSE A
+═══════════════════════════════════════════ -->
+<div class="project-panel" id="panel-3">
+  <div class="proj-header">
+    <div class="proj-header-top">
+      <div class="proj-title-block">
+        <div class="proj-eyebrow" style="color:#A07EB5">Wellness · Yoga &amp; Meditation · Educational Series</div>
+        <div class="proj-title">Flexibility Course A</div>
+        <div class="proj-client-name">Kaia Mori</div>
+      </div>
+      <div class="proj-meta-pills">
+        <span class="pill" style="color:#A07EB5;border-color:rgba(160,126,181,.3);background:rgba(160,126,181,.08)">Pre-Production</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Episode 1 of 6</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Shoot in 5 Days</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">2-Camera</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Studio + Outdoor</span>
+      </div>
+    </div>
+    <div class="proj-brief">The first episode of a six-part instructional series for a yoga and meditation instructor, built around a single practice and the concept of return. Each episode is one pose, one teacher, one unbroken thread from instruction to integration. Small two-camera crew, split between a clean studio and a nature location.</div>
+  </div>
+
+  <div class="section-nav" id="snav-3">
+    <div class="sec-tab active" onclick="switchSection(3,0)">Overview</div>
+    <div class="sec-tab" onclick="switchSection(3,1)">Crew · 5</div>
+    <div class="sec-tab" onclick="switchSection(3,2)">Timeline</div>
+    <div class="sec-tab" onclick="switchSection(3,3)">Tasks · 8</div>
+    <div class="sec-tab" onclick="switchSection(3,4)">Sequences · 3</div>
+    <div class="sec-tab" onclick="switchSection(3,5)">Script</div>
+  </div>
+
+  <div class="section-panel active" id="sec-3-0">
+    <div class="section-title">Project Overview</div>
+    <div class="overview-grid">
+      <div class="ov-block">
+        <div class="ov-label">Episode 1 Focus</div>
+        <div class="ov-value"><ul>
+          <li>Title: "Root"</li>
+          <li>Practice: Standing Balance / Grounding</li>
+          <li>Pose: Tadasana through Vrksasana</li>
+          <li>Runtime: ~20 min instructional</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Series Arc (6 Episodes)</div>
+        <div class="ov-value"><ul>
+          <li>Ep 1 — Root · Standing balance</li>
+          <li>Ep 2 — Flow · Vinyasa sequence</li>
+          <li>Ep 3 — Open · Heart openers</li>
+          <li>Ep 4 — Still · Seated practice</li>
+          <li>Ep 5 — Breathe · Pranayama</li>
+          <li>Ep 6 — Return · Integration</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Shoot Locations</div>
+        <div class="ov-value"><ul>
+          <li>Cyc studio — white · downtown LA</li>
+          <li>Will Rogers State Park — outdoor</li>
+          <li>2 shoot days · Apr 16 + 17</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Camera Setup</div>
+        <div class="ov-value"><ul>
+          <li>Cam A — Wide profile · continuous</li>
+          <li>Cam B — Frontal / detail coverage</li>
+          <li>Both rolling for full practice run</li>
+        </ul></div>
+      </div>
+      <div class="oneness-block" style="border-left-color:#A07EB5">
+        <div class="oneness-label" style="color:#A07EB5">The Oneness Thread — Union</div>
+        <div class="oneness-text">"Yoga is the original word for oneness. The practice is a return to a self that was never divided. Each episode: one pose, one return."</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-3-1">
+    <div class="section-title">Crew Roster</div>
+    <div class="crew-grid">
+      <div class="crew-card"><div class="crew-role" style="color:#A07EB5">Director / DP</div><div class="crew-name">Simone Park</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#A07EB5">Camera B / Assistant</div><div class="crew-name">Alex Drum</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#A07EB5">Sound</div><div class="crew-name">Hana Liu</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#A07EB5">Production Assistant</div><div class="crew-name">Tyler Moss</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#A07EB5">Instructor / Talent</div><div class="crew-name">Kaia Mori</div></div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-3-2">
+    <div class="section-title">Production Timeline</div>
+    <div class="timeline">
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Series outline approved by Kaia</div><div class="ms-date">Apr 1 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Episode 1 practice sequence locked</div><div class="ms-date">Apr 7 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Studio booked — cyc space, downtown LA</div><div class="ms-date">Apr 8 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Shot list v1 complete</div><div class="ms-date">Apr 9 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status active" style="border-color:#A07EB5"></div><div class="ms-content"><div class="ms-label">Gear prep and two-camera test</div><div class="ms-date">Apr 13</div><div class="ms-note">Studio lighting positions to be mapped</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Studio Shoot Day — Ep 1 interior sequences</div><div class="ms-date">Apr 16</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Outdoor Shoot Day — Will Rogers State Park</div><div class="ms-date">Apr 17</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Episode 1 rough cut</div><div class="ms-date">Apr 25</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Kaia review + notes</div><div class="ms-date">Apr 27</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Episode 1 delivery</div><div class="ms-date">May 2</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Episode 2 pre-production begins</div><div class="ms-date">May 5</div></div></div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-3-3">
+    <div class="section-title">Action Items</div>
+    <table class="tasks-table">
+      <thead><tr><th>Task</th><th>Assigned</th><th>Due</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><div class="task-name">Finalize Ep 1 practice sequence with Kaia</div></td><td><div class="task-assign">Simone Park</div></td><td class="task-due">Apr 12</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Wardrobe direction sent to Kaia</div></td><td><div class="task-assign">Simone Park</div></td><td class="task-due">Apr 12</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Talent release form signed</div></td><td><div class="task-assign">Hana Liu</div></td><td class="task-due">Apr 12</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Confirm studio lighting setup — two-cam positions</div></td><td><div class="task-assign">Alex Drum</div></td><td class="task-due">Apr 13</td><td><span class="status-badge status-progress">In Progress</span></td></tr>
+        <tr><td><div class="task-name">Outdoor location confirmed — Will Rogers</div></td><td><div class="task-assign">Tyler Moss</div></td><td class="task-due">Apr 13</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Music licensing direction for series</div></td><td><div class="task-assign">Tyler Moss</div></td><td class="task-due">Apr 14</td><td><span class="status-badge status-pending">Pending</span></td></tr>
+        <tr><td><div class="task-name">Episode 2 outline draft</div></td><td><div class="task-assign">Simone Park</div></td><td class="task-due">Apr 20</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+        <tr><td><div class="task-name">Series template locked after Ep 1 review</div></td><td><div class="task-assign">Simone Park · Kaia Mori</div></td><td class="task-due">Apr 28</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-panel" id="sec-3-4">
+    <div class="section-title">Episode 1 Sequences — "Root" · 3 Sequences · 11 Shots</div>
+    <div class="scene-list">
+
+      <div class="scene-block open" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#A07EB5">01</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#A07EB5;border-color:rgba(160,126,181,.3);background:rgba(160,126,181,.08)">INT</span><span class="scene-title">The Welcome</span><span class="scene-time-day">· STUDIO · White Cyc</span></div>
+            <div class="scene-desc">Kaia introduces the episode. Direct to camera. Warm, specific, unhurried.</div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">3 shots</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#A07EB5">01A</td><td class="shot-size-cell"><span class="shot-size-tag">Medium</span></td><td class="shot-desc-cell">Kaia seated, direct address. Introduces herself, the series, what this episode is about.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#A07EB5">01B</td><td class="shot-size-cell"><span class="shot-size-tag">Wide</span></td><td class="shot-desc-cell">Full body. Standing in the clean studio space. The scale and simplicity of the environment.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#A07EB5">01C</td><td class="shot-size-cell"><span class="shot-size-tag">ECU</span></td><td class="shot-desc-cell">Hands in anjali mudra. The gesture of beginning. The practice starting before the body moves.</td></tr>
+        </table>
+      </div>
+
+      <div class="scene-block" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#A07EB5">02</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#A07EB5;border-color:rgba(160,126,181,.3);background:rgba(160,126,181,.08)">INT</span><span class="scene-title">The Practice</span><span class="scene-time-day">· STUDIO · Full Sequence</span></div>
+            <div class="scene-desc">The full floor sequence. Tadasana through Vrksasana. Both cameras rolling. The unbroken instruction.</div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">5 shots</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#A07EB5">02A</td><td class="shot-size-cell"><span class="shot-size-tag">Wide — Cam A</span></td><td class="shot-desc-cell">Full body profile. Full sequence continuous from standing through tree pose. Primary instruction angle.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#A07EB5">02B</td><td class="shot-size-cell"><span class="shot-size-tag">Wide — Cam B</span></td><td class="shot-desc-cell">Frontal angle. Same full sequence. Coverage for edit flexibility.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#A07EB5">02C</td><td class="shot-size-cell"><span class="shot-size-tag">ECU Series</span></td><td class="shot-desc-cell">Foot placement, hand position, eye line — instructional close-up details for each key beat of the sequence.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#A07EB5">02D</td><td class="shot-size-cell"><span class="shot-size-tag">Medium</span></td><td class="shot-desc-cell">Kaia demonstrates common misalignment, then immediately corrects to the right form. The teaching moment.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#A07EB5">02E</td><td class="shot-size-cell"><span class="shot-size-tag">Overhead</span></td><td class="shot-desc-cell">Top-down. Body in tree pose from directly above. Unique instructional angle — symmetry and root visible.</td></tr>
+        </table>
+      </div>
+
+      <div class="scene-block" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#A07EB5">03</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#A07EB5;border-color:rgba(160,126,181,.3);background:rgba(160,126,181,.08)">EXT</span><span class="scene-title">The Ground</span><span class="scene-time-day">· MORNING · Will Rogers State Park</span></div>
+            <div class="scene-desc">Taking the practice outside. Feet in grass. The same pose, different earth. The pose meets the world.</div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">4 shots</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#A07EB5">03A</td><td class="shot-size-cell"><span class="shot-size-tag">Wide</span></td><td class="shot-desc-cell">Kaia standing in the open field. Mountains visible behind. The studio practice now placed in the world.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#A07EB5">03B</td><td class="shot-size-cell"><span class="shot-size-tag">ECU</span></td><td class="shot-desc-cell">Bare feet in grass. The literal ground. Root pose on real earth.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#A07EB5">03C</td><td class="shot-size-cell"><span class="shot-size-tag">Medium</span></td><td class="shot-desc-cell">Full tree pose in the open field. Wind present. Light natural. The pose as belonging.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#A07EB5">03D</td><td class="shot-size-cell"><span class="shot-size-tag">Close</span></td><td class="shot-desc-cell">Kaia's face. Eyes closed. The arrival at the end of practice. The return.</td></tr>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SCRIPT -->
+  <div class="section-panel" id="sec-3-5">
+    <div class="section-title">Instructional Script · Episode 1 — "Root"</div>
+    <div class="script-page">
+      <div class="script-format-label">Kaia Mori · Director: Simone Park · Episode 1 of 6 · Approved Apr 7</div>
+      <div class="script-title-block">
+        <span class="script-main-title">Flexibility Course A</span>
+        <span class="script-sub">Episode 1 — "Root"</span>
+        <span class="script-sub">Standing Balance + Grounding · ~20 min</span>
+      </div>
+
+      <div class="script-slug" style="border-left-color:#A07EB5">SEQUENCE 1 — THE WELCOME · INT. Studio · Kaia seated on mat</div>
+      <div class="script-speaker">KAIA</div>
+      <div class="script-spoken">Welcome to Flexibility Course A. I'm Kaia Mori, and this is the first episode of six.</div>
+      <p class="script-direction">[Beat. Let it settle.]</p>
+      <div class="script-spoken">Each episode is built around one practice. One idea. One return.</div>
+      <p class="script-direction">[She rises slowly to standing. Camera holds.]</p>
+      <div class="script-spoken">This episode is called Root. It's about standing — which sounds simple until you try to do it completely.</div>
+      <div class="script-spoken">We're going to work through a standing balance sequence today — from Tadasana, mountain pose, through Vrksasana, tree pose. If you've done these before, I want you to do them like you haven't. If this is your first time — there's nothing to get right. There's only paying attention.</div>
+      <div class="script-spoken">Find your mat. Come to standing. We'll begin together.</div>
+
+      <div class="script-divider"></div>
+
+      <div class="script-slug" style="border-left-color:#A07EB5">SEQUENCE 2 — THE PRACTICE · INT. Studio · Both cameras rolling</div>
+      <p class="script-direction">[Kaia stands at center of mat. Feet hip-width. She settles into the pose before speaking.]</p>
+      <div class="script-speaker">KAIA</div>
+      <div class="script-spoken">Stand with your feet hip-width apart. Feel the floor under you. Not gripping — just feeling it.</div>
+      <div class="script-spoken">This is Tadasana. Mountain pose. The beginning and the return of almost everything we do in standing practice.</div>
+      <p class="script-direction">[Beat. She lets the pose speak first.]</p>
+      <div class="script-spoken">Notice what your weight is doing right now. Is it forward on your toes? Back on your heels? See if you can find the middle of your foot — the place where the ground is meeting you evenly.</div>
+      <p class="script-direction">[She demonstrates the misalignment first — slight forward lean, toes gripping.]</p>
+      <div class="script-spoken">This is what we often do —</div>
+      <p class="script-direction">[She corrects.]</p>
+      <div class="script-spoken">— reaching forward before we've even moved. Come back. Root through the heel. Let the toes be light.</div>
+      <div class="script-spoken">Lengthen through the crown of the head. Shoulders back and down — not forced. Released.</div>
+      <p class="script-direction">[She breathes. A full breath. The room breathes with her.]</p>
+      <div class="script-spoken">Now we're going to shift weight onto the left foot. Slowly. Not a collapse — a decision. Feel the whole left foot receive you.</div>
+      <p class="script-direction">[She brings the right foot to the inner left thigh. Tree pose. She finds it without rushing.]</p>
+      <div class="script-spoken">This is Vrksasana. Tree pose. And the tree does not grip the earth — it grows into it. Let your standing leg be that. Not locked. Alive.</div>
+      <div class="script-spoken">Find a point in front of you — a drishti, a focal point. Let your gaze soften on it.</div>
+      <p class="script-direction">[She holds. Five full breaths. She counts them quietly.]</p>
+      <div class="script-spoken">One... two... three... four... five.</div>
+      <p class="script-direction">[She releases. Returns to Tadasana.]</p>
+      <div class="script-spoken">Come back to mountain. Notice what changed. Then we take the other side.</div>
+      <p class="script-direction">[Repeat full sequence on right side. Same instruction, different emphasis as needed. Let her find it again naturally.]</p>
+
+      <div class="script-divider"></div>
+
+      <div class="script-slug" style="border-left-color:#A07EB5">SEQUENCE 3 — THE GROUND · EXT. Will Rogers State Park · Morning · Barefoot</div>
+      <p class="script-direction">[Kaia stands in the open field. Barefoot. Mountains visible behind her. She is in Tadasana before she speaks.]</p>
+      <div class="script-speaker">KAIA</div>
+      <div class="script-spoken">The same practice. Different ground.</div>
+      <p class="script-direction">[She lets the field be present for a moment.]</p>
+      <div class="script-spoken">Notice this: the earth is uneven. Your foot has to read it in a way a studio floor doesn't require. That's not a problem — that's the practice asking more of you.</div>
+      <p class="script-direction">[She moves into tree pose. Wind moves through. She doesn't correct for it.]</p>
+      <div class="script-spoken">Let the wind be part of it. The tree doesn't resist the wind — it moves with it and stays rooted. That's what we're practicing.</div>
+      <p class="script-direction">[She holds. Eyes closed. The mountains behind her. A long, real moment.]</p>
+      <p class="script-direction">[She opens her eyes. Looks directly at camera.]</p>
+      <div class="script-spoken">Root is not about being still. It's about being connected. Come back to this whenever you need it.</div>
+      <p class="script-direction">[She brings hands to anjali mudra. A natural close.]</p>
+      <div class="script-spoken">See you in Episode Two.</div>
+      <span class="script-transition">END EPISODE 1.</span>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PROJECT 5 — NATURAL ORDER
+═══════════════════════════════════════════ -->
+<div class="project-panel" id="panel-4">
+  <div class="proj-header">
+    <div class="proj-header-top">
+      <div class="proj-title-block">
+        <div class="proj-eyebrow" style="color:#5BAAA0">Climate Tech · Impact · Sizzle Reel</div>
+        <div class="proj-title">Natural Order</div>
+        <div class="proj-client-name">Meridian Climate</div>
+      </div>
+      <div class="proj-meta-pills">
+        <span class="pill" style="color:#5BAAA0;border-color:rgba(91,170,160,.3);background:rgba(91,170,160,.08)">Post-Production</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Post-Only</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">~2 Min Sizzle</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">GFX + VO + Stock</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Delivery Apr 25</span>
+      </div>
+    </div>
+    <div class="proj-brief">A post-only sizzle reel for a climate data startup, assembled entirely from licensed stock footage, original data visualizations, and a scripted VO recorded remotely. Two people in a post suite shaping a story about scattered global data resolving into one coherent signal. No shoot, no set — just the cut.</div>
+  </div>
+
+  <div class="section-nav" id="snav-4">
+    <div class="sec-tab active" onclick="switchSection(4,0)">Overview</div>
+    <div class="sec-tab" onclick="switchSection(4,1)">Team · 4</div>
+    <div class="sec-tab" onclick="switchSection(4,2)">Timeline</div>
+    <div class="sec-tab" onclick="switchSection(4,3)">Tasks · 8</div>
+    <div class="sec-tab" onclick="switchSection(4,4)">Sequences · 3</div>
+    <div class="sec-tab" onclick="switchSection(4,5)">VO Script</div>
+  </div>
+
+  <div class="section-panel active" id="sec-4-0">
+    <div class="section-title">Project Overview</div>
+    <div class="overview-grid">
+      <div class="ov-block">
+        <div class="ov-label">Deliverables</div>
+        <div class="ov-value"><ul>
+          <li>~2 min sizzle reel — investor + partner use</li>
+          <li>:60 version for conference</li>
+          <li>GFX assets — reusable for brand</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Post Assets</div>
+        <div class="ov-value"><ul>
+          <li>VO recorded — James North · Apr 10</li>
+          <li>42 licensed stock clips selected</li>
+          <li>GFX v1 in build — 3 sequences</li>
+          <li>Temp score selected</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">GFX Approach</div>
+        <div class="ov-value"><ul>
+          <li>Data visualization — animated maps</li>
+          <li>Sensor network — particle system</li>
+          <li>Platform UI — motion design</li>
+          <li>All built in After Effects + C4D</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Key Contacts</div>
+        <div class="ov-value"><ul>
+          <li>Dr. Sarah Osei — Brand Director, Meridian</li>
+          <li>James North — VO Talent (remote)</li>
+          <li>Client review — Apr 18</li>
+        </ul></div>
+      </div>
+      <div class="oneness-block" style="border-left-color:#5BAAA0">
+        <div class="oneness-label" style="color:#5BAAA0">The Oneness Thread — One Signal</div>
+        <div class="oneness-text">"Every ocean, every sensor, every storm — resolving into a single unified picture. The world, finally legible as one system."</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-4-1">
+    <div class="section-title">Post Team</div>
+    <div class="crew-grid">
+      <div class="crew-card"><div class="crew-role" style="color:#5BAAA0">Editor</div><div class="crew-name">Rafi Torres</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#5BAAA0">GFX Artist</div><div class="crew-name">Cleo Strand</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#5BAAA0">VO Talent (Remote)</div><div class="crew-name">James North</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#5BAAA0">Brand Director (Client)</div><div class="crew-name">Dr. Sarah Osei</div><div class="crew-type">Meridian Climate</div></div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-4-2">
+    <div class="section-title">Post Timeline</div>
+    <div class="timeline">
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">VO script approved by Dr. Osei</div><div class="ms-date">Apr 5 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Stock footage selects locked — 42 clips</div><div class="ms-date">Apr 8 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">VO recording session — James North, remote</div><div class="ms-date">Apr 10 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status active" style="border-color:#5BAAA0"></div><div class="ms-content"><div class="ms-label">GFX v1 — data visualization sequences</div><div class="ms-date">Apr 13 · In Build</div><div class="ms-note">Cleo Strand · Seq 1 + 3 in progress</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Assembly cut with VO synced</div><div class="ms-date">Apr 14</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Client review round 1 — Dr. Osei</div><div class="ms-date">Apr 18</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">GFX revisions v2</div><div class="ms-date">Apr 21</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Color grade</div><div class="ms-date">Apr 23</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Final mix</div><div class="ms-date">Apr 24</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Final delivery — all formats</div><div class="ms-date">Apr 25</div></div></div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-4-3">
+    <div class="section-title">Action Items</div>
+    <table class="tasks-table">
+      <thead><tr><th>Task</th><th>Assigned</th><th>Due</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><div class="task-name">VO file QC and sync to Premiere timeline</div></td><td><div class="task-assign">Rafi Torres</div></td><td class="task-due">Apr 11</td><td><span class="status-badge status-progress">In Progress</span></td></tr>
+        <tr><td><div class="task-name">Stock clip licensing confirmation — all 42</div></td><td><div class="task-assign">Rafi Torres</div></td><td class="task-due">Apr 12</td><td><span class="status-badge status-progress">In Progress</span></td></tr>
+        <tr><td><div class="task-name">GFX style frame approval — Dr. Osei</div></td><td><div class="task-assign">Cleo Strand</div></td><td class="task-due">Apr 12</td><td><span class="status-badge status-pending">Pending</span></td></tr>
+        <tr><td><div class="task-name">Temp score confirmed for assembly</div></td><td><div class="task-assign">Rafi Torres</div></td><td class="task-due">Apr 12</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">GFX Sequence 1 — global data map build</div></td><td><div class="task-assign">Cleo Strand</div></td><td class="task-due">Apr 13</td><td><span class="status-badge status-progress">In Progress</span></td></tr>
+        <tr><td><div class="task-name">Lower thirds and supers design</div></td><td><div class="task-assign">Cleo Strand</div></td><td class="task-due">Apr 14</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+        <tr><td><div class="task-name">End card and Meridian logo lockup</div></td><td><div class="task-assign">Cleo Strand</div></td><td class="task-due">Apr 14</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+        <tr><td><div class="task-name">Export specs confirmed with Meridian team</div></td><td><div class="task-assign">Rafi Torres</div></td><td class="task-due">Apr 20</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-panel" id="sec-4-4">
+    <div class="section-title">Editorial Sequences · 3 Sequences · 14 Elements</div>
+    <div class="scene-list">
+
+      <div class="scene-block open" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#5BAAA0">01</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#5BAAA0;border-color:rgba(91,170,160,.3);background:rgba(91,170,160,.08)">0:00</span><span class="scene-title">The Problem</span><span class="scene-time-day">· 0:00–0:45</span></div>
+            <div class="scene-desc">Stock-driven. Ocean, weather, data. Setting the scale of the world the product addresses.</div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">5 elements</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#5BAAA0">S1·A</td><td class="shot-size-cell"><span class="shot-size-tag">Stock</span></td><td class="shot-desc-cell">Aerial ocean surface at dawn. Deep blue, barely moving. The scale of the system.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#5BAAA0">S1·B</td><td class="shot-size-cell"><span class="shot-size-tag">GFX</span></td><td class="shot-desc-cell">Global temperature anomaly map — data points animating in across the surface of the earth.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#5BAAA0">S1·C</td><td class="shot-size-cell"><span class="shot-size-tag">Stock</span></td><td class="shot-desc-cell">Storm system satellite footage. The data made visible.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#5BAAA0">S1·D</td><td class="shot-size-cell"><span class="shot-size-tag">VO</span></td><td class="shot-desc-cell">James North: "There are 4.2 billion data points recorded every day. Most of them are telling us the same thing."</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#5BAAA0">S1·E</td><td class="shot-size-cell"><span class="shot-size-tag">GFX</span></td><td class="shot-desc-cell">Data streams — chaotic particle system — beginning to converge toward a central point. The problem resolving.</td></tr>
+        </table>
+      </div>
+
+      <div class="scene-block" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#5BAAA0">02</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#5BAAA0;border-color:rgba(91,170,160,.3);background:rgba(91,170,160,.08)">0:45</span><span class="scene-title">The System</span><span class="scene-time-day">· 0:45–1:30</span></div>
+            <div class="scene-desc">Introducing Meridian's platform. How it unifies the signal into a single readable picture.</div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">5 elements</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#5BAAA0">S2·A</td><td class="shot-size-cell"><span class="shot-size-tag">GFX</span></td><td class="shot-desc-cell">Platform interface animation — sensor network visualization. The product introduced visually before verbally.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#5BAAA0">S2·B</td><td class="shot-size-cell"><span class="shot-size-tag">Stock</span></td><td class="shot-desc-cell">Scientists at field monitoring stations. The human layer behind the data.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#5BAAA0">S2·C</td><td class="shot-size-cell"><span class="shot-size-tag">GFX</span></td><td class="shot-desc-cell">Data points resolving into a coherent unified map. The one signal moment — the product's core promise made visual.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#5BAAA0">S2·D</td><td class="shot-size-cell"><span class="shot-size-tag">VO</span></td><td class="shot-desc-cell">James North: "Meridian doesn't add more data. It makes the data that exists finally speak the same language."</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#5BAAA0">S2·E</td><td class="shot-size-cell"><span class="shot-size-tag">Stock</span></td><td class="shot-desc-cell">Clean aerial landscape — land and water, ordered and whole. The world post-signal.</td></tr>
+        </table>
+      </div>
+
+      <div class="scene-block" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#5BAAA0">03</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#5BAAA0;border-color:rgba(91,170,160,.3);background:rgba(91,170,160,.08)">1:30</span><span class="scene-title">The Signal</span><span class="scene-time-day">· 1:30–2:00</span></div>
+            <div class="scene-desc">Resolution. The world legible. The brand and the call to action.</div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">4 elements</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#5BAAA0">S3·A</td><td class="shot-size-cell"><span class="shot-size-tag">GFX</span></td><td class="shot-desc-cell">Full global view. All sensors active, all data resolved. One unified picture of the world.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#5BAAA0">S3·B</td><td class="shot-size-cell"><span class="shot-size-tag">VO</span></td><td class="shot-desc-cell">James North: "This is what natural order looks like. One signal. Everywhere."</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#5BAAA0">S3·C</td><td class="shot-size-cell"><span class="shot-size-tag">GFX</span></td><td class="shot-desc-cell">Meridian logo resolves out of the data visualization. The brand as the resolution of the story.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#5BAAA0">S3·D</td><td class="shot-size-cell"><span class="shot-size-tag">Title Card</span></td><td class="shot-desc-cell">Natural Order — Meridian Climate. URL. Fade to black.</td></tr>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- VO SCRIPT -->
+  <div class="section-panel" id="sec-4-5">
+    <div class="section-title">VO Script — Final Draft</div>
+    <div class="script-page">
+      <div class="script-format-label">Meridian Climate · VO Talent: James North · Recorded Apr 10 · Runtime ~2:00</div>
+      <div class="script-title-block">
+        <span class="script-main-title">Natural Order</span>
+        <span class="script-sub">A Film for Meridian Climate</span>
+        <span class="script-sub">Voiceover Script — Final Draft · Apr 5</span>
+      </div>
+
+      <div class="script-slug" style="border-left-color:#5BAAA0">SEQUENCE 1 — THE PROBLEM · 0:00–0:45</div>
+      <p class="script-note">[Open on ocean. Hold 4 seconds of silence before VO begins. Let the scale settle.]</p>
+      <div class="script-vo-cue">VO — JAMES NORTH</div>
+      <div class="script-vo-line" style="border-left-color:#5BAAA0">There are 4.2 billion data points recorded every day.</div>
+      <p class="script-note">[Beat. Storm system data begins animating across the map.]</p>
+      <div class="script-vo-line" style="border-left-color:#5BAAA0">Most of them are telling us the same thing.</div>
+      <p class="script-note">[Beat. The data multiplies — particle system building, scattered, nowhere to go.]</p>
+      <div class="script-vo-line" style="border-left-color:#5BAAA0">But they're not speaking to each other. Every sensor, every satellite, every buoy in every ocean — recording, transmitting, disappearing into separate systems that were never built to connect.</div>
+      <p class="script-note">[The data overwhelms. Chaos at full.]</p>
+      <div class="script-vo-line" style="border-left-color:#5BAAA0">We have never had more information about this planet.</div>
+      <p class="script-note">[Hold. One beat of silence.]</p>
+      <div class="script-vo-line" style="border-left-color:#5BAAA0">We have never understood it less.</div>
+
+      <div class="script-divider"></div>
+
+      <div class="script-slug" style="border-left-color:#5BAAA0">SEQUENCE 2 — THE SYSTEM · 0:45–1:30</div>
+      <p class="script-note">[Meridian platform interface begins to appear in GFX. The scattered signals start organizing.]</p>
+      <div class="script-vo-cue">VO — JAMES NORTH</div>
+      <div class="script-vo-line" style="border-left-color:#5BAAA0">Meridian doesn't add more data.</div>
+      <p class="script-note">[The particles begin to resolve — finding each other, moving together.]</p>
+      <div class="script-vo-line" style="border-left-color:#5BAAA0">It makes the data that exists finally speak the same language.</div>
+      <p class="script-note">[Platform interface. Sensor network. The map coming together.]</p>
+      <div class="script-vo-line" style="border-left-color:#5BAAA0">One platform. Every signal source. A single unified picture of the systems that govern this planet — updated in real time, readable by anyone who needs to make decisions based on what's actually happening.</div>
+      <p class="script-note">[The map resolves. Clean. Coherent. Complete. Hold on it.]</p>
+      <div class="script-vo-line" style="border-left-color:#5BAAA0">Not more noise.</div>
+      <p class="script-note">[One beat.]</p>
+      <div class="script-vo-line" style="border-left-color:#5BAAA0">One signal.</div>
+
+      <div class="script-divider"></div>
+
+      <div class="script-slug" style="border-left-color:#5BAAA0">SEQUENCE 3 — THE SIGNAL · 1:30–2:00</div>
+      <p class="script-note">[Full global view. Every sensor active. The world as one readable system. The Meridian logo resolves from the data itself.]</p>
+      <div class="script-vo-cue">VO — JAMES NORTH</div>
+      <div class="script-vo-line" style="border-left-color:#5BAAA0">This is what natural order looks like.</div>
+      <p class="script-note">[The logo holds. The global view holds beneath it.]</p>
+      <div class="script-vo-line" style="border-left-color:#5BAAA0">Every ocean. Every atmosphere. Every system — speaking together, finally, as one.</div>
+      <p class="script-note">[Beat. Hold the frame.]</p>
+      <div class="script-vo-line" style="border-left-color:#5BAAA0">Natural order.</div>
+      <span class="script-super" style="border-color:rgba(91,170,160,.25)">MERIDIAN CLIMATE · meridianclimate.io</span>
+      <p class="script-note">[Silence. Slow fade. Do not rush it.]</p>
+      <span class="script-transition">FADE TO BLACK.</span>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════
+     PROJECT 6 — THE WEAVE
+═══════════════════════════════════════════ -->
+<div class="project-panel" id="panel-5">
+  <div class="proj-header">
+    <div class="proj-header-top">
+      <div class="proj-title-block">
+        <div class="proj-eyebrow" style="color:#7B6DB8">Narrative Short · FRACTURE Universe · Festival Circuit</div>
+        <div class="proj-title">The Weave</div>
+        <div class="proj-client-name">B Story</div>
+      </div>
+      <div class="proj-meta-pills">
+        <span class="pill" style="color:#7B6DB8;border-color:rgba(123,109,184,.3);background:rgba(123,109,184,.08)">Production</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Day 3 of 3</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Night Shoot Tonight</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">15-Person Crew</span>
+        <span class="pill" style="color:var(--muted);border-color:var(--border)">Sundance Target</span>
+      </div>
+    </div>
+    <div class="proj-brief">A narrative short set in the FRACTURE universe — two people at the farthest point of their separation before they find each other. The title inverts the FRACTURE concept: not what comes apart, but what holds. Fifteen-person crew across three days of practical locations, wrapping tonight with the climactic night exterior shoot.</div>
+  </div>
+
+  <div class="section-nav" id="snav-5">
+    <div class="sec-tab active" onclick="switchSection(5,0)">Overview</div>
+    <div class="sec-tab" onclick="switchSection(5,1)">Crew · 15</div>
+    <div class="sec-tab" onclick="switchSection(5,2)">Timeline</div>
+    <div class="sec-tab" onclick="switchSection(5,3)">Tasks · 8</div>
+    <div class="sec-tab" onclick="switchSection(5,4)">Scenes · 3</div>
+    <div class="sec-tab" onclick="switchSection(5,5)">Screenplay</div>
+  </div>
+
+  <div class="section-panel active" id="sec-5-0">
+    <div class="section-title">Project Overview</div>
+    <div class="overview-grid">
+      <div class="ov-block">
+        <div class="ov-label">Story</div>
+        <div class="ov-value"><ul>
+          <li>Eli — drifting, farthest point</li>
+          <li>Mara — at the edge, held by something</li>
+          <li>They find each other in the dark</li>
+          <li>~15 min runtime target</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Shoot Schedule</div>
+        <div class="ov-value"><ul>
+          <li>Day 1 — Desert Flats, Mojave ✓</li>
+          <li>Day 2 — Ravine, Malibu Creek ✓</li>
+          <li>Day 3 — Night Ext., Joshua Tree ← Tonight</li>
+          <li>Wrap — Apr 12</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Festival Strategy</div>
+        <div class="ov-value"><ul>
+          <li>Sundance — Jun 1 submission deadline</li>
+          <li>SXSW — secondary target</li>
+          <li>Tribeca — tertiary</li>
+          <li>Picture lock target — May 20</li>
+        </ul></div>
+      </div>
+      <div class="ov-block">
+        <div class="ov-label">Post Plan</div>
+        <div class="ov-value"><ul>
+          <li>Assembly cut — Apr 26</li>
+          <li>Original score — composer TBD</li>
+          <li>Sound design — May 15</li>
+          <li>DCP delivery for submission</li>
+        </ul></div>
+      </div>
+      <div class="oneness-block" style="border-left-color:#7B6DB8">
+        <div class="oneness-label" style="color:#7B6DB8">The Oneness Thread — Collision</div>
+        <div class="oneness-text">"Apogee — the farthest point before the return begins. In a fractured world, two drifting souls reach their apex of separation, then collide. The weave is what remains."</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-5-1">
+    <div class="section-title">Crew Roster</div>
+    <div class="crew-grid">
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">Director</div><div class="crew-name">N. Vale</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">Producer</div><div class="crew-name">Jess Huang</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">Director of Photography</div><div class="crew-name">Caleb Stone</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">1st AC</div><div class="crew-name">Maya Lin</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">Gaffer</div><div class="crew-name">Dario Reyes</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">Key Grip</div><div class="crew-name">Sam Park</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">Production Designer</div><div class="crew-name">Petra Walsh</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">Production Sound Mixer</div><div class="crew-name">Omar Rashid</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">Boom Operator</div><div class="crew-name">Chris Tan</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">1st AD</div><div class="crew-name">Rina Cole</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">Lead Actor — Eli</div><div class="crew-name">Leo Marsh</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">Lead Actor — Mara</div><div class="crew-name">Vera Koss</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">Script Supervisor</div><div class="crew-name">Dana Vance</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">Production Assistant</div><div class="crew-name">Tyler Reed</div></div>
+      <div class="crew-card"><div class="crew-role" style="color:#7B6DB8">Production Assistant</div><div class="crew-name">Sofia Avila</div></div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-5-2">
+    <div class="section-title">Production Timeline</div>
+    <div class="timeline">
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Script locked</div><div class="ms-date">Mar 28 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Full crew deals closed</div><div class="ms-date">Apr 1 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">All location permits cleared</div><div class="ms-date">Apr 5 · Done</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Day 1 — Desert Flats, Mojave · DONE</div><div class="ms-date">Apr 9 · Done</div><div class="ms-note">Eli sequences · 5 shots · Caleb Stone / N. Vale</div></div></div>
+      <div class="milestone"><div class="ms-status done">✓</div><div class="ms-content"><div class="ms-label">Day 2 — Ravine, Malibu Creek · DONE</div><div class="ms-date">Apr 10 · Done</div><div class="ms-note">Mara sequences · 5 shots · continuity notes complete</div></div></div>
+      <div class="milestone"><div class="ms-status active" style="border-color:#7B6DB8"></div><div class="ms-content"><div class="ms-label">Day 3 — Night Exterior, Joshua Tree · TONIGHT</div><div class="ms-date">Apr 11 · TONIGHT</div><div class="ms-note">The collision scene · 6 shots · generator confirmed · call time 7PM</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Company wrap</div><div class="ms-date">Apr 12</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Assembly cut</div><div class="ms-date">Apr 26</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Director's cut delivered</div><div class="ms-date">May 5</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Sound design + original score complete</div><div class="ms-date">May 15</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming"></div><div class="ms-content"><div class="ms-label">Picture lock</div><div class="ms-date">May 20</div></div></div>
+      <div class="milestone"><div class="ms-status upcoming" style="border-color:#7B6DB8"></div><div class="ms-content"><div class="ms-label" style="color:#7B6DB8">Sundance submission deadline</div><div class="ms-date">Jun 1</div></div></div>
+    </div>
+  </div>
+
+  <div class="section-panel" id="sec-5-3">
+    <div class="section-title">Action Items</div>
+    <table class="tasks-table">
+      <thead><tr><th>Task</th><th>Assigned</th><th>Due</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><div class="task-name">Night shoot equipment check — full lighting rig</div></td><td><div class="task-assign">Dario Reyes</div></td><td class="task-due">Apr 11</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Generator fuel and placement confirmed</div></td><td><div class="task-assign">Tyler Reed</div></td><td class="task-due">Apr 11</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Night location walk — DP + Director + AD</div></td><td><div class="task-assign">Caleb Stone · N. Vale · Rina Cole</div></td><td class="task-due">Apr 11</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Continuity notes Days 1+2 compiled</div></td><td><div class="task-assign">Dana Vance</div></td><td class="task-due">Apr 11</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Night location permit confirmed — Joshua Tree NPS</div></td><td><div class="task-assign">Jess Huang</div></td><td class="task-due">Apr 10</td><td><span class="status-badge status-done">Done</span></td></tr>
+        <tr><td><div class="task-name">Assembly cut editor confirmed and booked</div></td><td><div class="task-assign">Jess Huang</div></td><td class="task-due">Apr 12</td><td><span class="status-badge status-progress">In Progress</span></td></tr>
+        <tr><td><div class="task-name">Score composer brief — N. Vale</div></td><td><div class="task-assign">N. Vale</div></td><td class="task-due">Apr 20</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+        <tr><td><div class="task-name">Festival delivery specs — DCP + digital</div></td><td><div class="task-assign">Jess Huang</div></td><td class="task-due">May 25</td><td><span class="status-badge status-not">Not Started</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-panel" id="sec-5-4">
+    <div class="section-title">Scene Breakdown · Story Order · 3 Scenes · 16 Shots</div>
+    <div class="scene-list">
+
+      <div class="scene-block open" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#7B6DB8">01</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#7B6DB8;border-color:rgba(123,109,184,.3);background:rgba(123,109,184,.08)">EXT</span><span class="scene-title">Apogee — Eli</span><span class="scene-time-day">· DAY · Desert Flats, Mojave</span></div>
+            <div class="scene-desc">Eli alone. The farthest point. The silence before anything begins. <span style="color:#6db86d;font-family:var(--mono);font-size:10px;letter-spacing:.06em">✓ DONE — SHOOT DAY 1</span></div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">5 shots</span><span class="scene-status-tag" style="color:#6db86d;border-color:rgba(109,184,109,.3);background:rgba(109,184,109,.08)">Done</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">01A</td><td class="shot-size-cell"><span class="shot-size-tag">Wide</span></td><td class="shot-desc-cell">Eli walking across open desert. Horizon in every direction. No destination visible.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">01B</td><td class="shot-size-cell"><span class="shot-size-tag">Medium</span></td><td class="shot-desc-cell">He stops. Looks up. The sky fills the entire upper frame. He's small in it.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">01C</td><td class="shot-size-cell"><span class="shot-size-tag">ECU</span></td><td class="shot-desc-cell">His face. Not lost — too present for lost. Just far. The distinction matters.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">01D</td><td class="shot-size-cell"><span class="shot-size-tag">Low Wide</span></td><td class="shot-desc-cell">Feet on cracked earth. The texture of distance. The ground not holding him — just bearing him.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">01E</td><td class="shot-size-cell"><span class="shot-size-tag">Aerial</span></td><td class="shot-desc-cell">Tiny figure in the vast desert. The apogee — the farthest point from everything.</td></tr>
+        </table>
+      </div>
+
+      <div class="scene-block open" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#7B6DB8">02</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#7B6DB8;border-color:rgba(123,109,184,.3);background:rgba(123,109,184,.08)">EXT</span><span class="scene-title">The Edge — Mara</span><span class="scene-time-day">· DAY · Ravine, Malibu Creek</span></div>
+            <div class="scene-desc">Mara at the ravine edge. Her version of the same solitude. Mirror to Scene 1. <span style="color:#6db86d;font-family:var(--mono);font-size:10px;letter-spacing:.06em">✓ DONE — SHOOT DAY 2</span></div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">5 shots</span><span class="scene-status-tag" style="color:#6db86d;border-color:rgba(109,184,109,.3);background:rgba(109,184,109,.08)">Done</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">02A</td><td class="shot-size-cell"><span class="shot-size-tag">Wide</span></td><td class="shot-desc-cell">Mara at the ravine edge. Malibu Creek below. The drop visible — she's not afraid of it.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">02B</td><td class="shot-size-cell"><span class="shot-size-tag">Profile</span></td><td class="shot-desc-cell">Wind. She's thinking. Not going anywhere. Held at the edge by something we can't see.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">02C</td><td class="shot-size-cell"><span class="shot-size-tag">ECU</span></td><td class="shot-desc-cell">Hands on rock. Grounded. Her hands where Eli's feet were — both touching the earth.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">02D</td><td class="shot-size-cell"><span class="shot-size-tag">Insert</span></td><td class="shot-desc-cell">Her journal, open. Half a sentence — stopped mid-thought. The place where words ran out.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">02E</td><td class="shot-size-cell"><span class="shot-size-tag">POV</span></td><td class="shot-desc-cell">What she sees from the edge: the ravine, the other side, the distance. The gap.</td></tr>
+        </table>
+      </div>
+
+      <div class="scene-block open" onclick="toggleScene(this)">
+        <div class="scene-block-header">
+          <div class="scene-num" style="color:#7B6DB8">03</div>
+          <div class="scene-block-meta">
+            <div><span class="scene-int-ext" style="color:#7B6DB8;border-color:rgba(123,109,184,.3);background:rgba(123,109,184,.08)">EXT</span><span class="scene-title">Collision</span><span class="scene-time-day">· NIGHT · Joshua Tree</span></div>
+            <div class="scene-desc">The meeting. Stars above. Two threads becoming one. The weave. <span style="color:#7B6DB8;font-family:var(--mono);font-size:10px;letter-spacing:.06em">← TONIGHT — CALL 7PM</span></div>
+          </div>
+          <div class="scene-block-right"><span class="shot-badge">6 shots</span><span class="scene-status-tag" style="color:#7B6DB8;border-color:rgba(123,109,184,.3);background:rgba(123,109,184,.08)">Tonight</span><span class="chevron-icon">▾</span></div>
+        </div>
+        <table class="shot-table">
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">03A</td><td class="shot-size-cell"><span class="shot-size-tag">Wide Night</span></td><td class="shot-desc-cell">Stars above. Two figures approaching from opposite directions. They don't know about each other yet.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">03B</td><td class="shot-size-cell"><span class="shot-size-tag">Medium</span></td><td class="shot-desc-cell">The moment they see each other. The stop. No words. The frame holds.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">03C</td><td class="shot-size-cell"><span class="shot-size-tag">Two-Shot</span></td><td class="shot-desc-cell">Face to face. The frame holds both of them. The first time the film puts them together.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">03D</td><td class="shot-size-cell"><span class="shot-size-tag">ECU — Eli</span></td><td class="shot-desc-cell">His face: recognition. Not of her specifically — of the fact that someone else is here.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">03E</td><td class="shot-size-cell"><span class="shot-size-tag">ECU — Mara</span></td><td class="shot-desc-cell">Her face: the same. The mirror that started in Scene 1 finally has something to reflect.</td></tr>
+          <tr class="shot-row-tr"><td class="shot-id-cell" style="color:#7B6DB8">03F</td><td class="shot-size-cell"><span class="shot-size-tag">Wide Pull</span></td><td class="shot-desc-cell">Camera pulls back slowly. Two figures, one frame, stars expanding above them. The film ends here.</td></tr>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SCREENPLAY -->
+  <div class="section-panel" id="sec-5-5">
+    <div class="section-title">Screenplay — Full Draft</div>
+    <div class="script-page">
+      <div class="script-format-label">FRACTURE Universe · Writer/Director: N. Vale · Script Lock Mar 28 · B Story</div>
+      <div class="script-title-block">
+        <span class="script-main-title">The Weave</span>
+        <span class="script-sub">Written by N. Vale</span>
+        <span class="script-sub">A FRACTURE Universe Film · Draft 3 — Mar 28</span>
+      </div>
+
+      <span class="script-transition">FADE IN:</span>
+
+      <div class="script-slug" style="border-left-color:#7B6DB8">EXT. DESERT FLATS, MOJAVE — DAY</div>
+      <p class="script-action">Flat white sky. The ground cracked, pale, and ancient — like something that was never young.</p>
+      <p class="script-action">ELI (30s, lean, moving like someone who has been moving for a while) walks across the open desert. No bag. No visible destination. He's not lost. He's just far.</p>
+      <p class="script-action">He walks.</p>
+      <p class="script-action">The sound is wind. Only wind.</p>
+      <p class="script-action">He stops.</p>
+      <p class="script-action">He looks up. The sky takes the whole frame. There is a lot of it.</p>
+      <div class="script-dialogue-block">
+        <div class="script-character">ELI</div>
+        <div class="script-paren">(to himself, barely)</div>
+        <div class="script-line">Still here.</div>
+      </div>
+      <p class="script-action">He looks down at his feet on the cracked earth. He keeps walking.</p>
+      <p class="script-action">AERIAL: A tiny figure. The desert extends to every edge of the frame. The farthest point from everything.</p>
+
+      <div class="script-divider"></div>
+
+      <div class="script-slug" style="border-left-color:#7B6DB8">EXT. RAVINE — MALIBU CREEK — DAY</div>
+      <p class="script-action">Different landscape entirely. Green where the desert was white. A ravine cuts through layered sandstone. Malibu Creek moves far below.</p>
+      <p class="script-action">MARA (30s, still, a person who watches things) stands at the edge of the ravine. The other side is visible — close enough to call across, far enough to matter.</p>
+      <p class="script-action">She's been here a while.</p>
+      <p class="script-action">She holds an open journal. Looks down at it. Something she was writing — half a sentence, stopped mid-thought. She closes the journal.</p>
+      <p class="script-action">She looks across the gap.</p>
+      <div class="script-dialogue-block">
+        <div class="script-character">MARA</div>
+        <div class="script-paren">(to the other side, almost inaudible)</div>
+        <div class="script-line">I know.</div>
+      </div>
+      <p class="script-action">Wind moves through the ravine.</p>
+      <p class="script-action">She puts her palm flat against the rock beside her. Presses it.</p>
+      <p class="script-action">She looks down at the water below. She doesn't move.</p>
+
+      <div class="script-divider"></div>
+
+      <div class="script-slug" style="border-left-color:#7B6DB8">EXT. JOSHUA TREE — NIGHT</div>
+      <p class="script-action">Stars. All of them.</p>
+      <p class="script-action">The desert at night is a different planet than the desert in daylight. Cooler. The silence has more weight to it.</p>
+      <p class="script-action">Two FIGURES approach from opposite directions — small in the wide frame, the stars enormous above them. They haven't seen each other.</p>
+      <p class="script-action">They get closer.</p>
+      <p class="script-action">ELI stops walking.</p>
+      <p class="script-action">MARA stops walking.</p>
+      <p class="script-action">A long moment. Neither speaks. Neither moves. The stars turn above them at the speed of the earth.</p>
+      <div class="script-dialogue-block">
+        <div class="script-character">ELI</div>
+        <div class="script-line">You're the first person I've seen.</div>
+      </div>
+      <div class="script-dialogue-block">
+        <div class="script-character">MARA</div>
+        <div class="script-line">In how long?</div>
+      </div>
+      <div class="script-dialogue-block">
+        <div class="script-character">ELI</div>
+        <div class="script-paren">(considers this honestly)</div>
+        <div class="script-line">Three days.</div>
+      </div>
+      <p class="script-action">She looks at him. He looks at her. The stars look at both of them.</p>
+      <div class="script-dialogue-block">
+        <div class="script-character">MARA</div>
+        <div class="script-line">I've been here since yesterday morning.</div>
+      </div>
+      <div class="script-dialogue-block">
+        <div class="script-character">ELI</div>
+        <div class="script-line">Waiting for something?</div>
+      </div>
+      <div class="script-dialogue-block">
+        <div class="script-character">MARA</div>
+        <div class="script-paren">(a beat — the honest answer)</div>
+        <div class="script-line">I don't think so. I think I was just... here.</div>
+      </div>
+      <p class="script-action">He understands that. He nods the way you nod at something true.</p>
+      <p class="script-action">He sits down on a rock. She sits on another, a few feet away. Not close. Not far.</p>
+      <p class="script-action">The stars above them. The desert around them.</p>
+      <p class="script-action">A long silence that isn't empty.</p>
+      <div class="script-dialogue-block">
+        <div class="script-character">MARA</div>
+        <div class="script-paren">(cont'd)</div>
+        <div class="script-line">What are you doing out here?</div>
+      </div>
+      <div class="script-dialogue-block">
+        <div class="script-character">ELI</div>
+        <div class="script-line">Same thing you are.</div>
+      </div>
+      <p class="script-action">She almost smiles. Not quite. Close enough.</p>
+      <div class="script-dialogue-block">
+        <div class="script-character">MARA</div>
+        <div class="script-line">The world's pretty broken.</div>
+      </div>
+      <div class="script-dialogue-block">
+        <div class="script-character">ELI</div>
+        <div class="script-line">Yeah.</div>
+      </div>
+      <p class="script-action">He looks up at the sky for a moment.</p>
+      <div class="script-dialogue-block">
+        <div class="script-character">ELI</div>
+        <div class="script-paren">(cont'd)</div>
+        <div class="script-line">Still some good pieces though.</div>
+      </div>
+      <p class="script-action">She looks up at the stars. He looks up at the stars.</p>
+      <p class="script-action">WIDE PULL: Camera moves slowly back. Two figures in one frame, the desert expanding around them, the stars enormous and indifferent and beautiful above. They stay where they are. Together without touching. Present without performing.</p>
+      <p class="script-action">The camera keeps pulling back until they are very small and the sky is very large.</p>
+      <p class="script-action">Then smaller.</p>
+      <p class="script-action">Then gone into the dark.</p>
+      <span class="script-super" style="border-color:rgba(123,109,184,.25)">THE WEAVE</span>
+      <span class="script-transition">FADE TO BLACK.</span>
+      <p style="font-family:var(--mono);font-size:9px;color:var(--muted);text-align:center;margin-top:32px;letter-spacing:.1em;text-transform:uppercase">End of screenplay · The Weave · N. Vale · B Story · FRACTURE Universe</p>
+    </div>
+  </div>
+</div>
+
+
+<script>
+function switchProject(idx) {
+  document.querySelectorAll('.project-panel').forEach((p,i) => {
+    p.classList.toggle('active', i === idx);
+  });
+  document.querySelectorAll('.proj-tab').forEach((t,i) => {
+    t.classList.toggle('active', i === idx);
+  });
+}
+
+function switchSection(projIdx, secIdx) {
+  const nav = document.getElementById('snav-' + projIdx);
+  const panel = document.getElementById('panel-' + projIdx);
+  nav.querySelectorAll('.sec-tab').forEach((t,i) => t.classList.toggle('active', i === secIdx));
+  panel.querySelectorAll('.section-panel').forEach((p,i) => p.classList.toggle('active', i === secIdx));
+}
+
+function toggleScene(card) {
+  card.classList.toggle('open');
+}
+</script>
+</body>
+</html>

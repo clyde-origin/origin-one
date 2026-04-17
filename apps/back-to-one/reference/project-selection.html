@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orbit — Project Selection Drag</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+body {
+  background:#080810;
+  display:flex; gap:28px; padding:40px 28px;
+  flex-wrap:wrap; justify-content:center;
+  font-family:'Manrope',sans-serif; min-height:100vh; align-items:flex-start;
+}
+:root {
+  --bg:#04040a; --text:#dddde8; --text2:#a0a0b8; --muted:#62627a;
+  --accent:#c45adc; --border:rgba(255,255,255,0.05);
+  --glass-bg:rgba(10,10,18,0.42); --glass-border:rgba(255,255,255,0.07);
+}
+.phone { width:390px; height:844px; background:var(--bg); border-radius:44px; border:1px solid rgba(255,255,255,0.08); overflow:hidden; position:relative; flex-shrink:0; box-shadow:0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04); display:flex; flex-direction:column; }
+.phone-label { color:var(--muted); font-family:'DM Mono',monospace; font-size:11px; text-align:center; margin-bottom:12px; letter-spacing:0.08em; text-transform:uppercase; }
+.phone-wrap { display:flex; flex-direction:column; align-items:center; }
+.glow-bg { position:absolute; inset:0; background: radial-gradient(ellipse 50% 35% at 50% 0%, rgba(196,90,220,0.1) 0%, transparent 100%), radial-gradient(ellipse 70% 50% at 50% 60%, rgba(196,90,220,0.04) 0%, transparent 100%); pointer-events:none; z-index:0; }
+.page-top { padding:52px 24px 18px; text-align:center; position:relative; z-index:2; flex-shrink:0; }
+.agency-name { font-family:'DM Mono',monospace; font-size:10px; color:rgba(196,90,220,0.55); text-transform:uppercase; letter-spacing:0.18em; margin-bottom:8px; }
+.app-title { font-family:'Manrope',sans-serif; font-weight:800; font-size:24px; color:var(--text); letter-spacing:-0.03em; margin-bottom:4px; }
+.app-subtitle { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:0.08em; margin-bottom:20px; }
+.select-label { font-family:'DM Mono',monospace; font-size:10px; color:rgba(98,98,122,0.5); text-transform:uppercase; letter-spacing:0.12em; }
+.slates-scroll { flex:1; overflow-y:auto; padding:14px 14px 40px; position:relative; z-index:2; scrollbar-width:none; }
+.slates-scroll::-webkit-scrollbar { display:none; }
+.slates-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.section-label { grid-column:span 2; font-family:'DM Mono',monospace; font-size:10px; color:rgba(98,98,122,0.45); text-transform:uppercase; letter-spacing:0.1em; padding:4px 2px 2px; display:flex; align-items:center; justify-content:space-between; }
+
+/* Folder */
+.folder { grid-column:span 2; border-radius:10px; overflow:hidden; background:rgba(10,10,18,0.55); border:1px solid rgba(255,255,255,0.06); cursor:pointer; position:relative; transition:transform 0.12s; }
+.folder-lines { display:flex; flex-direction:column; height:18px; overflow:hidden; }
+.folder-line { flex:1; }
+.folder-line:nth-child(even) { background:transparent !important; }
+.folder-body { display:flex; align-items:center; padding:12px 14px 13px; gap:12px; }
+.folder-logo { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-family:'Manrope',sans-serif; font-weight:800; font-size:13px; }
+.folder-info { flex:1; min-width:0; }
+.folder-client { font-family:'Manrope',sans-serif; font-weight:700; font-size:14px; color:var(--text); }
+.folder-meta { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); margin-top:2px; }
+.folder-right { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+.folder-project-dots { display:flex; gap:4px; }
+.folder-dot { width:6px; height:6px; border-radius:50%; }
+.folder-chevron { color:var(--muted); font-size:14px; opacity:0.4; }
+
+/* Slate */
+.slate { border-radius:9px; overflow:hidden; background:rgba(10,10,18,0.6); border:1px solid rgba(255,255,255,0.06); cursor:pointer; position:relative; transition:transform 0.12s; }
+.slate:active { transform:scale(0.97); }
+.slate-lines { display:flex; flex-direction:column; height:18px; overflow:hidden; }
+.slate-line { flex:1; }
+.slate-line:nth-child(even) { background:transparent !important; }
+.slate-body { padding:9px 10px 11px; }
+.slate-client { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.slate-title { font-family:'Manrope',sans-serif; font-weight:800; font-size:16px; color:var(--text); letter-spacing:-0.02em; line-height:1.1; margin-bottom:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.slate-phase { font-family:'DM Mono',monospace; font-size:9px; padding:2px 7px; border-radius:20px; letter-spacing:0.04em; display:inline-block; margin-bottom:8px; }
+.phase-pre  { background:rgba(232,160,32,0.12); border:1px solid rgba(232,160,32,0.2); color:#e8a020; }
+.phase-prod { background:rgba(100,112,243,0.12); border:1px solid rgba(100,112,243,0.2); color:#6470f3; }
+.phase-post { background:rgba(0,184,148,0.12); border:1px solid rgba(0,184,148,0.2); color:#00b894; }
+.phase-dev  { background:rgba(196,90,220,0.12); border:1px solid rgba(196,90,220,0.2); color:#c45adc; }
+.slate-footer { display:flex; align-items:center; justify-content:space-between; }
+.slate-shots { font-family:'DM Mono',monospace; font-size:9px; color:var(--muted); }
+.avatar-stack { display:flex; }
+.stack-avatar { width:17px; height:17px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Manrope',sans-serif; font-weight:700; font-size:7px; margin-right:-5px; border:1.5px solid rgba(4,4,10,0.95); flex-shrink:0; }
+.add-row { grid-column:span 2; display:flex; gap:8px; padding:4px 2px 2px; }
+.add-btn { display:flex; align-items:center; gap:7px; padding:7px 14px; border-radius:20px; border:1px dashed rgba(196,90,220,0.2); background:rgba(196,90,220,0.03); cursor:pointer; }
+.add-btn-label { font-family:'DM Mono',monospace; font-size:10px; color:rgba(196,90,220,0.4); letter-spacing:0.08em; text-transform:uppercase; }
+.add-plus { color:rgba(196,90,220,0.4); font-size:13px; }
+
+/* ── DRAG MODE STYLES ── */
+
+/* Edit mode hint bar */
+.edit-mode-bar {
+  grid-column:span 2;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  padding:8px 14px;
+  background:rgba(196,90,220,0.08);
+  border:1px solid rgba(196,90,220,0.18);
+  border-radius:20px;
+  margin-bottom:2px;
+}
+.edit-mode-label { font-family:'DM Mono',monospace; font-size:10px; color:rgba(196,90,220,0.6); letter-spacing:0.06em; }
+.edit-mode-done { font-family:'DM Mono',monospace; font-size:10px; color:var(--accent); letter-spacing:0.06em; padding:3px 10px; border-radius:20px; background:rgba(196,90,220,0.12); border:1px solid rgba(196,90,220,0.25); cursor:pointer; }
+
+/* Slate in drag-ready state (edit mode, not being dragged) */
+.slate.edit-mode {
+  border-color:rgba(255,255,255,0.1);
+}
+
+/* Wiggle animation for edit mode */
+@keyframes wiggle {
+  0%   { transform:rotate(0deg); }
+  25%  { transform:rotate(-1.5deg); }
+  75%  { transform:rotate(1.5deg); }
+  100% { transform:rotate(0deg); }
+}
+.slate.wiggling { animation:wiggle 0.5s ease-in-out infinite; }
+
+/* The slate being actively dragged — lifted, scaled */
+.slate.dragging {
+  transform: scale(1.06) rotate(1.5deg);
+  border-color:rgba(255,255,255,0.22);
+  box-shadow:0 16px 48px rgba(0,0,0,0.7), 0 0 0 1.5px rgba(255,255,255,0.12);
+  z-index:50;
+  opacity:0.95;
+  animation:none;
+}
+
+/* Ghost placeholder where the dragged slate was */
+.slate.ghost {
+  opacity:0.18;
+  border-style:dashed;
+  border-color:rgba(255,255,255,0.1);
+  transform:none;
+  animation:none;
+}
+
+/* Drop target indicator between slots */
+.drop-indicator {
+  grid-column:span 2;
+  height:3px;
+  border-radius:2px;
+  background:var(--accent);
+  box-shadow:0 0 10px rgba(196,90,220,0.6);
+  margin:-2px 0;
+  opacity:0;
+  transition:opacity 0.15s;
+}
+.drop-indicator.active { opacity:1; }
+
+/* Folder drop target — glows when something is dragged over */
+.folder.drop-target {
+  border-color:rgba(196,90,220,0.5);
+  box-shadow:0 0 20px rgba(196,90,220,0.15), inset 0 0 0 1px rgba(196,90,220,0.2);
+}
+.folder.drop-target .folder-body::after {
+  content:'Drop to add to folder';
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:'DM Mono',monospace;
+  font-size:10px;
+  color:rgba(196,90,220,0.7);
+  letter-spacing:0.08em;
+  background:rgba(4,4,10,0.6);
+  backdrop-filter:blur(4px);
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════
+  PHONE 1 — NORMAL STATE (no drag)
+══════════════════════════════ -->
+<div class="phone-wrap">
+<div class="phone-label">normal · long press to enter drag</div>
+<div class="phone">
+  <div class="glow-bg"></div>
+  <div class="page-top">
+    <div class="agency-name">Origin Point</div>
+    <div class="app-title">Back to One</div>
+    <div class="app-subtitle">production operating system</div>
+    <div class="select-label">Select a project</div>
+  </div>
+  <div class="slates-scroll">
+    <div class="slates-grid">
+
+      <div class="section-label"><span>Clients</span></div>
+
+      <div class="folder">
+        <div class="folder-lines">
+          <div class="folder-line" style="background:rgba(196,90,220,0.25);"></div><div class="folder-line"></div>
+          <div class="folder-line" style="background:rgba(196,90,220,0.14);"></div><div class="folder-line"></div>
+          <div class="folder-line" style="background:rgba(196,90,220,0.07);"></div><div class="folder-line"></div>
+        </div>
+        <div class="folder-body">
+          <div class="folder-logo" style="background:rgba(196,90,220,0.15);color:#c45adc;">FF</div>
+          <div class="folder-info"><div class="folder-client">Fracture Films</div><div class="folder-meta">3 projects · 1 active</div></div>
+          <div class="folder-right">
+            <div class="folder-project-dots"><div class="folder-dot" style="background:#6470f3;"></div><div class="folder-dot" style="background:#e8a020;"></div><div class="folder-dot" style="background:#00b894;"></div></div>
+            <div class="folder-chevron">›</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label" style="margin-top:4px;"><span>Projects</span></div>
+
+      <div class="slate">
+        <div class="slate-lines"><div class="slate-line" style="background:rgba(0,184,148,0.28);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(0,184,148,0.15);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(0,184,148,0.07);"></div><div class="slate-line"></div></div>
+        <div class="slate-body">
+          <div class="slate-client">Meridian</div>
+          <div class="slate-title">Hollow Ground</div>
+          <div class="slate-phase phase-post">Post</div>
+          <div class="slate-footer"><div class="slate-shots">31 shots</div><div class="avatar-stack"><div class="stack-avatar" style="background:rgba(0,184,148,0.2);color:#00b894;">CL</div></div></div>
+        </div>
+      </div>
+
+      <div class="slate">
+        <div class="slate-lines"><div class="slate-line" style="background:rgba(232,196,74,0.3);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(232,196,74,0.17);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(232,196,74,0.07);"></div><div class="slate-line"></div></div>
+        <div class="slate-body">
+          <div class="slate-client">Vega Studios</div>
+          <div class="slate-title">Astra Lumina</div>
+          <div class="slate-phase phase-pre">Pre-Prod</div>
+          <div class="slate-footer"><div class="slate-shots">128 shots</div><div class="avatar-stack"><div class="stack-avatar" style="background:rgba(232,196,74,0.2);color:#e8c44a;">CL</div></div></div>
+        </div>
+      </div>
+
+      <div class="slate" style="opacity:0.6;">
+        <div class="slate-lines"><div class="slate-line" style="background:rgba(255,255,255,0.1);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(255,255,255,0.06);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(255,255,255,0.03);"></div><div class="slate-line"></div></div>
+        <div class="slate-body">
+          <div class="slate-client">Origin Point</div>
+          <div class="slate-title">Unmade</div>
+          <div class="slate-phase phase-dev">Dev</div>
+          <div class="slate-footer"><div class="slate-shots">0 shots</div></div>
+        </div>
+      </div>
+
+      <div class="add-row">
+        <div class="add-btn"><span class="add-plus">+</span><span class="add-btn-label">New Project</span></div>
+        <div class="add-btn"><span class="add-plus">⊞</span><span class="add-btn-label">New Folder</span></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div>
+
+
+<!-- ══════════════════════════════════════
+  PHONE 2 — EDIT MODE (wiggling, no drag yet)
+══════════════════════════════════════ -->
+<div class="phone-wrap">
+<div class="phone-label">edit mode · after long press</div>
+<div class="phone">
+  <div class="glow-bg"></div>
+  <div class="page-top">
+    <div class="agency-name">Origin Point</div>
+    <div class="app-title">Back to One</div>
+    <div class="app-subtitle">production operating system</div>
+    <div class="select-label">Select a project</div>
+  </div>
+  <div class="slates-scroll">
+    <div class="slates-grid">
+
+      <!-- Edit mode bar -->
+      <div class="edit-mode-bar">
+        <div class="edit-mode-label">Hold + drag to move</div>
+        <div class="edit-mode-done">Done</div>
+      </div>
+
+      <div class="section-label" style="opacity:0.4;"><span>Clients</span></div>
+
+      <!-- Folder stays stable in edit mode (can receive drops) -->
+      <div class="folder edit-mode" style="border-color:rgba(255,255,255,0.1);">
+        <div class="folder-lines">
+          <div class="folder-line" style="background:rgba(196,90,220,0.25);"></div><div class="folder-line"></div>
+          <div class="folder-line" style="background:rgba(196,90,220,0.14);"></div><div class="folder-line"></div>
+          <div class="folder-line" style="background:rgba(196,90,220,0.07);"></div><div class="folder-line"></div>
+        </div>
+        <div class="folder-body" style="position:relative;">
+          <div class="folder-logo" style="background:rgba(196,90,220,0.15);color:#c45adc;">FF</div>
+          <div class="folder-info"><div class="folder-client">Fracture Films</div><div class="folder-meta">3 projects</div></div>
+          <div class="folder-right"><div class="folder-chevron" style="opacity:0.2;">›</div></div>
+        </div>
+      </div>
+
+      <div class="section-label" style="opacity:0.4; margin-top:4px;"><span>Projects</span></div>
+
+      <!-- All slates wiggling -->
+      <div class="slate edit-mode wiggling">
+        <div class="slate-lines"><div class="slate-line" style="background:rgba(0,184,148,0.28);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(0,184,148,0.15);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(0,184,148,0.07);"></div><div class="slate-line"></div></div>
+        <div class="slate-body">
+          <div class="slate-client">Meridian</div>
+          <div class="slate-title">Hollow Ground</div>
+          <div class="slate-phase phase-post">Post</div>
+          <div class="slate-footer"><div class="slate-shots">31 shots</div></div>
+        </div>
+      </div>
+
+      <div class="slate edit-mode wiggling" style="animation-delay:0.08s;">
+        <div class="slate-lines"><div class="slate-line" style="background:rgba(232,196,74,0.3);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(232,196,74,0.17);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(232,196,74,0.07);"></div><div class="slate-line"></div></div>
+        <div class="slate-body">
+          <div class="slate-client">Vega Studios</div>
+          <div class="slate-title">Astra Lumina</div>
+          <div class="slate-phase phase-pre">Pre-Prod</div>
+          <div class="slate-footer"><div class="slate-shots">128 shots</div></div>
+        </div>
+      </div>
+
+      <div class="slate edit-mode wiggling" style="animation-delay:0.16s; opacity:0.6;">
+        <div class="slate-lines"><div class="slate-line" style="background:rgba(255,255,255,0.1);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(255,255,255,0.06);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(255,255,255,0.03);"></div><div class="slate-line"></div></div>
+        <div class="slate-body">
+          <div class="slate-client">Origin Point</div>
+          <div class="slate-title">Unmade</div>
+          <div class="slate-phase phase-dev">Dev</div>
+          <div class="slate-footer"><div class="slate-shots">0 shots</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+  PHONE 3 — MID-DRAG (slate lifted, reordering)
+══════════════════════════════════════════ -->
+<div class="phone-wrap">
+<div class="phone-label">mid-drag · reordering between slots</div>
+<div class="phone">
+  <div class="glow-bg"></div>
+  <div class="page-top">
+    <div class="agency-name">Origin Point</div>
+    <div class="app-title">Back to One</div>
+    <div class="app-subtitle">production operating system</div>
+    <div class="select-label">Select a project</div>
+  </div>
+  <div class="slates-scroll">
+    <div class="slates-grid">
+
+      <div class="edit-mode-bar">
+        <div class="edit-mode-label">Hold + drag to move</div>
+        <div class="edit-mode-done">Done</div>
+      </div>
+
+      <div class="section-label" style="opacity:0.4;"><span>Clients</span></div>
+
+      <div class="folder" style="border-color:rgba(255,255,255,0.08); opacity:0.7;">
+        <div class="folder-lines">
+          <div class="folder-line" style="background:rgba(196,90,220,0.25);"></div><div class="folder-line"></div>
+          <div class="folder-line" style="background:rgba(196,90,220,0.14);"></div><div class="folder-line"></div>
+          <div class="folder-line" style="background:rgba(196,90,220,0.07);"></div><div class="folder-line"></div>
+        </div>
+        <div class="folder-body">
+          <div class="folder-logo" style="background:rgba(196,90,220,0.15);color:#c45adc;">FF</div>
+          <div class="folder-info"><div class="folder-client">Fracture Films</div><div class="folder-meta">3 projects</div></div>
+        </div>
+      </div>
+
+      <div class="section-label" style="opacity:0.4; margin-top:4px;"><span>Projects</span></div>
+
+      <!-- Ghost placeholder (where dragged slate was) -->
+      <div class="slate ghost">
+        <div style="height:110px;"></div>
+      </div>
+
+      <!-- Drop indicator between positions -->
+      <div class="drop-indicator active" style="grid-column:span 2; margin:0 0;"></div>
+
+      <!-- Astra Lumina displaced, slightly muted -->
+      <div class="slate edit-mode" style="opacity:0.5; transform:scale(0.97);">
+        <div class="slate-lines"><div class="slate-line" style="background:rgba(232,196,74,0.3);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(232,196,74,0.17);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(232,196,74,0.07);"></div><div class="slate-line"></div></div>
+        <div class="slate-body">
+          <div class="slate-client">Vega Studios</div>
+          <div class="slate-title">Astra Lumina</div>
+          <div class="slate-phase phase-pre">Pre-Prod</div>
+          <div class="slate-footer"><div class="slate-shots">128 shots</div></div>
+        </div>
+      </div>
+
+      <div class="slate edit-mode" style="opacity:0.5; transform:scale(0.97);">
+        <div class="slate-lines"><div class="slate-line" style="background:rgba(255,255,255,0.1);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(255,255,255,0.06);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(255,255,255,0.03);"></div><div class="slate-line"></div></div>
+        <div class="slate-body">
+          <div class="slate-client">Origin Point</div>
+          <div class="slate-title">Unmade</div>
+          <div class="slate-phase phase-dev">Dev</div>
+          <div class="slate-footer"><div class="slate-shots">0 shots</div></div>
+        </div>
+      </div>
+
+      <!-- The dragged slate floating above (positioned absolutely) -->
+      <!-- Simulated with a regular card in dragging state positioned further down -->
+
+    </div>
+
+    <!-- Lifted card floating (absolutely positioned to simulate mid-air) -->
+    <div style="position:absolute; left:18px; top:340px; width:172px; z-index:50; pointer-events:none;">
+      <div class="slate dragging">
+        <div class="slate-lines"><div class="slate-line" style="background:rgba(0,184,148,0.35);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(0,184,148,0.2);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(0,184,148,0.1);"></div><div class="slate-line"></div></div>
+        <div class="slate-body">
+          <div class="slate-client">Meridian</div>
+          <div class="slate-title">Hollow Ground</div>
+          <div class="slate-phase phase-post">Post</div>
+          <div class="slate-footer"><div class="slate-shots">31 shots</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+  PHONE 4 — DRAG OVER FOLDER (folder glows, drop label)
+══════════════════════════════════════════════ -->
+<div class="phone-wrap">
+<div class="phone-label">drag over folder · drop to file</div>
+<div class="phone">
+  <div class="glow-bg"></div>
+  <div class="page-top">
+    <div class="agency-name">Origin Point</div>
+    <div class="app-title">Back to One</div>
+    <div class="app-subtitle">production operating system</div>
+    <div class="select-label">Select a project</div>
+  </div>
+  <div class="slates-scroll">
+    <div class="slates-grid">
+
+      <div class="edit-mode-bar">
+        <div class="edit-mode-label">Drop into folder</div>
+        <div class="edit-mode-done">Cancel</div>
+      </div>
+
+      <div class="section-label" style="opacity:0.4;"><span>Clients</span></div>
+
+      <!-- Folder glowing as drop target -->
+      <div class="folder drop-target" style="position:relative;">
+        <div class="folder-lines">
+          <div class="folder-line" style="background:rgba(196,90,220,0.4);"></div><div class="folder-line"></div>
+          <div class="folder-line" style="background:rgba(196,90,220,0.25);"></div><div class="folder-line"></div>
+          <div class="folder-line" style="background:rgba(196,90,220,0.12);"></div><div class="folder-line"></div>
+        </div>
+        <div class="folder-body" style="position:relative;">
+          <div class="folder-logo" style="background:rgba(196,90,220,0.2);color:#c45adc;">FF</div>
+          <div class="folder-info"><div class="folder-client">Fracture Films</div><div class="folder-meta">3 projects · drop to add</div></div>
+          <!-- Drop label overlay -->
+          <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(4,4,10,0.55); backdrop-filter:blur(6px); border-radius:0 0 10px 10px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div style="width:28px; height:28px; border-radius:50%; background:rgba(196,90,220,0.2); border:1.5px solid rgba(196,90,220,0.5); display:flex; align-items:center; justify-content:center; font-size:14px;">⊞</div>
+              <div style="font-family:'DM Mono',monospace; font-size:11px; color:rgba(196,90,220,0.8); letter-spacing:0.08em;">Add to Fracture Films</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-label" style="opacity:0.4; margin-top:4px;"><span>Projects</span></div>
+
+      <!-- Ghost + other faded slates -->
+      <div class="slate ghost"><div style="height:110px;"></div></div>
+
+      <div class="slate edit-mode" style="opacity:0.35;">
+        <div class="slate-lines"><div class="slate-line" style="background:rgba(232,196,74,0.3);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(232,196,74,0.17);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(232,196,74,0.07);"></div><div class="slate-line"></div></div>
+        <div class="slate-body">
+          <div class="slate-client">Vega Studios</div>
+          <div class="slate-title">Astra Lumina</div>
+          <div class="slate-phase phase-pre">Pre-Prod</div>
+          <div class="slate-footer"><div class="slate-shots">128 shots</div></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Lifted card floating over folder -->
+    <div style="position:absolute; left:18px; top:240px; width:172px; z-index:50; pointer-events:none;">
+      <div class="slate dragging">
+        <div class="slate-lines"><div class="slate-line" style="background:rgba(0,184,148,0.35);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(0,184,148,0.2);"></div><div class="slate-line"></div><div class="slate-line" style="background:rgba(0,184,148,0.1);"></div><div class="slate-line"></div></div>
+        <div class="slate-body">
+          <div class="slate-client">Meridian</div>
+          <div class="slate-title">Hollow Ground</div>
+          <div class="slate-phase phase-post">Post</div>
+          <div class="slate-footer"><div class="slate-shots">31 shots</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+</body>
+</html>

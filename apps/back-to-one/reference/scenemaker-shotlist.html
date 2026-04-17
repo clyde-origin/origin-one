@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en" style="background:#04040a">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>SceneMaker Shotlist</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+:root {
+  --bg:#04040a; --card:rgba(10,10,18,0.42); --border:rgba(255,255,255,0.07);
+  --text:#dddde8; --text2:#a0a0b8; --muted:#62627a; --accent:#c45adc;
+  --mono:'SF Mono','Fira Code','Menlo',monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;
+  --courier:'Courier New',Courier,monospace;
+}
+body { background:#04040a; font-family:var(--sans); color:var(--text); display:flex; justify-content:center; gap:20px; padding:24px 16px 48px; flex-wrap:wrap; }
+.col { display:flex; flex-direction:column; align-items:center; gap:10px; }
+.col-label { font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; }
+
+.phone {
+  width:300px; height:620px; border-radius:36px;
+  border:1px solid rgba(255,255,255,0.08); background:#04040a;
+  display:flex; flex-direction:column; overflow:hidden; position:relative;
+}
+.bg-glow {
+  position:absolute; inset:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(ellipse 20% 25% at 50% 0%, rgba(214,110,240,0.08) 0%, transparent 100%),
+    radial-gradient(ellipse 35% 45% at 50% 40%, rgba(214,110,240,0.07) 0%, transparent 100%),
+    radial-gradient(ellipse 50% 55% at 50% 90%, rgba(196,90,220,0.09) 0%, transparent 100%),
+    linear-gradient(90deg, #04040a 0%, #04040a 8%, rgba(4,4,10,0.5) 30%, transparent 50%, rgba(4,4,10,0.5) 70%, #04040a 92%, #04040a 100%);
+}
+.inner { position:relative; z-index:1; display:flex; flex-direction:column; height:100%; }
+
+/* ── HEADER ── */
+.hdr { flex-shrink:0; padding:38px 16px 0; text-align:center; }
+.hdr-client  { font-family:var(--mono); font-size:0.38rem; color:var(--muted); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:3px; }
+.hdr-project { font-weight:800; font-size:1.2rem; letter-spacing:-0.03em; color:var(--text); line-height:1; }
+.hdr-module  { font-family:var(--mono); font-size:0.4rem; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; margin-top:4px; }
+
+/* mode toggle: Script / Shotlist / Storyboard */
+.mode-bar { display:flex; align-items:center; justify-content:center; gap:8px; padding:9px 14px 0; }
+.mode-toggle { display:flex; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:20px; padding:2px; }
+.mode-btn { font-family:var(--mono); font-size:0.38rem; letter-spacing:0.05em; text-transform:uppercase; padding:3px 9px; border-radius:16px; cursor:pointer; color:var(--muted); }
+.mode-btn.on { background:rgba(255,255,255,0.08); color:var(--text); }
+.ver-pill { font-family:var(--mono); font-size:0.38rem; color:var(--muted); background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:4px; padding:2px 6px; cursor:pointer; }
+
+/* order toggle: Story / Shoot — only in Shotlist mode */
+.order-bar { display:flex; align-items:center; justify-content:center; gap:8px; padding:7px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.order-toggle { display:flex; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:20px; padding:2px; }
+.ord-btn { font-family:var(--mono); font-size:0.38rem; letter-spacing:0.05em; text-transform:uppercase; padding:3px 9px; border-radius:16px; cursor:pointer; color:var(--muted); }
+.ord-btn.on { background:rgba(255,255,255,0.08); color:var(--text); }
+.shot-ct { font-family:var(--mono); font-size:0.38rem; color:var(--muted); }
+
+/* ── SCROLL ── */
+.scroll { flex:1; overflow-y:auto; padding:6px 0 110px; }
+.scroll::-webkit-scrollbar { display:none; }
+
+/* scene divider */
+.scene-div-hdr { display:flex; align-items:center; gap:8px; padding:11px 14px 7px; cursor:pointer; user-select:none; }
+.scene-drag { display:flex; flex-direction:column; gap:2.5px; flex-shrink:0; opacity:0.2; cursor:grab; }
+.scene-drag span { display:block; width:12px; height:1.5px; background:white; border-radius:1px; }
+.scene-num { font-family:var(--mono); font-size:0.62rem; font-weight:700; letter-spacing:0.04em; flex-shrink:0; min-width:20px; }
+.scene-slug { font-family:var(--courier); font-size:0.52rem; letter-spacing:0.02em; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.scene-count { font-family:var(--mono); font-size:0.38rem; color:var(--muted); opacity:0.55; flex-shrink:0; }
+.scene-chev { opacity:0.25; transition:transform 0.2s; flex-shrink:0; }
+.scene-chev.open { transform:rotate(90deg); }
+.scene-line { height:1px; margin:0 14px 4px; opacity:0.5; }
+
+/* shot row */
+.shot-wrap { padding:0 14px 3px; }
+.shot-row { display:flex; align-items:center; gap:9px; background:var(--card); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid var(--border); border-radius:8px; padding:9px 10px; cursor:pointer; position:relative; }
+.shot-handle { display:flex; flex-direction:column; gap:2.5px; flex-shrink:0; opacity:0.18; cursor:grab; }
+.shot-handle span { display:block; width:10px; height:1.5px; background:white; border-radius:1px; }
+.shot-info { flex:1; min-width:0; display:flex; align-items:center; gap:8px; }
+.shot-id { font-family:var(--mono); font-size:0.68rem; font-weight:700; letter-spacing:0.02em; flex-shrink:0; }
+.shot-desc { font-size:0.58rem; font-weight:500; color:var(--text2); line-height:1.35; }
+.shot-thumb { width:52px; height:34px; border-radius:5px; flex-shrink:0; overflow:hidden; margin-left:auto; }
+.comment-badge { position:absolute; top:-4px; right:8px; min-width:14px; height:14px; border-radius:7px; background:var(--accent); display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:0.3rem; color:white; font-weight:700; padding:0 3px; border:1.5px solid #04040a; }
+
+/* insert plus */
+.insert { display:flex; align-items:center; padding:1px 14px; height:14px; }
+.insert-line { flex:1; height:1px; background:transparent; transition:background 0.15s; }
+.insert-btn { width:14px; height:14px; border-radius:50%; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02); display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0; transition:opacity 0.15s; flex-shrink:0; }
+.insert:hover .insert-btn { opacity:1; border-color:rgba(196,90,220,0.45); }
+.insert:hover .insert-line { background:rgba(196,90,220,0.1); }
+
+/* day divider */
+.day-hdr { display:flex; align-items:center; gap:8px; padding:11px 14px 7px; cursor:pointer; }
+.day-label { font-family:var(--mono); font-size:0.52rem; font-weight:600; color:var(--text); letter-spacing:0.08em; text-transform:uppercase; flex:1; }
+.day-date { font-family:var(--mono); font-size:0.38rem; color:var(--muted); }
+.day-chev { opacity:0.25; transition:transform 0.2s; flex-shrink:0; }
+.day-chev.open { transform:rotate(90deg); }
+.add-day { display:flex; align-items:center; gap:7px; padding:9px 14px; cursor:pointer; border-bottom:1px solid var(--border); }
+.add-day span { font-family:var(--mono); font-size:0.42rem; color:rgba(196,90,220,0.45); letter-spacing:0.06em; text-transform:uppercase; }
+
+/* ── OVERLAY ── */
+.overlay { position:absolute; inset:0; background:rgba(4,4,10,0.75); backdrop-filter:blur(5px); z-index:20; opacity:0; pointer-events:none; transition:opacity 0.25s; border-radius:36px; }
+.overlay.on { opacity:1; pointer-events:all; }
+
+/* ── FAB ZONE ── */
+.fab-zone { position:absolute; bottom:24px; left:0; right:0; z-index:30; display:flex; align-items:center; justify-content:center; height:52px; }
+
+/* back — always left of chat when closed */
+.back-fab {
+  position:absolute; top:50%; left:50%;
+  width:28px; height:28px; border-radius:50%;
+  background:rgba(196,90,220,0.08); backdrop-filter:blur(12px);
+  border:1px solid rgba(196,90,220,0.15);
+  display:flex; align-items:center; justify-content:center;
+  transform:translate(calc(-50% - 128px), -50%);
+  transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.25s ease;
+  cursor:pointer; z-index:31;
+}
+.back-fab.away { transform:translate(-400px, -50%); opacity:0; pointer-events:none; }
+
+/* side FABs — chat + threads, start at center */
+.side-fab {
+  position:absolute; border-radius:50%;
+  background:rgba(196,90,220,0.08); backdrop-filter:blur(12px);
+  border:1px solid rgba(196,90,220,0.2);
+  display:flex; align-items:center; justify-content:center;
+  top:50%; left:50%;
+  width:34px; height:34px;
+  opacity:0; pointer-events:none; cursor:pointer;
+  transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.28s ease;
+  transform:translate(-50%,-50%);
+}
+.side-fab.chat.on    { opacity:1; pointer-events:all; transform:translate(calc(-50% - 80px),-50%); }
+.side-fab.threads.on { opacity:1; pointer-events:all; transform:translate(calc(-50% + 80px),-50%); }
+.unread-dot { position:absolute; top:-1px; right:-1px; width:7px; height:7px; border-radius:50%; background:#4ab8e8; border:1.5px solid #04040a; }
+
+/* main FAB */
+.main-fab {
+  width:50px; height:50px; border-radius:50%;
+  background:rgba(196,90,220,0.15); backdrop-filter:blur(16px);
+  border:1.5px solid rgba(196,90,220,0.45);
+  box-shadow:0 4px 20px rgba(196,90,220,0.25), inset 0 1px 0 rgba(255,255,255,0.1);
+  display:flex; align-items:center; justify-content:center;
+  position:relative; z-index:31; flex-shrink:0; cursor:pointer;
+  transition:transform 0.28s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s;
+}
+.main-fab.on { transform:rotate(45deg); box-shadow:0 6px 32px rgba(196,90,220,0.55); }
+
+/* branch options — semi-circle upper half */
+.opt {
+  position:absolute; display:flex; flex-direction:column; align-items:center; gap:5px;
+  left:50%; top:50%;
+  opacity:0; pointer-events:none;
+  transition:opacity 0.22s ease, transform 0.32s cubic-bezier(0.34,1.56,0.64,1);
+  transform:translate(-50%, -50%);
+}
+.opt.on { opacity:1; pointer-events:all; }
+/* new scene: upper-left arc */
+.opt.new-scene { transform:translate(calc(-50% - 52px), calc(-50% - 58px)); }
+.opt.new-scene.on { transform:translate(calc(-50% - 52px), calc(-50% - 58px)); transition-delay:0.04s; }
+/* new shot: upper-right arc */
+.opt.new-shot { transform:translate(calc(-50% + 52px), calc(-50% - 58px)); }
+.opt.new-shot.on { transform:translate(calc(-50% + 52px), calc(-50% - 58px)); transition-delay:0.04s; }
+
+.opt-circle { width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:1px solid; backdrop-filter:blur(16px); }
+.opt-circle svg { display:block; flex-shrink:0; }
+.opt-label { font-family:var(--mono); font-size:0.34rem; letter-spacing:0.06em; text-transform:uppercase; white-space:nowrap; }
+
+/* branch SVG lines */
+.branches-svg { position:absolute; bottom:50px; left:50%; transform:translateX(-50%); z-index:28; pointer-events:none; opacity:0; transition:opacity 0.2s ease; }
+.branches-svg.on { opacity:1; }
+
+/* docs pill — below main FAB */
+.docs-pill {
+  position:absolute; top:50%; left:50%;
+  transform:translate(-50%, 20px);
+  background:rgba(255,255,255,0.06); backdrop-filter:blur(12px);
+  border:1px solid rgba(255,255,255,0.1); border-radius:20px;
+  padding:5px 14px; display:flex; align-items:center; gap:5px;
+  opacity:0; pointer-events:none;
+  transition:opacity 0.2s ease 0.08s, transform 0.28s cubic-bezier(0.34,1.56,0.64,1) 0.08s;
+  white-space:nowrap; z-index:32; cursor:pointer;
+}
+.docs-pill.on { opacity:1; pointer-events:all; transform:translate(-50%, 32px); }
+.docs-pill span { font-family:var(--mono); font-size:0.38rem; color:rgba(255,255,255,0.45); letter-spacing:0.06em; text-transform:uppercase; }
+
+/* ── DETAIL SHEET ── */
+.sheet { position:absolute; bottom:0; left:0; right:0; z-index:41; background:#0e0e1a; border-top:1px solid rgba(255,255,255,0.07); border-radius:20px 20px 0 0; transform:translateY(110%); transition:transform 0.3s cubic-bezier(0.32,0.72,0,1); padding-bottom:28px; }
+.sheet.on { transform:translateY(0); }
+.sh { width:36px; height:4px; border-radius:2px; background:rgba(255,255,255,0.1); margin:12px auto 0; }
+.ds-id-row { display:flex; align-items:baseline; gap:8px; padding:14px 18px 10px; border-bottom:1px solid rgba(255,255,255,0.05); }
+.ds-id { font-family:var(--mono); font-size:0.9rem; font-weight:700; color:var(--accent); }
+.ds-title { font-size:0.78rem; font-weight:600; color:var(--text); flex:1; }
+.ds-section { padding:10px 18px 4px; }
+.ds-section-label { font-family:var(--mono); font-size:0.36rem; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:6px; }
+.ds-pills { display:flex; gap:5px; flex-wrap:wrap; }
+.ds-pill { font-family:var(--mono); font-size:0.38rem; color:var(--text2); background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:20px; padding:3px 8px; letter-spacing:0.06em; text-transform:uppercase; cursor:pointer; }
+.ds-pill.on { background:rgba(196,90,220,0.1); border-color:rgba(196,90,220,0.3); color:var(--accent); }
+.ds-notes-body { font-size:0.64rem; color:var(--text2); line-height:1.5; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:7px; padding:8px 10px; }
+.ds-actions { display:flex; gap:8px; padding:12px 18px 0; }
+.ds-save { flex:1; background:rgba(196,90,220,0.1); border:1px solid rgba(196,90,220,0.25); border-radius:8px; padding:10px; text-align:center; cursor:pointer; }
+.ds-save span { font-family:var(--mono); font-size:0.42rem; color:var(--accent); letter-spacing:0.06em; text-transform:uppercase; }
+.ds-del { flex:1; background:rgba(232,86,74,0.06); border:1px solid rgba(232,86,74,0.15); border-radius:8px; padding:10px; text-align:center; cursor:pointer; }
+.ds-del span { font-family:var(--mono); font-size:0.42rem; color:#e8564a; letter-spacing:0.06em; text-transform:uppercase; }
+
+/* docs sheet */
+.docs-row { display:flex; align-items:center; gap:10px; padding:10px 18px; border-bottom:1px solid rgba(255,255,255,0.04); cursor:pointer; }
+.docs-icon { width:28px; height:28px; border-radius:6px; background:rgba(232,86,74,0.1); border:1px solid rgba(232,86,74,0.2); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.docs-name { font-size:0.68rem; font-weight:600; color:var(--text); }
+.docs-meta { font-family:var(--mono); font-size:0.38rem; color:var(--muted); margin-top:1px; letter-spacing:0.04em; }
+</style>
+</head>
+<body>
+
+<!-- STORY ORDER -->
+<div class="col">
+  <div class="col-label">Story order — tap 12B or +</div>
+  <div class="phone" id="p1">
+    <div class="bg-glow"></div>
+    <div class="inner">
+
+      <!-- HEADER -->
+      <div class="hdr">
+        <div class="hdr-client">Origin Point</div>
+        <div class="hdr-project">Drifting</div>
+        <div class="hdr-module">10 shots &nbsp;·&nbsp; 2 scenes</div>
+      </div>
+      <div class="mode-bar">
+        <div class="mode-toggle">
+          <div class="mode-btn">Script</div>
+          <div class="mode-btn on">Shotlist</div>
+          <div class="mode-btn">Storyboard</div>
+        </div>
+      </div>
+      <div class="order-bar">
+        <div class="order-toggle">
+          <div class="ord-btn on">Story</div>
+          <div class="ord-btn">Shoot</div>
+        </div>
+        <div class="ver-pill">v2</div>
+      </div>
+
+      <div class="scroll">
+
+        <!-- SCENE 1 — warm amber -->
+        <div class="scene-div-hdr">
+          <div class="scene-drag"><span></span><span></span><span></span></div>
+          <span class="scene-num" style="color:#e8a020;">01</span>
+          <span class="scene-slug" style="color:#a08040;">INT. Origin Station — Night</span>
+          <span class="scene-count">3</span>
+          <svg class="scene-chev open" width="5" height="9" viewBox="0 0 5 9" fill="none"><path d="M1 1L4 4.5L1 8" stroke="#e8a020" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg>
+        </div>
+        <div class="scene-line" style="background:#e8a020;"></div>
+
+        <div class="insert"><div class="insert-line"></div><div class="insert-btn"><svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M3.5 1V6M1 3.5H6" stroke="rgba(196,90,220,0.6)" stroke-width="1.1" stroke-linecap="round"/></svg></div><div class="insert-line"></div></div>
+        <div class="shot-wrap"><div class="shot-row">
+          <div class="shot-handle"><span></span><span></span><span></span></div>
+          <div class="shot-info"><span class="shot-id" style="color:#e8a020;">1A</span><span class="shot-desc">Lohm enters the station, halogen glow</span></div>
+          <div class="shot-thumb" style="background:linear-gradient(135deg,#1a1008,#2a1a08);"></div>
+        </div></div>
+        <div class="insert"><div class="insert-line"></div><div class="insert-btn"><svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M3.5 1V6M1 3.5H6" stroke="rgba(196,90,220,0.6)" stroke-width="1.1" stroke-linecap="round"/></svg></div><div class="insert-line"></div></div>
+        <div class="shot-wrap"><div class="shot-row">
+          <div class="shot-handle"><span></span><span></span><span></span></div>
+          <div class="shot-info"><span class="shot-id" style="color:#e8a020;">1B</span><span class="shot-desc">CU — departure board, time ticking</span></div>
+          <div class="shot-thumb" style="background:linear-gradient(135deg,#2a1a08,#1a1008);"></div>
+        </div></div>
+        <div class="insert"><div class="insert-line"></div><div class="insert-btn"><svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M3.5 1V6M1 3.5H6" stroke="rgba(196,90,220,0.6)" stroke-width="1.1" stroke-linecap="round"/></svg></div><div class="insert-line"></div></div>
+        <div class="shot-wrap"><div class="shot-row">
+          <div class="shot-handle"><span></span><span></span><span></span></div>
+          <div class="shot-info"><span class="shot-id" style="color:#e8a020;">1C</span><span class="shot-desc">Wide — platform empty except for Lohm</span></div>
+          <div class="shot-thumb" style="background:linear-gradient(135deg,#1a1208,#201808);"></div>
+        </div></div>
+        <div class="insert"><div class="insert-line"></div><div class="insert-btn"><svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M3.5 1V6M1 3.5H6" stroke="rgba(196,90,220,0.6)" stroke-width="1.1" stroke-linecap="round"/></svg></div><div class="insert-line"></div></div>
+
+        <!-- SCENE 12 — cool violet -->
+        <div class="scene-div-hdr" style="margin-top:6px;">
+          <div class="scene-drag"><span></span><span></span><span></span></div>
+          <span class="scene-num" style="color:#c45adc;">12</span>
+          <span class="scene-slug" style="color:#8060a0;">EXT. Ravine Edge — Dusk</span>
+          <span class="scene-count">10</span>
+          <svg class="scene-chev open" width="5" height="9" viewBox="0 0 5 9" fill="none"><path d="M1 1L4 4.5L1 8" stroke="#c45adc" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg>
+        </div>
+        <div class="scene-line" style="background:#c45adc;"></div>
+
+        <div class="insert"><div class="insert-line"></div><div class="insert-btn"><svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M3.5 1V6M1 3.5H6" stroke="rgba(196,90,220,0.6)" stroke-width="1.1" stroke-linecap="round"/></svg></div><div class="insert-line"></div></div>
+        <div class="shot-wrap"><div class="shot-row">
+          <div class="shot-handle"><span></span><span></span><span></span></div>
+          <div class="shot-info"><span class="shot-id" style="color:#c45adc;">12A</span><span class="shot-desc">Lohm at ravine edge, wind moving through hair</span></div>
+          <div class="shot-thumb" style="background:linear-gradient(135deg,#1a1228,#0d1a2a);"></div>
+        </div></div>
+        <div class="insert"><div class="insert-line"></div><div class="insert-btn"><svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M3.5 1V6M1 3.5H6" stroke="rgba(196,90,220,0.6)" stroke-width="1.1" stroke-linecap="round"/></svg></div><div class="insert-line"></div></div>
+        <div class="shot-wrap"><div class="shot-row" onclick="openSheet('detail')" style="cursor:pointer;">
+          <div class="shot-handle" onclick="event.stopPropagation()"><span></span><span></span><span></span></div>
+          <div class="shot-info"><span class="shot-id" style="color:#c45adc;">12B</span><span class="shot-desc">Aleph watching from ledge below</span></div>
+          <div class="shot-thumb" style="background:linear-gradient(135deg,#0d1a2a,#1a0d28);"></div>
+          <div class="comment-badge">2</div>
+        </div></div>
+        <div class="insert"><div class="insert-line"></div><div class="insert-btn"><svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M3.5 1V6M1 3.5H6" stroke="rgba(196,90,220,0.6)" stroke-width="1.1" stroke-linecap="round"/></svg></div><div class="insert-line"></div></div>
+        <div class="shot-wrap"><div class="shot-row">
+          <div class="shot-handle"><span></span><span></span><span></span></div>
+          <div class="shot-info"><span class="shot-id" style="color:#c45adc;">12C</span><span class="shot-desc">Wide — two figures against last light, ravine edge</span></div>
+          <div class="shot-thumb" style="background:linear-gradient(135deg,#1a1228,#1a0d1a);"></div>
+        </div></div>
+        <div class="insert"><div class="insert-line"></div><div class="insert-btn"><svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M3.5 1V6M1 3.5H6" stroke="rgba(196,90,220,0.6)" stroke-width="1.1" stroke-linecap="round"/></svg></div><div class="insert-line"></div></div>
+
+      </div>
+
+      <!-- OVERLAY -->
+      <div class="overlay" id="ov1" onclick="closeAll()"></div>
+
+      <!-- UNIFIED FAB SYSTEM — single origin at bottom-center -->
+      <div id="fab-system" style="position:absolute;bottom:56px;left:50%;transform:translateX(-50%);width:0;height:0;z-index:30;">
+
+        <!-- Branch lines SVG — centered on FAB origin -->
+        <svg id="br1" style="position:absolute;bottom:-4px;left:-80px;opacity:0;transition:opacity 0.2s ease;pointer-events:none;" width="160" height="90" viewBox="0 0 160 90">
+          <line x1="80" y1="86" x2="37" y2="30" stroke="rgba(196,90,220,0.22)" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="80" y1="86" x2="123" y2="30" stroke="rgba(196,90,220,0.22)" stroke-width="1" stroke-dasharray="3 3"/>
+          <circle cx="80" cy="86" r="2.5" fill="rgba(196,90,220,0.4)"/>
+        </svg>
+
+        <!-- New Scene: upper-left, -58px left, -64px up from FAB center -->
+        <div id="opt-ns1" style="position:absolute;bottom:21px;left:-64px;display:flex;flex-direction:column;align-items:center;gap:5px;opacity:0;pointer-events:none;transform:translateY(16px);transition:opacity 0.22s ease,transform 0.32s cubic-bezier(0.34,1.56,0.64,1);">
+          <div class="opt-circle" style="background:rgba(232,160,32,0.1);border-color:rgba(232,160,32,0.3);">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke="#e8a020" stroke-width="1.3" stroke-linecap="round"/><path d="M13 10v4M11 12h4" stroke="#e8a020" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <span class="opt-label" style="color:#e8a020;">New Scene</span>
+        </div>
+
+        <!-- New Shot: upper-right, +58px right, -64px up from FAB center -->
+        <div id="opt-sh1" style="position:absolute;bottom:21px;left:22px;display:flex;flex-direction:column;align-items:center;gap:5px;opacity:0;pointer-events:none;transform:translateY(16px);transition:opacity 0.22s ease 0.04s,transform 0.32s cubic-bezier(0.34,1.56,0.64,1) 0.04s;">
+          <div class="opt-circle" style="background:rgba(196,90,220,0.1);border-color:rgba(196,90,220,0.3);">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="8" height="6" rx="1" stroke="#c45adc" stroke-width="1.3"/><path d="M10 7L14 9L10 11V7Z" fill="#c45adc" opacity="0.8"/></svg>
+          </div>
+          <span class="opt-label" style="color:#c45adc;">New Shot</span>
+        </div>
+
+        <!-- Back chevron — left of chat when closed -->
+        <div id="bk1" style="position:absolute;top:-15px;left:-96px;width:28px;height:28px;border-radius:50%;background:rgba(196,90,220,0.08);backdrop-filter:blur(12px);border:1px solid rgba(196,90,220,0.15);display:flex;align-items:center;justify-content:center;transform:translateX(0);transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1),opacity 0.25s ease;cursor:pointer;">
+          <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="rgba(255,255,255,0.4)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+
+        <!-- Chat FAB — starts hidden at center, slides left -->
+        <div id="ch1" style="position:absolute;top:-15px;left:-17px;width:34px;height:34px;border-radius:50%;background:rgba(196,90,220,0.08);backdrop-filter:blur(12px);border:1px solid rgba(196,90,220,0.2);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transform:translateX(0);transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1),opacity 0.25s ease;cursor:pointer;">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style="display:block;"><path d="M2 2h9a1 1 0 011 1v5a1 1 0 01-1 1H5l-3 2.5V3a1 1 0 011-1z" stroke="rgba(255,255,255,0.45)" stroke-width="1.1" stroke-linejoin="round"/></svg>
+        </div>
+
+        <!-- Main FAB — centered at origin -->
+        <div id="mf1" onclick="toggleFab()" style="position:absolute;top:-25px;left:-25px;width:50px;height:50px;border-radius:50%;background:rgba(196,90,220,0.15);backdrop-filter:blur(16px);border:1.5px solid rgba(196,90,220,0.45);box-shadow:0 4px 20px rgba(196,90,220,0.25),inset 0 1px 0 rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;z-index:31;cursor:pointer;transition:transform 0.28s cubic-bezier(0.34,1.56,0.64,1),box-shadow 0.2s;">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:block;"><path d="M8 2V14M2 8H14" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+
+        <!-- Docs pill — below FAB -->
+        <div id="dp1" onclick="openSheet('docs')" style="position:absolute;top:32px;left:50%;transform:translateX(-50%) translateY(6px);background:rgba(255,255,255,0.06);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:5px 14px;display:flex;align-items:center;gap:5px;opacity:0;pointer-events:none;white-space:nowrap;z-index:32;cursor:pointer;transition:opacity 0.2s ease 0.08s,transform 0.28s cubic-bezier(0.34,1.56,0.64,1) 0.08s;">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="2" y="1" width="6" height="8" rx="1" stroke="rgba(255,255,255,0.35)" stroke-width="1"/><path d="M4 4h2M4 6h2" stroke="rgba(255,255,255,0.35)" stroke-width="0.8" stroke-linecap="round"/></svg>
+          <span style="font-family:var(--mono);font-size:0.38rem;color:rgba(255,255,255,0.45);letter-spacing:0.06em;text-transform:uppercase;">Docs</span>
+        </div>
+
+        <!-- Threads FAB — starts hidden at center, slides right -->
+        <div id="th1" style="position:absolute;top:-15px;left:-17px;width:34px;height:34px;border-radius:50%;background:rgba(196,90,220,0.08);backdrop-filter:blur(12px);border:1px solid rgba(196,90,220,0.2);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transform:translateX(0);transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1),opacity 0.25s ease;cursor:pointer;">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style="display:block;"><path d="M2.5 2h8a1 1 0 011 1v4.5a1 1 0 01-1 1H5l-2.5 2.5V3a1 1 0 011-1z" stroke="rgba(255,255,255,0.45)" stroke-width="1.1" stroke-linejoin="round"/></svg>
+          <div class="unread-dot"></div>
+        </div>
+
+      </div>
+
+      <!-- DETAIL SHEET -->
+      <div class="sheet" id="detail">
+        <div class="sh"></div>
+        <div class="ds-id-row"><span class="ds-id">12B</span><span class="ds-title">Aleph watching from ledge below</span></div>
+        <div class="ds-section">
+          <div class="ds-section-label">Type</div>
+          <div class="ds-pills"><div class="ds-pill on">MCU</div><div class="ds-pill">MS</div><div class="ds-pill">WS</div><div class="ds-pill">ECU</div></div>
+        </div>
+        <div class="ds-section">
+          <div class="ds-section-label">Lens</div>
+          <div class="ds-pills"><div class="ds-pill on">35mm</div><div class="ds-pill">50mm</div><div class="ds-pill">85mm</div></div>
+        </div>
+        <div class="ds-section" style="padding-bottom:10px;">
+          <div class="ds-section-label">Notes</div>
+          <div class="ds-notes-body">Hold on Aleph's eyes as Lohm moves OOF. Let it breathe — no cut until natural.</div>
+        </div>
+        <div class="ds-actions">
+          <div class="ds-save"><span>Save</span></div>
+          <div class="ds-del" onclick="closeAll()"><span>Delete shot</span></div>
+        </div>
+      </div>
+
+      <!-- DOCS SHEET -->
+      <div class="sheet" id="docs">
+        <div class="sh"></div>
+        <div style="padding:14px 18px 10px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-weight:700;font-size:0.82rem;letter-spacing:-0.02em;">Documents</span>
+          <span style="font-family:var(--mono);font-size:0.4rem;color:rgba(196,90,220,0.6);letter-spacing:0.06em;cursor:pointer;">+ Add</span>
+        </div>
+        <div class="docs-row">
+          <div class="docs-icon"><svg width="13" height="14" viewBox="0 0 13 14" fill="none"><rect x="1.5" y="1" width="10" height="12" rx="1" stroke="#e8564a" stroke-width="1"/><path d="M4 5h5M4 7.5h5M4 10h3" stroke="#e8564a" stroke-width="0.9" stroke-linecap="round"/></svg></div>
+          <div><div class="docs-name">FRACTURE_SC12_SCRIPT_v4.pdf</div><div class="docs-meta">PDF · 2.3mb · Added Apr 02</div></div>
+          <svg width="5" height="9" viewBox="0 0 5 9" fill="none" style="opacity:0.2;margin-left:auto;flex-shrink:0;"><path d="M1 1L4 4.5L1 8" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="docs-row">
+          <div class="docs-icon" style="background:rgba(100,112,243,0.1);border-color:rgba(100,112,243,0.2);"><svg width="13" height="14" viewBox="0 0 13 14" fill="none"><rect x="1.5" y="1" width="10" height="12" rx="1" stroke="#6470f3" stroke-width="1"/><path d="M4 5h5M4 7.5h5M4 10h3" stroke="#6470f3" stroke-width="0.9" stroke-linecap="round"/></svg></div>
+          <div><div class="docs-name">Shotlist_v2_export.pdf</div><div class="docs-meta">PDF · 0.8mb · Added Apr 03</div></div>
+          <svg width="5" height="9" viewBox="0 0 5 9" fill="none" style="opacity:0.2;margin-left:auto;flex-shrink:0;"><path d="M1 1L4 4.5L1 8" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="docs-row">
+          <div class="docs-icon" style="background:rgba(232,160,32,0.1);border-color:rgba(232,160,32,0.2);"><svg width="13" height="14" viewBox="0 0 13 14" fill="none"><rect x="1.5" y="1" width="10" height="12" rx="1" stroke="#e8a020" stroke-width="1"/><path d="M4 4h5M4 6.5h5M4 9h3" stroke="#e8a020" stroke-width="0.9" stroke-linecap="round"/></svg></div>
+          <div><div class="docs-name">Location_Notes_Ravine.pdf</div><div class="docs-meta">PDF · 1.1mb · Added Apr 01</div></div>
+          <svg width="5" height="9" viewBox="0 0 5 9" fill="none" style="opacity:0.2;margin-left:auto;flex-shrink:0;"><path d="M1 1L4 4.5L1 8" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- SHOOT ORDER — FAB OPEN -->
+<div class="col">
+  <div class="col-label">Shoot order — FAB open</div>
+  <div class="phone">
+    <div class="bg-glow"></div>
+    <div class="inner">
+      <div class="hdr">
+        <div class="hdr-client">Origin Point</div>
+        <div class="hdr-project">Drifting</div>
+        <div class="hdr-module">10 shots &nbsp;·&nbsp; 2 scenes</div>
+      </div>
+      <div class="mode-bar">
+        <div class="mode-toggle">
+          <div class="mode-btn">Script</div>
+          <div class="mode-btn on">Shotlist</div>
+          <div class="mode-btn">Storyboard</div>
+        </div>
+      </div>
+      <div class="order-bar">
+        <div class="order-toggle">
+          <div class="ord-btn">Story</div>
+          <div class="ord-btn on">Shoot</div>
+        </div>
+        <div class="ver-pill">v2</div>
+      </div>
+
+      <div class="scroll">
+        <div class="add-day">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 1V9M1 5H9" stroke="rgba(196,90,220,0.45)" stroke-width="1.3" stroke-linecap="round"/></svg>
+          <span>Add shoot date</span>
+        </div>
+        <!-- Day 01 -->
+        <div class="day-hdr"><div class="scene-drag"><span></span><span></span><span></span></div><span class="day-label">Day 01</span><span class="day-date">Apr 17, 2026</span><svg class="day-chev open" width="5" height="9" viewBox="0 0 5 9" fill="none"><path d="M1 1L4 4.5L1 8" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="scene-line" style="background:rgba(255,255,255,0.07);"></div>
+        <div class="insert"><div class="insert-line"></div><div class="insert-btn"><svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M3.5 1V6M1 3.5H6" stroke="rgba(196,90,220,0.6)" stroke-width="1.1" stroke-linecap="round"/></svg></div><div class="insert-line"></div></div>
+        <div class="shot-wrap"><div class="shot-row"><div class="shot-handle"><span></span><span></span><span></span></div><div class="shot-info"><span class="shot-id" style="color:var(--muted);">12D</span><span class="shot-desc">Lohm's hands trembling against cold rock</span></div><div class="shot-thumb" style="background:linear-gradient(135deg,#1a1228,#0a1220);"></div></div></div>
+        <div class="insert"><div class="insert-line"></div><div class="insert-btn"><svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M3.5 1V6M1 3.5H6" stroke="rgba(196,90,220,0.6)" stroke-width="1.1" stroke-linecap="round"/></svg></div><div class="insert-line"></div></div>
+        <div class="shot-wrap"><div class="shot-row"><div class="shot-handle"><span></span><span></span><span></span></div><div class="shot-info"><span class="shot-id" style="color:var(--muted);">12E</span><span class="shot-desc">Aleph begins to climb toward Lohm</span></div><div class="shot-thumb" style="background:linear-gradient(135deg,#0d1a2a,#1a0d28);"></div></div></div>
+        <div class="insert"><div class="insert-line"></div><div class="insert-btn"><svg width="7" height="7" viewBox="0 0 7 7" fill="none"><path d="M3.5 1V6M1 3.5H6" stroke="rgba(196,90,220,0.6)" stroke-width="1.1" stroke-linecap="round"/></svg></div><div class="insert-line"></div></div>
+        <!-- Day 02 -->
+        <div class="day-hdr" style="margin-top:6px;"><div class="scene-drag"><span></span><span></span><span></span></div><span class="day-label">Day 02</span><span class="day-date">Apr 18, 2026</span><svg class="day-chev" width="5" height="9" viewBox="0 0 5 9" fill="none"><path d="M1 1L4 4.5L1 8" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="scene-line" style="background:rgba(255,255,255,0.07);"></div>
+      </div>
+
+      <!-- OVERLAY — open -->
+      <div class="overlay on"></div>
+
+      <!-- BRANCHES — open, shoot order: New Day + New Shot -->
+      <svg class="branches-svg on" width="160" height="80" viewBox="0 0 160 80" style="bottom:46px;">
+        <line x1="80" y1="76" x2="28" y2="18" stroke="rgba(196,90,220,0.2)" stroke-width="1" stroke-dasharray="3 3"/>
+        <line x1="80" y1="76" x2="132" y2="18" stroke="rgba(196,90,220,0.2)" stroke-width="1" stroke-dasharray="3 3"/>
+        <circle cx="80" cy="76" r="2.5" fill="rgba(196,90,220,0.35)"/>
+        <circle cx="28" cy="18" r="2" fill="rgba(232,160,32,0.4)"/>
+        <circle cx="132" cy="18" r="2" fill="rgba(196,90,220,0.4)"/>
+      </svg>
+      <div style="position:absolute;inset:0;z-index:30;pointer-events:none;">
+        <div class="opt new-scene on" style="bottom:46px;transition-delay:0.04s;">
+          <div class="opt-circle" style="background:rgba(232,160,32,0.1);border-color:rgba(232,160,32,0.3);">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.2" stroke="#e8a020" stroke-width="1.3"/><path d="M2 6.5H14" stroke="#e8a020" stroke-width="1.3"/><path d="M5.5 3V6.5M10.5 3V6.5" stroke="#e8a020" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <span class="opt-label" style="color:#e8a020;">New Day</span>
+        </div>
+        <div class="opt new-shot on" style="bottom:46px;">
+          <div class="opt-circle" style="background:rgba(196,90,220,0.1);border-color:rgba(196,90,220,0.3);">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="8" height="6" rx="1" stroke="#c45adc" stroke-width="1.3"/><path d="M10 7L14 9L10 11V7Z" fill="#c45adc" opacity="0.8"/></svg>
+          </div>
+          <span class="opt-label" style="color:#c45adc;">New Shot</span>
+        </div>
+      </div>
+
+      <!-- FAB ZONE — open state -->
+      <div class="fab-zone">
+        <!-- back slid away -->
+        <div class="back-fab away"><svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="rgba(255,255,255,0.4)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="side-fab chat on"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" style="display:block;"><path d="M2 2h9a1 1 0 011 1v5a1 1 0 01-1 1H5l-3 2.5V3a1 1 0 011-1z" stroke="rgba(255,255,255,0.45)" stroke-width="1.1" stroke-linejoin="round"/></svg></div>
+        <div class="main-fab on"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:block;"><path d="M8 2V14M2 8H14" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round"/></svg></div>
+        <!-- Docs pill visible -->
+        <div class="docs-pill on" style="transform:translate(-50%, 32px);opacity:1;pointer-events:all;">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="2" y="1" width="6" height="8" rx="1" stroke="rgba(255,255,255,0.35)" stroke-width="1"/><path d="M4 4h2M4 6h2" stroke="rgba(255,255,255,0.35)" stroke-width="0.8" stroke-linecap="round"/></svg>
+          <span>Docs</span>
+        </div>
+        <div class="side-fab threads on"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" style="display:block;"><path d="M2.5 2h8a1 1 0 011 1v4.5a1 1 0 01-1 1H5l-2.5 2.5V3a1 1 0 011-1z" stroke="rgba(255,255,255,0.45)" stroke-width="1.1" stroke-linejoin="round"/></svg><div class="unread-dot"></div></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+let fabOpen = false;
+let activeSheet = null;
+
+function toggleFab() {
+  fabOpen = !fabOpen;
+  const mf = document.getElementById('mf1');
+  const ov = document.getElementById('ov1');
+  const br = document.getElementById('br1');
+  const ns = document.getElementById('opt-ns1');
+  const sh = document.getElementById('opt-sh1');
+  const ch = document.getElementById('ch1');
+  const th = document.getElementById('th1');
+  const dp = document.getElementById('dp1');
+  const bk = document.getElementById('bk1');
+
+  if (fabOpen) {
+    mf.style.transform = 'rotate(45deg)'; mf.style.boxShadow = '0 6px 32px rgba(196,90,220,0.55)';
+    ov.classList.add('on');
+    br.style.opacity = '1';
+    ns.style.opacity = '1'; ns.style.transform = 'translateY(0)'; ns.style.pointerEvents = 'all';
+    sh.style.opacity = '1'; sh.style.transform = 'translateY(0)'; sh.style.pointerEvents = 'all';
+    ch.style.opacity = '1'; ch.style.transform = 'translateX(-78px)'; ch.style.pointerEvents = 'all';
+    th.style.opacity = '1'; th.style.transform = 'translateX(78px)'; th.style.pointerEvents = 'all';
+    dp.style.opacity = '1'; dp.style.transform = 'translateX(-50%) translateY(0)'; dp.style.pointerEvents = 'all';
+    bk.style.transform = 'translateX(-300px)'; bk.style.opacity = '0'; bk.style.pointerEvents = 'none';
+  } else {
+    closeAll();
+  }
+}
+
+function openSheet(id) {
+  if (fabOpen) { toggleFab(); }
+  setTimeout(() => {
+    document.getElementById('ov1').classList.add('on');
+    document.getElementById(id).classList.add('on');
+    activeSheet = id;
+  }, fabOpen ? 200 : 0);
+}
+
+function closeAll() {
+  fabOpen = false;
+  const mf = document.getElementById('mf1');
+  const ov = document.getElementById('ov1');
+  const br = document.getElementById('br1');
+  const ns = document.getElementById('opt-ns1');
+  const sh = document.getElementById('opt-sh1');
+  const ch = document.getElementById('ch1');
+  const th = document.getElementById('th1');
+  const dp = document.getElementById('dp1');
+  const bk = document.getElementById('bk1');
+  if (mf) { mf.style.transform = ''; mf.style.boxShadow = ''; }
+  if (ov) ov.classList.remove('on');
+  if (br) br.style.opacity = '0';
+  if (ns) { ns.style.opacity = '0'; ns.style.transform = 'translateY(16px)'; ns.style.pointerEvents = 'none'; }
+  if (sh) { sh.style.opacity = '0'; sh.style.transform = 'translateY(16px)'; sh.style.pointerEvents = 'none'; }
+  if (ch) { ch.style.opacity = '0'; ch.style.transform = 'translateX(0)'; ch.style.pointerEvents = 'none'; }
+  if (th) { th.style.opacity = '0'; th.style.transform = 'translateX(0)'; th.style.pointerEvents = 'none'; }
+  if (dp) { dp.style.opacity = '0'; dp.style.transform = 'translateX(-50%) translateY(6px)'; dp.style.pointerEvents = 'none'; }
+  if (bk) { bk.style.transform = 'translateX(0)'; bk.style.opacity = '1'; bk.style.pointerEvents = 'all'; }
+  ['detail','docs'].forEach(id => document.getElementById(id)?.classList.remove('on'));
+  activeSheet = null;
+}
+</script>
+</body>
+</html>

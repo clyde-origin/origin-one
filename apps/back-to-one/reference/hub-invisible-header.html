@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en" style="background:#04040a">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Hub Preview</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body {
+  background:#04040a;
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;
+  color:#dddde8;
+  display:flex; flex-direction:column; align-items:center;
+  padding:24px 0 64px;
+}
+
+.phone {
+  width:358px;
+  border-radius:40px;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,0.08);
+  background:#04040a;
+  position:relative;
+}
+
+/* center glow */
+.bg-glow {
+  position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(ellipse 20% 25% at 50% 0%, rgba(216,110,240,0.08) 0%, transparent 100%),
+    radial-gradient(ellipse 35% 45% at 50% 40%, rgba(216,110,240,0.07) 0%, transparent 100%),
+    radial-gradient(ellipse 50% 55% at 50% 90%, rgba(196,90,220,0.09) 0%, transparent 100%),
+    linear-gradient(90deg, #04040a 0%, #04040a 8%, rgba(4,4,10,0.5) 30%, transparent 50%, rgba(4,4,10,0.5) 70%, #04040a 92%, #04040a 100%);
+}
+.bg-glow::after {
+  content:''; position:absolute; inset:0;
+  background:inherit;
+}
+
+.inner { position:relative; z-index:1; }
+
+/* TOPBAR */
+.topbar {
+  padding:48px 16px 16px;
+  background:transparent;
+  position:relative; z-index:2;
+  border-bottom:none;
+  text-align:center; position:relative;
+}
+.back-btn {
+  position:absolute; top:52px; left:14px;
+  width:28px; height:28px; border-radius:50%;
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.05);
+  display:flex; align-items:center; justify-content:center;
+}
+.proj-name { font-weight:800; font-size:1.2rem; letter-spacing:-0.03em; color:#dddde8; }
+.proj-sub { display:flex; align-items:center; justify-content:center; gap:6px; margin-top:5px; }
+.proj-type { font-family:'SF Mono','Menlo',monospace; font-size:0.38rem; color:#62627a; letter-spacing:0.08em; text-transform:uppercase; }
+.phase-pill { display:inline-flex; align-items:center; gap:3px; padding:2px 7px; border-radius:20px; background:rgba(100,112,243,0.1); }
+.pdot { width:4px; height:4px; border-radius:50%; background:#6470f3; box-shadow:0 0 4px #6470f3; }
+.plbl { font-family:'SF Mono','Menlo',monospace; font-size:0.36rem; color:#6470f3; letter-spacing:0.06em; text-transform:uppercase; }
+.crew-row { display:flex; justify-content:center; margin-top:10px; }
+.av { width:24px; height:24px; border-radius:50%; border:1.5px solid #04040a; background:#1a1228; display:flex; align-items:center; justify-content:center; font-family:'SF Mono','Menlo',monospace; font-size:0.3rem; color:#a0a0b8; margin-left:-5px; }
+.av:first-child { margin-left:0; }
+.av-m { background:rgba(196,90,220,0.15); color:#c45adc; }
+
+/* MODULES */
+.mods { padding:18px 14px 100px; display:flex; flex-direction:column; gap:20px; }
+
+/* module header */
+.mh { display:flex; flex-direction:column; align-items:center; gap:3px; margin-bottom:7px; }
+.mh-row { display:flex; align-items:center; gap:5px; }
+.micon { opacity:0.45; flex-shrink:0; }
+.mname { font-weight:700; font-size:0.78rem; color:#dddde8; }
+.mmeta { font-family:'SF Mono','Menlo',monospace; font-size:0.38rem; color:#62627a; letter-spacing:0.06em; }
+.mchev { opacity:0.2; }
+
+/* section header for Creative */
+.section-hdr {
+  display:flex; flex-direction:column; align-items:center; gap:3px; margin-bottom:10px;
+  padding-bottom:10px; border-bottom:none;
+}
+.section-hdr-row { display:flex; align-items:center; gap:5px; }
+.section-name { font-weight:700; font-size:0.78rem; color:#dddde8; }
+.section-meta { font-family:'SF Mono','Menlo',monospace; font-size:0.38rem; color:#62627a; letter-spacing:0.06em; }
+
+/* card */
+.card { background:rgba(10,10,18,0.42); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.07); border-radius:9px; overflow:hidden; }
+
+/* add row */
+.add-row { display:flex; align-items:center; gap:7px; padding:8px 11px; border-top:1px solid rgba(255,255,255,0.05); cursor:pointer; }
+.add-row span { font-family:'SF Mono','Menlo',monospace; font-size:0.44rem; color:rgba(196,90,220,0.5); letter-spacing:0.06em; text-transform:uppercase; }
+
+/* task rows */
+.tr { display:flex; align-items:flex-start; gap:8px; padding:9px 11px; border-bottom:none; }
+.tr:last-child { border-bottom:none; }
+.chk { width:12px; height:12px; border-radius:50%; border:1.5px solid #c45adc; flex-shrink:0; margin-top:1px; }
+.chk.o { border-color:#62627a; }
+.tn { font-size:0.64rem; font-weight:600; color:#dddde8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tn.o { color:#62627a; }
+.td { font-family:'SF Mono','Menlo',monospace; font-size:0.42rem; color:#62627a; margin-top:1px; }
+
+/* tracks */
+.tracks { padding:9px 11px 8px; display:flex; flex-direction:column; gap:3px; position:relative; }
+.trow { display:flex; align-items:center; gap:5px; }
+.tlbl { font-family:'SF Mono','Menlo',monospace; font-size:0.36rem; color:#62627a; width:20px; text-align:right; text-transform:uppercase; }
+.tbar { flex:1; height:3px; background:rgba(255,255,255,0.05); border-radius:2px; position:relative; }
+.tfill { height:100%; border-radius:2px; position:absolute; top:0; }
+.ms-rows { border-top:1px solid rgba(255,255,255,0.05); }
+.ms-row { display:flex; align-items:center; gap:7px; padding:6px 11px; border-bottom:none; }
+.ms-row:last-child { border-bottom:none; }
+.ms-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
+.ms-date { font-family:'SF Mono','Menlo',monospace; font-size:0.42rem; color:#62627a; width:28px; }
+.ms-name { font-size:0.62rem; font-weight:600; color:#dddde8; flex:1; }
+
+/* CREATIVE SECTION */
+.creative-block { display:flex; flex-direction:column; gap:10px; }
+
+/* SceneMaker + Tone 50/50 */
+.sm-tone { display:flex; gap:8px; height:130px; }
+.sm-card { flex:1; background:rgba(10,10,18,0.42); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.07); border-radius:9px; padding:8px 9px; display:flex; flex-direction:column; overflow:hidden; }
+.sb-row { display:flex; gap:3px; flex:1; }
+.sb-c { flex:1; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); border-radius:5px; overflow:hidden; }
+.sb-f { height:46px; }
+.sb-info { padding:3px 4px; }
+.sb-id { font-family:'SF Mono','Menlo',monospace; font-size:0.33rem; color:#c45adc; }
+.sb-d { font-size:0.36rem; color:#a0a0b8; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.sm-ft { display:flex; gap:4px; margin-top:auto; padding-top:4px; }
+.vp { font-family:'SF Mono','Menlo',monospace; font-size:0.33rem; color:#62627a; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.05); border-radius:3px; padding:1px 3px; }
+.sc-ct { font-family:'SF Mono','Menlo',monospace; font-size:0.33rem; color:#62627a; }
+
+/* Tone 50% */
+.tone-card { flex:1; background:rgba(10,10,18,0.42); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.07); border-radius:9px; overflow:hidden; position:relative; }
+.tg { display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; height:100%; }
+.tone-ov { position:absolute; inset:0; background:linear-gradient(135deg,rgba(4,4,10,0.4),rgba(4,4,10,0.1)); }
+.tone-icon { position:absolute; top:7px; left:7px; opacity:0.6; }
+.tone-lbl { position:absolute; bottom:7px; left:7px; font-family:'SF Mono','Menlo',monospace; font-size:0.36rem; color:rgba(255,255,255,0.4); letter-spacing:0.06em; text-transform:uppercase; }
+
+/* mini row — 3 equal */
+.mini-row { display:flex; gap:8px; }
+.mini-c { flex:1; background:rgba(10,10,18,0.42); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.07); border-radius:9px; padding:8px 9px; }
+.mini-n { font-weight:700; font-size:0.58rem; color:#dddde8; margin-bottom:2px; }
+.mini-m { font-family:'SF Mono','Menlo',monospace; font-size:0.33rem; color:#62627a; margin-bottom:4px; }
+.mini-b { height:2px; background:rgba(255,255,255,0.05); border-radius:2px; }
+.mini-f { height:100%; border-radius:2px; }
+
+/* FAB ZONE */
+.fab-zone {
+  position:absolute; bottom:28px; left:0; right:0; z-index:30;
+  display:flex; align-items:center; justify-content:center; height:52px;
+}
+.side-fab {
+  position:absolute; width:34px; height:34px; border-radius:50%;
+  /* glassmorphism */
+  background:rgba(196,90,220,0.08);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border:1px solid rgba(196,90,220,0.2);
+  display:flex; align-items:center; justify-content:center;
+  top:50%; left:50%;
+  transform:translate(-50%,-50%);
+}
+.side-fab.chat  { transform:translate(calc(-50% - 104px),-50%); }
+.side-fab.threads { transform:translate(calc(-50% + 104px),-50%); }
+.unread-dot { position:absolute; top:-1px; right:-1px; width:7px; height:7px; border-radius:50%; background:#4ab8e8; border:1.5px solid #04040a; }
+
+/* main FAB — glassmorphism */
+.main-fab {
+  width:52px; height:52px; border-radius:50%;
+  background:rgba(196,90,220,0.15);
+  backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+  border:1.5px solid rgba(196,90,220,0.45);
+  box-shadow:0 4px 24px rgba(196,90,220,0.25), inset 0 1px 0 rgba(255,255,255,0.1);
+  display:flex; align-items:center; justify-content:center;
+  position:relative; z-index:31; flex-shrink:0;
+}
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="bg-glow"></div>
+  <div class="inner">
+
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div class="back-btn">
+        <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="rgba(255,255,255,0.3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div style="font-family:'SF Mono','Menlo',monospace;font-size:0.38rem;color:#62627a;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Origin Point</div>
+      <div class="proj-name">Drifting</div>
+      <div class="proj-sub">
+        <span class="proj-type">Narrative Short</span>
+        <div class="phase-pill"><div class="pdot"></div><span class="plbl">Production</span></div>
+      </div>
+      <div class="crew-row">
+        <div class="av" style="margin-left:0">CL</div>
+        <div class="av">JR</div>
+        <div class="av">SK</div>
+        <div class="av">MT</div>
+        <div class="av av-m">+1</div>
+      </div>
+    </div>
+
+    <!-- MODULES -->
+    <div class="mods" style="position:relative;">
+
+      <!-- 1. TIMELINE -->
+      <div>
+        <div class="mh">
+          <div class="mh-row">
+            <span class="mname">Timeline</span>
+            <svg class="mchev" width="5" height="8" viewBox="0 0 5 8" fill="none"><path d="M1 1L4 4L1 7" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="mmeta">Shoot in 14 days</span>
+        </div>
+        <div class="card">
+          <div class="tracks">
+            <div class="trow"><span class="tlbl">Pre</span><div class="tbar"><div class="tfill" style="left:0;width:80%;background:#e8a020;"></div></div></div>
+            <div class="trow"><span class="tlbl">Prod</span><div class="tbar"><div class="tfill" style="left:55%;width:30%;background:#6470f3;"></div></div></div>
+            <div class="trow"><span class="tlbl">Post</span><div class="tbar"><div class="tfill" style="left:70%;width:16%;background:#00b894;opacity:0.4;"></div><div style="position:absolute;top:-3px;bottom:-3px;right:12%;width:1.5px;background:#e8564a;border-radius:1px;"></div></div></div>
+            <div style="position:absolute;left:calc(26px + 55%);top:0;bottom:0;width:1.5px;background:rgba(255,255,255,0.5);border-radius:1px;pointer-events:none;"></div>
+          </div>
+          <div class="ms-rows">
+            <div class="ms-row"><div class="ms-dot" style="background:#6470f3;box-shadow:0 0 5px #6470f3;"></div><span class="ms-date">Apr 17</span><span class="ms-name">Shoot begins</span></div>
+            <div class="ms-row"><div class="ms-dot" style="background:#00b894;"></div><span class="ms-date">May 02</span><span class="ms-name">Picture lock</span></div>
+            <div class="ms-row"><div class="ms-dot" style="background:#e8564a;"></div><span class="ms-date">May 20</span><span class="ms-name" style="color:#e8564a;">Final delivery</span></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 2. ACTION ITEMS -->
+      <div>
+        <div class="mh">
+          <div class="mh-row">
+            <span class="mname">Action Items</span>
+            <svg class="mchev" width="5" height="8" viewBox="0 0 5 8" fill="none"><path d="M1 1L4 4L1 7" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="mmeta">3 open</span>
+        </div>
+        <div class="card">
+          <div class="tr"><div class="chk"></div><div style="flex:1;min-width:0"><div class="tn">Confirm location permits</div><div class="td">Apr 07</div></div></div>
+          <div class="tr"><div class="chk"></div><div style="flex:1;min-width:0"><div class="tn">Send call sheet draft</div><div class="td">Apr 09</div></div></div>
+          <div class="tr"><div class="chk o"></div><div style="flex:1;min-width:0"><div class="tn o">Review color grade pass</div><div class="td">Apr 12 — Jordan R.</div></div></div>
+
+        </div>
+      </div>
+
+      <!-- 3. CREATIVE SECTION -->
+      <div>
+        <div class="section-hdr">
+          <div class="section-hdr-row">
+            <span class="section-name">Creative</span>
+            <svg class="mchev" width="5" height="8" viewBox="0 0 5 8" fill="none"><path d="M1 1L4 4L1 7" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="section-meta">SC.12 · Tone · 3 locations</span>
+        </div>
+
+        <div class="creative-block">
+          <!-- SceneMaker + Tone 50/50 -->
+          <div class="sm-tone">
+            <div class="sm-card">
+              <div class="sb-row">
+                <div class="sb-c"><div class="sb-f" style="background:linear-gradient(135deg,#1a1228,#0d1a2a);"></div><div class="sb-info"><div class="sb-id">12A</div><div class="sb-d">Lohm at ravine edge</div></div></div>
+                <div class="sb-c"><div class="sb-f" style="background:linear-gradient(135deg,#0d1a2a,#1a0d28);"></div><div class="sb-info"><div class="sb-id">12B</div><div class="sb-d">Aleph watching below</div></div></div>
+                <div class="sb-c"><div class="sb-f" style="background:linear-gradient(135deg,#1a1228,#1a0d1a);"></div><div class="sb-info"><div class="sb-id">12C</div><div class="sb-d">Wide, last light</div></div></div>
+              </div>
+              <div class="sm-ft"><span class="vp">v2</span><span class="sc-ct">10 shots</span></div>
+            </div>
+            <div class="tone-card">
+              <div class="tg">
+                <div style="background:#1a0d2e;"></div>
+                <div style="background:#0d1a1a;"></div>
+                <div style="background:#2a1a0d;"></div>
+                <div style="background:#0d0d2a;"></div>
+              </div>
+              <div class="tone-ov"></div>
+              <svg class="tone-icon" width="9" height="9" viewBox="0 0 9 9" fill="none"><circle cx="4.5" cy="4.5" r="3.5" stroke="white" stroke-width="1"/><circle cx="4.5" cy="4.5" r="1.5" stroke="white" stroke-width="1"/><circle cx="4.5" cy="4.5" r="0.7" fill="white"/></svg>
+              <span class="tone-lbl">Tone</span>
+            </div>
+          </div>
+
+          <!-- Locations / Art / Casting mini row -->
+          <div class="mini-row">
+            <div class="mini-c">
+              <div class="mini-n">Locations</div>
+              <div class="mini-m">2 / 3 locked</div>
+              <div class="mini-b"><div class="mini-f" style="width:66%;background:#e8a020;"></div></div>
+            </div>
+            <div class="mini-c">
+              <div class="mini-n">Art</div>
+              <div class="mini-m">1 / 4 done</div>
+              <div class="mini-b"><div class="mini-f" style="width:25%;background:#6470f3;"></div></div>
+            </div>
+            <div class="mini-c">
+              <div class="mini-n">Casting</div>
+              <div class="mini-m">4 / 4 cast</div>
+              <div class="mini-b"><div class="mini-f" style="width:100%;background:#00b894;"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FAB ZONE -->
+  <div class="fab-zone">
+    <div class="side-fab chat">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="display:block;"><path d="M2 2h10a1 1 0 011 1v5.5a1 1 0 01-1 1H5l-3 2.5V3a1 1 0 011-1z" stroke="rgba(255,255,255,0.55)" stroke-width="1.1" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="main-fab">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="display:block;"><path d="M9 3V15M3 9H15" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round"/></svg>
+    </div>
+    <div class="side-fab threads">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="display:block;"><path d="M2.5 2h9a1 1 0 011 1v5a1 1 0 01-1 1H5.5l-3 2.5V3a1 1 0 011-1z" stroke="rgba(255,255,255,0.55)" stroke-width="1.1" stroke-linejoin="round"/></svg>
+      <div class="unread-dot"></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
