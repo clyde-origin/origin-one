@@ -96,29 +96,29 @@ export function useFolders(projectId: string) {
   })
 }
 
-export function useCreateFolder() {
+export function useCreateFolder(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: db.createFolder,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['folders'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.folders(projectId) }),
   })
 }
 
-export function useUpdateFolder() {
+export function useUpdateFolder(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, fields }: { id: string; fields: { name?: string } }) =>
       db.updateFolder(id, fields),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['folders'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.folders(projectId) }),
   })
 }
 
-export function useDeleteFolder() {
+export function useDeleteFolder(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: db.deleteFolder,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['folders'] })
+      qc.invalidateQueries({ queryKey: keys.folders(projectId) })
       qc.invalidateQueries({ queryKey: keys.projects() })
     },
   })
