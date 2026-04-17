@@ -110,6 +110,8 @@ model User {
   milestonePeople  MilestonePerson[]
   resources        Resource[]
   workflowNodes    WorkflowNode[]
+  chatSent         ChatMessage[]    @relation("ChatSender")
+  chatReceived     ChatMessage[]    @relation("ChatRecipient")
 }
 
 model Team {
@@ -177,6 +179,8 @@ model Project {
   workflowNodes  WorkflowNode[]
   workflowEdges  WorkflowEdge[]
   deliverables   Deliverable[]
+  chatChannels   ChatChannel[]
+  chatMessages   ChatMessage[]
 }
 
 model Scene {
@@ -467,4 +471,37 @@ model Deliverable {
   updatedAt   DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ─── Chat ──────────────────────────────────────────────────────────────────
+
+model ChatChannel {
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
+  projectId String
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@index([projectId, sortOrder])
+}
+
+model ChatMessage {
+  id          String   @id @default(dbgenerated("gen_random_uuid()"))
+  projectId   String
+  channelId   String?
+  senderId    String
+  recipientId String?
+  content     String
+  createdAt   DateTime @default(now())
+
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  channel   ChatChannel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sender    User         @relation("ChatSender", fields: [senderId], references: [id])
+  recipient User?        @relation("ChatRecipient", fields: [recipientId], references: [id])
+
+  @@index([channelId, createdAt])
+  @@index([projectId, senderId, recipientId, createdAt])
 }

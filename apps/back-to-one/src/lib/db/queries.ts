@@ -1295,3 +1295,140 @@ export async function deleteDeliverable(id: string): Promise<void> {
 }
 
 export async function updateProjectOrder(_projectId: string, _fields: any) {}
+
+// ── CHAT CHANNELS ─────────────────────────────────────────
+
+export async function getChatChannels(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ChatChannel')
+    .select('*')
+    .eq('projectId', projectId)
+    .order('sortOrder', { ascending: true })
+    .order('createdAt', { ascending: true })
+  if (error) { console.error('getChatChannels failed:', error); throw error }
+  let channels = data ?? []
+  // Lazy-seed Team channel if none exist
+  if (channels.length === 0) {
+    const { data: seeded, error: sErr } = await db
+      .from('ChatChannel')
+      .insert({ id: crypto.randomUUID(), projectId, name: 'Team', sortOrder: 0 })
+      .select()
+      .single()
+    if (sErr) { console.error('getChatChannels seed failed:', sErr); throw sErr }
+    channels = [seeded]
+  }
+  return channels
+}
+
+export async function createChatChannel(input: { projectId: string; name: string; sortOrder?: number }) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ChatChannel')
+    .insert({
+      id: crypto.randomUUID(),
+      projectId: input.projectId,
+      name: input.name,
+      sortOrder: input.sortOrder ?? 0,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createChatChannel failed:', error); throw error }
+  return data
+}
+
+// ── CHAT MESSAGES ─────────────────────────────────────────
+
+export async function getChannelMessages(channelId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ChatMessage')
+    .select('*, sender:User!ChatMessage_senderId_fkey(id,name,avatarUrl)')
+    .eq('channelId', channelId)
+    .order('createdAt', { ascending: true })
+  if (error) { console.error('getChannelMessages failed:', error); throw error }
+  return data ?? []
+}
+
+export async function getDMMessages(projectId: string, userA: string, userB: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ChatMessage')
+    .select('*, sender:User!ChatMessage_senderId_fkey(id,name,avatarUrl)')
+    .is('channelId', null)
+    .eq('projectId', projectId)
+    .or(`and(senderId.eq.${userA},recipientId.eq.${userB}),and(senderId.eq.${userB},recipientId.eq.${userA})`)
+    .order('createdAt', { ascending: true })
+  if (error) { console.error('getDMMessages failed:', error); throw error }
+  return data ?? []
+}
+
+/** Returns one entry per DM partner with the most recent message */
+export async function getDMList(projectId: string, meId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ChatMessage')
+    .select('*')
+    .is('channelId', null)
+    .eq('projectId', projectId)
+    .or(`senderId.eq.${meId},recipientId.eq.${meId}`)
+    .order('createdAt', { ascending: false })
+  if (error) { console.error('getDMList failed:', error); throw error }
+  // Collapse by partner
+  const byPartner = new Map<string, any>()
+  for (const m of data ?? []) {
+    const partnerId = m.senderId === meId ? m.recipientId : m.senderId
+    if (!partnerId) continue
+    if (!byPartner.has(partnerId)) byPartner.set(partnerId, { partnerId, lastMessage: m.content, lastAt: m.createdAt, unread: false })
+  }
+  return Array.from(byPartner.values())
+}
+
+export async function sendChatMessage(input: {
+  projectId: string
+  channelId?: string | null
+  senderId: string
+  recipientId?: string | null
+  content: string
+}) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ChatMessage')
+    .insert({
+      id: crypto.randomUUID(),
+      projectId: input.projectId,
+      channelId: input.channelId ?? null,
+      senderId: input.senderId,
+      recipientId: input.recipientId ?? null,
+      content: input.content,
+    })
+    .select()
+    .single()
+  if (error) { console.error('sendChatMessage failed:', error); throw error }
+  return data
+}
+
+/** Subscribe to new messages. Returns unsubscribe fn. */
+export function subscribeToChatMessages(
+  filter: { channelId?: string | null; projectId?: string },
+  onInsert: (msg: any) => void,
+) {
+  const db = createClient()
+  let channelName = 'chat-msgs'
+  if (filter.channelId) channelName += `-c-${filter.channelId}`
+  if (filter.projectId) channelName += `-p-${filter.projectId}`
+  const ch = db
+    .channel(channelName)
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'ChatMessage' },
+      (payload: any) => {
+        const m = payload.new
+        if (filter.channelId !== undefined && m.channelId !== filter.channelId) return
+        if (filter.projectId && m.projectId !== filter.projectId) return
+        onInsert(m)
+      },
+    )
+    .subscribe()
+  return () => { db.removeChannel(ch) }
+}

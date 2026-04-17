@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import * as db from '@/lib/db/queries'
 
 // ── QUERY KEYS — one place, no magic strings ───────────────
@@ -28,6 +29,10 @@ export const keys = {
   workflowNodes:  (projectId: string) => ['workflowNodes', projectId] as const,
   workflowEdges:  (projectId: string) => ['workflowEdges', projectId] as const,
   deliverables:   (projectId: string) => ['deliverables', projectId] as const,
+  chatChannels:   (projectId: string) => ['chatChannels', projectId] as const,
+  chatMessages:   (channelId: string) => ['chatMessages', channelId] as const,
+  dmMessages:     (projectId: string, a: string, b: string) => ['dmMessages', projectId, a, b] as const,
+  dmList:         (projectId: string, me: string) => ['dmList', projectId, me] as const,
   allCrew:        () => ['allCrew'] as const,
 }
 
@@ -719,4 +724,86 @@ export function useAllThreads() {
     queryKey: keys.allThreads(),
     queryFn: db.getAllThreads,
   })
+}
+
+// ── CHAT ──────────────────────────────────────────────────
+
+export function useChatChannels(projectId: string) {
+  return useQuery({
+    queryKey: keys.chatChannels(projectId),
+    queryFn:  () => db.getChatChannels(projectId),
+    enabled:  !!projectId,
+  })
+}
+
+export function useCreateChatChannel(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createChatChannel,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.chatChannels(projectId) }),
+  })
+}
+
+export function useChannelMessages(channelId: string | null) {
+  return useQuery({
+    queryKey: channelId ? keys.chatMessages(channelId) : ['chatMessages', 'none'],
+    queryFn:  () => channelId ? db.getChannelMessages(channelId) : Promise.resolve([]),
+    enabled:  !!channelId,
+  })
+}
+
+export function useDMMessages(projectId: string, meId: string | null, partnerId: string | null) {
+  return useQuery({
+    queryKey: meId && partnerId ? keys.dmMessages(projectId, meId, partnerId) : ['dmMessages', 'none'],
+    queryFn:  () => meId && partnerId ? db.getDMMessages(projectId, meId, partnerId) : Promise.resolve([]),
+    enabled:  !!meId && !!partnerId,
+  })
+}
+
+export function useDMList(projectId: string, meId: string | null) {
+  return useQuery({
+    queryKey: meId ? keys.dmList(projectId, meId) : ['dmList', 'none'],
+    queryFn:  () => meId ? db.getDMList(projectId, meId) : Promise.resolve([]),
+    enabled:  !!meId,
+  })
+}
+
+export function useSendChatMessage(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.sendChatMessage,
+    onSuccess: (_data, vars) => {
+      if (vars.channelId) {
+        qc.invalidateQueries({ queryKey: keys.chatMessages(vars.channelId) })
+      } else if (vars.recipientId) {
+        qc.invalidateQueries({ queryKey: keys.dmMessages(projectId, vars.senderId, vars.recipientId) })
+        qc.invalidateQueries({ queryKey: keys.dmList(projectId, vars.senderId) })
+      }
+    },
+  })
+}
+
+/** Subscribe to new messages for a channel (or null for all DMs in a project). */
+export function useChatSubscription(
+  filter: { projectId: string; channelId: string | null; meId?: string | null; partnerId?: string | null },
+) {
+  const qc = useQueryClient()
+  useEffect(() => {
+    const unsub = db.subscribeToChatMessages(
+      { channelId: filter.channelId, projectId: filter.projectId },
+      (msg) => {
+        if (filter.channelId) {
+          qc.invalidateQueries({ queryKey: keys.chatMessages(filter.channelId) })
+          return
+        }
+        // DM
+        if (!filter.meId) return
+        qc.invalidateQueries({ queryKey: keys.dmList(filter.projectId, filter.meId) })
+        if (filter.partnerId) {
+          qc.invalidateQueries({ queryKey: keys.dmMessages(filter.projectId, filter.meId, filter.partnerId) })
+        }
+      },
+    )
+    return unsub
+  }, [filter.projectId, filter.channelId, filter.meId, filter.partnerId, qc])
 }
