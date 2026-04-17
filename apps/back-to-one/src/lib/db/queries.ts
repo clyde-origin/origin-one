@@ -950,8 +950,45 @@ export async function deleteEntity(id: string): Promise<void> {
   if (error) { console.error('deleteEntity failed:', error); throw error }
 }
 
-export async function getCastRoles(_projectId: string): Promise<any[]> { return [] }
-export async function updateCastRole(_id: string, _updates: any) {}
+export async function getCastRoles(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Entity')
+    .select('*, TalentAssignment(*, Talent(*))')
+    .eq('projectId', projectId)
+    .eq('type', 'character')
+    .order('createdAt', { ascending: true })
+  if (error) { console.error('getCastRoles failed:', error); throw error }
+  return (data ?? []).map((e: any) => {
+    const md = (e.metadata ?? {}) as { status?: string; scenes?: string[] }
+    const assignment = (e.TalentAssignment ?? [])[0]
+    const talentRow = assignment?.Talent
+    const talent = talentRow
+      ? {
+          name: talentRow.name ?? '',
+          initials: (talentRow.name ?? '').split(/\s+/).map((w: string) => w[0]).join('').toUpperCase().slice(0, 2),
+          note: talentRow.notes ?? '',
+        }
+      : null
+    return {
+      id: e.id,
+      projectId: e.projectId,
+      name: e.name,
+      desc: e.description ?? '',
+      status: (md.status ?? (talent ? 'Confirmed' : 'Uncast')) as 'Uncast' | 'Hold' | 'Confirmed',
+      scenes: Array.isArray(md.scenes) ? md.scenes : [],
+      talent,
+      createdAt: e.createdAt,
+      updatedAt: e.updatedAt,
+    }
+  })
+}
+
+export async function updateCastRole(id: string, updates: { name?: string; description?: string | null; metadata?: Record<string, any> | null }) {
+  const db = createClient()
+  const { error } = await db.from('Entity').update(updates).eq('id', id)
+  if (error) { console.error('updateCastRole failed:', error); throw error }
+}
 export async function getArtItems(projectId: string) {
   const db = createClient()
   const { data, error } = await db
