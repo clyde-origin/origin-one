@@ -1294,8 +1294,6 @@ export async function deleteDeliverable(id: string): Promise<void> {
   if (error) { console.error('deleteDeliverable failed:', error); throw error }
 }
 
-export async function updateProjectOrder(_projectId: string, _fields: any) {}
-
 // ── CHAT CHANNELS ─────────────────────────────────────────
 
 export async function getChatChannels(projectId: string) {
