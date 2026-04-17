@@ -3,7 +3,8 @@ import { z } from "zod";
 export const Thread = z.object({
   id: z.string().uuid(),
   projectId: z.string().uuid(),
-  title: z.string().min(1),
+  attachedToType: z.string(),
+  attachedToId: z.string(),
   createdBy: z.string().uuid(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),

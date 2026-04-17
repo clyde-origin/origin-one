@@ -288,16 +288,20 @@ model ActionItem {
 // ─── Threads ────────────────────────────────────────────────────────────────
 
 model Thread {
-  id        String   @id @default(dbgenerated("gen_random_uuid()"))
-  projectId String
-  title     String
-  createdBy String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(dbgenerated("gen_random_uuid()"))
+  projectId      String
+  attachedToType String
+  attachedToId   String
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   project  Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   author   User            @relation(fields: [createdBy], references: [id])
   messages ThreadMessage[]
+
+  @@index([projectId, createdAt])
+  @@index([attachedToType, attachedToId])
 }
 
 model ThreadMessage {
