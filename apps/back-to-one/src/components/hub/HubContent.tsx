@@ -659,7 +659,7 @@ export function HubContent({ projectId }: { projectId: string }) {
   const locConfirmed = allLocations.filter((l: any) => l.status === 'booked').length
   const locTotal = allLocations.length
   const artApproved = allArt.filter(a => a.status === 'Approved').length
-  const castConfirmed = allCast.filter(r => r.status === 'Confirmed').length
+  const castConfirmed = allCast.filter((r: any) => r.cast === true).length
 
   const cardStyle = { background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' as const }
 

@@ -542,6 +542,48 @@ export function useCastRoles(projectId: string) {
   })
 }
 
+export function useCreateCastRole(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createCastRole,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.castRoles(projectId) }),
+  })
+}
+
+export function useUpdateCastEntity(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: { name?: string; description?: string | null; metadata?: Record<string, any> | null } }) =>
+      db.updateCastRole(id, updates),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.castRoles(projectId) }),
+  })
+}
+
+export function useUpdateTalent(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: Parameters<typeof db.updateTalent>[1] }) =>
+      db.updateTalent(id, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.castRoles(projectId) }),
+  })
+}
+
+export function useAssignTalent(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.assignTalentToRole,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.castRoles(projectId) }),
+  })
+}
+
+export function useDeleteCastRole(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteCastRole,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.castRoles(projectId) }),
+  })
+}
+
 // ── ART ────────────────────────────────────────────────────
 
 export function useArtItems(projectId: string) {

@@ -954,30 +954,42 @@ export async function getCastRoles(projectId: string) {
   const db = createClient()
   const { data, error } = await db
     .from('Entity')
-    .select('*, TalentAssignment(*, Talent(*))')
+    .select('*, TalentAssignment(id, Talent(*))')
     .eq('projectId', projectId)
     .eq('type', 'character')
     .order('createdAt', { ascending: true })
   if (error) { console.error('getCastRoles failed:', error); throw error }
+
+  const initials = (n: string) => (n ?? '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '+'
+
   return (data ?? []).map((e: any) => {
-    const md = (e.metadata ?? {}) as { status?: string; scenes?: string[] }
+    const md = (e.metadata ?? {}) as { section?: string; scenes?: string[]; notes?: string }
     const assignment = (e.TalentAssignment ?? [])[0]
-    const talentRow = assignment?.Talent
-    const talent = talentRow
-      ? {
-          name: talentRow.name ?? '',
-          initials: (talentRow.name ?? '').split(/\s+/).map((w: string) => w[0]).join('').toUpperCase().slice(0, 2),
-          note: talentRow.notes ?? '',
-        }
-      : null
+    const t = assignment?.Talent ?? null
     return {
       id: e.id,
       projectId: e.projectId,
-      name: e.name,
-      desc: e.description ?? '',
-      status: (md.status ?? (talent ? 'Confirmed' : 'Uncast')) as 'Uncast' | 'Hold' | 'Confirmed',
+      role: e.name,
+      roleDesc: e.description ?? '',
+      section: md.section ?? 'Principal Cast',
       scenes: Array.isArray(md.scenes) ? md.scenes : [],
-      talent,
+      roleNotes: md.notes ?? '',
+      assignmentId: assignment?.id ?? null,
+      cast: !!t,
+      talent: t ? {
+        id: t.id,
+        name: t.name ?? '',
+        initials: initials(t.name ?? ''),
+        agency: t.agency ?? '',
+        email: t.email ?? '',
+        phone: t.phone ?? '',
+        repName: t.repName ?? '',
+        repEmail: t.repEmail ?? '',
+        repPhone: t.repPhone ?? '',
+        dietary: t.dietaryRestrictions ?? '',
+        shootDates: Array.isArray(t.shootDates) ? t.shootDates : [],
+        notes: t.notes ?? '',
+      } : null,
       createdAt: e.createdAt,
       updatedAt: e.updatedAt,
     }
@@ -988,6 +1000,93 @@ export async function updateCastRole(id: string, updates: { name?: string; descr
   const db = createClient()
   const { error } = await db.from('Entity').update(updates).eq('id', id)
   if (error) { console.error('updateCastRole failed:', error); throw error }
+}
+
+export async function createCastRole(input: {
+  projectId: string
+  role: string
+  roleDesc?: string
+  section?: string
+  scenes?: string[]
+  actorName?: string
+}) {
+  const db = createClient()
+  const now = new Date().toISOString()
+  const entityId = crypto.randomUUID()
+  const { error: eErr } = await db.from('Entity').insert({
+    id: entityId,
+    projectId: input.projectId,
+    type: 'character',
+    name: input.role,
+    description: input.roleDesc ?? null,
+    metadata: { section: input.section ?? 'Principal Cast', scenes: input.scenes ?? [] },
+    createdAt: now,
+    updatedAt: now,
+  })
+  if (eErr) { console.error('createCastRole entity failed:', eErr); throw eErr }
+
+  if (input.actorName && input.actorName.trim()) {
+    const talentId = `cast_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+    const { error: tErr } = await db.from('Talent').insert({
+      id: talentId,
+      projectId: input.projectId,
+      name: input.actorName.trim(),
+      createdAt: now,
+      updatedAt: now,
+    })
+    if (tErr) { console.error('createCastRole talent failed:', tErr); throw tErr }
+    const assignmentId = `ta_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+    const { error: aErr } = await db.from('TalentAssignment').insert({
+      id: assignmentId,
+      talentId,
+      entityId,
+      createdAt: now,
+    })
+    if (aErr) { console.error('createCastRole assignment failed:', aErr); throw aErr }
+  }
+  return { id: entityId }
+}
+
+export async function updateTalent(
+  id: string,
+  fields: { name?: string; agency?: string | null; email?: string | null; phone?: string | null; repName?: string | null; repEmail?: string | null; repPhone?: string | null; dietaryRestrictions?: string | null; shootDates?: string[] | null; notes?: string | null }
+): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('Talent').update({ ...fields, updatedAt: new Date().toISOString() }).eq('id', id)
+  if (error) { console.error('updateTalent failed:', error); throw error }
+}
+
+export async function assignTalentToRole(input: {
+  projectId: string
+  entityId: string
+  actorName: string
+}) {
+  const db = createClient()
+  const now = new Date().toISOString()
+  const talentId = `cast_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+  const { error: tErr } = await db.from('Talent').insert({
+    id: talentId,
+    projectId: input.projectId,
+    name: input.actorName,
+    createdAt: now,
+    updatedAt: now,
+  })
+  if (tErr) { console.error('assignTalentToRole talent failed:', tErr); throw tErr }
+  const assignmentId = `ta_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+  const { error: aErr } = await db.from('TalentAssignment').insert({
+    id: assignmentId,
+    talentId,
+    entityId: input.entityId,
+    createdAt: now,
+  })
+  if (aErr) { console.error('assignTalentToRole assignment failed:', aErr); throw aErr }
+  return { talentId, assignmentId }
+}
+
+export async function deleteCastRole(entityId: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('Entity').delete().eq('id', entityId)
+  if (error) { console.error('deleteCastRole failed:', error); throw error }
 }
 export async function getArtItems(projectId: string) {
   const db = createClient()
