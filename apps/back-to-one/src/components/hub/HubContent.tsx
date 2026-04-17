@@ -917,8 +917,8 @@ export function HubContent({ projectId }: { projectId: string }) {
                       <div style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
                         <span style={{ fontSize: 16 }}>🎭</span>
                       </div>
-                      <span style={{ fontSize: '0.46rem', fontWeight: 600, color: '#dddde8' }}>{role.name}</span>
-                      <span className="font-mono capitalize" style={{ fontSize: '0.32rem', color: '#62627a' }}>{role.status}</span>
+                      <span style={{ fontSize: '0.46rem', fontWeight: 600, color: '#dddde8' }}>{role.role}</span>
+                      <span className="font-mono capitalize" style={{ fontSize: '0.32rem', color: '#62627a' }}>{role.cast ? 'Confirmed' : 'Uncast'}</span>
                     </div>
                   )}
                 />

@@ -14,12 +14,10 @@ export const keys = {
   allMilestones:      () => ['allMilestones'] as const,
   allThreads:         () => ['allThreads'] as const,
   shotlistVersions: (projectId: string) => ['shotlistVersions', projectId] as const,
-  smVersions:     (projectId: string) => ['smVersions', projectId] as const,
-  smScenes:       (versionId: string) => ['smScenes', versionId] as const,
-  smShots:        (versionId: string) => ['smShots', versionId] as const,
   scenes:         (projectId: string) => ['scenes', projectId] as const,
   shots:          (sceneId: string) => ['shots', sceneId] as const,
   moodboard:      (projectId: string) => ['moodboard', projectId] as const,
+  moodboardTabs:  (projectId: string) => ['moodboardTabs', projectId] as const,
   locations:      (projectId: string) => ['locations', projectId] as const,
   castRoles:      (projectId: string) => ['castRoles', projectId] as const,
   artItems:       (projectId: string) => ['artItems', projectId] as const,
@@ -99,29 +97,29 @@ export function useFolders(projectId: string) {
   })
 }
 
-export function useCreateFolder() {
+export function useCreateFolder(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: db.createFolder,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['folders'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.folders(projectId) }),
   })
 }
 
-export function useUpdateFolder() {
+export function useUpdateFolder(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, fields }: { id: string; fields: { name?: string } }) =>
       db.updateFolder(id, fields),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['folders'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.folders(projectId) }),
   })
 }
 
-export function useDeleteFolder() {
+export function useDeleteFolder(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: db.deleteFolder,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['folders'] })
+      qc.invalidateQueries({ queryKey: keys.folders(projectId) })
       qc.invalidateQueries({ queryKey: keys.projects() })
     },
   })
@@ -278,40 +276,6 @@ export function useShots(sceneId: string) {
     queryKey: keys.shots(sceneId),
     queryFn:  () => db.getShots(sceneId),
     enabled:  !!sceneId,
-  })
-}
-
-// ── SCENEMAKER (stubs) ────────────────────────────────────
-
-export function useSMVersions(projectId: string) {
-  return useQuery({
-    queryKey: keys.smVersions(projectId),
-    queryFn:  () => db.getSceneMakerVersions(projectId),
-    enabled:  !!projectId,
-  })
-}
-
-export function useSMScenes(versionId: string) {
-  return useQuery({
-    queryKey: keys.smScenes(versionId),
-    queryFn:  () => db.getSMScenes(versionId),
-    enabled:  !!versionId,
-  })
-}
-
-export function useSMShots(versionId: string) {
-  return useQuery({
-    queryKey: keys.smShots(versionId),
-    queryFn:  () => db.getSMShots(versionId),
-    enabled:  !!versionId,
-  })
-}
-
-export function useCreateShot(versionId: string) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (shot: Parameters<typeof db.createShot>[0]) => db.createShot(shot),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: keys.smShots(versionId) }) },
   })
 }
 
@@ -628,17 +592,18 @@ export function useDeleteArtItem(projectId: string) {
 
 export function useMoodboardTabs(projectId: string) {
   return useQuery({
-    queryKey: ['moodboardTabs', projectId],
+    queryKey: keys.moodboardTabs(projectId),
     queryFn:  () => db.getMoodboardTabs(projectId),
     enabled:  !!projectId,
   })
 }
 
+
 export function useCreateMoodboardTab(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: db.createMoodboardTab,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['moodboardTabs', projectId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.moodboardTabs(projectId) }),
   })
 }
 
@@ -647,7 +612,7 @@ export function useUpdateMoodboardTab(projectId: string) {
   return useMutation({
     mutationFn: ({ id, fields }: { id: string; fields: { name?: string; sortOrder?: number } }) =>
       db.updateMoodboardTab(id, fields),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['moodboardTabs', projectId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.moodboardTabs(projectId) }),
   })
 }
 
@@ -656,7 +621,7 @@ export function useDeleteMoodboardTab(projectId: string) {
   return useMutation({
     mutationFn: db.deleteMoodboardTab,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['moodboardTabs', projectId] })
+      qc.invalidateQueries({ queryKey: keys.moodboardTabs(projectId) })
       qc.invalidateQueries({ queryKey: keys.moodboard(projectId) })
     },
   })
@@ -746,24 +711,24 @@ export function useCreateChatChannel(projectId: string) {
 
 export function useChannelMessages(channelId: string | null) {
   return useQuery({
-    queryKey: channelId ? keys.chatMessages(channelId) : ['chatMessages', 'none'],
-    queryFn:  () => channelId ? db.getChannelMessages(channelId) : Promise.resolve([]),
+    queryKey: keys.chatMessages(channelId ?? ''),
+    queryFn:  () => db.getChannelMessages(channelId as string),
     enabled:  !!channelId,
   })
 }
 
 export function useDMMessages(projectId: string, meId: string | null, partnerId: string | null) {
   return useQuery({
-    queryKey: meId && partnerId ? keys.dmMessages(projectId, meId, partnerId) : ['dmMessages', 'none'],
-    queryFn:  () => meId && partnerId ? db.getDMMessages(projectId, meId, partnerId) : Promise.resolve([]),
+    queryKey: keys.dmMessages(projectId, meId ?? '', partnerId ?? ''),
+    queryFn:  () => db.getDMMessages(projectId, meId as string, partnerId as string),
     enabled:  !!meId && !!partnerId,
   })
 }
 
 export function useDMList(projectId: string, meId: string | null) {
   return useQuery({
-    queryKey: meId ? keys.dmList(projectId, meId) : ['dmList', 'none'],
-    queryFn:  () => meId ? db.getDMList(projectId, meId) : Promise.resolve([]),
+    queryKey: keys.dmList(projectId, meId ?? ''),
+    queryFn:  () => db.getDMList(projectId, meId as string),
     enabled:  !!meId,
   })
 }

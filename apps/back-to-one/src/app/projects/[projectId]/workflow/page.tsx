@@ -24,6 +24,7 @@ import { FAB } from '@/components/ui/FAB'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
+import { initials } from '@/lib/utils/formatting'
 
 // ── Type colors ────────────────────────────────────────────
 
@@ -51,10 +52,6 @@ function typeBadgeStyle(type: string) {
 }
 
 // ── Helpers ─────────────────────────────────────────────────
-
-function initials(name: string) {
-  return name.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2)
-}
 
 function stableColor(s: string) {
   let h = 0

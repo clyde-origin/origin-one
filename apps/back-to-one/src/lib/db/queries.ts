@@ -1,4 +1,5 @@
 import { createBrowserAuthClient as createClient } from '@origin-one/auth'
+import { initials } from '@/lib/utils/formatting'
 
 // ── STORAGE ───────────────────────────────────────────────
 
@@ -701,10 +702,6 @@ export async function updateShotlistVersionLabel(id: string, label: string | nul
   if (error) { console.error('updateShotlistVersionLabel failed:', error); throw error }
 }
 
-// Legacy stubs — kept for backward compat
-export async function getSceneMakerVersions(_projectId: string): Promise<any[]> { return [] }
-export async function getSMScenes(_versionId: string): Promise<any[]> { return [] }
-export async function getSMShots(_versionId: string): Promise<any[]> { return [] }
 export async function updateShot(
   shotId: string,
   fields: { description?: string; size?: string | null; imageUrl?: string | null; status?: string; notes?: string }
@@ -960,8 +957,6 @@ export async function getCastRoles(projectId: string) {
     .order('createdAt', { ascending: true })
   if (error) { console.error('getCastRoles failed:', error); throw error }
 
-  const initials = (n: string) => (n ?? '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '+'
-
   return (data ?? []).map((e: any) => {
     const md = (e.metadata ?? {}) as { section?: string; scenes?: string[]; notes?: string }
     const assignment = (e.TalentAssignment ?? [])[0]
@@ -979,7 +974,7 @@ export async function getCastRoles(projectId: string) {
       talent: t ? {
         id: t.id,
         name: t.name ?? '',
-        initials: initials(t.name ?? ''),
+        initials: initials(t.name ?? '', '+'),
         agency: t.agency ?? '',
         email: t.email ?? '',
         phone: t.phone ?? '',
@@ -1293,8 +1288,6 @@ export async function deleteDeliverable(id: string): Promise<void> {
   const { error } = await db.from('Deliverable').delete().eq('id', id)
   if (error) { console.error('deleteDeliverable failed:', error); throw error }
 }
-
-export async function updateProjectOrder(_projectId: string, _fields: any) {}
 
 // ── CHAT CHANNELS ─────────────────────────────────────────
 
