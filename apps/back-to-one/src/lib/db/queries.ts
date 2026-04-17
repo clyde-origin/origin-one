@@ -701,10 +701,6 @@ export async function updateShotlistVersionLabel(id: string, label: string | nul
   if (error) { console.error('updateShotlistVersionLabel failed:', error); throw error }
 }
 
-// Legacy stubs — kept for backward compat
-export async function getSceneMakerVersions(_projectId: string): Promise<any[]> { return [] }
-export async function getSMScenes(_versionId: string): Promise<any[]> { return [] }
-export async function getSMShots(_versionId: string): Promise<any[]> { return [] }
 export async function updateShot(
   shotId: string,
   fields: { description?: string; size?: string | null; imageUrl?: string | null; status?: string; notes?: string }

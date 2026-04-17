@@ -14,9 +14,6 @@ export const keys = {
   allMilestones:      () => ['allMilestones'] as const,
   allThreads:         () => ['allThreads'] as const,
   shotlistVersions: (projectId: string) => ['shotlistVersions', projectId] as const,
-  smVersions:     (projectId: string) => ['smVersions', projectId] as const,
-  smScenes:       (versionId: string) => ['smScenes', versionId] as const,
-  smShots:        (versionId: string) => ['smShots', versionId] as const,
   scenes:         (projectId: string) => ['scenes', projectId] as const,
   shots:          (sceneId: string) => ['shots', sceneId] as const,
   moodboard:      (projectId: string) => ['moodboard', projectId] as const,
@@ -278,40 +275,6 @@ export function useShots(sceneId: string) {
     queryKey: keys.shots(sceneId),
     queryFn:  () => db.getShots(sceneId),
     enabled:  !!sceneId,
-  })
-}
-
-// ── SCENEMAKER (stubs) ────────────────────────────────────
-
-export function useSMVersions(projectId: string) {
-  return useQuery({
-    queryKey: keys.smVersions(projectId),
-    queryFn:  () => db.getSceneMakerVersions(projectId),
-    enabled:  !!projectId,
-  })
-}
-
-export function useSMScenes(versionId: string) {
-  return useQuery({
-    queryKey: keys.smScenes(versionId),
-    queryFn:  () => db.getSMScenes(versionId),
-    enabled:  !!versionId,
-  })
-}
-
-export function useSMShots(versionId: string) {
-  return useQuery({
-    queryKey: keys.smShots(versionId),
-    queryFn:  () => db.getSMShots(versionId),
-    enabled:  !!versionId,
-  })
-}
-
-export function useCreateShot(versionId: string) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (shot: Parameters<typeof db.createShot>[0]) => db.createShot(shot),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: keys.smShots(versionId) }) },
   })
 }
 
