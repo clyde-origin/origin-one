@@ -5,21 +5,10 @@ import { motion, AnimatePresence, PanInfo } from 'framer-motion'
 import { useCrew, useRemoveCrewMember, useUpdateCrewMember } from '@/lib/hooks/useOriginOne'
 import { CrewAvatar } from '@/components/ui'
 import { haptic } from '@/lib/utils/haptics'
+import { DEPARTMENTS } from '@/lib/utils/phase'
 import type { TeamMember } from '@/types'
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 40 }
-
-// ── DEPARTMENT ORDERING ─────────────────────────────────
-
-const DEPARTMENT_ORDER = [
-  'Production',
-  'Directing',
-  'Camera',
-  'Art',
-  'Sound',
-  'Lighting',
-  'G&E',
-] as const
 
 /** Get the department string from a crew member (field exists on ProjectMember but not yet on the TS type) */
 function getMemberDepartment(member: TeamMember): string | null {
@@ -50,7 +39,7 @@ function groupByDepartment(crew: TeamMember[]): { department: string | null; mem
   const result: { department: string | null; members: TeamMember[] }[] = []
   const seen = new Set<string>()
 
-  for (const dept of DEPARTMENT_ORDER) {
+  for (const dept of DEPARTMENTS) {
     if (groups[dept]) { result.push({ department: dept, members: groups[dept] }); seen.add(dept) }
   }
 

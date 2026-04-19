@@ -19,6 +19,100 @@ function emailFrom(name: string): string {
   )
 }
 
+const USER_NAMES = new Map<string, string>()
+
+const DEPARTMENT_BY_NAME: Record<string, string> = {
+  // Core team (always on every project)
+  'Clyde Bessey': 'Direction',
+  'Tyler Heckerman': 'Production',
+  'Kelly Pratt': 'Production',
+
+  // Camera (DP / AC / DIT)
+  'Theo Hartmann': 'Camera',
+  'Priya Nair': 'Camera',
+  'Carlos Vega': 'Camera',
+  'Sam Okafor': 'Camera',
+  'Dani Reeves': 'Camera',
+  'Owen Blakely': 'Camera',
+  'Alex Drum': 'Camera',
+  'Caleb Stone': 'Camera',
+  'Maya Lin': 'Camera',
+
+  // Lighting (Gaffer / Electric)
+  'Rick Souza': 'Lighting',
+  'Tanya Mills': 'Lighting',
+  'Dario Reyes': 'Lighting',
+
+  // G&E (Grip)
+  'Derek Huang': 'G&E',
+  'Luis Fernandez': 'G&E',
+  'Sam Park': 'G&E',
+
+  // Sound (Mixer / Boom)
+  'Pete Larsson': 'Sound',
+  'Andre Kim': 'Sound',
+  'Tom Vega': 'Sound',
+  'Hana Liu': 'Sound',
+  'Omar Rashid': 'Sound',
+  'Chris Tan': 'Sound',
+
+  // Art (Art Director / Set Decorator / Props / Production Designer)
+  'Claire Renault': 'Art',
+  'Nina Osei': 'Art',
+  'Brendan Walsh': 'Art',
+  'Petra Walsh': 'Art',
+
+  // Wardrobe
+  'Isabel Torres': 'Wardrobe',
+
+  // HMU
+  'Jasmine Bell': 'HMU',
+  'Fiona Drake': 'HMU',
+
+  // Casting (Talent Agent treated as Casting)
+  'Vera Hastings': 'Casting',
+
+  // Post (Editor / GFX / Colorist / Sound Designer)
+  'Rafi Torres': 'Post',
+  'Cleo Strand': 'Post',
+
+  // Production (AD / Coordinator / PA)
+  'James Calloway': 'Production',
+  'Mia Chen': 'Production',
+  'Tyler Green': 'Production',
+  'Ryan Cole': 'Production',
+  'Tyler Moss': 'Production',
+  'Rina Cole': 'Production',
+  'Tyler Reed': 'Production',
+  'Sofia Avila': 'Production',
+
+  // Direction (Script Supervisor / Writer)
+  'Dana Vance': 'Direction',
+
+  // Client
+  'Lena Farrow': 'Client',
+  'Sarah Osei': 'Client',
+
+  // Other — talent/subjects/athletes seeded as crew (no true department)
+  'Aria Stone': 'Other',
+  'Marco Silva': 'Other',
+  'Zoe Park': 'Other',
+  'Dev Okafor': 'Other',
+  'Paul Navarro': 'Other',
+  'Marcus Trent': 'Other',
+  'Jin Ho': 'Other',
+  'Kaia Mori': 'Other',
+  'James North': 'Other',
+  'Leo Marsh': 'Other',
+  'Vera Koss': 'Other',
+}
+
+function departmentForUser(userId: string): string {
+  const name = USER_NAMES.get(userId)
+  if (!name) return 'Other'
+  return DEPARTMENT_BY_NAME[name] ?? 'Other'
+}
+
 async function upsertCrew(
   teamId: string,
   name: string,
@@ -30,6 +124,7 @@ async function upsertCrew(
     update: {},
     create: { email, name },
   })
+  USER_NAMES.set(user.id, name)
   await prisma.teamMember.upsert({
     where:  { teamId_userId: { teamId, userId: user.id } },
     update: {},
@@ -43,10 +138,11 @@ async function assignProjectCrew(
   userId: string,
   role: Role,
 ): Promise<void> {
+  const department = departmentForUser(userId)
   await prisma.projectMember.upsert({
     where: { projectId_userId: { projectId, userId } },
-    update: {},
-    create: { projectId, userId, role },
+    update: { role, department },
+    create: { projectId, userId, role, department },
   })
 }
 

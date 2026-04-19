@@ -3,9 +3,8 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/utils/haptics'
+import { DEPARTMENTS } from '@/lib/utils/phase'
 import type { TeamMember, ActionItemStatus } from '@/types'
-
-const DEPARTMENTS = ['Direction', 'Production', 'Camera', 'Sound', 'Art', 'Wardrobe', 'HMU', 'Post', 'Other'] as const
 
 interface CreateTaskSheetProps {
   open: boolean

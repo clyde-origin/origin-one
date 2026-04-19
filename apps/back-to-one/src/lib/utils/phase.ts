@@ -150,17 +150,28 @@ export function isLate(dateStr: string): boolean {
 }
 
 export const DEPARTMENTS = [
-  'Production', 'Direction', 'Camera', 'G&E', 'Sound',
-  'Art', 'Wardrobe', 'HMU', 'Casting', 'Post', 'Client', 'Other',
+  'Production',
+  'Direction',
+  'Camera',
+  'G&E',
+  'Lighting',
+  'Sound',
+  'Art',
+  'Wardrobe',
+  'HMU',
+  'Casting',
+  'Post',
+  'Client',
+  'Other',
 ] as const
 
 export type Department = typeof DEPARTMENTS[number]
 
 export const DEPT_PHASE: Record<string, string> = {
   Production: 'prod', Direction: 'prod',
-  Camera: 'prod', 'G&E': 'prod',
+  Camera: 'prod', 'G&E': 'prod', Lighting: 'prod',
   Art: 'pre', Wardrobe: 'pre', HMU: 'pre', Casting: 'pre',
-  Sound: 'post', Post: 'post',
+  Sound: 'prod', Post: 'post',
   Client: 'prod', Other: 'prod',
 }
 
