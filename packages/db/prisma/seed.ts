@@ -78,15 +78,18 @@ async function main() {
   // ── Team ──────────────────────────────────────────────────────────────────
   const team = await prisma.team.create({ data: { name: 'Origin Point' } })
 
+  // ── Core team — Director and two Producers across every project ───────────
+  const clydeBessey    = await upsertCrew(team.id, 'Clyde Bessey',    'director')
+  const tylerHeckerman = await upsertCrew(team.id, 'Tyler Heckerman', 'producer')
+  const kellyPratt     = await upsertCrew(team.id, 'Kelly Pratt',     'producer')
+
   // ══════════════════════════════════════════════════════════════════════════
   // PROJECT 1 — SIMPLE SKIN PROMO
   // Client: Lumiере Skincare  Status: Pre-Production  Shoot in 7 days
   // 3 scenes  14 shots  24 crew
   // ══════════════════════════════════════════════════════════════════════════
 
-  const sofiaReyes    = await upsertCrew(team.id, 'Sofia Reyes',    'director')
-  const marcusWebb    = await upsertCrew(team.id, 'Marcus Webb',    'producer')
-  const danaPark      = await upsertCrew(team.id, 'Dana Park',      'producer')
+
   const jamesCalloway = await upsertCrew(team.id, 'James Calloway', 'crew')
   const theoHartmann  = await upsertCrew(team.id, 'Theo Hartmann',  'crew')
   const priyaNair     = await upsertCrew(team.id, 'Priya Nair',     'crew')
@@ -175,10 +178,10 @@ async function main() {
   ]})
 
   await prisma.document.create({ data: {
-    projectId: p1.id, type: 'script', version: 1, createdBy: sofiaReyes.id,
+    projectId: p1.id, type: 'script', version: 1, createdBy: clydeBessey.id,
     title: 'Simple Skin Promo — :60 Hero Spot',
     content: `SIMPLE SKIN PROMO
-Lumiere Skincare. Director: Sofia Reyes. Draft 1, Apr 8.
+Lumiere Skincare. Director: Clyde Bessey. Draft 1, Apr 8.
 :60 Hero Spot + Cutdowns.
 
 SCENE 1 — INT. BATHROOM — DAWN
@@ -230,9 +233,9 @@ FADE TO BLACK.`,
 
   // P1 — ProjectMembers (24 crew)
   // Role mapping: director→director, producer→producer, coordinator→coordinator, crew→crew
-  await assignProjectCrew(p1.id, sofiaReyes.id,    'director')
-  await assignProjectCrew(p1.id, marcusWebb.id,    'producer')
-  await assignProjectCrew(p1.id, danaPark.id,      'producer')
+  await assignProjectCrew(p1.id, clydeBessey.id,    'director')
+  await assignProjectCrew(p1.id, tylerHeckerman.id, 'producer')
+  await assignProjectCrew(p1.id, kellyPratt.id,     'producer')
   await assignProjectCrew(p1.id, jamesCalloway.id, 'coordinator')
   await assignProjectCrew(p1.id, theoHartmann.id,  'crew')
   await assignProjectCrew(p1.id, priyaNair.id,     'crew')
@@ -274,18 +277,18 @@ FADE TO BLACK.`,
 
   // P1 — Action Items (12)
   await prisma.actionItem.createMany({ data: [
-    { projectId: p1.id, title: 'Confirm estate permit + production insurance',  assignedTo: danaPark.id,      dueDate: new Date('2026-04-12'), status: 'in_progress' },
+    { projectId: p1.id, title: 'Confirm estate permit + production insurance',  assignedTo: tylerHeckerman.id, dueDate: new Date('2026-04-12'), status: 'in_progress' },
     { projectId: p1.id, title: "Issue talent rider to Aria's team",             assignedTo: veraHastings.id,  dueDate: new Date('2026-04-12'), status: 'open' },
     { projectId: p1.id, title: 'Compile department head contact sheet',         assignedTo: miaChen.id,       dueDate: new Date('2026-04-12'), status: 'in_progress' },
     { projectId: p1.id, title: "Create shot list from director's boards",       assignedTo: theoHartmann.id,  dueDate: new Date('2026-04-13'), status: 'in_progress' },
     { projectId: p1.id, title: 'Submit art department breakdown',               assignedTo: claireRenault.id, dueDate: new Date('2026-04-13'), status: 'open' },
     { projectId: p1.id, title: 'Tech scout attendance confirmed — all depts',   assignedTo: jamesCalloway.id, dueDate: new Date('2026-04-13'), status: 'done' },
     { projectId: p1.id, title: 'Confirm hair + MUA kit lists and prep day',     assignedTo: jasmineBell.id,   dueDate: new Date('2026-04-13'), status: 'open' },
-    { projectId: p1.id, title: 'Book production trucks and basecamp',           assignedTo: danaPark.id,      dueDate: new Date('2026-04-13'), status: 'open' },
+    { projectId: p1.id, title: 'Book production trucks and basecamp',           assignedTo: tylerHeckerman.id, dueDate: new Date('2026-04-13'), status: 'open' },
     { projectId: p1.id, title: 'Submit catering order — 50 person count',       assignedTo: miaChen.id,       dueDate: new Date('2026-04-14'), status: 'open' },
     { projectId: p1.id, title: 'Draft call sheet v1',                           assignedTo: jamesCalloway.id, dueDate: new Date('2026-04-15'), status: 'open' },
-    { projectId: p1.id, title: 'Talent pickup and transport logistics',         assignedTo: danaPark.id,      dueDate: new Date('2026-04-15'), status: 'open' },
-    { projectId: p1.id, title: 'Insurance certificate delivered to estate owner', assignedTo: marcusWebb.id,  dueDate: new Date('2026-04-12'), status: 'in_progress' },
+    { projectId: p1.id, title: 'Talent pickup and transport logistics',         assignedTo: kellyPratt.id,    dueDate: new Date('2026-04-15'), status: 'open' },
+    { projectId: p1.id, title: 'Insurance certificate delivered to estate owner', assignedTo: tylerHeckerman.id, dueDate: new Date('2026-04-12'), status: 'in_progress' },
   ]})
 
   // P1 — Locations (3)
@@ -334,8 +337,6 @@ FADE TO BLACK.`,
   // 3 scenes  15 shots  7 crew
   // ══════════════════════════════════════════════════════════════════════════
 
-  const jakeMorales = await upsertCrew(team.id, 'Jake Morales', 'director')
-  const caseyLin    = await upsertCrew(team.id, 'Casey Lin',   'producer')
   const daniReeves  = await upsertCrew(team.id, 'Dani Reeves', 'crew')
   const tylerGreen  = await upsertCrew(team.id, 'Tyler Green', 'crew')
   const marcoSilva  = await upsertCrew(team.id, 'Marco Silva', 'crew')
@@ -416,10 +417,10 @@ FADE TO BLACK.`,
   ]})
 
   await prisma.document.create({ data: {
-    projectId: p2.id, type: 'script', version: 1, createdBy: jakeMorales.id,
+    projectId: p2.id, type: 'script', version: 1, createdBy: clydeBessey.id,
     title: 'Full Send — :60 Spot',
     content: `FULL SEND
-Vanta Action Camera. Director/DP: Jake Morales. Shooting Apr 10-12.
+Vanta Action Camera. Director: Clyde Bessey. DP: Dani Reeves. Shooting Apr 10-12.
 :60 Hero Spot.
 
 SCENE 1 — EXT. MALIBU POINT — DAWN
@@ -476,12 +477,13 @@ VANTA. SEND IT.
 CUT TO BLACK.`,
   }})
 
-  console.log('  P2: Full Send — 3 scenes, 15 shots, 7 crew')
+  console.log('  P2: Full Send — 3 scenes, 15 shots, 8 crew')
 
-  // P2 — ProjectMembers (7 crew)
-  await assignProjectCrew(p2.id, jakeMorales.id, 'director')
-  await assignProjectCrew(p2.id, caseyLin.id,    'producer')
-  await assignProjectCrew(p2.id, daniReeves.id,  'crew')
+  // P2 — ProjectMembers (8 crew)
+  await assignProjectCrew(p2.id, clydeBessey.id,    'director')
+  await assignProjectCrew(p2.id, tylerHeckerman.id, 'producer')
+  await assignProjectCrew(p2.id, kellyPratt.id,     'producer')
+  await assignProjectCrew(p2.id, daniReeves.id,     'crew')
   await assignProjectCrew(p2.id, tylerGreen.id,  'crew')
   await assignProjectCrew(p2.id, marcoSilva.id,  'crew')
   await assignProjectCrew(p2.id, zoePark.id,     'crew')
@@ -504,13 +506,13 @@ CUT TO BLACK.`,
   // P2 — Action Items (8)
   await prisma.actionItem.createMany({ data: [
     { projectId: p2.id, title: 'Transfer Day 1 footage to Vanta shared drive',   assignedTo: tylerGreen.id,  dueDate: new Date('2026-04-11'), status: 'done' },
-    { projectId: p2.id, title: 'Confirm skatepark permit for Apr 12',            assignedTo: caseyLin.id,    dueDate: new Date('2026-04-11'), status: 'in_progress' },
-    { projectId: p2.id, title: 'Athlete release forms — all three signed',       assignedTo: caseyLin.id,    dueDate: new Date('2026-04-11'), status: 'done' },
-    { projectId: p2.id, title: 'Trail rig setup — helmet + chest mounts tested', assignedTo: daniReeves.id,  dueDate: new Date('2026-04-11'), status: 'done' },
-    { projectId: p2.id, title: 'Backup Vanta units charged and tested',          assignedTo: jakeMorales.id, dueDate: new Date('2026-04-11'), status: 'done' },
-    { projectId: p2.id, title: 'Day 1 selects log created for editor',           assignedTo: jakeMorales.id, dueDate: new Date('2026-04-12'), status: 'open' },
-    { projectId: p2.id, title: 'Book edit suite for post',                       assignedTo: caseyLin.id,    dueDate: new Date('2026-04-12'), status: 'open' },
-    { projectId: p2.id, title: 'Confirm music license direction with Vanta',     assignedTo: caseyLin.id,    dueDate: new Date('2026-04-14'), status: 'open' },
+    { projectId: p2.id, title: 'Confirm skatepark permit for Apr 12',            assignedTo: tylerHeckerman.id, dueDate: new Date('2026-04-11'), status: 'in_progress' },
+    { projectId: p2.id, title: 'Athlete release forms — all three signed',       assignedTo: kellyPratt.id,     dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p2.id, title: 'Trail rig setup — helmet + chest mounts tested', assignedTo: daniReeves.id,     dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p2.id, title: 'Backup Vanta units charged and tested',          assignedTo: tylerHeckerman.id, dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p2.id, title: 'Day 1 selects log created for editor',           assignedTo: kellyPratt.id,     dueDate: new Date('2026-04-12'), status: 'open' },
+    { projectId: p2.id, title: 'Book edit suite for post',                       assignedTo: kellyPratt.id,     dueDate: new Date('2026-04-12'), status: 'open' },
+    { projectId: p2.id, title: 'Confirm music license direction with Vanta',     assignedTo: kellyPratt.id,     dueDate: new Date('2026-04-14'), status: 'open' },
   ]})
 
   // P2 — Locations (3)
@@ -559,10 +561,8 @@ CUT TO BLACK.`,
   // 3 sequences  14 shots  8 crew
   // ══════════════════════════════════════════════════════════════════════════
 
-  const eliseMarchetti = await upsertCrew(team.id, 'Elise Marchetti', 'director')
   const owenBlakely    = await upsertCrew(team.id, 'Owen Blakely',   'crew')
   const tomVega        = await upsertCrew(team.id, 'Tom Vega',       'crew')
-  const luciaFontaine  = await upsertCrew(team.id, 'Lucia Fontaine', 'producer')
   const ryanCole       = await upsertCrew(team.id, 'Ryan Cole',      'crew')
   const paulNavarro    = await upsertCrew(team.id, 'Paul Navarro',   'crew')
   const marcusTrent    = await upsertCrew(team.id, 'Marcus Trent',   'crew')
@@ -638,10 +638,10 @@ CUT TO BLACK.`,
   ]})
 
   await prisma.document.create({ data: {
-    projectId: p3.id, type: 'script', version: 1, createdBy: eliseMarchetti.id,
+    projectId: p3.id, type: 'script', version: 1, createdBy: clydeBessey.id,
     title: 'In Vino Veritas — Treatment and Interview Guide',
     content: `IN VINO VERITAS
-Napa Collective. Director: Elise Marchetti. Doc Pilot.
+Napa Collective. Director: Clyde Bessey. Doc Pilot.
 
 LOGLINE
 Three men, one valley, one bottle between them. Wine as the oldest technology for dissolving the distance between people.
@@ -700,13 +700,14 @@ What do you want people to feel watching this?
 FINAL IMAGE — No direction. The car moves away down the valley road. Don't force a close.`,
   }})
 
-  console.log('  P3: In Vino Veritas — 3 sequences, 14 shots, 8 crew')
+  console.log('  P3: In Vino Veritas — 3 sequences, 14 shots, 9 crew')
 
-  // P3 — ProjectMembers (8 crew)
-  await assignProjectCrew(p3.id, eliseMarchetti.id, 'director')
+  // P3 — ProjectMembers (9 crew)
+  await assignProjectCrew(p3.id, clydeBessey.id,    'director')
+  await assignProjectCrew(p3.id, tylerHeckerman.id, 'producer')
+  await assignProjectCrew(p3.id, kellyPratt.id,     'producer')
   await assignProjectCrew(p3.id, owenBlakely.id,    'crew')
   await assignProjectCrew(p3.id, tomVega.id,        'crew')
-  await assignProjectCrew(p3.id, luciaFontaine.id,  'producer')
   await assignProjectCrew(p3.id, ryanCole.id,       'crew')
   await assignProjectCrew(p3.id, paulNavarro.id,    'crew')
   await assignProjectCrew(p3.id, marcusTrent.id,    'crew')
@@ -729,13 +730,13 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
   // P3 — Action Items (8)
   await prisma.actionItem.createMany({ data: [
     { projectId: p3.id, title: 'Log and sync Day 1 footage',                        assignedTo: owenBlakely.id,   dueDate: new Date('2026-04-11'), status: 'in_progress' },
-    { projectId: p3.id, title: 'Interview questions refined for cellar session',    assignedTo: eliseMarchetti.id, dueDate: new Date('2026-04-11'), status: 'done' },
-    { projectId: p3.id, title: 'Barrel room winery access confirmed',              assignedTo: ryanCole.id,      dueDate: new Date('2026-04-11'), status: 'done' },
-    { projectId: p3.id, title: 'Day 3 road route mapped + vista permits',          assignedTo: luciaFontaine.id, dueDate: new Date('2026-04-11'), status: 'done' },
-    { projectId: p3.id, title: 'Transcription service booked for all interviews',  assignedTo: luciaFontaine.id, dueDate: new Date('2026-04-13'), status: 'open' },
-    { projectId: p3.id, title: 'Cut structure outline — paper edit from Day 1',    assignedTo: eliseMarchetti.id, dueDate: new Date('2026-04-16'), status: 'open' },
-    { projectId: p3.id, title: 'Temp music selects for assembly',                  assignedTo: eliseMarchetti.id, dueDate: new Date('2026-04-19'), status: 'open' },
-    { projectId: p3.id, title: 'Archival wine footage licensing',                  assignedTo: luciaFontaine.id, dueDate: new Date('2026-04-18'), status: 'open' },
+    { projectId: p3.id, title: 'Interview questions refined for cellar session',    assignedTo: clydeBessey.id,    dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p3.id, title: 'Barrel room winery access confirmed',              assignedTo: ryanCole.id,       dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p3.id, title: 'Day 3 road route mapped + vista permits',          assignedTo: tylerHeckerman.id, dueDate: new Date('2026-04-11'), status: 'done' },
+    { projectId: p3.id, title: 'Transcription service booked for all interviews',  assignedTo: kellyPratt.id,     dueDate: new Date('2026-04-13'), status: 'open' },
+    { projectId: p3.id, title: 'Cut structure outline — paper edit from Day 1',    assignedTo: clydeBessey.id,    dueDate: new Date('2026-04-16'), status: 'open' },
+    { projectId: p3.id, title: 'Temp music selects for assembly',                  assignedTo: kellyPratt.id,     dueDate: new Date('2026-04-19'), status: 'open' },
+    { projectId: p3.id, title: 'Archival wine footage licensing',                  assignedTo: tylerHeckerman.id, dueDate: new Date('2026-04-18'), status: 'open' },
   ]})
 
   // P3 — Locations (3)
@@ -771,7 +772,7 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
       name: 'Silverado Trail Vista Point',
       description: 'Elevated overlook with panoramic valley views. Final driving sequence and closing shots.',
       address: 'Silverado Trail, near Deer Park Rd, Napa, CA',
-      keyContact: 'Lucia Fontaine — permit on file',
+      keyContact: 'Tyler Heckerman — permit on file',
       shootDates: 'Apr 12',
       status: 'in_talks',
       approved: false,
@@ -789,7 +790,6 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
   // 3 sequences  11 shots  5 crew
   // ══════════════════════════════════════════════════════════════════════════
 
-  const simonePark = await upsertCrew(team.id, 'Simone Park', 'director')
   const alexDrum   = await upsertCrew(team.id, 'Alex Drum',  'crew')
   const hanaLiu    = await upsertCrew(team.id, 'Hana Liu',   'crew')
   const tylerMoss  = await upsertCrew(team.id, 'Tyler Moss', 'crew')
@@ -859,10 +859,10 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
   ]})
 
   await prisma.document.create({ data: {
-    projectId: p4.id, type: 'script', version: 1, createdBy: simonePark.id,
+    projectId: p4.id, type: 'script', version: 1, createdBy: clydeBessey.id,
     title: 'Flexibility Course A — Episode 1 "Root"',
     content: `FLEXIBILITY COURSE A
-Kaia Mori. Director: Simone Park. Episode 1 of 6. Approved Apr 7.
+Kaia Mori. Director: Clyde Bessey. DP: Alex Drum. Episode 1 of 6. Approved Apr 7.
 Episode 1 — "Root". Standing Balance and Grounding. ~20 min.
 
 SEQUENCE 1 — THE WELCOME. INT. Studio. Kaia seated on mat.
@@ -936,11 +936,13 @@ KAIA: See you in Episode Two.
 END EPISODE 1.`,
   }})
 
-  console.log('  P4: Flexibility Course A — 3 sequences, 11 shots, 5 crew')
+  console.log('  P4: Flexibility Course A — 3 sequences, 11 shots, 7 crew')
 
-  // P4 — ProjectMembers (5 crew)
-  await assignProjectCrew(p4.id, simonePark.id, 'director')
-  await assignProjectCrew(p4.id, alexDrum.id,   'crew')
+  // P4 — ProjectMembers (7 crew)
+  await assignProjectCrew(p4.id, clydeBessey.id,    'director')
+  await assignProjectCrew(p4.id, tylerHeckerman.id, 'producer')
+  await assignProjectCrew(p4.id, kellyPratt.id,     'producer')
+  await assignProjectCrew(p4.id, alexDrum.id,       'crew')
   await assignProjectCrew(p4.id, hanaLiu.id,    'crew')
   await assignProjectCrew(p4.id, tylerMoss.id,  'crew')
   await assignProjectCrew(p4.id, kaiaMori.id,   'crew')
@@ -962,14 +964,14 @@ END EPISODE 1.`,
 
   // P4 — Action Items (8)
   await prisma.actionItem.createMany({ data: [
-    { projectId: p4.id, title: 'Finalize Ep 1 practice sequence with Kaia',       assignedTo: simonePark.id, dueDate: new Date('2026-04-12'), status: 'done' },
-    { projectId: p4.id, title: 'Wardrobe direction sent to Kaia',                 assignedTo: simonePark.id, dueDate: new Date('2026-04-12'), status: 'done' },
-    { projectId: p4.id, title: 'Talent release form signed',                      assignedTo: hanaLiu.id,    dueDate: new Date('2026-04-12'), status: 'done' },
-    { projectId: p4.id, title: 'Confirm studio lighting setup — two-cam positions', assignedTo: alexDrum.id,  dueDate: new Date('2026-04-13'), status: 'in_progress' },
-    { projectId: p4.id, title: 'Outdoor location confirmed — Will Rogers',         assignedTo: tylerMoss.id,  dueDate: new Date('2026-04-13'), status: 'done' },
-    { projectId: p4.id, title: 'Music licensing direction for series',             assignedTo: tylerMoss.id,  dueDate: new Date('2026-04-14'), status: 'open' },
-    { projectId: p4.id, title: 'Episode 2 outline draft',                         assignedTo: simonePark.id, dueDate: new Date('2026-04-20'), status: 'open' },
-    { projectId: p4.id, title: 'Series template locked after Ep 1 review',        assignedTo: simonePark.id, dueDate: new Date('2026-04-28'), status: 'open' },
+    { projectId: p4.id, title: 'Finalize Ep 1 practice sequence with Kaia',       assignedTo: clydeBessey.id,    dueDate: new Date('2026-04-12'), status: 'done' },
+    { projectId: p4.id, title: 'Wardrobe direction sent to Kaia',                 assignedTo: clydeBessey.id,    dueDate: new Date('2026-04-12'), status: 'done' },
+    { projectId: p4.id, title: 'Talent release form signed',                      assignedTo: hanaLiu.id,        dueDate: new Date('2026-04-12'), status: 'done' },
+    { projectId: p4.id, title: 'Confirm studio lighting setup — two-cam positions', assignedTo: alexDrum.id,     dueDate: new Date('2026-04-13'), status: 'in_progress' },
+    { projectId: p4.id, title: 'Outdoor location confirmed — Will Rogers',         assignedTo: tylerMoss.id,      dueDate: new Date('2026-04-13'), status: 'done' },
+    { projectId: p4.id, title: 'Music licensing direction for series',             assignedTo: kellyPratt.id,     dueDate: new Date('2026-04-14'), status: 'open' },
+    { projectId: p4.id, title: 'Episode 2 outline draft',                         assignedTo: clydeBessey.id,    dueDate: new Date('2026-04-20'), status: 'open' },
+    { projectId: p4.id, title: 'Series template locked after Ep 1 review',        assignedTo: kellyPratt.id,     dueDate: new Date('2026-04-28'), status: 'open' },
   ]})
 
   // P4 — Locations (3)
@@ -1146,13 +1148,16 @@ MERIDIAN CLIMATE. meridianclimate.io
 FADE TO BLACK.`,
   }})
 
-  console.log('  P5: Natural Order — 3 sequences, 14 elements, 4 team')
+  console.log('  P5: Natural Order — 3 sequences, 14 elements, 7 team')
 
-  // P5 — ProjectMembers (4 crew)
-  await assignProjectCrew(p5.id, rafiTorres.id, 'crew')
-  await assignProjectCrew(p5.id, cleoStrand.id, 'crew')
-  await assignProjectCrew(p5.id, jamesNorth.id, 'crew')
-  await assignProjectCrew(p5.id, sarahOsei.id,  'crew')
+  // P5 — ProjectMembers (7 crew)
+  await assignProjectCrew(p5.id, clydeBessey.id,    'director')
+  await assignProjectCrew(p5.id, tylerHeckerman.id, 'producer')
+  await assignProjectCrew(p5.id, kellyPratt.id,     'producer')
+  await assignProjectCrew(p5.id, rafiTorres.id,     'crew')
+  await assignProjectCrew(p5.id, cleoStrand.id,     'crew')
+  await assignProjectCrew(p5.id, jamesNorth.id,     'crew')
+  await assignProjectCrew(p5.id, sarahOsei.id,      'crew')
 
   // P5 — Milestones (10)
   await prisma.milestone.createMany({ data: [
@@ -1171,13 +1176,13 @@ FADE TO BLACK.`,
   // P5 — Action Items (8)
   await prisma.actionItem.createMany({ data: [
     { projectId: p5.id, title: 'VO file QC and sync to Premiere timeline',      assignedTo: rafiTorres.id, dueDate: new Date('2026-04-11'), status: 'in_progress' },
-    { projectId: p5.id, title: 'Stock clip licensing confirmation — all 42',    assignedTo: rafiTorres.id, dueDate: new Date('2026-04-12'), status: 'in_progress' },
-    { projectId: p5.id, title: 'GFX style frame approval — Dr. Osei',          assignedTo: cleoStrand.id, dueDate: new Date('2026-04-12'), status: 'open' },
-    { projectId: p5.id, title: 'Temp score confirmed for assembly',             assignedTo: rafiTorres.id, dueDate: new Date('2026-04-12'), status: 'done' },
+    { projectId: p5.id, title: 'Stock clip licensing confirmation — all 42',    assignedTo: tylerHeckerman.id, dueDate: new Date('2026-04-12'), status: 'in_progress' },
+    { projectId: p5.id, title: 'GFX style frame approval — Dr. Osei',          assignedTo: kellyPratt.id,     dueDate: new Date('2026-04-12'), status: 'open' },
+    { projectId: p5.id, title: 'Temp score confirmed for assembly',             assignedTo: kellyPratt.id,     dueDate: new Date('2026-04-12'), status: 'done' },
     { projectId: p5.id, title: 'GFX Sequence 1 — global data map build',       assignedTo: cleoStrand.id, dueDate: new Date('2026-04-13'), status: 'in_progress' },
     { projectId: p5.id, title: 'Lower thirds and supers design',               assignedTo: cleoStrand.id, dueDate: new Date('2026-04-14'), status: 'open' },
     { projectId: p5.id, title: 'End card and Meridian logo lockup',            assignedTo: cleoStrand.id, dueDate: new Date('2026-04-14'), status: 'open' },
-    { projectId: p5.id, title: 'Export specs confirmed with Meridian team',    assignedTo: rafiTorres.id, dueDate: new Date('2026-04-20'), status: 'open' },
+    { projectId: p5.id, title: 'Export specs confirmed with Meridian team',    assignedTo: tylerHeckerman.id, dueDate: new Date('2026-04-20'), status: 'open' },
   ]})
 
   // ── P5 Locations ────────────────────────────────────────────────────────
@@ -1191,8 +1196,6 @@ FADE TO BLACK.`,
   // 3 scenes  16 shots  15 crew  Sundance target
   // ══════════════════════════════════════════════════════════════════════════
 
-  const nVale      = await upsertCrew(team.id, 'N Vale',      'director')
-  const jessHuang  = await upsertCrew(team.id, 'Jess Huang',  'producer')
   const calebStone = await upsertCrew(team.id, 'Caleb Stone', 'crew')
   const mayaLin    = await upsertCrew(team.id, 'Maya Lin',    'crew')
   const darioReyes = await upsertCrew(team.id, 'Dario Reyes', 'crew')
@@ -1282,7 +1285,7 @@ FADE TO BLACK.`,
   ]})
 
   await prisma.document.create({ data: {
-    projectId: p6.id, type: 'script', version: 3, createdBy: nVale.id,
+    projectId: p6.id, type: 'script', version: 3, createdBy: clydeBessey.id,
     title: 'The Weave — Full Screenplay',
     content: `THE WEAVE
 Written by N. Vale.
@@ -1419,12 +1422,13 @@ THE WEAVE
 FADE TO BLACK.`,
   }})
 
-  console.log('  P6: The Weave — 3 scenes, 16 shots, 15 crew\n')
+  console.log('  P6: The Weave — 3 scenes, 16 shots, 16 crew\n')
 
-  // P6 — ProjectMembers (15 crew)
-  await assignProjectCrew(p6.id, nVale.id,      'director')
-  await assignProjectCrew(p6.id, jessHuang.id,  'producer')
-  await assignProjectCrew(p6.id, calebStone.id, 'crew')
+  // P6 — ProjectMembers (16 crew)
+  await assignProjectCrew(p6.id, clydeBessey.id,    'director')
+  await assignProjectCrew(p6.id, tylerHeckerman.id, 'producer')
+  await assignProjectCrew(p6.id, kellyPratt.id,     'producer')
+  await assignProjectCrew(p6.id, calebStone.id,     'crew')
   await assignProjectCrew(p6.id, mayaLin.id,    'crew')
   await assignProjectCrew(p6.id, darioReyes.id, 'crew')
   await assignProjectCrew(p6.id, samPark.id,    'crew')
@@ -1459,10 +1463,10 @@ FADE TO BLACK.`,
     { projectId: p6.id, title: 'Generator fuel and placement confirmed',             assignedTo: tylerReed.id,  dueDate: new Date('2026-04-11'), status: 'done' },
     { projectId: p6.id, title: 'Night location walk — DP + Director + AD',          assignedTo: calebStone.id, dueDate: new Date('2026-04-11'), status: 'done' },
     { projectId: p6.id, title: 'Continuity notes Days 1+2 compiled',               assignedTo: danaVance.id,  dueDate: new Date('2026-04-11'), status: 'done' },
-    { projectId: p6.id, title: 'Night location permit confirmed — Joshua Tree NPS', assignedTo: jessHuang.id,  dueDate: new Date('2026-04-10'), status: 'done' },
-    { projectId: p6.id, title: 'Assembly cut editor confirmed and booked',          assignedTo: jessHuang.id,  dueDate: new Date('2026-04-12'), status: 'in_progress' },
-    { projectId: p6.id, title: 'Score composer brief',                              assignedTo: nVale.id,      dueDate: new Date('2026-04-20'), status: 'open' },
-    { projectId: p6.id, title: 'Festival delivery specs — DCP + digital',          assignedTo: jessHuang.id,  dueDate: new Date('2026-05-25'), status: 'open' },
+    { projectId: p6.id, title: 'Night location permit confirmed — Joshua Tree NPS', assignedTo: tylerHeckerman.id, dueDate: new Date('2026-04-10'), status: 'done' },
+    { projectId: p6.id, title: 'Assembly cut editor confirmed and booked',          assignedTo: kellyPratt.id,     dueDate: new Date('2026-04-12'), status: 'in_progress' },
+    { projectId: p6.id, title: 'Score composer brief',                              assignedTo: clydeBessey.id,    dueDate: new Date('2026-04-20'), status: 'open' },
+    { projectId: p6.id, title: 'Festival delivery specs — DCP + digital',          assignedTo: tylerHeckerman.id, dueDate: new Date('2026-05-25'), status: 'open' },
   ]})
 
   // ── P6 Locations ────────────────────────────────────────────────────────
