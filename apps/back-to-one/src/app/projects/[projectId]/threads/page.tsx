@@ -442,12 +442,18 @@ export default function ThreadsPage({ params }: { params: { projectId: string } 
       minHeight: '100vh', background: '#060606', color: '#fff',
     }}>
       {/* Page header — matches reference exactly */}
-      <div style={{ textAlign: 'center', padding: '16px 20px 0', position: 'relative' }}>
+      <div style={{
+        textAlign: 'center',
+        padding: '0 20px 0',
+        paddingTop: 'calc(var(--safe-top) + 16px)',
+        position: 'relative',
+      }}>
         <button
           onClick={() => router.back()}
           aria-label="Back"
           style={{
-            position: 'absolute', left: 16, top: 12,
+            position: 'absolute', left: 16,
+            top: 'calc(var(--safe-top) + 12px)',
             width: 32, height: 32, borderRadius: '50%',
             background: 'rgba(255,255,255,0.05)', border: 'none', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
