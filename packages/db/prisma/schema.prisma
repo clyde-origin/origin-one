@@ -107,6 +107,8 @@ model User {
   actionItems      ActionItem[]
   threads          Thread[]
   threadMessages   ThreadMessage[]
+  resolvedThreads  Thread[]         @relation("ResolvedBy")
+  threadReads      ThreadRead[]
   milestonePeople  MilestonePerson[]
   resources        Resource[]
   workflowNodes    WorkflowNode[]
@@ -288,20 +290,37 @@ model ActionItem {
 // ─── Threads ────────────────────────────────────────────────────────────────
 
 model Thread {
-  id             String   @id @default(dbgenerated("gen_random_uuid()"))
+  id             String    @id @default(dbgenerated("gen_random_uuid()"))
   projectId      String
   attachedToType String
   attachedToId   String
   createdBy      String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  project  Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  author   User            @relation(fields: [createdBy], references: [id])
-  messages ThreadMessage[]
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author         User            @relation(fields: [createdBy], references: [id])
+  resolvedByUser User?           @relation("ResolvedBy", fields: [resolvedBy], references: [id])
+  messages       ThreadMessage[]
+  reads          ThreadRead[]
 
   @@index([projectId, createdAt])
   @@index([attachedToType, attachedToId])
+}
+
+model ThreadRead {
+  id         String   @id @default(dbgenerated("gen_random_uuid()"))
+  threadId   String
+  userId     String
+  lastReadAt DateTime @default(now())
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@index([userId, lastReadAt])
 }
 
 model ThreadMessage {

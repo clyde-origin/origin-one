@@ -120,14 +120,18 @@ export interface Milestone {
 export type ThreadAttachmentType =
   | 'shot'
   | 'scene'
-  | 'actionItem'
-  | 'cast'
-  | 'art'
-  | 'deliverable'
   | 'location'
-  | 'milestone'
+  | 'character'
+  | 'cast'
   | 'crew'
-  | 'chatMessage'
+  | 'prop'
+  | 'wardrobe'
+  | 'hmu'
+  | 'moodboardRef'
+  | 'actionItem'
+  | 'milestone'
+  | 'deliverable'
+  | 'workflowStage'
 
 export interface Thread {
   id: string

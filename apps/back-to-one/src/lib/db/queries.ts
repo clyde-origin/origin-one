@@ -577,7 +577,7 @@ export async function createThread(
     .insert({ id: crypto.randomUUID(), projectId, attachedToType, attachedToId, createdBy })
     .select()
     .single()
-  if (error) { console.error('createThread failed:', error); throw error }
+  if (error) throw error
   return { ...data, messages: [], unread: false }
 }
 
@@ -592,7 +592,7 @@ export async function postMessage(
     .insert({ id: crypto.randomUUID(), threadId, createdBy, content })
     .select()
     .single()
-  if (error) { console.error('postMessage failed:', error); throw error }
+  if (error) throw error
   return data
 }
 
