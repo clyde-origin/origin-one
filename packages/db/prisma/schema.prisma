@@ -1,6 +1,12 @@
 // packages/db/prisma/schema.prisma
 // Aligned to packages/schema Zod types — do not change enums or field names
 // without a coordinated change to packages/schema.
+//
+// RECONCILED 2026-04-19: this file was brought back in sync with the live
+// Supabase database via `prisma db pull`, then PR #2a's additions
+// (Thread.resolvedAt, Thread.resolvedBy, ThreadRead) were added on top.
+// Going forward all schema changes happen here, applied via
+// `prisma migrate dev` — no more direct Supabase Studio edits.
 
 generator client {
   provider = "prisma-client-js"
@@ -91,7 +97,7 @@ enum MoodCategory {
   music
 }
 
-// ─── Models ──────────────────────────────────────────────────────────────────
+// ─── Core identity and membership ────────────────────────────────────────────
 
 model User {
   id        String   @id @default(dbgenerated("gen_random_uuid()"))
@@ -101,19 +107,19 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  teamMembers      TeamMember[]
-  projectMembers   ProjectMember[]
-  documents        Document[]
-  actionItems      ActionItem[]
-  threads          Thread[]
-  threadMessages   ThreadMessage[]
-  resolvedThreads  Thread[]         @relation("ResolvedBy")
-  threadReads      ThreadRead[]
-  milestonePeople  MilestonePerson[]
-  resources        Resource[]
-  workflowNodes    WorkflowNode[]
-  chatSent         ChatMessage[]    @relation("ChatSender")
-  chatReceived     ChatMessage[]    @relation("ChatRecipient")
+  teamMembers     TeamMember[]
+  projectMembers  ProjectMember[]
+  documents       Document[]
+  actionItems     ActionItem[]
+  threads         Thread[]
+  threadMessages  ThreadMessage[]
+  resolvedThreads Thread[]          @relation("ResolvedBy")
+  threadReads     ThreadRead[]
+  milestonePeople MilestonePerson[]
+  resources       Resource[]
+  workflowNodes   WorkflowNode[]
+  chatSent        ChatMessage[]     @relation("ChatSender")
+  chatReceived    ChatMessage[]     @relation("ChatRecipient")
 }
 
 model Team {
@@ -140,11 +146,12 @@ model TeamMember {
 }
 
 model ProjectMember {
-  id        String   @id @default(dbgenerated("gen_random_uuid()"))
-  projectId String
-  userId    String
-  role      Role
-  createdAt DateTime @default(now())
+  id         String   @id @default(dbgenerated("gen_random_uuid()"))
+  projectId  String
+  userId     String
+  role       Role
+  department String?
+  createdAt  DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -152,38 +159,43 @@ model ProjectMember {
   @@unique([projectId, userId])
 }
 
+// ─── Project ─────────────────────────────────────────────────────────────────
+
 model Project {
-  id        String        @id @default(dbgenerated("gen_random_uuid()"))
-  teamId    String
-  name      String
-  status    ProjectStatus
+  id          String        @id @default(dbgenerated("gen_random_uuid()"))
+  teamId      String
+  name        String
+  status      ProjectStatus
   color       String?
   client      String?
   type        String?
   aspectRatio String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @default(now()) @updatedAt
 
-  team        Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  members     ProjectMember[]
-  scenes      Scene[]
-  entities    Entity[]
-  documents   Document[]
-  milestones  Milestone[]
-  actionItems ActionItem[]
-  threads     Thread[]
-  locations     Location[]
-  folders       Folder[]
-  resources     Resource[]
-  moodboardTabs MoodboardTab[]
-  moodboardRefs MoodboardRef[]
-  talents        Talent[]
-  workflowNodes  WorkflowNode[]
-  workflowEdges  WorkflowEdge[]
-  deliverables   Deliverable[]
-  chatChannels   ChatChannel[]
-  chatMessages   ChatMessage[]
+  team             Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  members          ProjectMember[]
+  scenes           Scene[]
+  entities         Entity[]
+  documents        Document[]
+  milestones       Milestone[]
+  actionItems      ActionItem[]
+  threads          Thread[]
+  locations        Location[]
+  folders          Folder[]
+  resources        Resource[]
+  moodboardTabs    MoodboardTab[]
+  moodboardRefs    MoodboardRef[]
+  talents          Talent[]
+  workflowNodes    WorkflowNode[]
+  workflowEdges    WorkflowEdge[]
+  deliverables     Deliverable[]
+  chatChannels     ChatChannel[]
+  chatMessages     ChatMessage[]
+  shotlistVersions ShotlistVersion[]
 }
+
+// ─── Scenes, Shots, Entities ─────────────────────────────────────────────────
 
 model Scene {
   id          String   @id @default(dbgenerated("gen_random_uuid()"))
@@ -206,6 +218,8 @@ model Shot {
   size        ShotSize?
   description String?
   imageUrl    String?
+  notes       String?
+  shootOrder  Int?
   status      ShotStatus @default(planned)
   sortOrder   Int
   createdAt   DateTime   @default(now())
@@ -228,6 +242,21 @@ model Entity {
   assignments TalentAssignment[]
 }
 
+// Shotlist snapshot versions. RLS-enabled (managed outside Prisma).
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model ShotlistVersion {
+  id            String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  projectId     String
+  versionNumber Int
+  label         String?
+  shots         Json
+  createdAt     DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ─── Documents ───────────────────────────────────────────────────────────────
+
 model Document {
   id        String       @id @default(dbgenerated("gen_random_uuid()"))
   projectId String
@@ -243,7 +272,7 @@ model Document {
   createdByUser User    @relation(fields: [createdBy], references: [id])
 }
 
-// ─── Milestones ─────────────────────────────────────────────────────────────
+// ─── Milestones ──────────────────────────────────────────────────────────────
 
 model Milestone {
   id        String          @id @default(dbgenerated("gen_random_uuid()"))
@@ -269,7 +298,7 @@ model MilestonePerson {
   @@unique([milestoneId, userId])
 }
 
-// ─── Action Items ───────────────────────────────────────────────────────────
+// ─── Action Items ────────────────────────────────────────────────────────────
 
 model ActionItem {
   id          String           @id @default(dbgenerated("gen_random_uuid()"))
@@ -284,10 +313,10 @@ model ActionItem {
   updatedAt   DateTime         @updatedAt
 
   project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignee User?   @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
+  assignee User?   @relation(fields: [assignedTo], references: [id])
 }
 
-// ─── Threads ────────────────────────────────────────────────────────────────
+// ─── Threads ─────────────────────────────────────────────────────────────────
 
 model Thread {
   id             String    @id @default(dbgenerated("gen_random_uuid()"))
@@ -298,7 +327,7 @@ model Thread {
   resolvedAt     DateTime?
   resolvedBy     String?
   createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  updatedAt      DateTime  @default(now()) @updatedAt
 
   project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   author         User            @relation(fields: [createdBy], references: [id])
@@ -310,6 +339,20 @@ model Thread {
   @@index([attachedToType, attachedToId])
 }
 
+model ThreadMessage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
+  threadId  String
+  content   String
+  createdBy String
+  createdAt DateTime @default(now())
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [createdBy], references: [id])
+
+  @@index([threadId, createdAt])
+}
+
+// Per-user read state on threads. Added in PR #2a — migration pending deploy.
 model ThreadRead {
   id         String   @id @default(dbgenerated("gen_random_uuid()"))
   threadId   String
@@ -323,18 +366,7 @@ model ThreadRead {
   @@index([userId, lastReadAt])
 }
 
-model ThreadMessage {
-  id        String   @id @default(dbgenerated("gen_random_uuid()"))
-  threadId  String
-  content   String
-  createdBy String
-  createdAt DateTime @default(now())
-
-  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  author User   @relation(fields: [createdBy], references: [id])
-}
-
-// ─── Moodboard ──────────────────────────────────────────────────────────────
+// ─── Moodboard ───────────────────────────────────────────────────────────────
 
 model MoodboardTab {
   id        String   @id @default(dbgenerated("gen_random_uuid()"))
@@ -361,7 +393,7 @@ model MoodboardRef {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
-// ─── Locations ─────────────────────────────────────────────────────────────
+// ─── Locations ───────────────────────────────────────────────────────────────
 
 model Location {
   id          String   @id @default(dbgenerated("gen_random_uuid()"))
@@ -384,7 +416,7 @@ model Location {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
-// ─── Folders & Resources ────────────────────────────────────────────────────
+// ─── Folders & Resources ─────────────────────────────────────────────────────
 
 model Folder {
   id        String   @id @default(dbgenerated("gen_random_uuid()"))
@@ -407,28 +439,39 @@ model Resource {
   createdAt DateTime     @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  folder  Folder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  folder  Folder? @relation(fields: [folderId], references: [id])
   author  User    @relation(fields: [createdBy], references: [id])
 }
 
-// ─── Talent ────────────────────────────────────────────────────────────────
+// ─── Talent ──────────────────────────────────────────────────────────────────
+// Note: Talent has additional contact/logistics fields beyond the base profile,
+// added via Supabase Studio. RLS enabled (managed outside Prisma).
 
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model Talent {
-  id        String   @id @default(cuid())
-  projectId String
-  name      String
-  role      String?
-  agency    String?
-  contact   String?
-  notes     String?
-  imageUrl  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  projectId           String
+  name                String
+  role                String?
+  agency              String?
+  contact             String?
+  email               String?
+  phone               String?
+  dietaryRestrictions String?
+  repName             String?
+  repEmail            String?
+  repPhone            String?
+  shootDates          Json?
+  notes               String?
+  imageUrl            String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   assignments TalentAssignment[]
 }
 
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model TalentAssignment {
   id        String   @id @default(cuid())
   talentId  String
@@ -439,8 +482,9 @@ model TalentAssignment {
   entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
 }
 
-// ─── Workflow ──────────────────────────────────────────────────────────────
+// ─── Workflow ────────────────────────────────────────────────────────────────
 
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model WorkflowNode {
   id         String   @id @default(cuid())
   projectId  String
@@ -451,14 +495,15 @@ model WorkflowNode {
   assigneeId String?
   sortOrder  Int      @default(0)
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  updatedAt  DateTime @default(now()) @updatedAt
 
   project  Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignee User?          @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  assignee User?          @relation(fields: [assigneeId], references: [id])
   outgoing WorkflowEdge[] @relation("EdgeSource")
   incoming WorkflowEdge[] @relation("EdgeTarget")
 }
 
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model WorkflowEdge {
   id           String   @id @default(cuid())
   projectId    String
@@ -476,8 +521,9 @@ model WorkflowEdge {
   target  WorkflowNode @relation("EdgeTarget", fields: [targetId], references: [id], onDelete: Cascade)
 }
 
-// ─── Deliverables ─────────────────────────────────────────────────────────
+// ─── Deliverables ────────────────────────────────────────────────────────────
 
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model Deliverable {
   id          String   @id @default(cuid())
   projectId   String
@@ -491,40 +537,42 @@ model Deliverable {
   notes       String?
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now()) @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
-// ─── Chat ──────────────────────────────────────────────────────────────────
+// ─── Chat ────────────────────────────────────────────────────────────────────
+// Note: IDs on ChatChannel and ChatMessage have no DB-level default.
+// App code must generate UUIDs explicitly on insert (crypto.randomUUID()).
 
 model ChatChannel {
-  id        String   @id @default(dbgenerated("gen_random_uuid()"))
+  id        String   @id
   projectId String
   name      String
   sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamp(6)
 
-  project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   messages ChatMessage[]
 
-  @@index([projectId, sortOrder])
+  @@index([projectId, sortOrder], map: "ChatChannel_project_idx")
 }
 
 model ChatMessage {
-  id          String   @id @default(dbgenerated("gen_random_uuid()"))
+  id          String   @id
   projectId   String
   channelId   String?
   senderId    String
   recipientId String?
   content     String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime @default(now()) @db.Timestamp(6)
 
-  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  channel   ChatChannel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  sender    User         @relation("ChatSender", fields: [senderId], references: [id])
-  recipient User?        @relation("ChatRecipient", fields: [recipientId], references: [id])
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  channel   ChatChannel? @relation(fields: [channelId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sender    User         @relation("ChatSender", fields: [senderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  recipient User?        @relation("ChatRecipient", fields: [recipientId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@index([channelId, createdAt])
-  @@index([projectId, senderId, recipientId, createdAt])
+  @@index([channelId, createdAt], map: "ChatMessage_channel_idx")
+  @@index([projectId, senderId, recipientId, createdAt], map: "ChatMessage_dm_idx")
 }
