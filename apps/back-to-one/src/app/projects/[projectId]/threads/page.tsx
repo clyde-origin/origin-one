@@ -42,30 +42,50 @@ function timeStamp(dateStr: string): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
+// Gradients for thumbnail fallback squares — each is a dark two-stop blend
+// toned with the type's BRAND_TOKENS accent (see CHIP_STYLES below).
 const GRADIENTS: Record<string, string> = {
-  'th-shot':      'linear-gradient(135deg, #1a1030, #0d1a2e)',
-  'th-cast':      'linear-gradient(135deg, #1a0e0e, #2a1218)',
-  'th-location':  'linear-gradient(135deg, #0a1a14, #081a1a)',
-  'th-art':       'linear-gradient(135deg, #0d1a0a, #0a180d)',
-  'th-task':      'linear-gradient(135deg, #1a1506, #1a1208)',
-  'th-milestone': 'linear-gradient(135deg, #0c0e1a, #0a0c1e)',
-  'th-scene':     'linear-gradient(135deg, #080e1a, #06101e)',
+  'th-shot':          'linear-gradient(135deg, #1a1030, #0d1a2e)',  // violet      #9b6ef3
+  'th-scene':         'linear-gradient(135deg, #140c1e, #0f0918)',  // lavender    #b890f0
+  'th-location':      'linear-gradient(135deg, #0a1a14, #081a1a)',  // green       #3cbe6a
+  'th-character':     'linear-gradient(135deg, #1a0b12, #14080e)',  // rose        #e8507a
+  'th-cast':          'linear-gradient(135deg, #1a0e0e, #2a1218)',  // coral       #f07050
+  'th-crew':          'linear-gradient(135deg, #0c1018, #0a0e14)',  // slate       #6888b8
+  'th-prop':          'linear-gradient(135deg, #1a1006, #14100a)',  // orange      #f08030
+  'th-wardrobe':      'linear-gradient(135deg, #1a0a16, #14081a)',  // pink        #e868c8
+  'th-hmu':           'linear-gradient(135deg, #0a1a14, #081a10)',  // mint        #50d898
+  'th-moodboardRef':  'linear-gradient(135deg, #141210, #0f0d0a)',  // warm white  #e8e0d0
+  'th-actionItem':    'linear-gradient(135deg, #1a1506, #1a1208)',  // gold        #e8c44a
+  'th-milestone':     'linear-gradient(135deg, #081818, #051414)',  // cyan        #22d4d4
+  'th-deliverable':   'linear-gradient(135deg, #1a0808, #140606)',  // red         #e84848
+  'th-workflowStage': 'linear-gradient(135deg, #141806, #0f1408)',  // lime        #a8d428
 }
 
+// Chip palette — BRAND_TOKENS project accents, direct hex values.
+// Non-phase accents only (phase colors amber #e8a020 / indigo #6470f3 / teal #00b894
+// are reserved for Pre-Production / Production / Post-Production semantics).
+// Pattern: bg = base @ 0.10 alpha, border = base @ 0.22, color = base @ 0.9.
 const CHIP_STYLES: Record<string, { bg: string; border: string; color: string }> = {
-  'obj-shot':      { bg: 'rgba(124,58,237,0.1)',  border: 'rgba(124,58,237,0.22)',  color: 'rgba(167,139,250,0.9)' },
-  'obj-task':      { bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.22)',  color: 'rgba(251,191,36,0.9)' },
-  'obj-milestone': { bg: 'rgba(100,112,243,0.1)', border: 'rgba(100,112,243,0.22)', color: 'rgba(129,140,248,0.9)' },
-  'obj-location':  { bg: 'rgba(0,184,148,0.1)',   border: 'rgba(0,184,148,0.22)',   color: 'rgba(52,211,153,0.9)' },
-  'obj-cast':      { bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.22)',   color: 'rgba(252,165,165,0.9)' },
-  'obj-art':       { bg: 'rgba(74,222,128,0.1)',  border: 'rgba(74,222,128,0.22)',  color: 'rgba(134,239,172,0.9)' },
-  'obj-scene':     { bg: 'rgba(56,189,248,0.1)',  border: 'rgba(56,189,248,0.22)',  color: 'rgba(125,211,252,0.9)' },
+  'obj-shot':          { bg: 'rgba(155,110,243,0.1)', border: 'rgba(155,110,243,0.22)', color: 'rgba(155,110,243,0.9)' }, // #9b6ef3 violet
+  'obj-scene':         { bg: 'rgba(184,144,240,0.1)', border: 'rgba(184,144,240,0.22)', color: 'rgba(184,144,240,0.9)' }, // #b890f0 lavender
+  'obj-location':      { bg: 'rgba(60,190,106,0.1)',  border: 'rgba(60,190,106,0.22)',  color: 'rgba(60,190,106,0.9)'  }, // #3cbe6a green
+  'obj-character':     { bg: 'rgba(232,80,122,0.1)',  border: 'rgba(232,80,122,0.22)',  color: 'rgba(232,80,122,0.9)'  }, // #e8507a rose
+  'obj-cast':          { bg: 'rgba(240,112,80,0.1)',  border: 'rgba(240,112,80,0.22)',  color: 'rgba(240,112,80,0.9)'  }, // #f07050 coral
+  'obj-crew':          { bg: 'rgba(104,136,184,0.1)', border: 'rgba(104,136,184,0.22)', color: 'rgba(104,136,184,0.9)' }, // #6888b8 slate
+  'obj-prop':          { bg: 'rgba(240,128,48,0.1)',  border: 'rgba(240,128,48,0.22)',  color: 'rgba(240,128,48,0.9)'  }, // #f08030 orange
+  'obj-wardrobe':      { bg: 'rgba(232,104,200,0.1)', border: 'rgba(232,104,200,0.22)', color: 'rgba(232,104,200,0.9)' }, // #e868c8 pink
+  'obj-hmu':           { bg: 'rgba(80,216,152,0.1)',  border: 'rgba(80,216,152,0.22)',  color: 'rgba(80,216,152,0.9)'  }, // #50d898 mint
+  'obj-moodboardRef':  { bg: 'rgba(232,224,208,0.1)', border: 'rgba(232,224,208,0.22)', color: 'rgba(232,224,208,0.9)' }, // #e8e0d0 warm white
+  'obj-actionItem':    { bg: 'rgba(232,196,74,0.1)',  border: 'rgba(232,196,74,0.22)',  color: 'rgba(232,196,74,0.9)'  }, // #e8c44a gold
+  'obj-milestone':     { bg: 'rgba(34,212,212,0.1)',  border: 'rgba(34,212,212,0.22)',  color: 'rgba(34,212,212,0.9)'  }, // #22d4d4 cyan
+  'obj-deliverable':   { bg: 'rgba(232,72,72,0.1)',   border: 'rgba(232,72,72,0.22)',   color: 'rgba(232,72,72,0.9)'   }, // #e84848 red
+  'obj-workflowStage': { bg: 'rgba(168,212,40,0.1)',  border: 'rgba(168,212,40,0.22)',  color: 'rgba(168,212,40,0.9)'  }, // #a8d428 lime
 }
 
 // ── Sub-components ────────────────────────────────────────
 
 function ObjChip({ chipType, children, style }: { chipType: string; children: React.ReactNode; style?: React.CSSProperties }) {
-  const s = CHIP_STYLES[chipType] ?? CHIP_STYLES['obj-task']
+  const s = CHIP_STYLES[chipType] ?? CHIP_STYLES['obj-actionItem']
   return (
     <span
       className="font-mono uppercase"
@@ -84,7 +104,7 @@ function ObjChip({ chipType, children, style }: { chipType: string; children: Re
 }
 
 function Thumbnail({ ctx, size = 52 }: { ctx: ThreadContext; size?: number }) {
-  const bg = GRADIENTS[ctx.thumbnailGradient] ?? GRADIENTS['th-task']
+  const bg = GRADIENTS[ctx.thumbnailGradient] ?? GRADIENTS['th-actionItem']
   return (
     <div
       style={{
@@ -107,38 +127,32 @@ function Thumbnail({ ctx, size = 52 }: { ctx: ThreadContext; size?: number }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 9, fontWeight: 700,
         }}>{initialsOf(ctx.thumbnailValue)}</div>
-      ) : ctx.thumbnailGradient === 'th-task' ? (
+      ) : ctx.thumbnailGradient === 'th-actionItem' ? (
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <rect x="3" y="3" width="12" height="12" rx="2" stroke="rgba(251,191,36,0.5)" strokeWidth="1.2"/>
-          <path d="M6 9l2 2 4-4" stroke="rgba(251,191,36,0.7)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          <rect x="3" y="3" width="12" height="12" rx="2" stroke="rgba(232,196,74,0.5)" strokeWidth="1.2"/>
+          <path d="M6 9l2 2 4-4" stroke="rgba(232,196,74,0.7)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       ) : ctx.thumbnailGradient === 'th-milestone' ? (
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <circle cx="9" cy="9" r="5.5" stroke="rgba(129,140,248,0.5)" strokeWidth="1.2"/>
-          <path d="M9 6v3l2 1.5" stroke="rgba(129,140,248,0.7)" strokeWidth="1.2" strokeLinecap="round"/>
+          <circle cx="9" cy="9" r="5.5" stroke="rgba(34,212,212,0.5)" strokeWidth="1.2"/>
+          <path d="M9 6v3l2 1.5" stroke="rgba(34,212,212,0.7)" strokeWidth="1.2" strokeLinecap="round"/>
         </svg>
       ) : ctx.thumbnailGradient === 'th-location' ? (
         <svg width="16" height="18" viewBox="0 0 16 18" fill="none">
-          <path d="M8 1C5.24 1 3 3.24 3 6c0 3.75 5 11 5 11s5-7.25 5-11c0-2.76-2.24-5-5-5z" stroke="rgba(52,211,153,0.6)" strokeWidth="1.2" fill="rgba(52,211,153,0.1)"/>
-          <circle cx="8" cy="6" r="1.5" stroke="rgba(52,211,153,0.7)" strokeWidth="1.2"/>
-        </svg>
-      ) : ctx.thumbnailGradient === 'th-art' ? (
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <rect x="3" y="5" width="12" height="8" rx="1.5" stroke="rgba(134,239,172,0.5)" strokeWidth="1.2"/>
-          <path d="M3 8h12" stroke="rgba(134,239,172,0.4)" strokeWidth="1"/>
-          <circle cx="6" cy="6.5" r="1" fill="rgba(134,239,172,0.5)"/>
+          <path d="M8 1C5.24 1 3 3.24 3 6c0 3.75 5 11 5 11s5-7.25 5-11c0-2.76-2.24-5-5-5z" stroke="rgba(60,190,106,0.6)" strokeWidth="1.2" fill="rgba(60,190,106,0.1)"/>
+          <circle cx="8" cy="6" r="1.5" stroke="rgba(60,190,106,0.7)" strokeWidth="1.2"/>
         </svg>
       ) : ctx.thumbnailGradient === 'th-scene' ? (
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <rect x="3" y="4" width="12" height="10" rx="1.5" stroke="rgba(125,211,252,0.5)" strokeWidth="1.2"/>
-          <path d="M3 7h12" stroke="rgba(125,211,252,0.4)" strokeWidth="1"/>
+          <rect x="3" y="4" width="12" height="10" rx="1.5" stroke="rgba(184,144,240,0.5)" strokeWidth="1.2"/>
+          <path d="M3 7h12" stroke="rgba(184,144,240,0.4)" strokeWidth="1"/>
         </svg>
       ) : ctx.thumbnailGradient === 'th-shot' && ctx.thumbnailValue ? (
         <div style={{
           position: 'absolute', bottom: 4, right: 4,
           fontFamily: "'Geist Mono', monospace", fontSize: 8, fontWeight: 700,
           letterSpacing: '0.04em', padding: '1px 4px', borderRadius: 3,
-          background: 'rgba(0,0,0,0.5)', color: 'rgba(167,139,250,0.9)',
+          background: 'rgba(0,0,0,0.5)', color: 'rgba(155,110,243,0.9)',
         }}>{ctx.thumbnailValue}</div>
       ) : null}
     </div>
@@ -577,9 +591,9 @@ function SectionLabel({ label, count, topMargin = 0 }: { label: string; count: n
 function fallbackContext(): ThreadContext {
   return {
     displayLabel: 'Thread',
-    chipType: 'obj-task',
+    chipType: 'obj-actionItem',
     thumbnailType: 'icon',
     thumbnailValue: null,
-    thumbnailGradient: 'th-task',
+    thumbnailGradient: 'th-actionItem',
   }
 }

@@ -8,11 +8,18 @@ import type { Thread, ThreadAttachmentType } from '@/types'
 export type ChipType =
   | 'obj-shot'
   | 'obj-scene'
-  | 'obj-task'
-  | 'obj-cast'
-  | 'obj-art'
   | 'obj-location'
+  | 'obj-character'
+  | 'obj-cast'
+  | 'obj-crew'
+  | 'obj-prop'
+  | 'obj-wardrobe'
+  | 'obj-hmu'
+  | 'obj-moodboardRef'
+  | 'obj-actionItem'
   | 'obj-milestone'
+  | 'obj-deliverable'
+  | 'obj-workflowStage'
 
 export type ThumbType = 'image' | 'avatar' | 'icon'
 
@@ -36,51 +43,65 @@ export function genericContext(attachedToType: string): ThreadContext {
   }
 }
 
+// Chip keys map to BRAND_TOKENS accents defined in threads/page.tsx CHIP_STYLES.
+// Non-phase accents only — amber/indigo/teal are reserved for Pre/Prod/Post.
 export function chipForType(t: ThreadAttachmentType): ChipType {
   switch (t) {
-    case 'shot':         return 'obj-shot'
-    case 'scene':        return 'obj-scene'
-    case 'actionItem':   return 'obj-task'
-    case 'cast':         return 'obj-cast'
-    case 'art':          return 'obj-art'
-    case 'deliverable':  return 'obj-task'
-    case 'location':     return 'obj-location'
-    case 'milestone':    return 'obj-milestone'
-    case 'crew':         return 'obj-task'
-    case 'chatMessage':  return 'obj-scene'
-    default:             return 'obj-task'
+    case 'shot':          return 'obj-shot'          // violet      #9b6ef3
+    case 'scene':         return 'obj-scene'         // lavender    #b890f0
+    case 'location':      return 'obj-location'      // green       #3cbe6a
+    case 'character':     return 'obj-character'     // rose        #e8507a
+    case 'cast':          return 'obj-cast'          // coral       #f07050
+    case 'crew':          return 'obj-crew'          // slate       #6888b8
+    case 'prop':          return 'obj-prop'          // orange      #f08030
+    case 'wardrobe':      return 'obj-wardrobe'      // pink        #e868c8
+    case 'hmu':           return 'obj-hmu'           // mint        #50d898
+    case 'moodboardRef':  return 'obj-moodboardRef'  // warm white  #e8e0d0
+    case 'actionItem':    return 'obj-actionItem'    // gold        #e8c44a
+    case 'milestone':     return 'obj-milestone'     // cyan        #22d4d4
+    case 'deliverable':   return 'obj-deliverable'   // red         #e84848
+    case 'workflowStage': return 'obj-workflowStage' // lime        #a8d428
+    default:              return 'obj-actionItem'
   }
 }
 
 export function gradientForType(t: ThreadAttachmentType): string {
   switch (t) {
-    case 'shot':        return 'th-shot'
-    case 'scene':       return 'th-scene'
-    case 'actionItem':  return 'th-task'
-    case 'cast':        return 'th-cast'
-    case 'art':         return 'th-art'
-    case 'deliverable': return 'th-task'
-    case 'location':    return 'th-location'
-    case 'milestone':   return 'th-milestone'
-    case 'crew':        return 'th-task'
-    case 'chatMessage': return 'th-scene'
-    default:            return 'th-task'
+    case 'shot':          return 'th-shot'
+    case 'scene':         return 'th-scene'
+    case 'location':      return 'th-location'
+    case 'character':     return 'th-character'
+    case 'cast':          return 'th-cast'
+    case 'crew':          return 'th-crew'
+    case 'prop':          return 'th-prop'
+    case 'wardrobe':      return 'th-wardrobe'
+    case 'hmu':           return 'th-hmu'
+    case 'moodboardRef':  return 'th-moodboardRef'
+    case 'actionItem':    return 'th-actionItem'
+    case 'milestone':     return 'th-milestone'
+    case 'deliverable':   return 'th-deliverable'
+    case 'workflowStage': return 'th-workflowStage'
+    default:              return 'th-actionItem'
   }
 }
 
 function labelForType(t: ThreadAttachmentType): string {
   switch (t) {
-    case 'shot':        return 'Shot'
-    case 'scene':       return 'Scene'
-    case 'actionItem':  return 'Action Item'
-    case 'cast':        return 'Cast'
-    case 'art':         return 'Art'
-    case 'deliverable': return 'Deliverable'
-    case 'location':    return 'Location'
-    case 'milestone':   return 'Milestone'
-    case 'crew':        return 'Crew'
-    case 'chatMessage': return 'Chat'
-    default:            return 'Thread'
+    case 'shot':          return 'Shot'
+    case 'scene':         return 'Scene'
+    case 'location':      return 'Location'
+    case 'character':     return 'Character'
+    case 'cast':          return 'Cast'
+    case 'crew':          return 'Crew'
+    case 'prop':          return 'Prop'
+    case 'wardrobe':      return 'Wardrobe'
+    case 'hmu':           return 'HMU'
+    case 'moodboardRef':  return 'Moodboard'
+    case 'actionItem':    return 'Action Item'
+    case 'milestone':     return 'Milestone'
+    case 'deliverable':   return 'Deliverable'
+    case 'workflowStage': return 'Workflow'
+    default:              return 'Thread'
   }
 }
 
@@ -98,6 +119,13 @@ export function useThreadContexts(
     for (const t of threads) s.add(t.attachedToType)
     return s
   }, [threads])
+
+  // Entity table backs character, prop, wardrobe, hmu (all rows with matching `type`).
+  const needsEntities =
+    typesPresent.has('character') ||
+    typesPresent.has('prop') ||
+    typesPresent.has('wardrobe') ||
+    typesPresent.has('hmu')
 
   const results = useQueries({
     queries: [
@@ -124,7 +152,12 @@ export function useThreadContexts(
       {
         queryKey: ['artItems', projectId],
         queryFn: () => db.getArtItems(projectId),
-        enabled: !!projectId && typesPresent.has('art'),
+        enabled: !!projectId && (typesPresent.has('prop') || typesPresent.has('wardrobe') || typesPresent.has('hmu')),
+      },
+      {
+        queryKey: ['characters', projectId],
+        queryFn: () => db.getEntities(projectId, 'character'),
+        enabled: !!projectId && typesPresent.has('character'),
       },
       {
         queryKey: ['deliverables', projectId],
@@ -147,14 +180,35 @@ export function useThreadContexts(
         enabled: !!projectId && (typesPresent.has('crew') || typesPresent.has('shot') || typesPresent.has('scene')),
       },
       {
-        queryKey: ['chatChannels', projectId],
-        queryFn: () => db.getChatChannels(projectId),
-        enabled: !!projectId && typesPresent.has('chatMessage'),
+        queryKey: ['moodboardRefs', projectId],
+        queryFn: () => db.getMoodboardRefs(projectId),
+        enabled: !!projectId && typesPresent.has('moodboardRef'),
+      },
+      {
+        queryKey: ['workflowNodes', projectId],
+        queryFn: () => db.getWorkflowNodes(projectId),
+        enabled: !!projectId && typesPresent.has('workflowStage'),
       },
     ],
   })
+  void needsEntities
 
-  const [sceneBundles, scenes, actionItems, castRoles, artItems, deliverables, locations, milestones, crew, chatChannels] = results.map(r => r.data) as [
+  const [
+    sceneBundles,
+    scenes,
+    actionItems,
+    castRoles,
+    artItems,
+    characters,
+    deliverables,
+    locations,
+    milestones,
+    crew,
+    moodboardRefs,
+    workflowNodes,
+  ] = results.map(r => r.data) as [
+    any[] | undefined,
+    any[] | undefined,
     any[] | undefined,
     any[] | undefined,
     any[] | undefined,
@@ -182,11 +236,13 @@ export function useThreadContexts(
     const actionItemsById = new Map<string, any>((actionItems ?? []).map(a => [a.id, a]))
     const castById = new Map<string, any>((castRoles ?? []).map(c => [c.id, c]))
     const artById = new Map<string, any>((artItems ?? []).map(a => [a.id, a]))
+    const charactersById = new Map<string, any>((characters ?? []).map(c => [c.id, c]))
     const deliverablesById = new Map<string, any>((deliverables ?? []).map(d => [d.id, d]))
     const locationsById = new Map<string, any>((locations ?? []).map(l => [l.id, l]))
     const milestonesById = new Map<string, any>((milestones ?? []).map(m => [m.id, m]))
     const crewById = new Map<string, any>((crew ?? []).map(c => [c.userId, c]))
-    const channelsById = new Map<string, any>((chatChannels ?? []).map(ch => [ch.id, ch]))
+    const moodboardRefsById = new Map<string, any>((moodboardRefs ?? []).map(r => [r.id, r]))
+    const workflowNodesById = new Map<string, any>((workflowNodes ?? []).map(n => [n.id, n]))
 
     const out = new Map<string, ThreadContext>()
     for (const t of threads) {
@@ -196,15 +252,17 @@ export function useThreadContexts(
         actionItemsById,
         castById,
         artById,
+        charactersById,
         deliverablesById,
         locationsById,
         milestonesById,
         crewById,
-        channelsById,
+        moodboardRefsById,
+        workflowNodesById,
       }))
     }
     return out
-  }, [threads, sceneBundles, scenes, actionItems, castRoles, artItems, deliverables, locations, milestones, crew, chatChannels])
+  }, [threads, sceneBundles, scenes, actionItems, castRoles, artItems, characters, deliverables, locations, milestones, crew, moodboardRefs, workflowNodes])
 }
 
 interface Maps {
@@ -213,11 +271,13 @@ interface Maps {
   actionItemsById: Map<string, any>
   castById: Map<string, any>
   artById: Map<string, any>
+  charactersById: Map<string, any>
   deliverablesById: Map<string, any>
   locationsById: Map<string, any>
   milestonesById: Map<string, any>
   crewById: Map<string, any>
-  channelsById: Map<string, any>
+  moodboardRefsById: Map<string, any>
+  workflowNodesById: Map<string, any>
 }
 
 function buildContext(thread: Thread, m: Maps): ThreadContext {
@@ -249,15 +309,26 @@ function buildContext(thread: Thread, m: Maps): ThreadContext {
         thumbnailGradient: 'th-scene',
       }
     }
-    case 'actionItem': {
-      const a = m.actionItemsById.get(thread.attachedToId)
-      if (!a) return genericContext(type)
+    case 'location': {
+      const l = m.locationsById.get(thread.attachedToId)
+      if (!l) return genericContext(type)
       return {
-        displayLabel: `Action: ${a.title}`,
-        chipType: 'obj-task',
+        displayLabel: `Location: ${l.name}`,
+        chipType: 'obj-location',
         thumbnailType: 'icon',
         thumbnailValue: null,
-        thumbnailGradient: 'th-task',
+        thumbnailGradient: 'th-location',
+      }
+    }
+    case 'character': {
+      const c = m.charactersById.get(thread.attachedToId)
+      if (!c) return genericContext(type)
+      return {
+        displayLabel: c.name,
+        chipType: 'obj-character',
+        thumbnailType: 'icon',
+        thumbnailValue: null,
+        thumbnailGradient: 'th-character',
       }
     }
     case 'cast': {
@@ -271,37 +342,71 @@ function buildContext(thread: Thread, m: Maps): ThreadContext {
         thumbnailGradient: 'th-cast',
       }
     }
-    case 'art': {
+    case 'crew': {
+      const cm = m.crewById.get(thread.attachedToId)
+      if (!cm) return genericContext(type)
+      const name = cm.User?.name ?? 'Crew'
+      return {
+        displayLabel: `${name} · ${cm.role}`,
+        chipType: 'obj-crew',
+        thumbnailType: 'avatar',
+        thumbnailValue: name,
+        thumbnailGradient: 'th-crew',
+      }
+    }
+    case 'prop': {
       const a = m.artById.get(thread.attachedToId)
+      if (!a || a.type !== 'prop') return genericContext(type)
+      return {
+        displayLabel: `Prop: ${a.name}`,
+        chipType: 'obj-prop',
+        thumbnailType: 'icon',
+        thumbnailValue: null,
+        thumbnailGradient: 'th-prop',
+      }
+    }
+    case 'wardrobe': {
+      const a = m.artById.get(thread.attachedToId)
+      if (!a || a.type !== 'wardrobe') return genericContext(type)
+      return {
+        displayLabel: `Wardrobe: ${a.name}`,
+        chipType: 'obj-wardrobe',
+        thumbnailType: 'icon',
+        thumbnailValue: null,
+        thumbnailGradient: 'th-wardrobe',
+      }
+    }
+    case 'hmu': {
+      const a = m.artById.get(thread.attachedToId)
+      if (!a || a.type !== 'hmu') return genericContext(type)
+      return {
+        displayLabel: `HMU: ${a.name}`,
+        chipType: 'obj-hmu',
+        thumbnailType: 'icon',
+        thumbnailValue: null,
+        thumbnailGradient: 'th-hmu',
+      }
+    }
+    case 'moodboardRef': {
+      const r = m.moodboardRefsById.get(thread.attachedToId)
+      if (!r) return genericContext(type)
+      return {
+        displayLabel: `Moodboard: ${r.title}`,
+        chipType: 'obj-moodboardRef',
+        thumbnailType: r.imageUrl ? 'image' : 'icon',
+        thumbnailValue: r.imageUrl ?? null,
+        thumbnailGradient: 'th-moodboardRef',
+      }
+    }
+    case 'actionItem': {
+      const a = m.actionItemsById.get(thread.attachedToId)
       if (!a) return genericContext(type)
       return {
-        displayLabel: `Art: ${a.name}`,
-        chipType: 'obj-art',
+        displayLabel: `Action: ${a.title}`,
+        chipType: 'obj-actionItem',
         thumbnailType: 'icon',
         thumbnailValue: null,
-        thumbnailGradient: 'th-art',
-      }
-    }
-    case 'deliverable': {
-      const d = m.deliverablesById.get(thread.attachedToId)
-      if (!d) return genericContext(type)
-      return {
-        displayLabel: `Deliverable: ${d.title}`,
-        chipType: 'obj-task',
-        thumbnailType: 'icon',
-        thumbnailValue: null,
-        thumbnailGradient: 'th-task',
-      }
-    }
-    case 'location': {
-      const l = m.locationsById.get(thread.attachedToId)
-      if (!l) return genericContext(type)
-      return {
-        displayLabel: `Location: ${l.name}`,
-        chipType: 'obj-location',
-        thumbnailType: 'icon',
-        thumbnailValue: null,
-        thumbnailGradient: 'th-location',
+        thumbnailGradient: 'th-actionItem',
       }
     }
     case 'milestone': {
@@ -315,26 +420,26 @@ function buildContext(thread: Thread, m: Maps): ThreadContext {
         thumbnailGradient: 'th-milestone',
       }
     }
-    case 'crew': {
-      const cm = m.crewById.get(thread.attachedToId)
-      if (!cm) return genericContext(type)
-      const name = cm.User?.name ?? 'Crew'
+    case 'deliverable': {
+      const d = m.deliverablesById.get(thread.attachedToId)
+      if (!d) return genericContext(type)
       return {
-        displayLabel: `${name} · ${cm.role}`,
-        chipType: 'obj-task',
-        thumbnailType: 'avatar',
-        thumbnailValue: name,
-        thumbnailGradient: 'th-task',
-      }
-    }
-    case 'chatMessage': {
-      const ch = m.channelsById.get(thread.attachedToId)
-      return {
-        displayLabel: ch ? `Chat: ${ch.name}` : 'Chat',
-        chipType: 'obj-scene',
+        displayLabel: `Deliverable: ${d.title}`,
+        chipType: 'obj-deliverable',
         thumbnailType: 'icon',
         thumbnailValue: null,
-        thumbnailGradient: 'th-scene',
+        thumbnailGradient: 'th-deliverable',
+      }
+    }
+    case 'workflowStage': {
+      const n = m.workflowNodesById.get(thread.attachedToId)
+      if (!n) return genericContext(type)
+      return {
+        displayLabel: `Workflow: ${n.label}`,
+        chipType: 'obj-workflowStage',
+        thumbnailType: 'icon',
+        thumbnailValue: null,
+        thumbnailGradient: 'th-workflowStage',
       }
     }
     default:

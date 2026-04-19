@@ -48,17 +48,21 @@ function formatDate(dateStr: string): string {
 
 function genericThreadLabel(attachedToType: string): string {
   switch (attachedToType) {
-    case 'shot':        return 'Shot'
-    case 'scene':       return 'Scene'
-    case 'actionItem':  return 'Action'
-    case 'cast':        return 'Cast'
-    case 'art':         return 'Art'
-    case 'deliverable': return 'Deliverable'
-    case 'location':    return 'Location'
-    case 'milestone':   return 'Milestone'
-    case 'crew':        return 'Crew'
-    case 'chatMessage': return 'Chat'
-    default:            return 'Thread'
+    case 'shot':          return 'Shot'
+    case 'scene':         return 'Scene'
+    case 'location':      return 'Location'
+    case 'character':     return 'Character'
+    case 'cast':          return 'Cast'
+    case 'crew':          return 'Crew'
+    case 'prop':          return 'Prop'
+    case 'wardrobe':      return 'Wardrobe'
+    case 'hmu':           return 'HMU'
+    case 'moodboardRef':  return 'Moodboard'
+    case 'actionItem':    return 'Action'
+    case 'milestone':     return 'Milestone'
+    case 'deliverable':   return 'Deliverable'
+    case 'workflowStage': return 'Workflow'
+    default:              return 'Thread'
   }
 }
 
