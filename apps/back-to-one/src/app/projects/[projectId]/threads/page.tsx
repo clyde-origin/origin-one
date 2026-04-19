@@ -448,18 +448,6 @@ export default function ThreadsPage({ params }: { params: { projectId: string } 
         paddingTop: 'calc(var(--safe-top) + 16px)',
         position: 'relative',
       }}>
-        <button
-          onClick={() => router.back()}
-          aria-label="Back"
-          style={{
-            position: 'absolute', left: 16,
-            top: 'calc(var(--safe-top) + 12px)',
-            width: 32, height: 32, borderRadius: '50%',
-            background: 'rgba(255,255,255,0.05)', border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'rgba(255,255,255,0.5)', fontSize: 16,
-          }}
-        >‹</button>
         <div className="font-mono uppercase" style={{
           fontSize: 9, letterSpacing: '0.16em', color: TV, marginBottom: 3,
         }}>{projectName}</div>
@@ -548,6 +536,27 @@ export default function ThreadsPage({ params }: { params: { projectId: string } 
           onClose={() => setSelectedId(null)}
         />
       </Sheet>
+
+      {/* Back button — FAB position, bottom center */}
+      <button
+        onClick={() => { haptic('light'); router.back() }}
+        aria-label="Back"
+        style={{
+          position: 'fixed',
+          bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 52, height: 52, borderRadius: '50%',
+          background: 'rgba(10,10,18,0.7)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'rgba(255,255,255,0.7)', fontSize: 22, lineHeight: 1,
+          cursor: 'pointer',
+          zIndex: 30,
+        }}
+      >‹</button>
     </div>
   )
 }
