@@ -160,6 +160,9 @@ async function main() {
   await prisma.actionItem.deleteMany()
   await prisma.milestonePerson.deleteMany()
   await prisma.milestone.deleteMany()
+  await prisma.threadRead.deleteMany()
+  await prisma.threadMessage.deleteMany()
+  await prisma.thread.deleteMany()
   await prisma.projectMember.deleteMany()
   await prisma.document.deleteMany()
   await prisma.shot.deleteMany()
@@ -1789,6 +1792,281 @@ FADE TO BLACK.`,
     { projectId: p6.id, tabId: p6mbTab.id, title: 'FRACTURE Universe',     cat: 'tone',   note: 'Part of the B Story FRACTURE multiverse. Threads weave into larger work.', sortOrder: 5 },
   ]})
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // P7 — THREADS
+  // 26 threads across all 6 projects. 9 unread, 10 read, 7 resolved.
+  // Clyde Bessey is "me" for inbox purposes — unread = no ThreadRead for Clyde.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // P7 Threads — wipe and reseed (redundant with main wipe above, but safe)
+  await prisma.threadRead.deleteMany()
+  await prisma.threadMessage.deleteMany()
+  await prisma.thread.deleteMany()
+  console.log('  Threads: cleared')
+
+  const NOW = new Date('2026-04-20T14:00:00Z')
+  const hoursAgo = (n: number) => new Date(NOW.getTime() - n * 60 * 60 * 1000)
+  const daysAgo  = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000)
+
+  async function mustFind<T>(label: string, p: Promise<T | null | undefined>): Promise<T> {
+    const r = await p
+    if (!r) throw new Error(`[threads seed] lookup failed: ${label}`)
+    return r
+  }
+
+  // ── Entity / record lookups ─────────────────────────────────────────────
+
+  // P1
+  const p1LocVilla    = await mustFind('P1 location Villa Serena',          prisma.location.findFirst({ where: { projectId: p1.id, name: { contains: 'Villa Serena' } } }))
+  const p1Shot03C     = await mustFind('P1 shot 03C',                       prisma.shot.findFirst({ where: { shotNumber: '03C', scene: { projectId: p1.id } } }))
+  const p1PropSerum   = await mustFind('P1 prop Lumiere Serum',             prisma.entity.findFirst({ where: { projectId: p1.id, type: 'prop', name: 'Lumiere Serum' } }))
+  const p1MilestoneLS = await mustFind('P1 milestone Location shortlist',   prisma.milestone.findFirst({ where: { projectId: p1.id, title: { contains: 'Location shortlist' } } }))
+  const p1AiPermit    = await mustFind('P1 actionItem estate permit',       prisma.actionItem.findFirst({ where: { projectId: p1.id, title: { contains: 'estate permit' } } }))
+
+  // P2
+  const p2Shot02A     = await mustFind('P2 shot 02A',                       prisma.shot.findFirst({ where: { shotNumber: '02A', scene: { projectId: p2.id } } }))
+  const p2LocRooftop  = await mustFind('P2 location DTLA Rooftop',          prisma.location.findFirst({ where: { projectId: p2.id, name: { contains: 'Rooftop' } } }))
+  const p2DelivIG     = await mustFind('P2 deliverable IG Reel',            prisma.deliverable.findFirst({ where: { projectId: p2.id, title: { contains: 'IG Reel' } } }))
+  const p2AiReleases  = await mustFind('P2 actionItem athlete releases',    prisma.actionItem.findFirst({ where: { projectId: p2.id, title: { contains: 'release forms' } } }))
+
+  // P3
+  const p3CharWine    = await mustFind('P3 character The Winemaker',        prisma.entity.findFirst({ where: { projectId: p3.id, type: 'character', name: 'The Winemaker' } }))
+  const p3LocCellar   = await mustFind('P3 location St. Helena Cellar',     prisma.location.findFirst({ where: { projectId: p3.id, name: { contains: 'Barrel Cellar' } } }))
+  const p3MilestoneD1 = await mustFind('P3 milestone Day 1 Vineyard',       prisma.milestone.findFirst({ where: { projectId: p3.id, title: { contains: 'Day 1 — Vineyard' } } }))
+
+  // P4
+  const p4PropBolster = await mustFind('P4 prop Bolster',                   prisma.entity.findFirst({ where: { projectId: p4.id, type: 'prop', name: 'Bolster' } }))
+  const p4Shot02E     = await mustFind('P4 shot 02E',                       prisma.shot.findFirst({ where: { shotNumber: '02E', scene: { projectId: p4.id } } }))
+
+  // P5
+  const p5DelivHero   = await mustFind('P5 deliverable Hero Film',          prisma.deliverable.findFirst({ where: { projectId: p5.id, title: 'Hero Film' } }))
+  const p5MilestoneVO = await mustFind('P5 milestone VO recording',         prisma.milestone.findFirst({ where: { projectId: p5.id, title: { contains: 'VO recording session' } } }))
+
+  // P6
+  // NOTE: "Joshua Tree, Night Ext" exists only as an Entity (type=location), not in
+  // the Location table. Attaching T22 to the matching milestone instead — flagged in report.
+  const p6MilestoneJT = await mustFind('P6 milestone Day 3 Joshua Tree',    prisma.milestone.findFirst({ where: { projectId: p6.id, title: { contains: 'Day 3 — Night Exterior, Joshua Tree' } } }))
+  const p6Shot03A     = await mustFind('P6 shot 03A',                       prisma.shot.findFirst({ where: { shotNumber: '03A', scene: { projectId: p6.id } } }))
+  const p6MoodNight   = await mustFind('P6 moodboardRef Night Stars',       prisma.moodboardRef.findFirst({ where: { projectId: p6.id, title: { contains: 'Night Stars' } } }))
+  const p6AiPermit    = await mustFind('P6 actionItem Joshua Tree permit',  prisma.actionItem.findFirst({ where: { projectId: p6.id, title: { contains: 'Night location permit' } } }))
+
+  // ── P1 Threads (6) ──────────────────────────────────────────────────────
+
+  const t1 = await prisma.thread.create({ data: { projectId: p1.id, attachedToType: 'location', attachedToId: p1LocVilla.id,    createdBy: tylerHeckerman.id, createdAt: hoursAgo(3),  updatedAt: hoursAgo(3)  } })
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t1.id, createdBy: tylerHeckerman.id, createdAt: hoursAgo(3),   content: "Called Patricia at Villa Serena — she's asking if we can push load-in from 5am to 5:30am. Says neighbors complained last shoot. Manageable?" },
+    { threadId: t1.id, createdBy: tylerHeckerman.id, createdAt: hoursAgo(2.5), content: "Also confirming the 20-amp circuits are only east wing. Distro'll handle it but wanted you to know for placement." },
+  ]})
+
+  const t2 = await prisma.thread.create({ data: { projectId: p1.id, attachedToType: 'cast', attachedToId: p1tCamille.id, createdBy: veraHastings.id, createdAt: hoursAgo(6), updatedAt: hoursAgo(6) } })
+  await prisma.threadMessage.create({ data: {
+    threadId: t2.id, createdBy: veraHastings.id, createdAt: hoursAgo(6),
+    content: "Camille's team is asking about hair length for the bathroom scene — they want to trim 2 inches before shoot day. Said they'll hold unless you say otherwise.",
+  }})
+
+  const t3 = await prisma.thread.create({ data: { projectId: p1.id, attachedToType: 'shot', attachedToId: p1Shot03C.id, createdBy: clydeBessey.id, createdAt: daysAgo(2), updatedAt: daysAgo(2) } })
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t3.id, createdBy: clydeBessey.id,  createdAt: daysAgo(2),                                                   content: "Theo — for the final push-in on 03C, I want us on a slider not a dolly. The move needs to be mechanical, not emotional." },
+    { threadId: t3.id, createdBy: theoHartmann.id, createdAt: new Date(daysAgo(2).getTime() + 30 * 60 * 1000),              content: "On it. I'll set the slider up by the mirror before first light so we can rehearse with Camille." },
+    { threadId: t3.id, createdBy: clydeBessey.id,  createdAt: new Date(daysAgo(2).getTime() + 45 * 60 * 1000),              content: "Good. And let's not push past her eyes — hold on the reflection, not the face." },
+  ]})
+  await prisma.threadRead.create({ data: { threadId: t3.id, userId: clydeBessey.id, lastReadAt: daysAgo(1) } })
+
+  const t4 = await prisma.thread.create({ data: { projectId: p1.id, attachedToType: 'prop', attachedToId: p1PropSerum.id, createdBy: claireRenault.id, createdAt: daysAgo(1), updatedAt: daysAgo(1) } })
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t4.id, createdBy: claireRenault.id, createdAt: daysAgo(1),                                                   content: "Product arrives tomorrow. Brand is sending 6 units total — 4 hero, 2 backup. Want them all chilled for the glycerin drop shot?" },
+    { threadId: t4.id, createdBy: clydeBessey.id,   createdAt: new Date(daysAgo(1).getTime() + 20 * 60 * 1000),              content: "Chill all 6. Backup bottles for insert coverage in case we lose one." },
+  ]})
+  await prisma.threadRead.create({ data: { threadId: t4.id, userId: clydeBessey.id, lastReadAt: hoursAgo(20) } })
+
+  const t5 = await prisma.thread.create({ data: {
+    projectId: p1.id, attachedToType: 'milestone', attachedToId: p1MilestoneLS.id, createdBy: tylerHeckerman.id,
+    createdAt: daysAgo(6), updatedAt: daysAgo(3),
+    resolvedAt: daysAgo(3), resolvedBy: clydeBessey.id,
+  }})
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t5.id, createdBy: tylerHeckerman.id, createdAt: daysAgo(6),                                                  content: "Client approved Villa Serena and Milk Studios. Greystone still pending but I have Will Rogers as backup if it falls through." },
+    { threadId: t5.id, createdBy: clydeBessey.id,    createdAt: new Date(daysAgo(6).getTime() + 60 * 60 * 1000),             content: "Great. Let's not wait on Greystone past Wednesday — pivot to backup if we don't have paper." },
+    { threadId: t5.id, createdBy: tylerHeckerman.id, createdAt: new Date(daysAgo(6).getTime() + 90 * 60 * 1000),             content: "Understood. Deadline set internally." },
+  ]})
+
+  const t6 = await prisma.thread.create({ data: {
+    projectId: p1.id, attachedToType: 'actionItem', attachedToId: p1AiPermit.id, createdBy: tylerHeckerman.id,
+    createdAt: daysAgo(4), updatedAt: daysAgo(2),
+    resolvedAt: daysAgo(2), resolvedBy: clydeBessey.id,
+  }})
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t6.id, createdBy: tylerHeckerman.id, createdAt: daysAgo(4),                                                  content: "Insurance certificate delivered. Permit signed by estate owner. All paper done." },
+    { threadId: t6.id, createdBy: clydeBessey.id,    createdAt: new Date(daysAgo(4).getTime() + 15 * 60 * 1000),             content: "Clean. Thanks." },
+  ]})
+
+  // ── P2 Threads (5) ──────────────────────────────────────────────────────
+
+  const t7 = await prisma.thread.create({ data: { projectId: p2.id, attachedToType: 'shot', attachedToId: p2Shot02A.id, createdBy: daniReeves.id, createdAt: hoursAgo(2), updatedAt: hoursAgo(2) } })
+  await prisma.threadMessage.create({ data: {
+    threadId: t7.id, createdBy: daniReeves.id, createdAt: hoursAgo(2),
+    content: "Zoe wants a second take after the ridge crest — she says her eyeline was wrong on the first and she can nail it. Do we have time before we lose light?",
+  }})
+
+  const t8 = await prisma.thread.create({ data: { projectId: p2.id, attachedToType: 'location', attachedToId: p2LocRooftop.id, createdBy: tylerHeckerman.id, createdAt: hoursAgo(5), updatedAt: hoursAgo(4.5) } })
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t8.id, createdBy: tylerHeckerman.id, createdAt: hoursAgo(5),   content: "Derek at the building just flagged — freight elevator has a weight limit of 3000 lbs. We're borderline with the full grip package. Do we trim?" },
+    { threadId: t8.id, createdBy: tylerHeckerman.id, createdAt: hoursAgo(4.5), content: "Backup is Grand Park courts but we lose the skyline. Your call." },
+  ]})
+
+  const t9 = await prisma.thread.create({ data: { projectId: p2.id, attachedToType: 'workflowStage', attachedToId: p2wn2.id, createdBy: tylerGreen.id, createdAt: daysAgo(1), updatedAt: daysAgo(1) } })
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t9.id, createdBy: tylerGreen.id, createdAt: daysAgo(1),                                              content: "Day 1 proxies are done, on the shared drive. Started Day 2 ingest — will have proxies for your review by 8pm." },
+    { threadId: t9.id, createdBy: clydeBessey.id, createdAt: new Date(daysAgo(1).getTime() + 30 * 60 * 1000),        content: "Good. Let me know if any of the helmet cam footage has rolling shutter issues — I want to flag before we shoot Day 3." },
+    { threadId: t9.id, createdBy: tylerGreen.id, createdAt: new Date(daysAgo(1).getTime() + 45 * 60 * 1000),         content: "Will do. First pass looks clean so far." },
+  ]})
+  await prisma.threadRead.create({ data: { threadId: t9.id, userId: clydeBessey.id, lastReadAt: hoursAgo(18) } })
+
+  const t10 = await prisma.thread.create({ data: { projectId: p2.id, attachedToType: 'deliverable', attachedToId: p2DelivIG.id, createdBy: kellyPratt.id, createdAt: daysAgo(2), updatedAt: daysAgo(2) } })
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t10.id, createdBy: kellyPratt.id,  createdAt: daysAgo(2),                                             content: "Vanta's social lead asked if the 9:16 cut can feature all three athletes in one — not three separate cuts. Thoughts?" },
+    { threadId: t10.id, createdBy: clydeBessey.id, createdAt: new Date(daysAgo(2).getTime() + 60 * 60 * 1000),        content: "Yes. Make it a sequence — one athlete per 5 seconds. Build to the skate landing." },
+  ]})
+  await prisma.threadRead.create({ data: { threadId: t10.id, userId: clydeBessey.id, lastReadAt: daysAgo(1) } })
+
+  const t11 = await prisma.thread.create({ data: {
+    projectId: p2.id, attachedToType: 'actionItem', attachedToId: p2AiReleases.id, createdBy: kellyPratt.id,
+    createdAt: daysAgo(5), updatedAt: daysAgo(3),
+    resolvedAt: daysAgo(3), resolvedBy: clydeBessey.id,
+  }})
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t11.id, createdBy: kellyPratt.id,  createdAt: daysAgo(5),                                             content: "All three signed and filed. Marco's came in last — his agent wanted one extra clause on social usage." },
+    { threadId: t11.id, createdBy: clydeBessey.id, createdAt: new Date(daysAgo(5).getTime() + 30 * 60 * 1000),        content: "Good work. Let's proceed." },
+  ]})
+
+  // ── P3 Threads (4) ──────────────────────────────────────────────────────
+
+  // T12 creator: Dana Vance (per PR spec). Dana is on P6 crew, not P3 — flagged in report.
+  const t12 = await prisma.thread.create({ data: { projectId: p3.id, attachedToType: 'character', attachedToId: p3CharWine.id, createdBy: danaVance.id, createdAt: hoursAgo(4), updatedAt: hoursAgo(4) } })
+  await prisma.threadMessage.create({ data: {
+    threadId: t12.id, createdBy: danaVance.id, createdAt: hoursAgo(4),
+    content: "Reviewing Day 1 transcripts — Marcus talks less than we thought. Most of his answers are under 30 seconds. Is that working for you or do we push him more on Day 2?",
+  }})
+
+  const t13 = await prisma.thread.create({ data: { projectId: p3.id, attachedToType: 'location', attachedToId: p3LocCellar.id, createdBy: ryanCole.id, createdAt: daysAgo(1), updatedAt: daysAgo(1) } })
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t13.id, createdBy: ryanCole.id,    createdAt: daysAgo(1),                                              content: "Dan Moretti confirmed the cellar is ours from 10am. He wants us to use the loading dock entrance — NOT the main door, it disrupts the tasting room." },
+    { threadId: t13.id, createdBy: clydeBessey.id, createdAt: new Date(daysAgo(1).getTime() + 20 * 60 * 1000),         content: "Copy. Let's all come in through the dock. No exceptions." },
+  ]})
+  await prisma.threadRead.create({ data: { threadId: t13.id, userId: clydeBessey.id, lastReadAt: hoursAgo(16) } })
+
+  const t14 = await prisma.thread.create({ data: { projectId: p3.id, attachedToType: 'crew', attachedToId: owenBlakely.id, createdBy: owenBlakely.id, createdAt: daysAgo(2), updatedAt: daysAgo(2) } })
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t14.id, createdBy: owenBlakely.id, createdAt: daysAgo(2),                                              content: "For the cellar interview — I want to use natural light from the single window only, no fill. Darker than my Day 1 setup but truer to the space. OK to try?" },
+    { threadId: t14.id, createdBy: clydeBessey.id, createdAt: new Date(daysAgo(2).getTime() + 30 * 60 * 1000),         content: "Yes. If it's too dark we'll adjust but I want to see what that looks like first." },
+  ]})
+  await prisma.threadRead.create({ data: { threadId: t14.id, userId: clydeBessey.id, lastReadAt: daysAgo(1) } })
+
+  const t15 = await prisma.thread.create({ data: {
+    projectId: p3.id, attachedToType: 'milestone', attachedToId: p3MilestoneD1.id, createdBy: clydeBessey.id,
+    createdAt: daysAgo(7), updatedAt: daysAgo(4),
+    resolvedAt: daysAgo(4), resolvedBy: clydeBessey.id,
+  }})
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t15.id, createdBy: clydeBessey.id,    createdAt: daysAgo(7),                                           content: "Day 1 done. Paul was remarkable — we got the take on the dirt where he actually smells it and it lands. That's our anchor." },
+    { threadId: t15.id, createdBy: tylerHeckerman.id, createdAt: new Date(daysAgo(7).getTime() + 45 * 60 * 1000),      content: "Great day. Wrapped early enough to pre-light for Day 2." },
+  ]})
+
+  // ── P4 Threads (3) ──────────────────────────────────────────────────────
+
+  // T16 creator: Tyler Moss (per PR reassignment — Claire not on P4)
+  const t16 = await prisma.thread.create({ data: { projectId: p4.id, attachedToType: 'prop', attachedToId: p4PropBolster.id, createdBy: tylerMoss.id, createdAt: hoursAgo(8), updatedAt: hoursAgo(8) } })
+  await prisma.threadMessage.create({ data: {
+    threadId: t16.id, createdBy: tylerMoss.id, createdAt: hoursAgo(8),
+    content: "The linen bolster isn't in yet — vendor says 48 hours. Do we push the supine sequences to Day 2 or use a substitute?",
+  }})
+
+  const t17 = await prisma.thread.create({ data: { projectId: p4.id, attachedToType: 'shot', attachedToId: p4Shot02E.id, createdBy: alexDrum.id, createdAt: daysAgo(2), updatedAt: daysAgo(2) } })
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t17.id, createdBy: alexDrum.id,    createdAt: daysAgo(2),                                              content: "For the overhead — I want to rig directly above Kaia, not a jib arm. Cleaner, more meditative. Takes 45 min to set. OK for the schedule?" },
+    { threadId: t17.id, createdBy: clydeBessey.id, createdAt: new Date(daysAgo(2).getTime() + 25 * 60 * 1000),         content: "Yes. That's worth the time." },
+  ]})
+  await prisma.threadRead.create({ data: { threadId: t17.id, userId: clydeBessey.id, lastReadAt: daysAgo(1) } })
+
+  const t18 = await prisma.thread.create({ data: {
+    projectId: p4.id, attachedToType: 'cast', attachedToId: p4tKaia.id, createdBy: kellyPratt.id,
+    createdAt: daysAgo(6), updatedAt: daysAgo(3),
+    resolvedAt: daysAgo(3), resolvedBy: clydeBessey.id,
+  }})
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t18.id, createdBy: kellyPratt.id,  createdAt: daysAgo(6),                                              content: "Kaia approved the Episode 1 outline and the wardrobe direction. She's all in." },
+    { threadId: t18.id, createdBy: clydeBessey.id, createdAt: new Date(daysAgo(6).getTime() + 60 * 60 * 1000),         content: "Great. Let's lock prep for next week." },
+  ]})
+
+  // ── P5 Threads (3) ──────────────────────────────────────────────────────
+
+  const t19 = await prisma.thread.create({ data: { projectId: p5.id, attachedToType: 'workflowStage', attachedToId: p5wn2.id, createdBy: cleoStrand.id, createdAt: hoursAgo(9), updatedAt: hoursAgo(9) } })
+  await prisma.threadMessage.create({ data: {
+    threadId: t19.id, createdBy: cleoStrand.id, createdAt: hoursAgo(9),
+    content: "Style frames attached in the shared drive — pulled the blue from the Meridian brand palette, made the data streams translucent not solid. Want your eyes before I commit to full build.",
+  }})
+
+  const t20 = await prisma.thread.create({ data: { projectId: p5.id, attachedToType: 'deliverable', attachedToId: p5DelivHero.id, createdBy: rafiTorres.id, createdAt: daysAgo(3), updatedAt: daysAgo(3) } })
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t20.id, createdBy: rafiTorres.id,  createdAt: daysAgo(3),                                              content: "VO synced to timeline. Total runtime is 2:07 — seven seconds over. Where do I pull from?" },
+    { threadId: t20.id, createdBy: clydeBessey.id, createdAt: new Date(daysAgo(3).getTime() + 35 * 60 * 1000),         content: "Cut the second mention of 'every sensor every satellite every buoy' down to just 'every sensor.' That gets you the time." },
+    { threadId: t20.id, createdBy: rafiTorres.id,  createdAt: new Date(daysAgo(3).getTime() + 50 * 60 * 1000),         content: "On it." },
+  ]})
+  await prisma.threadRead.create({ data: { threadId: t20.id, userId: clydeBessey.id, lastReadAt: daysAgo(2) } })
+
+  const t21 = await prisma.thread.create({ data: {
+    projectId: p5.id, attachedToType: 'milestone', attachedToId: p5MilestoneVO.id, createdBy: rafiTorres.id,
+    createdAt: daysAgo(5), updatedAt: daysAgo(3),
+    resolvedAt: daysAgo(3), resolvedBy: clydeBessey.id,
+  }})
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t21.id, createdBy: rafiTorres.id,  createdAt: daysAgo(5),                                              content: "VO session done. James nailed the 'we have never understood it less' beat on take 2. Files uploaded." },
+    { threadId: t21.id, createdBy: clydeBessey.id, createdAt: new Date(daysAgo(5).getTime() + 20 * 60 * 1000),         content: "Perfect. Trust James." },
+  ]})
+
+  // ── P6 Threads (5) ──────────────────────────────────────────────────────
+
+  // T22: original spec asked for location "Joshua Tree, Night Ext" — that name exists only
+  // as an Entity row, not in the Location table. Re-attached to the matching milestone.
+  const t22 = await prisma.thread.create({ data: { projectId: p6.id, attachedToType: 'milestone', attachedToId: p6MilestoneJT.id, createdBy: tylerHeckerman.id, createdAt: hoursAgo(1.5), updatedAt: hoursAgo(1.5) } })
+  await prisma.threadMessage.create({ data: {
+    threadId: t22.id, createdBy: tylerHeckerman.id, createdAt: hoursAgo(1.5),
+    content: "NPS ranger just called — they want us off by 5am for sunrise tours. We had 6am. Tight but doable. Confirming with Caleb on shot order.",
+  }})
+
+  const t23 = await prisma.thread.create({ data: { projectId: p6.id, attachedToType: 'character', attachedToId: p6Eli.id, createdBy: danaVance.id, createdAt: hoursAgo(7), updatedAt: hoursAgo(7) } })
+  await prisma.threadMessage.create({ data: {
+    threadId: t23.id, createdBy: danaVance.id, createdAt: hoursAgo(7),
+    content: "Continuity note — Marcus's jacket in Scene 1 had a torn left pocket. On Day 3 tonight the pocket is intact (new jacket from wardrobe). Do we address or let it breathe?",
+  }})
+
+  const t24 = await prisma.thread.create({ data: { projectId: p6.id, attachedToType: 'shot', attachedToId: p6Shot03A.id, createdBy: calebStone.id, createdAt: daysAgo(1), updatedAt: daysAgo(1) } })
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t24.id, createdBy: calebStone.id,  createdAt: daysAgo(1),                                              content: "For 03A — I want to start tight on the sky and pull back to reveal them. Opposite of the script (which is wide down to medium). Feels more right for the reveal. Thoughts?" },
+    { threadId: t24.id, createdBy: clydeBessey.id, createdAt: new Date(daysAgo(1).getTime() + 30 * 60 * 1000),         content: "I'm open. Let's shoot both — script first, then your version. We'll decide in the edit." },
+    { threadId: t24.id, createdBy: calebStone.id,  createdAt: new Date(daysAgo(1).getTime() + 45 * 60 * 1000),         content: "Copy. Thanks for trusting the instinct." },
+  ]})
+  await prisma.threadRead.create({ data: { threadId: t24.id, userId: clydeBessey.id, lastReadAt: hoursAgo(22) } })
+
+  const t25 = await prisma.thread.create({ data: { projectId: p6.id, attachedToType: 'moodboardRef', attachedToId: p6MoodNight.id, createdBy: darioReyes.id, createdAt: daysAgo(2), updatedAt: daysAgo(2) } })
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t25.id, createdBy: darioReyes.id,  createdAt: daysAgo(2),                                              content: "Saw this moodboard ref — if we go full practical lanterns for the collision scene, we need 6 lanterns minimum for the full wide. We have 3. Can pick up more today." },
+    { threadId: t25.id, createdBy: clydeBessey.id, createdAt: new Date(daysAgo(2).getTime() + 40 * 60 * 1000),         content: "Get 6. I want the light to feel earned — no augmentation." },
+  ]})
+  await prisma.threadRead.create({ data: { threadId: t25.id, userId: clydeBessey.id, lastReadAt: daysAgo(1) } })
+
+  const t26 = await prisma.thread.create({ data: {
+    projectId: p6.id, attachedToType: 'actionItem', attachedToId: p6AiPermit.id, createdBy: tylerHeckerman.id,
+    createdAt: daysAgo(3), updatedAt: daysAgo(2),
+    resolvedAt: daysAgo(2), resolvedBy: clydeBessey.id,
+  }})
+  await prisma.threadMessage.createMany({ data: [
+    { threadId: t26.id, createdBy: tylerHeckerman.id, createdAt: daysAgo(3),                                           content: "Permit signed, on file. NPS is good with generator placement and lantern rig. We're clear for tonight." },
+    { threadId: t26.id, createdBy: clydeBessey.id,    createdAt: new Date(daysAgo(3).getTime() + 10 * 60 * 1000),      content: "Thank you." },
+  ]})
+
+  console.log('  Threads: 26 (9 unread, 10 read, 7 resolved)')
+
   // ── Final count ───────────────────────────────────────────────────────────
   const counts = {
     projects:          await prisma.project.count(),
@@ -1809,6 +2087,10 @@ FADE TO BLACK.`,
     deliverables:      await prisma.deliverable.count(),
     moodboardTabs:     await prisma.moodboardTab.count(),
     moodboardRefs:     await prisma.moodboardRef.count(),
+    threads:           await prisma.thread.count(),
+    threadMessages:    await prisma.threadMessage.count(),
+    threadReads:       await prisma.threadRead.count(),
+    resolvedThreads:   await prisma.thread.count({ where: { resolvedAt: { not: null } } }),
   }
 
   console.log('  ─────────────────────────────')
@@ -1830,6 +2112,10 @@ FADE TO BLACK.`,
   console.log(`  Deliverables:       ${counts.deliverables}`)
   console.log(`  MoodboardTabs:      ${counts.moodboardTabs}`)
   console.log(`  MoodboardRefs:      ${counts.moodboardRefs}`)
+  console.log(`  Threads:            ${counts.threads}`)
+  console.log(`  ThreadMessages:     ${counts.threadMessages}`)
+  console.log(`  ThreadReads:        ${counts.threadReads}`)
+  console.log(`  ResolvedThreads:    ${counts.resolvedThreads}`)
   console.log('  ─────────────────────────────')
   console.log('  Done.\n')
 }
