@@ -179,6 +179,10 @@ async function main() {
   const tylerHeckerman = await upsertCrew(team.id, 'Tyler Heckerman', 'producer')
   const kellyPratt     = await upsertCrew(team.id, 'Kelly Pratt',     'producer')
 
+  // ── Cross-project post crew (Post department works across multiple jobs) ──
+  const rafiTorres = await upsertCrew(team.id, 'Rafi Torres', 'crew')
+  const cleoStrand = await upsertCrew(team.id, 'Cleo Strand', 'crew')
+
   // ══════════════════════════════════════════════════════════════════════════
   // PROJECT 1 — SIMPLE SKIN PROMO
   // Client: Lumiере Skincare  Status: Pre-Production  Shoot in 7 days
@@ -353,6 +357,8 @@ FADE TO BLACK.`,
   await assignProjectCrew(p1.id, ariaStone.id,     'crew')
   await assignProjectCrew(p1.id, veraHastings.id,  'crew')
   await assignProjectCrew(p1.id, lenaFarrow.id,    'crew')
+  await assignProjectCrew(p1.id, rafiTorres.id,    'crew')
+  await assignProjectCrew(p1.id, cleoStrand.id,    'crew')
 
   // P1 — Milestones (13)
   await prisma.milestone.createMany({ data: [
@@ -425,6 +431,41 @@ FADE TO BLACK.`,
       notes: 'Film permit application submitted. $2,500/day fee. No vehicles past the gate — grip carts only. Rain date TBD.',
       sortOrder: 2,
     },
+  ]})
+
+  // P1 — Workflow nodes (6). Rafi Torres (offline/online) not in P1 crew — assignee null, flagged.
+  const p1wn1 = await prisma.workflowNode.create({ data: { projectId: p1.id, label: 'Camera Ingest',   type: 'ingest',   software: 'DaVinci Resolve',  assigneeId: theoHartmann.id, notes: 'RAW R3D from RED Komodo, proxies to ProRes 422 Proxy', sortOrder: 0 }})
+  const p1wn2 = await prisma.workflowNode.create({ data: { projectId: p1.id, label: 'Offline Edit',    type: 'edit',     software: 'Premiere Pro',     assigneeId: rafiTorres.id,   notes: 'Selects-driven cut, :60 and cutdowns simultaneous',     sortOrder: 1 }})
+  const p1wn3 = await prisma.workflowNode.create({ data: { projectId: p1.id, label: 'Color Grade',     type: 'color',    software: 'DaVinci Resolve',  assigneeId: null,            notes: 'Warm, skin-forward. Reference frames from director',    sortOrder: 2 }})
+  const p1wn4 = await prisma.workflowNode.create({ data: { projectId: p1.id, label: 'Sound Design',    type: 'sound',    software: 'Pro Tools',        assigneeId: null,            notes: 'ASMR product texture + subtle room tone',               sortOrder: 3 }})
+  const p1wn5 = await prisma.workflowNode.create({ data: { projectId: p1.id, label: 'Online / Conform',type: 'edit',     software: 'Premiere Pro',     assigneeId: rafiTorres.id,   notes: '',                                                       sortOrder: 4 }})
+  const p1wn6 = await prisma.workflowNode.create({ data: { projectId: p1.id, label: 'Final Delivery',  type: 'delivery', software: 'Compressor',       assigneeId: miaChen.id,      notes: '',                                                       sortOrder: 5 }})
+
+  // P1 — Workflow edges (5)
+  await prisma.workflowEdge.createMany({ data: [
+    { projectId: p1.id, sourceId: p1wn1.id, targetId: p1wn2.id, inputFormat: 'RAW R3D',                outputFormat: 'ProRes 422 Proxy',     format: 'Proxy' },
+    { projectId: p1.id, sourceId: p1wn2.id, targetId: p1wn3.id, inputFormat: 'ProRes 422 Proxy',       outputFormat: 'ProRes 4444 XQ',       format: 'Conform' },
+    { projectId: p1.id, sourceId: p1wn3.id, targetId: p1wn4.id, inputFormat: 'ProRes 4444',            outputFormat: 'ProRes 4444',          format: 'Reference mix' },
+    { projectId: p1.id, sourceId: p1wn4.id, targetId: p1wn5.id, inputFormat: 'Stems + ProRes 4444',    outputFormat: 'ProRes 4444 XQ',       format: 'AAF + Picture' },
+    { projectId: p1.id, sourceId: p1wn5.id, targetId: p1wn6.id, inputFormat: 'ProRes 4444 XQ',         outputFormat: 'H.264 + ProRes',       format: 'Master + Web' },
+  ]})
+
+  // P1 — Deliverables (4)
+  await prisma.deliverable.createMany({ data: [
+    { projectId: p1.id, title: 'Main Cut :60', length: '01:00', format: 'H.264', aspectRatio: '16:9', resolution: '3840x2160', colorSpace: 'Rec.709', soundSpecs: 'Stereo -14 LUFS', sortOrder: 0 },
+    { projectId: p1.id, title: ':30 Cutdown',  length: '00:30', format: 'H.264', aspectRatio: '16:9', resolution: '1920x1080', colorSpace: 'Rec.709', soundSpecs: 'Stereo -14 LUFS', sortOrder: 1 },
+    { projectId: p1.id, title: ':15 Cutdown',  length: '00:15', format: 'H.264', aspectRatio: '16:9', resolution: '1920x1080', colorSpace: 'Rec.709', soundSpecs: 'Stereo -14 LUFS', sortOrder: 2 },
+    { projectId: p1.id, title: '9:16 Social',  length: '00:30', format: 'H.264', aspectRatio: '9:16', resolution: '1080x1920', colorSpace: 'Rec.709', soundSpecs: 'Stereo -14 LUFS', sortOrder: 3 },
+  ]})
+
+  // P1 — Moodboard (1 tab, 5 refs)
+  const p1mbTab = await prisma.moodboardTab.create({ data: { projectId: p1.id, name: 'Tone & Light', sortOrder: 0 }})
+  await prisma.moodboardRef.createMany({ data: [
+    { projectId: p1.id, tabId: p1mbTab.id, title: 'Morning Ritual',         cat: 'tone',    note: 'The unhurried quality. Not luxury as excess — luxury as attention.', sortOrder: 0 },
+    { projectId: p1.id, tabId: p1mbTab.id, title: 'Bathroom Light Study',   cat: 'visual',  note: 'Soft window light through frosted glass. White marble reflecting warm.', sortOrder: 1 },
+    { projectId: p1.id, tabId: p1mbTab.id, title: 'Skin as Landscape',      cat: 'visual',  note: 'Textural close-ups. Not cosmetic — topographic.',                       sortOrder: 2 },
+    { projectId: p1.id, tabId: p1mbTab.id, title: 'Hero Product Beauty',    cat: 'product', note: 'Amber bottle on marble. Backlit. Glycerin water drops.',                sortOrder: 3 },
+    { projectId: p1.id, tabId: p1mbTab.id, title: 'Ambient Reference',      cat: 'music',   note: 'Nils Frahm — Says. Soft piano, breath-adjacent.',                       sortOrder: 4 },
   ]})
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -649,6 +690,41 @@ CUT TO BLACK.`,
       notes: 'Scouted Apr 8. Access via freight elevator. Weight limit 3,000 lbs for gear. Backup: Grand Park courts.',
       sortOrder: 2,
     },
+  ]})
+
+  // P2 — Workflow nodes (6)
+  const p2wn1 = await prisma.workflowNode.create({ data: { projectId: p2.id, label: 'Camera Ingest',    type: 'ingest',   software: 'DaVinci Resolve', assigneeId: daniReeves.id, notes: 'Multi-cam action rigs, helmet + chest + drone', sortOrder: 0 }})
+  const p2wn2 = await prisma.workflowNode.create({ data: { projectId: p2.id, label: 'Proxy Transcode', type: 'ingest',   software: 'DaVinci Resolve', assigneeId: tylerGreen.id, notes: 'ProRes 422 Proxy for field review',             sortOrder: 1 }})
+  const p2wn3 = await prisma.workflowNode.create({ data: { projectId: p2.id, label: 'Offline Edit',    type: 'edit',     software: 'Premiere Pro',    assigneeId: null,          notes: 'Three athletes, three locations — one :60 spot', sortOrder: 2 }})
+  const p2wn4 = await prisma.workflowNode.create({ data: { projectId: p2.id, label: 'Color Grade',     type: 'color',    software: 'DaVinci Resolve', assigneeId: null,          notes: 'Saturated, high contrast. Sport energy.',        sortOrder: 3 }})
+  const p2wn5 = await prisma.workflowNode.create({ data: { projectId: p2.id, label: 'Sound Design',    type: 'sound',    software: 'Pro Tools',       assigneeId: null,          notes: 'Real audio from mounts + SFX + music bed',       sortOrder: 4 }})
+  const p2wn6 = await prisma.workflowNode.create({ data: { projectId: p2.id, label: 'Final Delivery',  type: 'delivery', software: 'Compressor',      assigneeId: null,          notes: '',                                                sortOrder: 5 }})
+
+  // P2 — Workflow edges (5)
+  await prisma.workflowEdge.createMany({ data: [
+    { projectId: p2.id, sourceId: p2wn1.id, targetId: p2wn2.id, inputFormat: 'RAW RED',           outputFormat: 'ProRes Proxy',    format: 'Proxy' },
+    { projectId: p2.id, sourceId: p2wn2.id, targetId: p2wn3.id, inputFormat: 'ProRes Proxy',      outputFormat: 'ProRes Proxy',    format: 'Offline' },
+    { projectId: p2.id, sourceId: p2wn3.id, targetId: p2wn4.id, inputFormat: 'ProRes Proxy',      outputFormat: 'ProRes 4444',     format: 'Conform' },
+    { projectId: p2.id, sourceId: p2wn4.id, targetId: p2wn5.id, inputFormat: 'ProRes 4444',       outputFormat: 'ProRes 4444',     format: 'AAF + Picture' },
+    { projectId: p2.id, sourceId: p2wn5.id, targetId: p2wn6.id, inputFormat: 'Stems + ProRes',    outputFormat: 'H.264 Master',    format: 'Master + Web' },
+  ]})
+
+  // P2 — Deliverables (4)
+  await prisma.deliverable.createMany({ data: [
+    { projectId: p2.id, title: 'Main :60',              length: '01:00', format: 'H.264',           aspectRatio: '16:9', resolution: '3840x2160', colorSpace: 'Rec.709',        soundSpecs: 'Stereo -14 LUFS',      sortOrder: 0 },
+    { projectId: p2.id, title: ':30 Social Cutdown',    length: '00:30', format: 'H.264',           aspectRatio: '16:9', resolution: '1920x1080', colorSpace: 'Rec.709',        soundSpecs: 'Stereo -14 LUFS',      sortOrder: 1 },
+    { projectId: p2.id, title: ':15 IG Reel (9:16)',    length: '00:15', format: 'H.264',           aspectRatio: '9:16', resolution: '1080x1920', colorSpace: 'Rec.709',        soundSpecs: 'Stereo -16 LUFS',      sortOrder: 2 },
+    { projectId: p2.id, title: 'Archive Master',        length: '01:00', format: 'ProRes 4444 XQ',  aspectRatio: '16:9', resolution: '4096x2160', colorSpace: 'Rec.709 + P3 D65', soundSpecs: '5.1 Mix + Stereo',    sortOrder: 3 },
+  ]})
+
+  // P2 — Moodboard (1 tab, 5 refs)
+  const p2mbTab = await prisma.moodboardTab.create({ data: { projectId: p2.id, name: 'Energy & Edge', sortOrder: 0 }})
+  await prisma.moodboardRef.createMany({ data: [
+    { projectId: p2.id, tabId: p2mbTab.id, title: 'First Light, First Drop', cat: 'tone',    note: 'Pre-dawn. The quiet before the commitment.',                         sortOrder: 0 },
+    { projectId: p2.id, tabId: p2mbTab.id, title: 'Speed Streaks',            cat: 'visual',  note: 'Motion blur close-ups. Water, asphalt, ridge dust.',                 sortOrder: 1 },
+    { projectId: p2.id, tabId: p2mbTab.id, title: 'Vanta Hero Unit',          cat: 'product', note: 'Matte black body. Lens element dominant. Never a banner shot.',     sortOrder: 2 },
+    { projectId: p2.id, tabId: p2mbTab.id, title: 'POV Immersion',            cat: 'visual',  note: "Chest mount. Board nose. Helmet cam. The athlete's eye first.",     sortOrder: 3 },
+    { projectId: p2.id, tabId: p2mbTab.id, title: 'Score Reference',          cat: 'music',   note: 'Nosaj Thing — Us. Electronic, propulsive, restrained.',             sortOrder: 4 },
   ]})
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -880,6 +956,42 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
 
   console.log('  P3: + 3 locations')
 
+  // P3 — Workflow nodes (7)
+  const p3wn1 = await prisma.workflowNode.create({ data: { projectId: p3.id, label: 'Camera Ingest',    type: 'ingest',   software: 'DaVinci Resolve', assigneeId: owenBlakely.id, notes: 'Doc coverage — multi-cam verité',                        sortOrder: 0 }})
+  const p3wn2 = await prisma.workflowNode.create({ data: { projectId: p3.id, label: 'Transcription',   type: 'other',    software: 'Descript',        assigneeId: kellyPratt.id,  notes: 'All interview dialogue transcribed for paper edit',      sortOrder: 1 }})
+  const p3wn3 = await prisma.workflowNode.create({ data: { projectId: p3.id, label: 'Offline Edit',    type: 'edit',     software: 'Premiere Pro',    assigneeId: null,           notes: 'Story-driven cut from transcripts. Pilot length ~12 min.', sortOrder: 2 }})
+  const p3wn4 = await prisma.workflowNode.create({ data: { projectId: p3.id, label: 'Color Grade',     type: 'color',    software: 'DaVinci Resolve', assigneeId: null,           notes: 'Documentary naturalism. Preserve natural vineyard light.', sortOrder: 3 }})
+  const p3wn5 = await prisma.workflowNode.create({ data: { projectId: p3.id, label: 'Sound Mix',       type: 'sound',    software: 'Pro Tools',       assigneeId: null,           notes: 'Dialog-forward. Nat sound support. Minimal music.',       sortOrder: 4 }})
+  const p3wn6 = await prisma.workflowNode.create({ data: { projectId: p3.id, label: 'Online / Conform',type: 'edit',     software: 'Premiere Pro',    assigneeId: null,           notes: '',                                                         sortOrder: 5 }})
+  const p3wn7 = await prisma.workflowNode.create({ data: { projectId: p3.id, label: 'Final Delivery',  type: 'delivery', software: 'Compressor',      assigneeId: null,           notes: '',                                                         sortOrder: 6 }})
+
+  // P3 — Workflow edges (6)
+  await prisma.workflowEdge.createMany({ data: [
+    { projectId: p3.id, sourceId: p3wn1.id, targetId: p3wn2.id, inputFormat: 'ProRes 422 HQ',              outputFormat: 'Text transcript + timecode', format: 'Transcript' },
+    { projectId: p3.id, sourceId: p3wn2.id, targetId: p3wn3.id, inputFormat: 'Text transcript + timecode', outputFormat: 'ProRes 422 HQ',              format: 'Paper Edit' },
+    { projectId: p3.id, sourceId: p3wn3.id, targetId: p3wn4.id, inputFormat: 'ProRes 422 HQ',              outputFormat: 'ProRes 4444',                format: 'Conform' },
+    { projectId: p3.id, sourceId: p3wn4.id, targetId: p3wn5.id, inputFormat: 'ProRes 4444',                outputFormat: 'ProRes 4444',                format: 'AAF + Picture' },
+    { projectId: p3.id, sourceId: p3wn5.id, targetId: p3wn6.id, inputFormat: 'Stems + ProRes 4444',        outputFormat: 'ProRes 4444 XQ',             format: 'Online' },
+    { projectId: p3.id, sourceId: p3wn6.id, targetId: p3wn7.id, inputFormat: 'ProRes 4444 XQ',             outputFormat: 'H.264 + Archive Master',     format: 'Master + Web' },
+  ]})
+
+  // P3 — Deliverables (3)
+  await prisma.deliverable.createMany({ data: [
+    { projectId: p3.id, title: 'Pilot Master',    length: '12:00', format: 'ProRes 422 HQ', aspectRatio: '16:9', resolution: '3840x2160', colorSpace: 'Rec.709', soundSpecs: 'Stereo + 5.1 Mix',  sortOrder: 0 },
+    { projectId: p3.id, title: 'Series Trailer',  length: '02:30', format: 'H.264',         aspectRatio: '16:9', resolution: '3840x2160', colorSpace: 'Rec.709', soundSpecs: 'Stereo -16 LUFS',  sortOrder: 1 },
+    { projectId: p3.id, title: 'Social Teaser',   length: '01:00', format: 'H.264',         aspectRatio: '1:1',  resolution: '1080x1080', colorSpace: 'Rec.709', soundSpecs: 'Stereo -16 LUFS',  sortOrder: 2 },
+  ]})
+
+  // P3 — Moodboard (1 tab, 5 refs)
+  const p3mbTab = await prisma.moodboardTab.create({ data: { projectId: p3.id, name: 'The Land Speaks', sortOrder: 0 }})
+  await prisma.moodboardRef.createMany({ data: [
+    { projectId: p3.id, tabId: p3mbTab.id, title: 'Golden Hour Vineyard',  cat: 'tone',   note: 'The hour where the light joins the subject matter. Warmth without sentimentality.', sortOrder: 0 },
+    { projectId: p3.id, tabId: p3mbTab.id, title: 'Barrel Cellar Dark',    cat: 'visual', note: 'Available light only. Windows as single-source. Faces partially in shadow.',       sortOrder: 1 },
+    { projectId: p3.id, tabId: p3mbTab.id, title: 'Hands in Soil',         cat: 'visual', note: 'Tactile close-ups. The land as character.',                                         sortOrder: 2 },
+    { projectId: p3.id, tabId: p3mbTab.id, title: 'Valley Road Movement',  cat: 'visual', note: 'Car as confessional. Dashboard POV. Side window landscape.',                        sortOrder: 3 },
+    { projectId: p3.id, tabId: p3mbTab.id, title: 'Spare Score',           cat: 'music',  note: 'Max Richter — On the Nature of Daylight. Pulled back, never leading.',              sortOrder: 4 },
+  ]})
+
   // ══════════════════════════════════════════════════════════════════════════
   // PROJECT 4 — FLEXIBILITY COURSE A
   // Client: Kaia Mori  Status: Pre-Production  Episode 1 of 6
@@ -1110,14 +1222,43 @@ END EPISODE 1.`,
     },
   ]})
 
+  // P4 — Workflow nodes (5)
+  const p4wn1 = await prisma.workflowNode.create({ data: { projectId: p4.id, label: 'Camera Ingest',   type: 'ingest',   software: 'DaVinci Resolve', assigneeId: alexDrum.id, notes: 'Multi-cam studio + exterior B-cam',                        sortOrder: 0 }})
+  const p4wn2 = await prisma.workflowNode.create({ data: { projectId: p4.id, label: 'Offline Edit',   type: 'edit',     software: 'Premiere Pro',    assigneeId: null,        notes: 'Instructional flow — cut for clarity not drama',           sortOrder: 1 }})
+  const p4wn3 = await prisma.workflowNode.create({ data: { projectId: p4.id, label: 'Color Grade',    type: 'color',    software: 'DaVinci Resolve', assigneeId: null,        notes: 'Clean daylight. Skin accurate. Studio white = true white.', sortOrder: 2 }})
+  const p4wn4 = await prisma.workflowNode.create({ data: { projectId: p4.id, label: 'Sound Mix',      type: 'sound',    software: 'Pro Tools',       assigneeId: null,        notes: 'Dialog clarity priority. Subtle ambient layer.',           sortOrder: 3 }})
+  const p4wn5 = await prisma.workflowNode.create({ data: { projectId: p4.id, label: 'Final Delivery', type: 'delivery', software: 'Compressor',      assigneeId: null,        notes: 'Multi-episode master template',                           sortOrder: 4 }})
+
+  // P4 — Workflow edges (4)
+  await prisma.workflowEdge.createMany({ data: [
+    { projectId: p4.id, sourceId: p4wn1.id, targetId: p4wn2.id, inputFormat: 'ProRes 422 HQ',        outputFormat: 'ProRes 422 HQ',   format: 'Offline' },
+    { projectId: p4.id, sourceId: p4wn2.id, targetId: p4wn3.id, inputFormat: 'ProRes 422 HQ',        outputFormat: 'ProRes 4444',     format: 'Conform' },
+    { projectId: p4.id, sourceId: p4wn3.id, targetId: p4wn4.id, inputFormat: 'ProRes 4444',          outputFormat: 'ProRes 4444',     format: 'AAF + Picture' },
+    { projectId: p4.id, sourceId: p4wn4.id, targetId: p4wn5.id, inputFormat: 'Stems + ProRes 4444',  outputFormat: 'H.264 Master',    format: 'Master + Web' },
+  ]})
+
+  // P4 — Deliverables (3)
+  await prisma.deliverable.createMany({ data: [
+    { projectId: p4.id, title: 'Episode 1 Master', length: '20:00', format: 'H.264', aspectRatio: '16:9', resolution: '3840x2160', colorSpace: 'Rec.709', soundSpecs: 'Stereo -14 LUFS', sortOrder: 0 },
+    { projectId: p4.id, title: 'Course Trailer',   length: '00:30', format: 'H.264', aspectRatio: '16:9', resolution: '1920x1080', colorSpace: 'Rec.709', soundSpecs: 'Stereo -14 LUFS', sortOrder: 1 },
+    { projectId: p4.id, title: 'Social Cutdown',   length: '00:45', format: 'H.264', aspectRatio: '9:16', resolution: '1080x1920', colorSpace: 'Rec.709', soundSpecs: 'Stereo -16 LUFS', sortOrder: 2 },
+  ]})
+
+  // P4 — Moodboard (1 tab, 4 refs)
+  const p4mbTab = await prisma.moodboardTab.create({ data: { projectId: p4.id, name: 'Stillness & Practice', sortOrder: 0 }})
+  await prisma.moodboardRef.createMany({ data: [
+    { projectId: p4.id, tabId: p4mbTab.id, title: 'White Cyc Studio',         cat: 'visual',  note: 'The practice space as a clean stage. No distraction. Full attention on the body.', sortOrder: 0 },
+    { projectId: p4.id, tabId: p4mbTab.id, title: 'Bare Feet, Real Ground',   cat: 'visual',  note: 'Interior/exterior bridge. The pose placed in the world.',                          sortOrder: 1 },
+    { projectId: p4.id, tabId: p4mbTab.id, title: 'Kaia — Signature Tone',    cat: 'product', note: 'Muted sage, charcoal. Never fashion — always practice.',                           sortOrder: 2 },
+    { projectId: p4.id, tabId: p4mbTab.id, title: 'Breath as Pacing',         cat: 'music',   note: 'Ólafur Arnalds — Near Light. Space for the instruction to land.',                  sortOrder: 3 },
+  ]})
+
   // ══════════════════════════════════════════════════════════════════════════
   // PROJECT 5 — NATURAL ORDER
   // Client: Meridian Climate  Status: Post-Production  Post-only sizzle
   // 3 sequences  14 elements  4 team
   // ══════════════════════════════════════════════════════════════════════════
 
-  const rafiTorres = await upsertCrew(team.id, 'Rafi Torres', 'crew')
-  const cleoStrand = await upsertCrew(team.id, 'Cleo Strand', 'crew')
   const jamesNorth = await upsertCrew(team.id, 'James North', 'crew')
   const sarahOsei  = await upsertCrew(team.id, 'Sarah Osei',  'crew')
 
@@ -1284,6 +1425,40 @@ FADE TO BLACK.`,
   // ── P5 Locations ────────────────────────────────────────────────────────
   await prisma.location.createMany({ data: [
     { projectId: p5.id, name: 'Westside Post — Suite 4', address: '1432 2nd St, Santa Monica, CA 90401', status: 'booked', approved: true, description: 'Dedicated edit suite with 5.1 monitoring and Resolve grading bay. Booked for two-week finishing window.', keyContact: 'Lena Marsh — Facility Manager', shootDates: 'Apr 14–25', sceneTab: 'Post', sortOrder: 1 },
+  ]})
+
+  // P5 — Workflow nodes (6)
+  const p5wn1 = await prisma.workflowNode.create({ data: { projectId: p5.id, label: 'VO Sync',         type: 'ingest',   software: 'Pro Tools',                  assigneeId: rafiTorres.id, notes: 'James North VO recorded remote, synced to timeline', sortOrder: 0 }})
+  const p5wn2 = await prisma.workflowNode.create({ data: { projectId: p5.id, label: 'GFX Build',       type: 'vfx',      software: 'Cinema 4D + After Effects',  assigneeId: cleoStrand.id, notes: 'Full piece — no live action',                         sortOrder: 1 }})
+  const p5wn3 = await prisma.workflowNode.create({ data: { projectId: p5.id, label: 'Offline Edit',    type: 'edit',     software: 'Premiere Pro',               assigneeId: rafiTorres.id, notes: 'VO-driven cut + stock + GFX',                        sortOrder: 2 }})
+  const p5wn4 = await prisma.workflowNode.create({ data: { projectId: p5.id, label: 'Color Grade',     type: 'color',    software: 'DaVinci Resolve',            assigneeId: null,          notes: 'Data-viz precision. Clean highs, deep blues.',        sortOrder: 3 }})
+  const p5wn5 = await prisma.workflowNode.create({ data: { projectId: p5.id, label: 'Sound Mix',       type: 'sound',    software: 'Pro Tools',                  assigneeId: null,          notes: 'VO + music bed + subtle FX',                          sortOrder: 4 }})
+  const p5wn6 = await prisma.workflowNode.create({ data: { projectId: p5.id, label: 'Final Delivery',  type: 'delivery', software: 'Compressor',                 assigneeId: null,          notes: '',                                                     sortOrder: 5 }})
+
+  // P5 — Workflow edges (5)
+  await prisma.workflowEdge.createMany({ data: [
+    { projectId: p5.id, sourceId: p5wn1.id, targetId: p5wn3.id, inputFormat: 'VO WAV',                   outputFormat: 'Synced VO',           format: 'VO Sync' },
+    { projectId: p5.id, sourceId: p5wn2.id, targetId: p5wn3.id, inputFormat: 'Animated sequences (EXR)', outputFormat: 'ProRes 4444',         format: 'GFX Plates' },
+    { projectId: p5.id, sourceId: p5wn3.id, targetId: p5wn4.id, inputFormat: 'ProRes 4444',              outputFormat: 'ProRes 4444 XQ',      format: 'Conform' },
+    { projectId: p5.id, sourceId: p5wn4.id, targetId: p5wn5.id, inputFormat: 'ProRes 4444 XQ',           outputFormat: 'ProRes 4444 XQ',      format: 'AAF + Picture' },
+    { projectId: p5.id, sourceId: p5wn5.id, targetId: p5wn6.id, inputFormat: 'Stems + ProRes 4444 XQ',   outputFormat: 'H.264 Master',        format: 'Master + Web' },
+  ]})
+
+  // P5 — Deliverables (3)
+  await prisma.deliverable.createMany({ data: [
+    { projectId: p5.id, title: 'Hero Film',           length: '02:00', format: 'H.264',           aspectRatio: '16:9', resolution: '3840x2160', colorSpace: 'Rec.709',         soundSpecs: 'Stereo -14 LUFS',    sortOrder: 0 },
+    { projectId: p5.id, title: 'Social :30 Cutdown',  length: '00:30', format: 'H.264',           aspectRatio: '1:1',  resolution: '1080x1080', colorSpace: 'Rec.709',         soundSpecs: 'Stereo -16 LUFS',    sortOrder: 1 },
+    { projectId: p5.id, title: 'Archive Master',      length: '02:00', format: 'ProRes 4444 XQ',  aspectRatio: '16:9', resolution: '4096x2160', colorSpace: 'Rec.709 + P3 D65', soundSpecs: '5.1 + Stereo Mix',  sortOrder: 2 },
+  ]})
+
+  // P5 — Moodboard (1 tab, 5 refs)
+  const p5mbTab = await prisma.moodboardTab.create({ data: { projectId: p5.id, name: 'Data as Landscape', sortOrder: 0 }})
+  await prisma.moodboardRef.createMany({ data: [
+    { projectId: p5.id, tabId: p5mbTab.id, title: 'The Problem — Scale',       cat: 'tone',    note: 'Ocean aerials. Vastness before resolution.',                             sortOrder: 0 },
+    { projectId: p5.id, tabId: p5mbTab.id, title: 'Sensor Networks',           cat: 'visual',  note: 'Abstract particle flows resolving into structure.',                      sortOrder: 1 },
+    { projectId: p5.id, tabId: p5mbTab.id, title: 'Meridian Platform UI',      cat: 'product', note: 'The product visual. Clean, legible, authoritative.',                    sortOrder: 2 },
+    { projectId: p5.id, tabId: p5mbTab.id, title: 'Unified Signal Moment',     cat: 'visual',  note: 'The resolution shot — scattered data becoming one readable picture.',   sortOrder: 3 },
+    { projectId: p5.id, tabId: p5mbTab.id, title: 'Score Reference',           cat: 'music',   note: 'Jóhann Jóhannsson — Flight From the City. Patient. Earned.',              sortOrder: 4 },
   ]})
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1573,6 +1748,47 @@ FADE TO BLACK.`,
     { projectId: p6.id, name: 'Underground Parking — Bunker Hill', address: '333 S Hope St, Los Angeles, CA 90071', status: 'scouting', approved: false, description: 'Subterranean parking structure, fluorescent lighting, deep shadows. Potential chase sequence location.', keyContact: 'Property mgmt contacted — awaiting response', shootDates: 'TBD', sceneTab: 'INT', sortOrder: 4 },
   ]})
 
+  // P6 — Workflow nodes (9)
+  const p6wn1 = await prisma.workflowNode.create({ data: { projectId: p6.id, label: 'Camera Ingest',    type: 'ingest',   software: 'DaVinci Resolve',      assigneeId: calebStone.id, notes: 'ARRI Alexa Mini LF, multi-cam',                                sortOrder: 0 }})
+  const p6wn2 = await prisma.workflowNode.create({ data: { projectId: p6.id, label: 'Dailies',          type: 'ingest',   software: 'DaVinci Resolve',      assigneeId: mayaLin.id,    notes: 'Same-day proxy delivery for director review',                  sortOrder: 1 }})
+  const p6wn3 = await prisma.workflowNode.create({ data: { projectId: p6.id, label: 'Offline Edit',     type: 'edit',     software: 'Avid Media Composer',  assigneeId: null,          notes: 'Feature assembly. Sundance target.',                           sortOrder: 2 }})
+  const p6wn4 = await prisma.workflowNode.create({ data: { projectId: p6.id, label: 'VFX',              type: 'vfx',      software: 'Nuke',                 assigneeId: null,          notes: 'Night sky enhancement, seamless compositing for collision scene', sortOrder: 3 }})
+  const p6wn5 = await prisma.workflowNode.create({ data: { projectId: p6.id, label: 'Color Grade',      type: 'color',    software: 'DaVinci Resolve',      assigneeId: null,          notes: 'Cinematic filmic. Deep shadows, protected highlights.',        sortOrder: 4 }})
+  const p6wn6 = await prisma.workflowNode.create({ data: { projectId: p6.id, label: 'Sound Design',     type: 'sound',    software: 'Pro Tools',            assigneeId: null,          notes: 'Desert wind, night ambience — immersive bed',                  sortOrder: 5 }})
+  const p6wn7 = await prisma.workflowNode.create({ data: { projectId: p6.id, label: 'Sound Mix',        type: 'sound',    software: 'Pro Tools',            assigneeId: null,          notes: '5.1 theatrical + stereo downmix',                              sortOrder: 6 }})
+  const p6wn8 = await prisma.workflowNode.create({ data: { projectId: p6.id, label: 'Online / Conform', type: 'edit',     software: 'DaVinci Resolve',      assigneeId: null,          notes: 'Picture lock conform + final grade match',                     sortOrder: 7 }})
+  const p6wn9 = await prisma.workflowNode.create({ data: { projectId: p6.id, label: 'Final Delivery',   type: 'delivery', software: 'DCP-o-matic',          assigneeId: null,          notes: 'DCP + digital deliverables',                                    sortOrder: 8 }})
+
+  // P6 — Workflow edges (8)
+  await prisma.workflowEdge.createMany({ data: [
+    { projectId: p6.id, sourceId: p6wn1.id, targetId: p6wn2.id, inputFormat: 'ARRIRAW',                   outputFormat: 'ProRes Proxy',                 format: 'Dailies' },
+    { projectId: p6.id, sourceId: p6wn2.id, targetId: p6wn3.id, inputFormat: 'ProRes Proxy',              outputFormat: 'AAF + Picture',                format: 'Offline' },
+    { projectId: p6.id, sourceId: p6wn3.id, targetId: p6wn4.id, inputFormat: 'AAF + Picture',             outputFormat: 'EXR plates + Nuke scripts',    format: 'VFX Pull' },
+    { projectId: p6.id, sourceId: p6wn4.id, targetId: p6wn5.id, inputFormat: 'EXR plates + Nuke scripts', outputFormat: 'ProRes 4444 XQ',               format: 'VFX Comps' },
+    { projectId: p6.id, sourceId: p6wn5.id, targetId: p6wn6.id, inputFormat: 'ProRes 4444 XQ',            outputFormat: 'Pro Tools session',            format: 'Sound Design' },
+    { projectId: p6.id, sourceId: p6wn6.id, targetId: p6wn7.id, inputFormat: 'Pro Tools session',         outputFormat: 'Printmaster + stems',          format: 'Mix' },
+    { projectId: p6.id, sourceId: p6wn7.id, targetId: p6wn8.id, inputFormat: 'Printmaster + stems',       outputFormat: 'ProRes 4444 XQ',               format: 'Online' },
+    { projectId: p6.id, sourceId: p6wn8.id, targetId: p6wn9.id, inputFormat: 'ProRes 4444 XQ',            outputFormat: 'DCP + H.264',                  format: 'Master + Web' },
+  ]})
+
+  // P6 — Deliverables (3)
+  await prisma.deliverable.createMany({ data: [
+    { projectId: p6.id, title: 'Feature DCP',      length: '87:00', format: 'DCP',   aspectRatio: '2.39:1', resolution: '4096x1716', colorSpace: "X'Y'Z' (DCI-P3)", soundSpecs: '5.1 Surround Mix',  sortOrder: 0 },
+    { projectId: p6.id, title: 'Festival Trailer', length: '02:00', format: 'H.264', aspectRatio: '2.39:1', resolution: '3840x1608', colorSpace: 'Rec.709',          soundSpecs: 'Stereo -14 LUFS',  sortOrder: 1 },
+    { projectId: p6.id, title: 'Social Cutdown',   length: '01:30', format: 'H.264', aspectRatio: '16:9',   resolution: '1920x1080', colorSpace: 'Rec.709',          soundSpecs: 'Stereo -16 LUFS',  sortOrder: 2 },
+  ]})
+
+  // P6 — Moodboard (1 tab, 6 refs)
+  const p6mbTab = await prisma.moodboardTab.create({ data: { projectId: p6.id, name: 'FRACTURE — The Weave', sortOrder: 0 }})
+  await prisma.moodboardRef.createMany({ data: [
+    { projectId: p6.id, tabId: p6mbTab.id, title: 'Apogee',                cat: 'tone',   note: 'The farthest point from everything. Solitude as state, not circumstance.', sortOrder: 0 },
+    { projectId: p6.id, tabId: p6mbTab.id, title: 'The Mirror Structure',  cat: 'tone',   note: 'Eli and Mara — same scene, different earth. Everything rhymes.',          sortOrder: 1 },
+    { projectId: p6.id, tabId: p6mbTab.id, title: 'Night Stars — Mojave',  cat: 'visual', note: 'Natural starlight. Practical lanterns only. The sky as third character.', sortOrder: 2 },
+    { projectId: p6.id, tabId: p6mbTab.id, title: 'Wardrobe Texture',      cat: 'visual', note: 'Weathered linen, dusty denim. Lived-in, never styled.',                   sortOrder: 3 },
+    { projectId: p6.id, tabId: p6mbTab.id, title: 'Score Reference',       cat: 'music',  note: 'Bobby Krlic — Midsommar. Spare, unsettling beauty.',                      sortOrder: 4 },
+    { projectId: p6.id, tabId: p6mbTab.id, title: 'FRACTURE Universe',     cat: 'tone',   note: 'Part of the B Story FRACTURE multiverse. Threads weave into larger work.', sortOrder: 5 },
+  ]})
+
   // ── Final count ───────────────────────────────────────────────────────────
   const counts = {
     projects:          await prisma.project.count(),
@@ -1588,6 +1804,11 @@ FADE TO BLACK.`,
     locations:         await prisma.location.count(),
     talents:           await prisma.talent.count(),
     talentAssignments: await prisma.talentAssignment.count(),
+    workflowNodes:     await prisma.workflowNode.count(),
+    workflowEdges:     await prisma.workflowEdge.count(),
+    deliverables:      await prisma.deliverable.count(),
+    moodboardTabs:     await prisma.moodboardTab.count(),
+    moodboardRefs:     await prisma.moodboardRef.count(),
   }
 
   console.log('  ─────────────────────────────')
@@ -1604,6 +1825,11 @@ FADE TO BLACK.`,
   console.log(`  Locations:          ${counts.locations}`)
   console.log(`  Talents:            ${counts.talents}`)
   console.log(`  TalentAssignments:  ${counts.talentAssignments}`)
+  console.log(`  WorkflowNodes:      ${counts.workflowNodes}`)
+  console.log(`  WorkflowEdges:      ${counts.workflowEdges}`)
+  console.log(`  Deliverables:       ${counts.deliverables}`)
+  console.log(`  MoodboardTabs:      ${counts.moodboardTabs}`)
+  console.log(`  MoodboardRefs:      ${counts.moodboardRefs}`)
   console.log('  ─────────────────────────────')
   console.log('  Done.\n')
 }
