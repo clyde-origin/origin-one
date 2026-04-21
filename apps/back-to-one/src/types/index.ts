@@ -24,7 +24,7 @@ export type SceneMakerMode = 'script' | 'shotlist' | 'storyboard'
 
 export type ShotOrderMode = 'story' | 'shooting'
 
-export type LocationStatus = 'booked' | 'in_talks' | 'scouting' | 'no_contact'
+export type LocationStatus = 'unscouted' | 'scouting' | 'in_talks' | 'confirmed' | 'passed'
 
 export type CastStatus = 'Uncast' | 'Hold' | 'Confirmed'
 

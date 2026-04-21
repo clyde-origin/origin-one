@@ -396,16 +396,18 @@ FADE TO BLACK.`,
     { projectId: p1.id, title: 'Insurance certificate delivered to estate owner', assignedTo: tylerHeckerman.id, dueDate: new Date('2026-04-12'), status: 'in_progress' },
   ]})
 
-  // P1 — Locations (3)
+  // P1 — Locations (3 confirmed + 2 lifecycle examples)
+  const p1EntBelAir = await prisma.entity.findFirst({ where: { projectId: p1.id, type: 'location', name: 'Bel Air Estate' } })
   await prisma.location.createMany({ data: [
     {
       projectId: p1.id,
+      entityId: p1EntBelAir?.id ?? null,
       name: 'Villa Serena — Bel Air Estate',
       description: 'Mediterranean-revival estate with infinity pool, marble terraces, and golden hour light through floor-to-ceiling windows. Hero location for the talent walk-through and product reveal.',
       address: '1240 Bel Air Rd, Los Angeles, CA 90077',
       keyContact: 'Patricia Hahn — Estate Rep — (310) 555-0188',
       shootDates: 'Apr 14–15',
-      status: 'booked',
+      status: 'confirmed',
       approved: true,
       notes: 'Load-in via service entrance on Copa de Oro. 20-amp circuits in east wing only — bring distro. Pool must be camera-ready by 6am call.',
       sortOrder: 0,
@@ -417,7 +419,7 @@ FADE TO BLACK.`,
       address: '1200 E 8th St, Los Angeles, CA 90021',
       keyContact: 'Studio bookings — (213) 555-0230',
       shootDates: 'Apr 16',
-      status: 'booked',
+      status: 'confirmed',
       approved: true,
       notes: '12-hour hold confirmed. Makeup and talent holding in Suite B. Product samples arrive morning of.',
       sortOrder: 1,
@@ -433,6 +435,33 @@ FADE TO BLACK.`,
       approved: false,
       notes: 'Film permit application submitted. $2,500/day fee. No vehicles past the gate — grip carts only. Rain date TBD.',
       sortOrder: 2,
+    },
+    // Lifecycle examples — scouting alternative + passed, paired to Bel Air Estate entity
+    {
+      projectId: p1.id,
+      entityId: p1EntBelAir?.id ?? null,
+      name: 'Holmby Hills Villa (Option)',
+      description: 'Secondary candidate for Bel Air Estate scenes. Mediterranean aesthetic, smaller footprint but available mid-week.',
+      address: 'Holmby Hills, Los Angeles (exact address withheld)',
+      keyContact: 'Scout referral — Patricia Hahn',
+      shootDates: 'TBD',
+      status: 'scouting',
+      approved: false,
+      notes: 'Walk-through scheduled Apr 13. Rate negotiable if we can move our dates.',
+      sortOrder: 3,
+    },
+    {
+      projectId: p1.id,
+      entityId: p1EntBelAir?.id ?? null,
+      name: 'Pasadena Craftsman Estate (Passed)',
+      description: 'Scouted early — architecture was wrong for the brand tone. Too warm, too specific.',
+      address: 'Pasadena, CA',
+      keyContact: 'Owner — declined to negotiate',
+      shootDates: 'n/a',
+      status: 'passed',
+      approved: false,
+      notes: 'Passed Apr 6. Architecture mismatch. Kept on file as reference for future projects.',
+      sortOrder: 4,
     },
   ]})
 
@@ -664,7 +693,7 @@ CUT TO BLACK.`,
       address: '1800 Ocean Front Walk, Venice, CA 90291',
       keyContact: 'LA Parks Film Unit — (213) 555-0310',
       shootDates: 'Apr 10 (completed)',
-      status: 'booked',
+      status: 'confirmed',
       approved: true,
       notes: 'Permit #F-2026-4410. Dawn patrol — exclusive access 5:30–8:30am before public opens. Talent: Kai Reeves.',
       sortOrder: 0,
@@ -676,7 +705,7 @@ CUT TO BLACK.`,
       address: 'Turnbull Canyon Rd, Whittier, CA 90601',
       keyContact: 'Puente Hills Preserve — (562) 555-0177',
       shootDates: 'Apr 11 (completed)',
-      status: 'booked',
+      status: 'confirmed',
       approved: true,
       notes: 'Drone FAA waiver approved. Trail closed to public 6–10am. Medic on standby — steep terrain.',
       sortOrder: 1,
@@ -691,6 +720,7 @@ CUT TO BLACK.`,
       status: 'scouting',
       approved: false,
       notes: 'Scouted Apr 8. Access via freight elevator. Weight limit 3,000 lbs for gear. Backup: Grand Park courts.',
+      // Note: no matching Entity(type=location) in seed — names differ from script locations
       sortOrder: 2,
     },
   ]})
@@ -914,16 +944,20 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
     { projectId: p3.id, title: 'Archival wine footage licensing',                  assignedTo: tylerHeckerman.id, dueDate: new Date('2026-04-18'), status: 'open' },
   ]})
 
-  // P3 — Locations (3)
+  // P3 — Locations (3) — pair to matching Entity(type='location') rows where names align
+  const p3EntOakville = await prisma.entity.findFirst({ where: { projectId: p3.id, type: 'location', name: 'Oakville Vineyard Estate' } })
+  const p3EntCellar   = await prisma.entity.findFirst({ where: { projectId: p3.id, type: 'location', name: 'St. Helena Barrel Cellar' } })
+  const p3EntRoad     = await prisma.entity.findFirst({ where: { projectId: p3.id, type: 'location', name: 'Napa Valley Road' } })
   await prisma.location.createMany({ data: [
     {
       projectId: p3.id,
+      entityId: p3EntOakville?.id ?? null,
       name: 'Oakville Estate Vineyard',
       description: 'Heritage vineyard with century-old vines. Main interview location for Day 1. Golden hour light through the rows.',
       address: '7801 St. Helena Hwy, Oakville, CA 94562',
       keyContact: 'Margaret Hess — Estate Manager — (707) 555-0142',
       shootDates: 'Apr 10 (completed)',
-      status: 'booked',
+      status: 'confirmed',
       approved: true,
       notes: 'Gate code: 4418. Park in the gravel lot past the barn. No drones without 48h notice.',
       sceneTab: 'The Vine',
@@ -931,12 +965,13 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
     },
     {
       projectId: p3.id,
+      entityId: p3EntCellar?.id ?? null,
       name: 'St. Helena Barrel Cellar',
       description: 'Underground barrel aging room. Low ceilings, dramatic side light from small windows. Interview with the winemaker here.',
       address: '1220 Adams St, St. Helena, CA 94574',
       keyContact: 'Dan Moretti — Head Winemaker — (707) 555-0287',
       shootDates: 'Apr 11 (today)',
-      status: 'booked',
+      status: 'confirmed',
       approved: true,
       notes: 'Temperature controlled — no hot lights. LED panels only. Access via loading dock on Adams St.',
       sceneTab: 'The Cellar',
@@ -944,6 +979,7 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
     },
     {
       projectId: p3.id,
+      entityId: p3EntRoad?.id ?? null,
       name: 'Silverado Trail Vista Point',
       description: 'Elevated overlook with panoramic valley views. Final driving sequence and closing shots.',
       address: 'Silverado Trail, near Deer Park Rd, Napa, CA',
@@ -1194,7 +1230,7 @@ END EPISODE 1.`,
       address: '4521 York Blvd, Suite 200, Los Angeles, CA 90042',
       keyContact: 'Kaia Mori — (323) 555-0198',
       shootDates: 'Apr 20–21',
-      status: 'booked',
+      status: 'confirmed',
       approved: true,
       notes: 'Studio holds 8 people max including crew. No shoes past the threshold. Temperature must stay at 72°F for talent comfort.',
       sortOrder: 0,
@@ -1206,7 +1242,7 @@ END EPISODE 1.`,
       address: 'Point Dume State Beach, Malibu, CA 90265',
       keyContact: 'CA State Parks — Permit desk — (818) 555-0290',
       shootDates: 'Apr 22',
-      status: 'booked',
+      status: 'confirmed',
       approved: true,
       notes: 'Film permit #SP-26-0414. Call time 5:15am for sunrise at 6:12am. Talent warming area in parking lot. No generator — battery power only.',
       sortOrder: 1,
@@ -1427,7 +1463,7 @@ FADE TO BLACK.`,
 
   // ── P5 Locations ────────────────────────────────────────────────────────
   await prisma.location.createMany({ data: [
-    { projectId: p5.id, name: 'Westside Post — Suite 4', address: '1432 2nd St, Santa Monica, CA 90401', status: 'booked', approved: true, description: 'Dedicated edit suite with 5.1 monitoring and Resolve grading bay. Booked for two-week finishing window.', keyContact: 'Lena Marsh — Facility Manager', shootDates: 'Apr 14–25', sceneTab: 'Post', sortOrder: 1 },
+    { projectId: p5.id, name: 'Westside Post — Suite 4', address: '1432 2nd St, Santa Monica, CA 90401', status: 'confirmed', approved: true, description: 'Dedicated edit suite with 5.1 monitoring and Resolve grading bay. Booked for two-week finishing window.', keyContact: 'Lena Marsh — Facility Manager', shootDates: 'Apr 14–25', sceneTab: 'Post', sortOrder: 1 },
   ]})
 
   // P5 — Workflow nodes (6)
@@ -1528,11 +1564,9 @@ FADE TO BLACK.`,
     { sceneId: p6s3.id, shotNumber: '03F', size: 'wide',            status: 'in_progress', sortOrder: 6, description: 'Camera pulls back slowly. Two figures, one frame, stars expanding above them. The film ends here.' },
   ]})
 
-  await prisma.entity.createMany({ data: [
-    { projectId: p6.id, type: 'location',  name: 'Desert Flats, Mojave',   description: 'Day 1 location. Eli sequences. Done.' },
-    { projectId: p6.id, type: 'location',  name: 'Ravine, Malibu Creek',   description: 'Day 2 location. Mara sequences. Done.' },
-    { projectId: p6.id, type: 'location',  name: 'Joshua Tree, Night Ext', description: 'Day 3 location. Collision scene. Tonight — call time 7PM.' },
-  ]})
+  const p6EntDesert = await prisma.entity.create({ data: { projectId: p6.id, type: 'location', name: 'Desert Flats',        description: 'Scene 1 script location — open flats. Eli sequences.' } })
+  const p6EntRavine = await prisma.entity.create({ data: { projectId: p6.id, type: 'location', name: 'Ravine Edge',         description: 'Scene 2 script location — canyon ravine. Mara sequences.' } })
+  const p6EntJT     = await prisma.entity.create({ data: { projectId: p6.id, type: 'location', name: 'Joshua Tree — Night', description: 'Scene 3 script location — night desert. Collision scene.' } })
   const p6Eli      = await prisma.entity.create({ data: { projectId: p6.id, type: 'character', name: 'Eli',          description: 'Solitary, desert archetype. Lead.' } })
   const p6Mara     = await prisma.entity.create({ data: { projectId: p6.id, type: 'character', name: 'Mara',         description: 'Mirror character, ravine edge. Lead.' } })
   const p6Stranger = await prisma.entity.create({ data: { projectId: p6.id, type: 'character', name: 'The Stranger', description: 'Appears Scene 3. Catalyst.' } })
@@ -1744,11 +1778,12 @@ FADE TO BLACK.`,
   ]})
 
   // ── P6 Locations ────────────────────────────────────────────────────────
+  // Replaced the prior "Industrial Warehouse" entries (never matched the script)
+  // with three script-accurate physical locations, one per scene.
   await prisma.location.createMany({ data: [
-    { projectId: p6.id, name: 'Industrial Warehouse — Vernon', address: '2801 E Vernon Ave, Vernon, CA 90058', status: 'booked', approved: true, description: 'Raw concrete interior, 30-ft ceilings, loading dock. Dressed as the Fracture workshop. Days 1–2 primary.', keyContact: 'Tony Gutierrez — Owner', shootDates: 'Apr 11–12', sceneTab: 'INT', sortOrder: 1 },
-    { projectId: p6.id, name: 'City Street — 6th & Spring', address: '600 S Spring St, Los Angeles, CA 90014', status: 'booked', approved: true, description: 'DTLA night exterior. Wet-down permitted. Film LA permit locked for overnight Apr 13 22:00–05:00.', keyContact: 'Film LA — Permit #FL-26-4481', shootDates: 'Apr 13 (overnight)', sceneTab: 'EXT Night', sortOrder: 2 },
-    { projectId: p6.id, name: 'Brutalist Apartment — Crenshaw', address: '3450 W 43rd Pl, Los Angeles, CA 90008', status: 'in_talks', approved: false, description: 'Mid-century brutalist exterior and stairwell. Backup for protagonist apartment block. Owner interested, rate TBD.', keyContact: 'Diana Kwon — Building Manager', shootDates: 'TBD', sceneTab: 'EXT', sortOrder: 3 },
-    { projectId: p6.id, name: 'Underground Parking — Bunker Hill', address: '333 S Hope St, Los Angeles, CA 90071', status: 'scouting', approved: false, description: 'Subterranean parking structure, fluorescent lighting, deep shadows. Potential chase sequence location.', keyContact: 'Property mgmt contacted — awaiting response', shootDates: 'TBD', sceneTab: 'INT', sortOrder: 4 },
+    { projectId: p6.id, entityId: p6EntDesert.id, name: 'Mojave Desert — open flats',         address: 'Mojave, CA (dispersed BLM use area)',       status: 'confirmed', approved: true, description: 'Flat pale scrubland. Scene 1 "Apogee — Eli". Wide horizons, aerial access, no structure in frame.', keyContact: 'BLM Barstow Field Office — (760) 555-0211', shootDates: 'Apr 9 (completed)',  sceneTab: 'EXT Day',   sortOrder: 0 },
+    { projectId: p6.id, entityId: p6EntRavine.id, name: 'Malibu Creek State Park — ravine edge', address: '1925 Las Virgenes Rd, Calabasas, CA 91302', status: 'confirmed', approved: true, description: 'Sandstone ravine above Malibu Creek. Scene 2 "The Edge — Mara". Cliffside staging with approved safety setback.', keyContact: 'CA State Parks Film Unit — (818) 555-0290', shootDates: 'Apr 10 (completed)', sceneTab: 'EXT Day',   sortOrder: 1 },
+    { projectId: p6.id, entityId: p6EntJT.id,     name: 'Joshua Tree National Park — night stars', address: 'Joshua Tree National Park, CA 92277',    status: 'confirmed', approved: true, description: 'Night desert under full stars. Scene 3 "Collision". NPS film permit — cold-light only, no generator lights on the skyline.', keyContact: 'NPS Film Unit — JT — (760) 555-0362',      shootDates: 'Apr 11 (tonight, call 7PM)', sceneTab: 'EXT Night', sortOrder: 2 },
   ]})
 
   // P6 — Workflow nodes (9)

@@ -97,6 +97,14 @@ enum MoodCategory {
   music
 }
 
+enum LocationStatus {
+  unscouted
+  scouting
+  in_talks
+  confirmed
+  passed
+}
+
 // ─── Core identity and membership ────────────────────────────────────────────
 
 model User {
@@ -240,6 +248,7 @@ model Entity {
 
   project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   assignments TalentAssignment[]
+  locations   Location[]
 }
 
 // Shotlist snapshot versions. RLS-enabled (managed outside Prisma).
@@ -396,24 +405,26 @@ model MoodboardRef {
 // ─── Locations ───────────────────────────────────────────────────────────────
 
 model Location {
-  id          String   @id @default(dbgenerated("gen_random_uuid()"))
+  id          String         @id @default(dbgenerated("gen_random_uuid()"))
   projectId   String
+  entityId    String?
   name        String
   description String?
   address     String?
   keyContact  String?
   webLink     String?
   shootDates  String?
-  status      String   @default("no_contact")
-  approved    Boolean  @default(false)
+  status      LocationStatus @default(unscouted)
+  approved    Boolean        @default(false)
   notes       String?
   imageUrl    String?
   sceneTab    String?
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  sortOrder   Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  entity  Entity? @relation(fields: [entityId], references: [id])
 }
 
 // ─── Folders & Resources ─────────────────────────────────────────────────────
