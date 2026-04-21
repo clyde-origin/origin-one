@@ -8,6 +8,10 @@ import { FAB } from '@/components/ui/FAB'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
+import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
+import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
+import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
+import type { ThreadAttachmentType } from '@/types'
 
 // ── Types ───────────────────────────────────────────────
 
@@ -67,7 +71,7 @@ function ArtStatusBadge({ status }: { status: ArtStatus }) {
 
 // ── Art Item Card ───────────────────────────────────────
 
-function ArtItemCard({ item, accent, onTap }: { item: ArtEntity; accent: string; onTap: () => void }) {
+function ArtItemCard({ item, accent, onTap, threadEntry }: { item: ArtEntity; accent: string; onTap: () => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
   const status = getStatus(item)
   const imgUrl = item.metadata?.imageUrl
   const tags = item.metadata?.tags ?? []
@@ -76,6 +80,7 @@ function ArtItemCard({ item, accent, onTap }: { item: ArtEntity; accent: string;
     <div
       className="flex cursor-pointer active:opacity-90 transition-opacity"
       style={{
+        position: 'relative',
         gap: 14, padding: 12, borderRadius: 16,
         background: 'rgba(255,255,255,0.03)',
         border: '1px solid rgba(255,255,255,0.06)',
@@ -135,6 +140,8 @@ function ArtItemCard({ item, accent, onTap }: { item: ArtEntity; accent: string;
       <div style={{ flexShrink: 0 }}>
         <ArtStatusBadge status={status} />
       </div>
+
+      <ThreadRowBadge entry={threadEntry} />
     </div>
   )
 }
@@ -174,6 +181,19 @@ function ArtDetailSheet({
   }, [item])
 
   const imgUrl = item?.metadata?.imageUrl
+
+  // Art tabs are Entity records with type ∈ {prop, wardrobe, hmu}. Use the
+  // Entity type as the canonical attachment type so prop threads posted here
+  // unify with EntityDrawer's props tab for the same Entity id.
+  const threadAttachType: ThreadAttachmentType = item
+    ? (item.type as ThreadAttachmentType)
+    : 'prop'
+  const { TriggerIcon, PreviewRow, MessageZone, StartSheetOverlay } = useDetailSheetThreads({
+    projectId,
+    attachedToType: threadAttachType,
+    attachedToId: !isCreate && item ? item.id : null,
+    subjectLabel: item?.name ?? '',
+  })
 
   function handleSave() {
     if (!name.trim()) return
@@ -244,12 +264,15 @@ function ArtDetailSheet({
         <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#fff' }}>
           {isCreate ? 'New Item' : item?.name ?? 'Item Detail'}
         </span>
-        <span
-          style={{ fontSize: '0.78rem', fontWeight: 600, color: accent, cursor: 'pointer' }}
-          onClick={handleSave}
-        >
-          Done
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {!isCreate && TriggerIcon}
+          <span
+            style={{ fontSize: '0.78rem', fontWeight: 600, color: accent, cursor: 'pointer' }}
+            onClick={handleSave}
+          >
+            Done
+          </span>
+        </div>
       </div>
 
       {/* Hero image */}
@@ -365,6 +388,10 @@ function ArtDetailSheet({
           }}>Delete Item</button>
         )}
       </div>
+
+      {!isCreate && PreviewRow}
+      {!isCreate && MessageZone}
+      {StartSheetOverlay}
     </>
   )
 }
@@ -409,6 +436,8 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
   const [showCreate, setShowCreate] = useState(false)
 
   const tabItems = allItems.filter(i => i.type === activeTab)
+  // activeTab is a ThreadAttachmentType-compatible string (prop | wardrobe | hmu)
+  const threadByItemId = useThreadsByEntity(projectId, activeTab as ThreadAttachmentType)
 
   // Counts for the section label
   const confirmed = tabItems.filter(i => getStatus(i) === 'confirmed').length
@@ -501,6 +530,7 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
                   item={item}
                   accent={accent}
                   onTap={() => { haptic('light'); setSelected(item) }}
+                  threadEntry={threadByItemId.get(item.id)}
                 />
               ))}
             </div>

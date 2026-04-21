@@ -5,21 +5,31 @@ import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getEntities, createEntity, updateEntity, getLocations, createLocation, updateLocation } from '@/lib/db/queries'
 import { haptic } from '@/lib/utils/haptics'
+import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
+import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
+import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
+import type { ThreadAttachmentType } from '@/types'
 
 // ── Entity type colors (from reference spec) ────────────
-const ENTITY_COLORS = {
+export const ENTITY_COLORS = {
   characters: { base: '#67E8F9', bg: 'rgba(103,232,249,0.13)', border: 'rgba(103,232,249,0.28)', bgLight: 'rgba(103,232,249,0.1)' },
   locations:  { base: '#A78BFA', bg: 'rgba(167,139,250,0.13)', border: 'rgba(167,139,250,0.28)', bgLight: 'rgba(167,139,250,0.1)' },
   props:      { base: '#FCD34D', bg: 'rgba(252,211,77,0.10)',   border: 'rgba(252,211,77,0.22)',  bgLight: 'rgba(252,211,77,0.08)' },
 } as const
 
-type EntityType = 'characters' | 'locations' | 'props'
+export type EntityType = 'characters' | 'locations' | 'props'
 
-interface EntityItem {
+export interface EntityItem {
   id: string
   name: string
   description: string | null
   imageUrl: string | null
+}
+
+export function getEntityInitials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return name.slice(0, 2).toUpperCase()
 }
 
 // ── Shared spring transition ────────────────────────────
@@ -37,6 +47,14 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
   const colors = ENTITY_COLORS[type]
   const [editingEntity, setEditingEntity] = useState<EntityItem | null>(null)
   const [creating, setCreating] = useState(false)
+
+  // Tile-level badges. Keys match the rest of the app:
+  //   characters → Entity.id   (unified w/ Casting character dropdown)
+  //   props      → Entity.id   (unified w/ Art page)
+  //   locations  → Location.id (unified w/ Locations page — production record)
+  const tileThreadType: ThreadAttachmentType =
+    type === 'characters' ? 'character' : type === 'locations' ? 'location' : 'prop'
+  const threadByTileId = useThreadsByEntity(projectId, tileThreadType)
 
   // Close detail sheet when drawer closes
   useEffect(() => {
@@ -167,20 +185,25 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
                 {items.map(item => (
                   <div key={item.id} className="flex flex-col items-center flex-shrink-0 cursor-pointer" style={{ gap: 7 }}
                     onClick={() => { haptic('light'); setEditingEntity(item) }}>
-                    {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.name} style={{
-                        width: 56, height: 56, borderRadius: '50%', objectFit: 'cover',
-                        border: `1.5px solid ${colors.border}`,
-                      }} />
-                    ) : (
-                      <div className="flex items-center justify-center" style={{
-                        width: 56, height: 56, borderRadius: '50%',
-                        background: colors.bg, border: `1.5px solid ${colors.border}`,
-                        color: colors.base, fontSize: 18, fontWeight: 700,
-                      }}>
-                        {getInitials(item.name)}
-                      </div>
-                    )}
+                    {/* Relative wrapper on the circle only — keeps the -6/-6 badge
+                        anchored to the avatar edge, not under the label below. */}
+                    <div style={{ position: 'relative' }}>
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} alt={item.name} style={{
+                          width: 56, height: 56, borderRadius: '50%', objectFit: 'cover',
+                          border: `1.5px solid ${colors.border}`,
+                        }} />
+                      ) : (
+                        <div className="flex items-center justify-center" style={{
+                          width: 56, height: 56, borderRadius: '50%',
+                          background: colors.bg, border: `1.5px solid ${colors.border}`,
+                          color: colors.base, fontSize: 18, fontWeight: 700,
+                        }}>
+                          {getInitials(item.name)}
+                        </div>
+                      )}
+                      <ThreadRowBadge entry={threadByTileId.get(item.id)} />
+                    </div>
                     <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', maxWidth: 64, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {item.name.split(/\s+/)[0]}
                     </span>
@@ -205,6 +228,7 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
             {(creating || editingEntity) && (
               <EntityDetailSheet
                 type={type}
+                projectId={projectId}
                 colors={colors}
                 label={label}
                 entity={editingEntity}
@@ -222,8 +246,18 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
 
 // ── DETAIL SHEET (create / edit) ────────────────────────
 
-function EntityDetailSheet({ type, colors, label, entity, onSave, onClose, getInitials }: {
+// Maps drawer type → canonical thread attachment type. Using the same type and
+// the Entity / Location id ensures a thread posted here shows up on the same
+// record in Casting / Locations / Art — one record, one conversation.
+const THREAD_TYPE_FOR: Record<EntityType, ThreadAttachmentType> = {
+  characters: 'character',
+  locations: 'location',
+  props: 'prop',
+}
+
+export function EntityDetailSheet({ type, projectId, colors, label, entity, onSave, onClose, getInitials }: {
   type: EntityType
+  projectId: string
   colors: typeof ENTITY_COLORS[EntityType]
   label: string
   entity: EntityItem | null
@@ -235,6 +269,13 @@ function EntityDetailSheet({ type, colors, label, entity, onSave, onClose, getIn
   const [name, setName] = useState(entity?.name ?? '')
   const [description, setDescription] = useState(entity?.description ?? '')
   const nameRef = useRef<HTMLInputElement>(null)
+
+  const { TriggerIcon, PreviewRow, MessageZone, StartSheetOverlay } = useDetailSheetThreads({
+    projectId,
+    attachedToType: THREAD_TYPE_FOR[type],
+    attachedToId: entity?.id ?? null,
+    subjectLabel: entity?.name ?? '',
+  })
 
   useEffect(() => {
     // Autofocus name field on create
@@ -292,13 +333,16 @@ function EntityDetailSheet({ type, colors, label, entity, onSave, onClose, getIn
             <span className="font-mono uppercase" style={{ fontSize: '0.62rem', letterSpacing: '0.15em', color: 'rgba(255,255,255,0.35)' }}>
               {isEdit ? singularLabel : `New ${singularLabel}`}
             </span>
-            <button className="cursor-pointer" style={{
-              fontSize: 14, fontWeight: 600, padding: '6px 18px', borderRadius: 20,
-              background: colors.bgLight, border: `1px solid ${colors.border}`, color: colors.base,
-            }}
-              onClick={handleSubmit}>
-              {isEdit ? 'Done' : 'Save'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {isEdit && TriggerIcon}
+              <button className="cursor-pointer" style={{
+                fontSize: 14, fontWeight: 600, padding: '6px 18px', borderRadius: 20,
+                background: colors.bgLight, border: `1px solid ${colors.border}`, color: colors.base,
+              }}
+                onClick={handleSubmit}>
+                {isEdit ? 'Done' : 'Save'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -388,6 +432,10 @@ function EntityDetailSheet({ type, colors, label, entity, onSave, onClose, getIn
             </div>
           )}
         </div>
+
+        {isEdit && PreviewRow}
+        {isEdit && MessageZone}
+        {StartSheetOverlay}
       </motion.div>
     </>
   )

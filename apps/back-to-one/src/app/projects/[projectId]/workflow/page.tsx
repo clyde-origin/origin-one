@@ -25,6 +25,9 @@ import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { initials } from '@/lib/utils/formatting'
+import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
+import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
+import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 
 // ── Type colors ────────────────────────────────────────────
 
@@ -62,9 +65,10 @@ function stableColor(s: string) {
 // ── Node Card ──────────────────────────────────────────────
 
 function NodeCard({
-  node, crew, onTap, onAssign,
+  node, crew, onTap, onAssign, threadEntry,
 }: {
   node: any; crew: any[]; onTap: (n: any) => void; onAssign: (n: any) => void
+  threadEntry: ThreadRowBadgeEntry | undefined
 }) {
   const person = node.assigneeId
     ? crew.find((m: any) => m.userId === node.assigneeId || m.User?.id === node.assigneeId)
@@ -74,6 +78,7 @@ function NodeCard({
   return (
     <div
       style={{
+        position: 'relative',
         width: '100%', background: 'rgba(255,255,255,0.03)',
         border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16,
         padding: '12px 14px', cursor: 'pointer', transition: 'background 0.15s',
@@ -127,6 +132,7 @@ function NodeCard({
           {node.software}
         </div>
       )}
+      <ThreadRowBadge entry={threadEntry} />
     </div>
   )
 }
@@ -248,13 +254,14 @@ function Connector({
 
 // ── Deliverable Row ────────────────────────────────────────
 
-function DeliverableRow({ del, onTap }: { del: any; onTap: (d: any) => void }) {
+function DeliverableRow({ del, onTap, threadEntry }: { del: any; onTap: (d: any) => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
   const specs1 = [del.format, del.resolution, del.aspectRatio].filter(Boolean).join(' · ')
   const specs2 = [del.colorSpace, del.soundSpecs].filter(Boolean).join(' · ')
 
   return (
     <div
       style={{
+        position: 'relative',
         display: 'flex', alignItems: 'center', gap: 12,
         padding: '10px 12px', borderRadius: 12,
         background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
@@ -281,6 +288,7 @@ function DeliverableRow({ del, onTap }: { del: any; onTap: (d: any) => void }) {
         {del.length || '—'}
       </div>
       <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.13)', flexShrink: 0 }}>›</div>
+      <ThreadRowBadge entry={threadEntry} />
     </div>
   )
 }
@@ -288,10 +296,17 @@ function DeliverableRow({ del, onTap }: { del: any; onTap: (d: any) => void }) {
 // ── Node Detail Sheet ──────────────────────────────────────
 
 function NodeDetailSheet({
-  node, crew, accent, onClose, onSave, onDelete, onAssign,
+  node, crew, accent, projectId, onClose, onSave, onDelete, onAssign,
 }: {
-  node: any; crew: any[]; accent: string; onClose: () => void; onSave: (id: string, fields: any) => void; onDelete: (id: string) => void; onAssign: (n: any) => void
+  node: any; crew: any[]; accent: string; projectId: string; onClose: () => void; onSave: (id: string, fields: any) => void; onDelete: (id: string) => void; onAssign: (n: any) => void
 }) {
+  const { TriggerIcon, PreviewRow, MessageZone, StartSheetOverlay } = useDetailSheetThreads({
+    projectId,
+    attachedToType: 'workflowStage',
+    attachedToId: node?.id ?? null,
+    subjectLabel: node?.label ?? '',
+  })
+
   if (!node) return null
   const [type, setType] = useState<string>(node.type)
   const labelRef = useRef<HTMLInputElement>(null)
@@ -309,7 +324,11 @@ function NodeDetailSheet({
 
   return (
     <>
-      <SheetHeader title="Edit Node" onClose={() => { save(); onClose() }} />
+      <SheetHeader
+        title="Edit Node"
+        onClose={() => { save(); onClose() }}
+        action={TriggerIcon}
+      />
       <SheetBody>
         {/* Type selector */}
         <div style={{ marginBottom: 16 }}>
@@ -420,6 +439,9 @@ function NodeDetailSheet({
           )}
         </div>
 
+        {PreviewRow}
+        {MessageZone}
+
         {/* Delete */}
         <div
           onClick={() => { onDelete(node.id); onClose() }}
@@ -433,6 +455,7 @@ function NodeDetailSheet({
           Remove Node
         </div>
       </SheetBody>
+      {StartSheetOverlay}
     </>
   )
 }
@@ -578,10 +601,18 @@ function CreateNodeSheet({
 // ── Deliverable Detail Sheet ───────────────────────────────
 
 function DeliverableDetailSheet({
-  del, accent, onClose, onSave, onDelete, isNew,
+  del, accent, projectId, onClose, onSave, onDelete, isNew,
 }: {
-  del: any; accent: string; onClose: () => void; onSave: (id: string | null, fields: any) => void; onDelete?: (id: string) => void; isNew?: boolean
+  del: any; accent: string; projectId: string; onClose: () => void; onSave: (id: string | null, fields: any) => void; onDelete?: (id: string) => void; isNew?: boolean
 }) {
+  const { TriggerIcon, PreviewRow, MessageZone, StartSheetOverlay } = useDetailSheetThreads({
+    projectId,
+    attachedToType: 'deliverable',
+    // When isNew the deliverable doesn't exist yet — null disables the trigger
+    // icon. Same pattern used for uncast cast rows.
+    attachedToId: del?.id ?? null,
+    subjectLabel: del?.title ?? 'Deliverable',
+  })
   const titleRef = useRef<HTMLInputElement>(null)
   const lengthRef = useRef<HTMLInputElement>(null)
   const formatRef = useRef<HTMLInputElement>(null)
@@ -612,7 +643,14 @@ function DeliverableDetailSheet({
   return (
     <>
       <SheetHeader title={isNew ? 'Add Deliverable' : 'Deliverable'} onClose={() => { save(); onClose() }}
-        action={isNew ? <button onClick={() => { save(); onClose() }} style={{ fontSize: 14, fontWeight: 600, color: accent, background: 'none', border: 'none', cursor: 'pointer' }}>Save</button> : undefined}
+        action={
+          isNew ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {TriggerIcon}
+              <button onClick={() => { save(); onClose() }} style={{ fontSize: 14, fontWeight: 600, color: accent, background: 'none', border: 'none', cursor: 'pointer' }}>Save</button>
+            </div>
+          ) : TriggerIcon
+        }
       />
       <SheetBody>
         <div style={{ marginBottom: 16 }}>
@@ -644,6 +682,9 @@ function DeliverableDetailSheet({
           <input ref={notesRef} defaultValue={del?.notes ?? ''} placeholder="Any additional delivery notes" style={fieldInput} onBlur={!isNew ? save : undefined} />
         </div>
 
+        {PreviewRow}
+        {MessageZone}
+
         {!isNew && onDelete && (
           <div
             onClick={() => { onDelete(del.id); onClose() }}
@@ -658,6 +699,7 @@ function DeliverableDetailSheet({
           </div>
         )}
       </SheetBody>
+      {StartSheetOverlay}
     </>
   )
 }
@@ -679,6 +721,9 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
   const edges = edgesData ?? []
   const deliverables = delsData ?? []
   const isLoading = nodesLoading || edgesLoading || delsLoading
+
+  const threadByWorkflowNodeId = useThreadsByEntity(projectId, 'workflowStage')
+  const threadByDeliverableId = useThreadsByEntity(projectId, 'deliverable')
 
   // Mutations
   const createNode = useCreateWorkflowNode(projectId)
@@ -797,6 +842,7 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
                       crew={crew}
                       onTap={(n) => { haptic('light'); setSelectedNode(n) }}
                       onAssign={(n) => { haptic('light'); setAssignNode(n) }}
+                      threadEntry={threadByWorkflowNodeId.get(node.id)}
                     />
                     {i < nodes.length - 1 && (
                       <Connector
@@ -855,7 +901,7 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
                   </div>
                 ) : (
                   deliverables.map((d: any) => (
-                    <DeliverableRow key={d.id} del={d} onTap={(del) => { haptic('light'); setSelectedDel(del) }} />
+                    <DeliverableRow key={d.id} del={d} onTap={(del) => { haptic('light'); setSelectedDel(del) }} threadEntry={threadByDeliverableId.get(d.id)} />
                   ))
                 )}
               </div>
@@ -872,6 +918,7 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
           node={selectedNode}
           crew={crew}
           accent={accent}
+          projectId={projectId}
           onClose={() => setSelectedNode(null)}
           onSave={handleUpdateNode}
           onDelete={handleDeleteNode}
@@ -904,6 +951,7 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
         <DeliverableDetailSheet
           del={selectedDel}
           accent={accent}
+          projectId={projectId}
           onClose={() => setSelectedDel(null)}
           onSave={handleSaveDel}
           onDelete={handleDeleteDel}
@@ -915,6 +963,7 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
         <DeliverableDetailSheet
           del={null}
           accent={accent}
+          projectId={projectId}
           isNew
           onClose={() => setCreatingDel(false)}
           onSave={handleSaveDel}

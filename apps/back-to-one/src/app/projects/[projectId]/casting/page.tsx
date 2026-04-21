@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import {
   useProject,
   useCastRoles,
@@ -16,6 +17,17 @@ import { FAB } from '@/components/ui/FAB'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
+import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
+import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
+import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
+import {
+  EntityDetailSheet,
+  ENTITY_COLORS,
+  getEntityInitials,
+  type EntityItem,
+} from '@/app/projects/[projectId]/scenemaker/components/EntityDrawer'
+import { updateEntity as dbUpdateEntity } from '@/lib/db/queries'
+import { useQueryClient } from '@tanstack/react-query'
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -49,11 +61,12 @@ interface CastRoleData {
 
 // ── Cast Row ───────────────────────────────────────────────
 
-function CastRow({ role, accent, onTap }: { role: CastRoleData; accent: string; onTap: () => void }) {
+function CastRow({ role, accent, onTap, threadEntry }: { role: CastRoleData; accent: string; onTap: () => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
   if (role.cast && role.talent) {
     return (
       <div
         style={{
+          position: 'relative',
           display: 'flex', alignItems: 'center', gap: 14,
           padding: '11px 14px', borderRadius: 14,
           border: `1px solid ${accent}1e`, background: `${accent}0d`,
@@ -78,13 +91,17 @@ function CastRow({ role, accent, onTap }: { role: CastRoleData; accent: string; 
           </div>
         </div>
         <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.13)', flexShrink: 0 }}>›</div>
+        <ThreadRowBadge entry={threadEntry} />
       </div>
     )
   }
 
+  // Uncast row: no Talent.id yet, so no cast thread bucket exists.
+  // Badge is inherently absent — no badge rendered.
   return (
     <div
       style={{
+        position: 'relative',
         display: 'flex', alignItems: 'center', gap: 14,
         padding: '11px 14px', borderRadius: 14,
         border: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)',
@@ -237,37 +254,56 @@ function ShootDaysEditor({ dates, onSave }: { dates: string[]; onSave: (d: strin
 // ── Detail Sheet ───────────────────────────────────────────
 
 function CastDetailSheet({
-  role, accent, onClose, onUpdateEntity, onUpdateTalent, onAssignTalent, onDelete,
+  role, accent, projectId, onClose, onUpdateEntity, onUpdateTalent, onAssignTalent, onDelete,
 }: {
   role: CastRoleData | null
   accent: string
+  projectId: string
   onClose: () => void
   onUpdateEntity: (id: string, updates: any) => void
   onUpdateTalent: (id: string, fields: any) => void
   onAssignTalent: (entityId: string, actorName: string) => void
   onDelete: (id: string) => void
 }) {
-  if (!role) return null
-
   const roleDescRef = useRef<HTMLTextAreaElement>(null)
   const actorNameRef = useRef<HTMLInputElement>(null)
   const notesRef = useRef<HTMLTextAreaElement>(null)
   const newActorRef = useRef<HTMLInputElement>(null)
 
+  const { TriggerIcon, PreviewRow, MessageZone, StartSheetOverlay } = useDetailSheetThreads({
+    projectId,
+    // Cast = real human on this production. Thread attaches to the Talent row
+    // (stable cast id). Keeps cast/logistics threads separate from the
+    // creative-side 'character' threads opened via Scenemaker EntityDrawer.
+    // Uncast roles (role.talent === null) render the trigger in disabled
+    // state — no cast thread exists until a person is attached.
+    attachedToType: 'cast',
+    attachedToId: role?.talent?.id ?? null,
+    subjectLabel: role ? (role.talent?.name ?? role.role) : '',
+  })
+
   const saveEntity = useCallback((patch: any) => {
+    if (!role) return
     onUpdateEntity(role.id, patch)
-  }, [role.id, onUpdateEntity])
+  }, [role, onUpdateEntity])
 
   const saveTalent = useCallback((patch: any) => {
-    if (role.talent) onUpdateTalent(role.talent.id, patch)
-  }, [role.talent, onUpdateTalent])
+    if (role?.talent) onUpdateTalent(role.talent.id, patch)
+  }, [role?.talent, onUpdateTalent])
+
+  if (!role) return null
 
   return (
     <>
       <SheetHeader
         title={role.cast ? 'Cast' : 'Role'}
         onClose={onClose}
-        action={<button onClick={onClose} style={{ fontSize: 14, fontWeight: 600, color: accent, background: 'none', border: 'none', cursor: 'pointer' }}>Done</button>}
+        action={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {TriggerIcon}
+            <button onClick={onClose} style={{ fontSize: 14, fontWeight: 600, color: accent, background: 'none', border: 'none', cursor: 'pointer' }}>Done</button>
+          </div>
+        }
       />
 
       {/* Role section */}
@@ -438,6 +474,9 @@ function CastDetailSheet({
         />
       </div>
 
+      {PreviewRow}
+      {MessageZone}
+
       {/* Delete */}
       <div style={{ padding: '0 20px 24px' }}>
         <div
@@ -452,6 +491,8 @@ function CastDetailSheet({
           Remove Role
         </div>
       </div>
+
+      {StartSheetOverlay}
     </>
   )
 }
@@ -526,7 +567,46 @@ export default function CastingPage({ params }: { params: { projectId: string } 
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [charMenuOpen, setCharMenuOpen] = useState(false)
+  const [charDetail, setCharDetail] = useState<EntityItem | null>(null)
+  const qc = useQueryClient()
   const selected = roles.find(r => r.id === selectedId) ?? null
+
+  // Cast-stream thread bucket: keyed by Talent.id (the real person on this
+  // production). Uncast rows have no Talent, so never match — badge absent.
+  const threadByTalentId = useThreadsByEntity(projectId, 'cast')
+
+  // Character list for the dropdown — reuses the roles query (Entity type=character).
+  // Alphabetically sorted. Includes uncast roles so every character is reachable.
+  const characters: EntityItem[] = useMemo(() => {
+    return roles
+      .map(r => ({ id: r.id, name: r.role, description: r.roleDesc || null, imageUrl: null }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [roles])
+
+  // Close dropdown on outside tap / escape
+  useEffect(() => {
+    if (!charMenuOpen) return
+    const close = () => setCharMenuOpen(false)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('keydown', onKey) }
+  }, [charMenuOpen])
+
+  // EntityDetailSheet save handler — updates the character Entity row.
+  // Threads inside the sheet use ('character', entity.id); same tuple as
+  // Scenemaker EntityDrawer, so the conversation unifies.
+  const handleCharSave = useCallback(async (name: string, description: string, entityId?: string) => {
+    if (!entityId) { setCharDetail(null); return }
+    try {
+      await dbUpdateEntity(entityId, { name, description })
+      qc.invalidateQueries({ queryKey: ['castRoles', projectId] })
+      qc.invalidateQueries({ queryKey: ['entities', projectId, 'characters'] })
+    } catch (err) {
+      console.error('Failed to save character from Casting:', err)
+    }
+    setCharDetail(null)
+  }, [qc, projectId])
 
   // Group by section
   const grouped: { label: string; members: CastRoleData[] }[] = []
@@ -558,10 +638,81 @@ export default function CastingPage({ params }: { params: { projectId: string } 
         </div>
       ) : ''} />
 
-      {/* Count */}
+      {/* Count row + Characters dropdown — creative-side bridge into the
+          shared character sheet (same sheet as Scenemaker EntityDrawer).
+          Threads started from here land on the character Entity and
+          stay separate from the per-row cast threads. */}
       {roles.length > 0 && (
-        <div style={{ padding: '6px 20px 2px', fontFamily: "'Geist Mono', monospace", fontSize: '0.52rem', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-          {roles.length} role{roles.length !== 1 ? 's' : ''} · {castCount} cast
+        <div style={{ padding: '6px 20px 2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+          <span className="font-mono" style={{ fontSize: '0.52rem', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            {roles.length} role{roles.length !== 1 ? 's' : ''} · {castCount} cast
+          </span>
+          <button
+            onClick={() => { haptic('light'); setCharMenuOpen(v => !v) }}
+            className="font-mono uppercase"
+            style={{
+              fontSize: '0.52rem', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.4)',
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              padding: '2px 4px',
+            }}
+            aria-haspopup="menu"
+            aria-expanded={charMenuOpen}
+          >
+            Characters ▾
+          </button>
+          {charMenuOpen && (
+            <>
+              <div
+                onClick={() => setCharMenuOpen(false)}
+                style={{ position: 'fixed', inset: 0, zIndex: 30 }}
+              />
+              <div
+                role="menu"
+                style={{
+                  position: 'absolute', top: '100%', right: 20, zIndex: 31,
+                  marginTop: 4, minWidth: 200, maxHeight: 320, overflowY: 'auto',
+                  background: '#141420',
+                  border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10,
+                  padding: '6px 0',
+                  boxShadow: '0 18px 40px rgba(0,0,0,0.55)',
+                }}
+              >
+                {characters.length === 0 ? (
+                  <div className="font-mono" style={{ padding: '8px 14px', fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
+                    No characters yet
+                  </div>
+                ) : characters.map(c => (
+                  <button
+                    key={c.id}
+                    role="menuitem"
+                    onClick={() => {
+                      haptic('light')
+                      setCharMenuOpen(false)
+                      setCharDetail(c)
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                      padding: '8px 14px', background: 'transparent', border: 'none',
+                      cursor: 'pointer', textAlign: 'left', color: '#dddde8',
+                      fontSize: 13, fontFamily: "'Geist', sans-serif",
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)' }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+                  >
+                    <span style={{
+                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                      background: ENTITY_COLORS.characters.bg,
+                      border: `1px solid ${ENTITY_COLORS.characters.border}`,
+                      color: ENTITY_COLORS.characters.base,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 9, fontWeight: 700,
+                    }}>{getEntityInitials(c.name)}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -592,7 +743,13 @@ export default function CastingPage({ params }: { params: { projectId: string } 
                   {label}
                 </div>
                 {members.map(r => (
-                  <CastRow key={r.id} role={r} accent={accent} onTap={() => { haptic('light'); setSelectedId(r.id) }} />
+                  <CastRow
+                    key={r.id}
+                    role={r}
+                    accent={accent}
+                    onTap={() => { haptic('light'); setSelectedId(r.id) }}
+                    threadEntry={r.talent ? threadByTalentId.get(r.talent.id) : undefined}
+                  />
                 ))}
               </div>
             ))
@@ -605,6 +762,7 @@ export default function CastingPage({ params }: { params: { projectId: string } 
         <CastDetailSheet
           role={selected}
           accent={accent}
+          projectId={projectId}
           onClose={() => setSelectedId(null)}
           onUpdateEntity={(id, updates) => updateEntity.mutate({ id, updates })}
           onUpdateTalent={(id, fields) => updateTalent.mutate({ id, fields })}
@@ -624,6 +782,25 @@ export default function CastingPage({ params }: { params: { projectId: string } 
           }}
         />
       </Sheet>
+
+      {/* Characters bridge — shared EntityDetailSheet, same surface as Scenemaker
+          EntityDrawer. Threads here attach as ('character', entity.id), keeping
+          creative discussion separate from the per-row 'cast' threads above. */}
+      <AnimatePresence>
+        {charDetail && (
+          <EntityDetailSheet
+            key="char-bridge-sheet"
+            type="characters"
+            projectId={projectId}
+            colors={ENTITY_COLORS.characters}
+            label="Characters"
+            entity={charDetail}
+            onSave={handleCharSave}
+            onClose={() => setCharDetail(null)}
+            getInitials={getEntityInitials}
+          />
+        )}
+      </AnimatePresence>
 
       <FAB accent={accent} projectId={projectId} onPress={() => { haptic('light'); setCreating(true) }} />
     </div>

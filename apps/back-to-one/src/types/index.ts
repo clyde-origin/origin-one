@@ -140,6 +140,7 @@ export interface Thread {
   attachedToId: string
   createdBy: string
   messages: ThreadMessage[]
+  unreadCount: number
   unread: boolean
   createdAt: string
   updatedAt: string

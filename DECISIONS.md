@@ -303,3 +303,29 @@ Last updated: April 20, 2026
 **Rationale:** Approved (aesthetic sign-off, often by EP or director) and confirmed (contractually booked) are conceptually distinct in real production. A location can be approved aesthetically before being booked, or booked under pressure without aesthetic approval. Removing without evidence of redundancy would be a guess.  
 **Tradeoffs:** Two fields where one might suffice.  
 **Revisit trigger:** Production usage shows the two fields tracking 1:1 in practice — collapse if so.
+
+---
+
+### meId centralized in useMeId() hook
+
+**Decision:** The current-user id resolves through a single `useMeId()` hook in `apps/back-to-one/src/lib/hooks/useOriginOne.ts`. Every consumer — detail sheets, thread mutations, the threads page — calls this hook. The placeholder body reads the first `ProjectMember` row (matching prior inline `allCrew[0]?.userId ?? null` usage); Auth replaces only this function's body.  
+**Date:** April 20, 2026  
+**Rationale:** Auth is deferred until after Phase 1A. Centralizing the placeholder means the Auth implementation touches exactly one file instead of every consumer of the current fallback. Query keys that include meId (threads, allThreads) also pick up the real user id automatically on cutover, since the hook return flows through `useQuery` key factories.  
+**Tradeoffs:** One extra indirection while the placeholder is in place. The first-row fallback is still non-deterministic across environments.  
+**Revisit trigger:** Auth ships. At that moment, `useMeId()`'s body becomes the auth-session lookup and nothing else changes.
+
+
+---
+
+### Entity-vs-production-record threading rule
+
+**Decision:** When a conceptual entity (Entity row) has a corresponding production-specific record (Talent for cast, Location for physical place), each has its own thread stream. Threads do not aggregate across the pair.  
+**Date:** April 20, 2026  
+**Rationale:** Entity holds the creative idea (the character as written, the location as scripted). The production record holds the execution (the actor hired, the place booked). Different audiences, different lifetimes. A creative thread about a role stays relevant if the actor is recast. A logistics thread about an actor becomes irrelevant if they drop out. Conflating them fragments conversation across the wrong axes.  
+**Applies to:**
+- Entity(type='character') ↔ Talent (cast)
+- Entity(type='location') ↔ Location (physical place)
+- Future pattern: any Entity–production-record pair
+
+**Tradeoffs:** User opening one surface doesn't see the other surface's thread activity. Solved via cross-surface bridges like the Characters dropdown on Casting (creative context reachable from logistics page) — NOT via thread aggregation.  
+**Revisit trigger:** Production workflow reveals a real pain from the separation that a cross-surface bridge can't solve.

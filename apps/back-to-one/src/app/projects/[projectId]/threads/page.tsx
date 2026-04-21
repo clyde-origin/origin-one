@@ -2,15 +2,12 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { useProject, useThreads, usePostMessage, useCrew } from '@/lib/hooks/useOriginOne'
+import { useProject, useThreads, usePostMessage, useCrew, useMarkThreadRead, useMeId } from '@/lib/hooks/useOriginOne'
 import { useThreadContexts, type ThreadContext } from '@/lib/thread-context'
 import { Sheet } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
+import { TV, TA } from '@/lib/thread-tokens'
 import type { Thread, ThreadMessage, TeamMember } from '@/types'
-
-// Thread-system fixed colors — never project-derived
-const TV = '#7C3AED'
-const TA = '#F59E0B'
 
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/)
@@ -238,10 +235,10 @@ function ThreadCard({
               }}>Done</span>
             ) : thread.unread ? (
               <div style={{
-                width: 17, height: 17, borderRadius: '50%', background: TA,
+                minWidth: 17, height: 17, padding: '0 5px', borderRadius: 9, background: TA,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontFamily: "'Geist Mono', monospace", fontSize: 8, fontWeight: 700, color: '#fff',
-              }}>{thread.messages.length}</div>
+              }}>{thread.unreadCount}</div>
             ) : null}
           </div>
         </div>
@@ -292,7 +289,14 @@ function ThreadDetailSheet({
 }) {
   const [reply, setReply] = useState('')
   const postMessage = usePostMessage(projectId)
+  const markRead = useMarkThreadRead(projectId)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Sheet here IS the message zone — open = user sees messages. Clear badge.
+  useEffect(() => {
+    if (thread?.id && meId) markRead.mutate(thread.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thread?.id, meId])
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -433,7 +437,7 @@ export default function ThreadsPage({ params }: { params: { projectId: string } 
 
   const allThreads: Thread[] = useMemo(() => (threads ?? []) as Thread[], [threads])
   const allCrew: TeamMember[] = useMemo(() => (crew ?? []) as TeamMember[], [crew])
-  const meId: string | null = allCrew[0]?.userId ?? null
+  const meId = useMeId()
 
   const contexts = useThreadContexts(projectId, allThreads)
 
