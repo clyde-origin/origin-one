@@ -656,7 +656,7 @@ export function HubContent({ projectId }: { projectId: string }) {
   if (loadingProject) return <HubSkeleton />
   if (!project) return <div className="screen flex items-center justify-center"><p className="text-muted font-mono text-xs">Project not found</p></div>
 
-  const locConfirmed = allLocations.filter((l: any) => l.status === 'booked').length
+  const locConfirmed = allLocations.filter((l: any) => l.status === 'confirmed').length
   const locTotal = allLocations.length
   const artApproved = allArt.filter(a => a.status === 'Approved').length
   const castConfirmed = allCast.filter((r: any) => r.cast === true).length

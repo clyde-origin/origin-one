@@ -13,10 +13,11 @@ import type { Location, LocationStatus } from '@/types'
 // ── Constants ────────────────────────────────────────────
 
 const STATUSES: { value: LocationStatus; label: string; color: string }[] = [
-  { value: 'booked',     label: 'Booked',     color: '#00b894' },
-  { value: 'in_talks',   label: 'In Talks',   color: '#9b6de0' },
-  { value: 'scouting',   label: 'Scouting',   color: '#e8a020' },
-  { value: 'no_contact',  label: 'No Contact',  color: '#62627a' },
+  { value: 'unscouted', label: 'Unscouted', color: '#62627a' },
+  { value: 'scouting',  label: 'Scouting',  color: '#e8a020' },
+  { value: 'in_talks',  label: 'In Talks',  color: '#9b6de0' },
+  { value: 'confirmed', label: 'Confirmed', color: '#00b894' },
+  { value: 'passed',    label: 'Passed',    color: '#8a4a4a' },
 ]
 
 function statusColor(s: string) {
@@ -106,7 +107,7 @@ function CreateLocationSheet({ open, projectId, accent, onSave, onClose }: {
   const [keyContact, setKeyContact] = useState('')
   const [webLink, setWebLink] = useState('')
   const [shootDates, setShootDates] = useState('')
-  const [status, setStatus] = useState<LocationStatus>('no_contact')
+  const [status, setStatus] = useState<LocationStatus>('unscouted')
   const [approved, setApproved] = useState(false)
   const [notes, setNotes] = useState('')
   const [sceneTab, setSceneTab] = useState<string | null>(null)
@@ -130,7 +131,7 @@ function CreateLocationSheet({ open, projectId, accent, onSave, onClose }: {
 
   function reset() {
     setName(''); setDescription(''); setAddress(''); setKeyContact('')
-    setWebLink(''); setShootDates(''); setStatus('no_contact')
+    setWebLink(''); setShootDates(''); setStatus('unscouted')
     setApproved(false); setNotes(''); setSceneTab(null)
   }
 

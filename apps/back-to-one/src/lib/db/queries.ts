@@ -874,7 +874,7 @@ export async function createLocation(
       keyContact: loc.keyContact ?? null,
       webLink: loc.webLink ?? null,
       shootDates: loc.shootDates ?? null,
-      status: loc.status ?? 'no_contact',
+      status: loc.status ?? 'unscouted',
       approved: loc.approved ?? false,
       notes: loc.notes ?? null,
       imageUrl: loc.imageUrl ?? null,
