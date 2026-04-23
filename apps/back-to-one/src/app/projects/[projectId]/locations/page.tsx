@@ -8,6 +8,9 @@ import { FAB } from '@/components/ui/FAB'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { EmptyCTA } from '@/components/ui/EmptyState'
+import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
+import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
+import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
 import type { Location, LocationStatus } from '@/types'
 
 // ── Constants ────────────────────────────────────────────
@@ -29,9 +32,13 @@ function statusDisplay(s: string) {
 
 // ── Location Card ────────────────────────────────────────
 
-function LocationCard({ loc, accent, onTap }: { loc: Location; accent: string; onTap: (l: Location) => void }) {
+function LocationCard({ loc, accent, onTap, threadEntry }: { loc: Location; accent: string; onTap: (l: Location) => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
   const sc = statusColor(loc.status)
   return (
+    // Wrapper preserves the card's overflow:hidden (image clipping) while
+    // providing an overflow-visible positioning context for the ThreadRowBadge
+    // so it can float over the card's bottom-right edge at -6/-6.
+    <div style={{ position: 'relative' }}>
     <div
       className="flex cursor-pointer active:opacity-90 transition-opacity"
       style={{
@@ -91,6 +98,8 @@ function LocationCard({ loc, accent, onTap }: { loc: Location; accent: string; o
           >{loc.approved ? 'Approved' : 'Option'}</button>
         </div>
       </div>
+    </div>
+    <ThreadRowBadge entry={threadEntry} />
     </div>
   )
 }
@@ -261,12 +270,18 @@ function CreateLocationSheet({ open, projectId, accent, onSave, onClose }: {
 
 // ── Detail Sheet (inline editable) ───────────────────────
 
-function LocationDetailSheet({ loc, accent, onUpdate, onDelete, onClose }: {
-  loc: Location; accent: string
+function LocationDetailSheet({ loc, accent, projectId, onUpdate, onDelete, onClose }: {
+  loc: Location; accent: string; projectId: string
   onUpdate: (fields: any) => void
   onDelete: () => void
   onClose: () => void
 }) {
+  const { TriggerIcon, PreviewRow, MessageZone, StartSheetOverlay } = useDetailSheetThreads({
+    projectId,
+    attachedToType: 'location',
+    attachedToId: loc.id,
+    subjectLabel: loc.name,
+  })
   const [name, setName] = useState(loc.name)
   const [description, setDescription] = useState(loc.description ?? '')
   const [address, setAddress] = useState(loc.address ?? '')
@@ -301,6 +316,11 @@ function LocationDetailSheet({ loc, accent, onUpdate, onDelete, onClose }: {
 
   return (
     <div style={{ padding: '0 20px 24px' }}>
+      {/* Thread trigger — pinned top-right above the hero */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        {TriggerIcon}
+      </div>
+
       {/* Hero image */}
       {loc.imageUrl && (
         <div style={{ width: '100%', height: 160, borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
@@ -393,6 +413,9 @@ function LocationDetailSheet({ loc, accent, onUpdate, onDelete, onClose }: {
         </div>
       </div>
 
+      {PreviewRow}
+      {MessageZone}
+
       {/* Delete */}
       <button onClick={() => { haptic('warning'); onDelete(); onClose() }} style={{
         marginTop: 20, width: '100%', padding: '10px', borderRadius: 8,
@@ -400,6 +423,8 @@ function LocationDetailSheet({ loc, accent, onUpdate, onDelete, onClose }: {
         color: '#e8564a', fontFamily: 'var(--font-geist-mono)', fontSize: '0.44rem',
         letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer',
       }}>Delete Location</button>
+
+      {StartSheetOverlay}
     </div>
   )
 }
@@ -414,6 +439,11 @@ export default function LocationsPage({ params }: { params: { projectId: string 
   const createLoc = useCreateLocation(projectId)
   const updateLoc = useUpdateLocation(projectId)
   const deleteLoc = useDeleteLocation(projectId)
+  // Logistics/production-record thread stream — keyed by Location.id. Entity
+  // type='location' has its own separate 'character'-like creative stream;
+  // the two do not aggregate (see DECISIONS.md § Entity-vs-production-record
+  // threading rule).
+  const threadByLocationId = useThreadsByEntity(projectId, 'location')
 
   const [selected, setSelected] = useState<Location | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -531,7 +561,7 @@ export default function LocationsPage({ params }: { params: { projectId: string 
         ) : (
           <div className="flex flex-col gap-3">
             {filtered.map(loc => (
-              <LocationCard key={loc.id} loc={loc} accent={accent} onTap={setSelected} />
+              <LocationCard key={loc.id} loc={loc} accent={accent} onTap={setSelected} threadEntry={threadByLocationId.get(loc.id)} />
             ))}
           </div>
         )}
@@ -576,6 +606,7 @@ export default function LocationsPage({ params }: { params: { projectId: string 
               <LocationDetailSheet
                 loc={selected}
                 accent={accent}
+                projectId={projectId}
                 onUpdate={(fields) => updateLoc.mutate({ id: selected.id, fields })}
                 onDelete={() => deleteLoc.mutate(selected.id)}
                 onClose={() => setSelected(null)}

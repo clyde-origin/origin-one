@@ -17,6 +17,7 @@ import { ScriptView, type ScriptViewHandle } from './components/ScriptView'
 import { ShotDetailSheet } from './components/ShotDetailSheet'
 import { EntityDrawer } from './components/EntityDrawer'
 import { PdfExport } from './components/PdfExport'
+import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
 import type { Scene, Shot, SceneMakerMode } from '@/types'
 
 type StoryboardScale = 'feed' | '3up' | '2up' | 'all'
@@ -837,23 +838,8 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
                             </div>
                           )}
 
-                          {/* Thread dot badge — violet if read, amber if unread */}
-                          {(() => {
-                            const td = threadByShotId?.get(shot.id)
-                            if (!td) return null
-                            return (
-                              <div style={{
-                                position: 'absolute', bottom: -6, right: -6,
-                                minWidth: 20, height: 20, borderRadius: 10,
-                                background: td.unread ? '#D97706' : '#7C3AED',
-                                border: '2px solid #080808',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontFamily: "'Geist Mono', monospace",
-                                fontSize: 9, fontWeight: 700, color: '#fff',
-                                padding: '0 5px', zIndex: 2,
-                              }}>{td.count}</div>
-                            )
-                          })()}
+                          {/* Thread dot badge — shared component */}
+                          <ThreadRowBadge entry={threadByShotId?.get(shot.id)} />
                         </div>
                       </div>
                     </div>

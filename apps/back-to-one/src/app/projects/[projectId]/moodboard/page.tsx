@@ -22,6 +22,9 @@ import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { MOODBOARD_GRADIENTS } from '@/lib/utils/gradients'
+import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
+import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
+import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
 import type { MoodboardRef, MoodboardTab } from '@/types'
 
 type MoodCat = MoodboardRef['cat']
@@ -134,12 +137,14 @@ function RefCard({
   onLongPress,
   isDragging,
   dragHandleProps,
+  threadEntry,
 }: {
   item: MoodboardRef
   onTap: (r: MoodboardRef) => void
   onLongPress?: () => void
   isDragging?: boolean
   dragHandleProps?: any
+  threadEntry: ThreadRowBadgeEntry | undefined
 }) {
   const [imgError, setImgError] = useState(false)
   const showImage = item.imageUrl && !item.imageUrl.startsWith('blob:') && !imgError
@@ -156,6 +161,9 @@ function RefCard({
   }
 
   return (
+    // Outer wrapper keeps the card's overflow-hidden (image + corners) while
+    // giving the -6/-6 ThreadRowBadge an overflow-visible positioning context.
+    <div style={{ position: 'relative' }}>
     <div
       className="rounded-lg border border-border overflow-hidden cursor-pointer active:opacity-80 transition-all"
       style={isDragging ? { opacity: 0.6, transform: 'scale(1.04)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' } : {}}
@@ -177,6 +185,8 @@ function RefCard({
         <div className="text-sm font-medium text-text truncate">{item.title}</div>
         {item.note && <div className="font-mono text-xs text-muted truncate mt-0.5">{item.note}</div>}
       </div>
+    </div>
+    <ThreadRowBadge entry={threadEntry} />
     </div>
   )
 }
@@ -204,6 +214,13 @@ function DetailSheet({
   const fileRef = useRef<HTMLInputElement>(null)
   const noteRef = useRef(item?.note ?? '')
   const titleRef = useRef(item?.title ?? '')
+
+  const { TriggerIcon, PreviewRow, MessageZone, StartSheetOverlay } = useDetailSheetThreads({
+    projectId,
+    attachedToType: 'moodboardRef',
+    attachedToId: item?.id ?? null,
+    subjectLabel: item?.title ?? 'Moodboard reference',
+  })
 
   // Sync when item changes
   useEffect(() => {
@@ -259,7 +276,7 @@ function DetailSheet({
 
   return (
     <>
-      <SheetHeader title="" onClose={handleClose} />
+      <SheetHeader title="" onClose={handleClose} action={TriggerIcon} />
       <SheetBody>
         {/* Title — inline editable */}
         <input
@@ -303,6 +320,8 @@ function DetailSheet({
           </div>
         )}
 
+        {PreviewRow}
+
         {/* Delete */}
         <button
           onClick={handleDelete}
@@ -313,6 +332,8 @@ function DetailSheet({
           {deleting ? 'Deleting...' : 'Delete Reference'}
         </button>
       </SheetBody>
+      {MessageZone}
+      {StartSheetOverlay}
     </>
   )
 }
@@ -441,10 +462,12 @@ function ReorderableGrid({
   items,
   onTap,
   onReorder,
+  threadByRefId,
 }: {
   items: MoodboardRef[]
   onTap: (r: MoodboardRef) => void
   onReorder: (reordered: MoodboardRef[]) => void
+  threadByRefId: Map<string, ThreadRowBadgeEntry>
 }) {
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   const [overIdx, setOverIdx] = useState<number | null>(null)
@@ -500,6 +523,7 @@ function ReorderableGrid({
               setTouchDragIdx(idx)
               // For now, long-press selects for reorder on desktop drag
             }}
+            threadEntry={threadByRefId.get(ref.id)}
           />
         </div>
       ))}
@@ -521,6 +545,7 @@ export default function MoodboardPage({ params }: { params: { projectId: string 
   // Data
   const { data: refs, isLoading } = useMoodboard(projectId)
   const { data: tabs } = useMoodboardTabs(projectId)
+  const threadByRefId = useThreadsByEntity(projectId, 'moodboardRef')
   const create = useCreateMoodboardRef(projectId)
   const update = useUpdateMoodboardRef(projectId)
   const remove = useDeleteMoodboardRef(projectId)
@@ -615,7 +640,7 @@ export default function MoodboardPage({ params }: { params: { projectId: string 
             </div>
           ) : (
             <div className="pt-3 pb-4">
-              <ReorderableGrid items={filtered} onTap={setSelected} onReorder={handleReorder} />
+              <ReorderableGrid items={filtered} onTap={setSelected} onReorder={handleReorder} threadByRefId={threadByRefId} />
               <div className="px-3.5 mt-3">
                 <span className="font-mono text-xs text-muted">{filtered.length} reference{filtered.length !== 1 ? 's' : ''}</span>
               </div>

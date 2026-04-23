@@ -12,7 +12,7 @@ export const keys = {
   milestones:         (projectId: string) => ['milestones', projectId] as const,
   allActionItems:     () => ['allActionItems'] as const,
   allMilestones:      () => ['allMilestones'] as const,
-  allThreads:         () => ['allThreads'] as const,
+  allThreads:         (meId: string | null) => ['allThreads', meId ?? ''] as const,
   shotlistVersions: (projectId: string) => ['shotlistVersions', projectId] as const,
   scenes:         (projectId: string) => ['scenes', projectId] as const,
   shots:          (sceneId: string) => ['shots', sceneId] as const,
@@ -21,7 +21,7 @@ export const keys = {
   locations:      (projectId: string) => ['locations', projectId] as const,
   castRoles:      (projectId: string) => ['castRoles', projectId] as const,
   artItems:       (projectId: string) => ['artItems', projectId] as const,
-  threads:        (projectId: string) => ['threads', projectId] as const,
+  threads:        (projectId: string, meId: string | null) => ['threads', projectId, meId ?? ''] as const,
   folders:        (projectId: string) => ['folders', projectId] as const,
   resources:      (projectId: string) => ['resources', projectId] as const,
   workflowNodes:  (projectId: string) => ['workflowNodes', projectId] as const,
@@ -309,10 +309,25 @@ export function useUpdateShotlistVersionLabel(projectId: string) {
 
 // ── THREADS ────────────────────────────────────────────────
 
+/**
+ * Resolve the current user id.
+ *
+ * Placeholder: reads the first ProjectMember row and returns its userId.
+ * This is the ONLY place meId is resolved — Auth replacement touches this file
+ * and nothing else. When Auth lands, the body becomes
+ * `return useAuth().user?.id ?? null` (or similar) and every consumer stays
+ * unchanged.
+ */
+export function useMeId(): string | null {
+  const { data } = useAllCrew()
+  return data?.[0]?.userId ?? null
+}
+
 export function useThreads(projectId: string) {
+  const meId = useMeId()
   return useQuery({
-    queryKey: keys.threads(projectId),
-    queryFn:  () => db.getThreads(projectId),
+    queryKey: keys.threads(projectId, meId),
+    queryFn:  () => db.getThreads(projectId, meId),
     enabled:  !!projectId,
   })
 }
@@ -330,8 +345,8 @@ export function useCreateThread(projectId: string) {
       createdBy: string
     }) => db.createThread(projectId, attachedToType, attachedToId, createdBy),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: keys.threads(projectId) })
-      qc.invalidateQueries({ queryKey: keys.allThreads() })
+      qc.invalidateQueries({ queryKey: ['threads', projectId] })
+      qc.invalidateQueries({ queryKey: ['allThreads'] })
     },
   })
 }
@@ -348,7 +363,30 @@ export function usePostMessage(projectId: string) {
       createdBy: string
       content: string
     }) => db.postMessage(threadId, createdBy, content),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.threads(projectId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['threads', projectId] })
+      qc.invalidateQueries({ queryKey: ['allThreads'] })
+    },
+  })
+}
+
+/**
+ * Mark a thread read for the current user. Fires on zone-2 open (never on
+ * sheet open) so the badge only clears when the viewer actually sees messages.
+ * No-op if meId is unresolved.
+ */
+export function useMarkThreadRead(projectId: string) {
+  const qc = useQueryClient()
+  const meId = useMeId()
+  return useMutation({
+    mutationFn: (threadId: string) => {
+      if (!meId) return Promise.resolve()
+      return db.markThreadRead(threadId, meId)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['threads', projectId] })
+      qc.invalidateQueries({ queryKey: ['allThreads'] })
+    },
   })
 }
 
@@ -695,9 +733,10 @@ export function useAllMilestones() {
 }
 
 export function useAllThreads() {
+  const meId = useMeId()
   return useQuery({
-    queryKey: keys.allThreads(),
-    queryFn: db.getAllThreads,
+    queryKey: keys.allThreads(meId),
+    queryFn: () => db.getAllThreads(meId),
   })
 }
 

@@ -10,6 +10,9 @@ import { CreateTaskSheet } from '@/components/create'
 import { haptic } from '@/lib/utils/haptics'
 import { formatDate, isLate, getProjectColor, statusLabel, statusHex, DEPT_COLORS, DEPT_SHORT as DEPT_SHORT_MAP } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
+import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
+import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
+import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import type { ActionItem, TeamMember } from '@/types'
 
 type Tab = 'me' | 'upcoming' | 'dept'
@@ -18,9 +21,10 @@ const DEPT_OPTIONS = ['Direction', 'Production', 'Camera', 'Sound', 'Art', 'Ward
 
 // ── TASK ROW ──────────────────────────────────────────────
 
-function TaskRow({ item, isMine, accent, showAssignee, crew, onTap, onToggle }: {
+function TaskRow({ item, isMine, accent, showAssignee, crew, onTap, onToggle, threadEntry }: {
   item: ActionItem; isMine: boolean; accent: string; showAssignee?: boolean
   crew: TeamMember[]; onTap: () => void; onToggle: () => void
+  threadEntry: ThreadRowBadgeEntry | undefined
 }) {
   const overdue = item.dueDate ? isLate(item.dueDate) : false
   const dateLabel = item.dueDate ? formatDate(item.dueDate) : null
@@ -28,7 +32,9 @@ function TaskRow({ item, isMine, accent, showAssignee, crew, onTap, onToggle }: 
   const assignee = crew.find(c => c.userId === item.assignedTo || c.id === item.assignedTo)
 
   return (
-    <div style={{ margin: '0 16px 2px', borderRadius: 9 }}>
+    // Outer wrapper is the positioning context for the badge — the inner card
+    // keeps its overflow-hidden for ripple styling.
+    <div style={{ position: 'relative', margin: '0 16px 2px', borderRadius: 9 }}>
       <div
         className="flex items-start cursor-pointer relative overflow-hidden active:bg-[#0d0d18] transition-colors"
         style={{ gap: 11, padding: '12px 13px', background: '#0a0a12', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 9 }}
@@ -66,16 +72,17 @@ function TaskRow({ item, isMine, accent, showAssignee, crew, onTap, onToggle }: 
           </div>
         </div>
       </div>
+      <ThreadRowBadge entry={threadEntry} />
     </div>
   )
 }
 
 // ── DONE TASK ROW ─────────────────────────────────────────
 
-function DoneTaskRow({ item, onTap }: { item: ActionItem; onTap: () => void }) {
+function DoneTaskRow({ item, onTap, threadEntry }: { item: ActionItem; onTap: () => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
   const dateLabel = item.dueDate ? formatDate(item.dueDate) : null
   return (
-    <div style={{ margin: '0 16px 2px', borderRadius: 9 }}>
+    <div style={{ position: 'relative', margin: '0 16px 2px', borderRadius: 9 }}>
       <div className="flex items-start cursor-pointer" style={{ gap: 11, padding: '12px 13px', background: '#0a0a12', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 9 }} onClick={onTap}>
         <div className="flex-shrink-0 rounded-full flex items-center justify-center" style={{ width: 16, height: 16, marginTop: 1, background: 'rgba(100,112,243,0.12)', border: '1.5px solid #6470f3' }}>
           <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4L3.5 6L6.5 2" stroke="#6470f3" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -85,6 +92,7 @@ function DoneTaskRow({ item, onTap }: { item: ActionItem; onTap: () => void }) {
           {dateLabel && <div className="font-mono mt-0.5" style={{ fontSize: '0.48rem', color: '#62627a' }}>{dateLabel}</div>}
         </div>
       </div>
+      <ThreadRowBadge entry={threadEntry} />
     </div>
   )
 }
@@ -99,6 +107,13 @@ function TaskDetailSheet({ item, crew, accent, projectId, onClose, onToggle }: {
   const [editAssignee, setEditAssignee] = useState(false)
   const [dueValue, setDueValue] = useState(item?.dueDate?.split('T')[0] ?? '')
   const [notes, setNotes] = useState(item?.description ?? '')
+
+  const { TriggerIcon, PreviewRow, MessageZone, StartSheetOverlay } = useDetailSheetThreads({
+    projectId,
+    attachedToType: 'actionItem',
+    attachedToId: item?.id ?? null,
+    subjectLabel: item?.title ?? '',
+  })
 
   if (!item) return null
   const assignee = crew.find(c => c.userId === item.assignedTo || c.id === item.assignedTo)
@@ -131,6 +146,7 @@ function TaskDetailSheet({ item, crew, accent, projectId, onClose, onToggle }: {
               const dc = DEPT_COLORS[item.department] ?? '#62627a'
               return <span className="font-mono" style={{ fontSize: '0.42rem', padding: '2px 8px', borderRadius: 12, background: `${dc}18`, color: dc }}>{DEPT_SHORT_MAP[item.department] ?? item.department}</span>
             })()}
+            {TriggerIcon}
             <button onClick={onClose} className="text-muted text-sm w-7 h-7 flex items-center justify-center">✕</button>
           </div>
         </div>
@@ -212,6 +228,11 @@ function TaskDetailSheet({ item, crew, accent, projectId, onClose, onToggle }: {
         </div>
       </div>
 
+      <div style={{ padding: '0 20px' }}>
+        {PreviewRow}
+        {MessageZone}
+      </div>
+
       {/* Buttons */}
       <div style={{ padding: '4px 20px 0', display: 'flex', gap: 10 }}>
         <button
@@ -222,6 +243,8 @@ function TaskDetailSheet({ item, crew, accent, projectId, onClose, onToggle }: {
           {isDone ? 'Reopen' : 'Mark Complete'}
         </button>
       </div>
+
+      {StartSheetOverlay}
     </>
   )
 }
@@ -265,6 +288,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
   const { data: crew, isLoading: loadingCrew } = useCrew(projectId)
   const toggle = useToggleActionItem(projectId)
   const createItem = useCreateActionItem(projectId)
+  const threadByActionItemId = useThreadsByEntity(projectId, 'actionItem')
 
   const allItems = items ?? []
   const allCrew = crew ?? []
@@ -335,7 +359,8 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                 <SectionHead label="My open items" count={`${myItems.length} tasks`} />
                 {myItems.length === 0 ? <EmptyState text="All clear" /> : myItems.map(item => (
                   <TaskRow key={item.id} item={item} isMine accent={accent} crew={allCrew}
-                    onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />
+                    onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })}
+                    threadEntry={threadByActionItemId.get(item.id)} />
                 ))}
                 {doneItems.length > 0 && (
                   <>
@@ -348,7 +373,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                       </svg>
                     </div>
                     {showCompleted && doneItems.map(item => (
-                      <DoneTaskRow key={item.id} item={item} onTap={() => setSelected(item)} />
+                      <DoneTaskRow key={item.id} item={item} onTap={() => setSelected(item)} threadEntry={threadByActionItemId.get(item.id)} />
                     ))}
                   </>
                 )}
@@ -361,19 +386,19 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                 {todayItems.length > 0 && (
                   <>
                     <BucketDivider label="Today" isToday />
-                    {todayItems.map(item => <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew} onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />)}
+                    {todayItems.map(item => <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew} onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} threadEntry={threadByActionItemId.get(item.id)} />)}
                   </>
                 )}
                 {weekItems.length > 0 && (
                   <>
                     <BucketDivider label="This Week" />
-                    {weekItems.map(item => <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew} onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />)}
+                    {weekItems.map(item => <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew} onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} threadEntry={threadByActionItemId.get(item.id)} />)}
                   </>
                 )}
                 {laterItems.length > 0 && (
                   <>
                     <BucketDivider label="Later" />
-                    {laterItems.map(item => <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew} onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />)}
+                    {laterItems.map(item => <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew} onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} threadEntry={threadByActionItemId.get(item.id)} />)}
                   </>
                 )}
                 {openItems.length === 0 && <EmptyState text="Nothing upcoming" />}
@@ -413,7 +438,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                       <SectionHead label={deptFilter} count={`${filteredItems.length} open`} />
                       {filteredItems.map(item => (
                         <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew}
-                          onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />
+                          onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} threadEntry={threadByActionItemId.get(item.id)} />
                       ))}
                     </>
                   ) : (
@@ -427,7 +452,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                             <BucketDivider label={DEPT_SHORT_MAP[dept] ?? dept} />
                             {deptItems.map(item => (
                               <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew}
-                                onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />
+                                onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} threadEntry={threadByActionItemId.get(item.id)} />
                             ))}
                           </div>
                         )
@@ -437,7 +462,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                           <BucketDivider label="Untagged" />
                           {openItems.filter(i => !i.department).map(item => (
                             <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew}
-                              onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} />
+                              onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} threadEntry={threadByActionItemId.get(item.id)} />
                           ))}
                         </div>
                       )}

@@ -10,6 +10,9 @@ import { CreateMilestoneSheet } from '@/components/create'
 import { haptic } from '@/lib/utils/haptics'
 import { formatDate, isLate, getProjectColor, MILESTONE_STATUS_HEX, MILESTONE_STATUS_LABEL, statusLabel, statusHex } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
+import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
+import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
+import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import type { Milestone, CrewMember } from '@/types'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -152,6 +155,13 @@ function MilestoneDetailSheet({ milestone, crew, accent, projectId, onClose }: {
   const addPerson = useAddMilestonePerson(projectId)
   const removePerson = useRemoveMilestonePerson(projectId)
 
+  const { TriggerIcon, PreviewRow, MessageZone, StartSheetOverlay } = useDetailSheetThreads({
+    projectId,
+    attachedToType: 'milestone',
+    attachedToId: milestone?.id ?? null,
+    subjectLabel: milestone?.title ?? '',
+  })
+
   if (!milestone) return null
   const statusColor = MILESTONE_STATUS_HEX[milestone.status] ?? '#62627a'
   const dateObj = new Date(milestone.date)
@@ -179,7 +189,10 @@ function MilestoneDetailSheet({ milestone, crew, accent, projectId, onClose }: {
           ) : (
             <div onClick={() => setEditTitle(true)} style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8', cursor: 'pointer', borderBottom: '1px dashed rgba(255,255,255,0.1)', paddingBottom: 1, flex: 1 }}>{milestone.title}</div>
           )}
-          <button onClick={onClose} className="text-muted text-sm w-7 h-7 flex items-center justify-center flex-shrink-0">✕</button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {TriggerIcon}
+            <button onClick={onClose} className="text-muted text-sm w-7 h-7 flex items-center justify-center">✕</button>
+          </div>
         </div>
       </div>
 
@@ -269,6 +282,13 @@ function MilestoneDetailSheet({ milestone, crew, accent, projectId, onClose }: {
           </div>
         )}
       </div>
+
+      <div style={{ padding: '0 20px 14px' }}>
+        {PreviewRow}
+        {MessageZone}
+      </div>
+
+      {StartSheetOverlay}
     </>
   )
 }
@@ -282,6 +302,7 @@ export default function TimelinePage({ params }: { params: { projectId: string }
   const accent = project?.color || getProjectColor(projectId)
   const { data: milestones, isLoading } = useMilestones(projectId)
   const { data: crew } = useCrew(projectId)
+  const threadByMilestoneId = useThreadsByEntity(projectId, 'milestone')
 
   const allMS = milestones ?? []
   const allCrew = crew ?? []
@@ -416,7 +437,7 @@ export default function TimelinePage({ params }: { params: { projectId: string }
                   const isDelivery = ms.title.toLowerCase().includes('delivery')
                   const msColor = isDelivery ? '#e8564a' : (MILESTONE_STATUS_HEX[ms.status] ?? '#62627a')
                   return (
-                    <div key={ms.id} className="flex items-start cursor-pointer" style={{ gap: 12, padding: '11px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                    <div key={ms.id} className="flex items-start cursor-pointer" style={{ position: 'relative', gap: 12, padding: '11px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
                       onClick={() => setSelectedMS(ms)}>
                       <div className="flex-shrink-0" style={{ width: 40 }}>
                         <div className="font-mono" style={{ fontSize: '1rem', fontWeight: 500, color: accent, lineHeight: 1 }}>{d.getDate()}</div>
@@ -431,6 +452,7 @@ export default function TimelinePage({ params }: { params: { projectId: string }
                         </div>
                       </div>
                       <svg width="5" height="9" viewBox="0 0 5 9" fill="none" className="flex-shrink-0" style={{ opacity: 0.2, marginTop: 4 }}><path d="M1 1L4 4.5L1 8" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      <ThreadRowBadge entry={threadByMilestoneId.get(ms.id)} />
                     </div>
                   )
                 })}
@@ -453,6 +475,7 @@ export default function TimelinePage({ params }: { params: { projectId: string }
                     <div key={ms.id} data-ms-id={ms.id}
                       className="flex items-start cursor-pointer transition-all"
                       style={{
+                        position: 'relative',
                         gap: 12, padding: highlighted ? '11px 8px' : '11px 0',
                         margin: highlighted ? '0 -8px' : undefined,
                         borderBottom: highlighted ? '1px solid transparent' : '1px solid rgba(255,255,255,0.05)',
@@ -473,6 +496,7 @@ export default function TimelinePage({ params }: { params: { projectId: string }
                         </div>
                       </div>
                       <svg width="5" height="9" viewBox="0 0 5 9" fill="none" className="flex-shrink-0" style={{ opacity: 0.2, marginTop: 4 }}><path d="M1 1L4 4.5L1 8" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      <ThreadRowBadge entry={threadByMilestoneId.get(ms.id)} />
                     </div>
                   )
                 })}

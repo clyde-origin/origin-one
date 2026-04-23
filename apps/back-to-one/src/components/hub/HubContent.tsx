@@ -18,6 +18,7 @@ import { CrewPanel } from '@/components/hub/CrewPanel'
 import { CreateTaskSheet, CreateMilestoneSheet, CreateCreativeSheet } from '@/components/create'
 import { haptic } from '@/lib/utils/haptics'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
+import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import {
   formatDate, isUrgent, isLate, getProjectColor,
   PHASE_HEX, STATUS_DOT, STATUS_TEXT, MILESTONE_STATUS_HEX,
@@ -562,12 +563,24 @@ function MSDetailSheet({ milestone, crew, onClose }: { milestone: Milestone | nu
   )
 }
 
-function CrewDetailSheet({ member, onClose }: { member: CrewMember | null; onClose: () => void }) {
+function CrewDetailSheet({ member, projectId, onClose }: { member: CrewMember | null; projectId: string; onClose: () => void }) {
+  const name = member?.User?.name ?? 'Unknown'
+  const { TriggerIcon, PreviewRow, MessageZone, StartSheetOverlay } = useDetailSheetThreads({
+    projectId,
+    attachedToType: 'crew',
+    // Crew threads are keyed by userId (matches getCrew's crewById index and
+    // existing seed data). NOT the ProjectMember row id.
+    attachedToId: member?.userId ?? null,
+    subjectLabel: name,
+  })
   if (!member) return null
-  const name = member.User?.name ?? 'Unknown'
   return (
     <>
-      <SheetHeader title={name} onClose={onClose} />
+      <SheetHeader
+        title={name}
+        onClose={onClose}
+        action={TriggerIcon}
+      />
       <SheetBody>
         <div className="flex items-center gap-4 mb-4 p-3 bg-surface2 rounded-lg border border-border">
           <CrewAvatar name={name} size={48} />
@@ -576,7 +589,10 @@ function CrewDetailSheet({ member, onClose }: { member: CrewMember | null; onClo
             <div className="font-mono text-xs text-muted">{member.role}</div>
           </div>
         </div>
+        {PreviewRow}
       </SheetBody>
+      {MessageZone}
+      {StartSheetOverlay}
     </>
   )
 }
@@ -1199,7 +1215,7 @@ export function HubContent({ projectId }: { projectId: string }) {
       {/* ══ SHEETS ══ */}
       <Sheet open={!!selectedAI} onClose={() => setSelectedAI(null)}><AIDetailSheet item={selectedAI} crew={allCrew} onClose={() => setSelectedAI(null)} /></Sheet>
       <Sheet open={!!selectedMS} onClose={() => setSelectedMS(null)}><MSDetailSheet milestone={selectedMS} crew={allCrew} onClose={() => setSelectedMS(null)} /></Sheet>
-      <Sheet open={!!selectedCrew} onClose={() => setSelectedCrew(null)}><CrewDetailSheet member={selectedCrew} onClose={() => setSelectedCrew(null)} /></Sheet>
+      <Sheet open={!!selectedCrew} onClose={() => setSelectedCrew(null)}><CrewDetailSheet member={selectedCrew} projectId={projectId} onClose={() => setSelectedCrew(null)} /></Sheet>
 
       {/* ══ CREATION SHEETS ══ */}
       <CreateTaskSheet

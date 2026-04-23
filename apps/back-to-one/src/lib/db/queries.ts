@@ -550,19 +550,40 @@ export async function createShot(shot: {
 
 // ── THREADS ────────────────────────────────────────────────
 
-export async function getThreads(projectId: string) {
+// Compute unreadCount for a thread given the viewer's ThreadRead row.
+// Own messages don't count as unread — you don't need to notify yourself.
+function deriveUnreadCount(messages: any[], reads: any[], meId: string | null): number {
+  if (!meId) return 0
+  const myRead = reads.find((r: any) => r.userId === meId)
+  const lastReadAt: string | null = myRead?.lastReadAt ?? null
+  let count = 0
+  for (const m of messages) {
+    if (m.createdBy === meId) continue
+    if (lastReadAt && m.createdAt <= lastReadAt) continue
+    count++
+  }
+  return count
+}
+
+export async function getThreads(projectId: string, meId: string | null = null) {
   const db = createClient()
   const { data, error } = await db
     .from('Thread')
-    .select('*, ThreadMessage(*)')
+    .select('*, ThreadMessage(*), ThreadRead(*)')
     .eq('projectId', projectId)
     .order('updatedAt', { ascending: false })
   if (error) throw error
-  return data.map((t: any) => ({
-    ...t,
-    messages: t.ThreadMessage ?? [],
-    unread: false,
-  }))
+  return data.map((t: any) => {
+    const messages = t.ThreadMessage ?? []
+    const reads = t.ThreadRead ?? []
+    const unreadCount = deriveUnreadCount(messages, reads, meId)
+    return {
+      ...t,
+      messages,
+      unreadCount,
+      unread: unreadCount > 0,
+    }
+  })
 }
 
 export async function createThread(
@@ -578,7 +599,7 @@ export async function createThread(
     .select()
     .single()
   if (error) throw error
-  return { ...data, messages: [], unread: false }
+  return { ...data, messages: [], unreadCount: 0, unread: false }
 }
 
 export async function postMessage(
@@ -594,6 +615,20 @@ export async function postMessage(
     .single()
   if (error) throw error
   return data
+}
+
+// Upsert ThreadRead for (threadId, userId). Idempotent — safe to call on every
+// zone-2 open. Sets lastReadAt = now(), which zeroes the thread's unreadCount
+// on the next fetch.
+export async function markThreadRead(threadId: string, userId: string) {
+  const db = createClient()
+  const { error } = await db
+    .from('ThreadRead')
+    .upsert(
+      { threadId, userId, lastReadAt: new Date().toISOString() },
+      { onConflict: 'threadId,userId' },
+    )
+  if (error) throw error
 }
 
 // ── RESOURCES ──────────────────────────────────────────────
@@ -652,18 +687,24 @@ export async function getAllMilestones() {
   return data
 }
 
-export async function getAllThreads() {
+export async function getAllThreads(meId: string | null = null) {
   const db = createClient()
   const { data, error } = await db
     .from('Thread')
-    .select('*, ThreadMessage(*)')
+    .select('*, ThreadMessage(*), ThreadRead(*)')
     .order('updatedAt', { ascending: false })
   if (error) throw error
-  return data.map((t: any) => ({
-    ...t,
-    messages: t.ThreadMessage ?? [],
-    unread: false,
-  }))
+  return data.map((t: any) => {
+    const messages = t.ThreadMessage ?? []
+    const reads = t.ThreadRead ?? []
+    const unreadCount = deriveUnreadCount(messages, reads, meId)
+    return {
+      ...t,
+      messages,
+      unreadCount,
+      unread: unreadCount > 0,
+    }
+  })
 }
 
 // ── NOT YET IN SCHEMA (stubs) ─────────────────────────────
@@ -1093,7 +1134,11 @@ export async function getArtItems(projectId: string) {
     .select('*')
     .eq('projectId', projectId)
     .in('type', ['prop', 'wardrobe', 'hmu'])
+    // Seed inserts art items via a single createMany, so all rows share the
+    // same createdAt. Add id as a deterministic tiebreaker so any future
+    // UPDATE on a tied row can't re-shuffle its position in the tab.
     .order('createdAt', { ascending: true })
+    .order('id', { ascending: true })
   if (error) throw error
   return data
 }
