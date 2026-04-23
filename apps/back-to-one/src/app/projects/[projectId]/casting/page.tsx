@@ -575,6 +575,10 @@ export default function CastingPage({ params }: { params: { projectId: string } 
   // Cast-stream thread bucket: keyed by Talent.id (the real person on this
   // production). Uncast rows have no Talent, so never match — badge absent.
   const threadByTalentId = useThreadsByEntity(projectId, 'cast')
+  // Character-stream bucket for the Characters dropdown avatars. Same key
+  // the Scenemaker EntityDrawer tiles use, so counts stay consistent across
+  // entry points (see DECISIONS.md § Entity-vs-production-record threading).
+  const threadByCharacterId = useThreadsByEntity(projectId, 'character')
 
   // Character list for the dropdown — reuses the roles query (Entity type=character).
   // Alphabetically sorted. Includes uncast roles so every character is reachable.
@@ -651,9 +655,15 @@ export default function CastingPage({ params }: { params: { projectId: string } 
             onClick={() => { haptic('light'); setCharMenuOpen(v => !v) }}
             className="font-mono uppercase"
             style={{
-              fontSize: '0.52rem', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.4)',
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              padding: '2px 4px',
+              // Secondary affordance — pill outline in project accent, not filled.
+              // Transparent w/ ~8% tint so it reads distinct from the count row
+              // without becoming a primary action.
+              fontSize: '0.52rem', letterSpacing: '0.12em', color: accent,
+              background: `${accent}14`,
+              border: `1px solid ${accent}`,
+              borderRadius: 999,
+              padding: '4px 10px',
+              cursor: 'pointer',
             }}
             aria-haspopup="menu"
             aria-expanded={charMenuOpen}
@@ -699,14 +709,17 @@ export default function CastingPage({ params }: { params: { projectId: string } 
                     onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)' }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
                   >
-                    <span style={{
-                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-                      background: ENTITY_COLORS.characters.bg,
-                      border: `1px solid ${ENTITY_COLORS.characters.border}`,
-                      color: ENTITY_COLORS.characters.base,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 9, fontWeight: 700,
-                    }}>{getEntityInitials(c.name)}</span>
+                    <span style={{ position: 'relative', flexShrink: 0 }}>
+                      <span style={{
+                        width: 22, height: 22, borderRadius: '50%',
+                        background: ENTITY_COLORS.characters.bg,
+                        border: `1px solid ${ENTITY_COLORS.characters.border}`,
+                        color: ENTITY_COLORS.characters.base,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 9, fontWeight: 700,
+                      }}>{getEntityInitials(c.name)}</span>
+                      <ThreadRowBadge entry={threadByCharacterId.get(c.id)} />
+                    </span>
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
                   </button>
                 ))}
