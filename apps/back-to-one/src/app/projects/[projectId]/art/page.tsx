@@ -332,7 +332,13 @@ function ArtDetailSheet({
           <label style={labelStyle}>Notes</label>
           <textarea
             value={notes} onChange={e => setNotes(e.target.value)}
-            onBlur={() => { if (!isCreate && item) handleSave() }}
+            // Change-gated — matches the name input above. Focus shifts from
+            // this textarea into the thread reply or start sheet used to fire
+            // an unconditional save, which (combined with tied createdAt from
+            // createMany seeds) reordered the item. Save only on real edits.
+            onBlur={() => {
+              if (!isCreate && item && (notes ?? '') !== (item.description ?? '')) handleSave()
+            }}
             placeholder="Description or notes"
             rows={3}
             style={{ ...inputStyle, resize: 'none' }}

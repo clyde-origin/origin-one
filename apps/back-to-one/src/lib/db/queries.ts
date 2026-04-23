@@ -1134,7 +1134,11 @@ export async function getArtItems(projectId: string) {
     .select('*')
     .eq('projectId', projectId)
     .in('type', ['prop', 'wardrobe', 'hmu'])
+    // Seed inserts art items via a single createMany, so all rows share the
+    // same createdAt. Add id as a deterministic tiebreaker so any future
+    // UPDATE on a tied row can't re-shuffle its position in the tab.
     .order('createdAt', { ascending: true })
+    .order('id', { ascending: true })
   if (error) throw error
   return data
 }
