@@ -160,6 +160,58 @@ export function useCrewTimecardsByWeek(
   })
 }
 
+// All five timecard mutations share the same invalidation scope: every
+// cached week for this project. Using the key prefix (not the full three-
+// element key) hits all weekly buckets in one shot — a mutation in one week
+// can't affect another, but the prefix form is simpler and the extra work
+// is negligible.
+function invalidateTimecards(qc: ReturnType<typeof useQueryClient>, projectId: string) {
+  qc.invalidateQueries({ queryKey: ['timecardsByWeek', projectId] })
+}
+
+export function useCreateTimecard(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createTimecard,
+    onSuccess:  () => invalidateTimecards(qc, projectId),
+  })
+}
+
+export function useUpdateTimecard(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: { hours?: number; description?: string } }) =>
+      db.updateTimecard(id, fields),
+    onSuccess:  () => invalidateTimecards(qc, projectId),
+  })
+}
+
+export function useSubmitTimecard(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => db.submitTimecard(id),
+    onSuccess:  () => invalidateTimecards(qc, projectId),
+  })
+}
+
+export function useApproveTimecard(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, approvedBy }: { id: string; approvedBy: string }) =>
+      db.approveTimecard(id, approvedBy),
+    onSuccess:  () => invalidateTimecards(qc, projectId),
+  })
+}
+
+export function useReopenTimecard(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, reopenedBy, reopenReason }: { id: string; reopenedBy: string; reopenReason: string }) =>
+      db.reopenTimecard(id, reopenedBy, reopenReason),
+    onSuccess:  () => invalidateTimecards(qc, projectId),
+  })
+}
+
 export function useAddCrewMember(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
