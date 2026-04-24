@@ -1177,6 +1177,29 @@ export async function deleteArtItem(id: string): Promise<void> {
   const { error } = await db.from('Entity').delete().eq('id', id)
   if (error) { console.error('deleteArtItem failed:', error); throw error }
 }
+
+// ── CREW TIMECARDS ───────────────────────────────────────
+
+// Fetch all timecard rows for a project within an inclusive date range.
+// Returns raw CrewTimecard rows (no joined ProjectMember) — the caller
+// already has ProjectMember data via useCrew() and joins client-side.
+export async function getCrewTimecardsByWeek(
+  projectId: string,
+  weekStartISO: string,  // YYYY-MM-DD, inclusive
+  weekEndISO: string,    // YYYY-MM-DD, inclusive
+) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('CrewTimecard')
+    .select('*')
+    .eq('projectId', projectId)
+    .gte('date', weekStartISO)
+    .lte('date', weekEndISO)
+    .order('date', { ascending: true })
+  if (error) { console.error('getCrewTimecardsByWeek failed:', error); throw error }
+  return data
+}
+
 // ── WORKFLOW NODES ───────────────────────────────────────
 
 export async function getWorkflowNodes(projectId: string) {

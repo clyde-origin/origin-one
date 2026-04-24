@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence, PanInfo } from 'framer-motion'
-import { useCrew, useRemoveCrewMember, useUpdateCrewMember } from '@/lib/hooks/useOriginOne'
+import { useCrew, useRemoveCrewMember, useUpdateCrewMember, useCrewTimecardsByWeek } from '@/lib/hooks/useOriginOne'
 import { CrewAvatar } from '@/components/ui'
 import { haptic } from '@/lib/utils/haptics'
 import { DEPARTMENTS } from '@/lib/utils/phase'
@@ -216,9 +216,287 @@ function CrewCell({ member, onTap }: { member: TeamMember; onTap: () => void }) 
   )
 }
 
+// ── TIMECARDS: week math + status palette ────────────────
+
+// Status semantic colors. Fixed — these are status-meaning, not project-derived.
+const STATUS_DOT: Record<string, string> = {
+  approved:  '#00b894',
+  submitted: '#6470f3',
+  draft:     '#62627a',
+  reopened:  '#e8a020',
+}
+// Reopened cells get a tinted background for at-a-glance queue spotting.
+const REOPENED_CELL_BG = 'rgba(232,160,32,0.12)'
+
+// Status precedence when a day has multiple entries — prefer the one that
+// most demands attention. (Seed today has no split-day entries; guard anyway.)
+const STATUS_PRECEDENCE: Record<string, number> = {
+  reopened: 4, draft: 3, submitted: 2, approved: 1,
+}
+function moreSevereStatus(a: string, b: string): string {
+  return (STATUS_PRECEDENCE[b] ?? 0) > (STATUS_PRECEDENCE[a] ?? 0) ? b : a
+}
+
+const MONTHS_UPPER = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
+
+// All date math in UTC. Timecard.date is @db.Date so only the calendar date
+// matters; UTC avoids DST / local-offset bugs when navigating weeks.
+function startOfWeekUTC(d: Date): Date {
+  const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+  const day = x.getUTCDay()            // 0=Sun … 6=Sat
+  const deltaToMon = (day + 6) % 7     // days since Mon
+  x.setUTCDate(x.getUTCDate() - deltaToMon)
+  return x
+}
+function addDaysUTC(d: Date, n: number): Date {
+  const x = new Date(d)
+  x.setUTCDate(x.getUTCDate() + n)
+  return x
+}
+function isoDay(d: Date): string {
+  // YYYY-MM-DD, UTC.
+  const y = d.getUTCFullYear()
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(d.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+function formatWeekLabel(start: Date, end: Date): string {
+  return `${MONTHS_UPPER[start.getUTCMonth()]} ${start.getUTCDate()} – ${MONTHS_UPPER[end.getUTCMonth()]} ${end.getUTCDate()}`
+}
+
+// ── PRODUCER OVERVIEW (Frame A) ──────────────────────────
+
+function ProducerOverview({
+  crew, projectId, accent, onBack,
+}: {
+  crew: TeamMember[]
+  projectId: string
+  accent: string
+  onBack: () => void
+}) {
+  // Week anchored to today. setWeekStart moves by ±7 days.
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeekUTC(new Date()))
+  const weekEnd = useMemo(() => addDaysUTC(weekStart, 6), [weekStart])
+  const weekStartISO = isoDay(weekStart)
+  const weekEndISO   = isoDay(weekEnd)
+
+  const { data: timecards } = useCrewTimecardsByWeek(projectId, weekStartISO, weekEndISO)
+
+  // Eligibility filter — excludes Client + Other per seed spec. Inline;
+  // this is the locked rule, not a reusable concept yet.
+  const eligibleCrew = useMemo(() => {
+    return crew.filter(m => {
+      const dept = getMemberDepartment(m)
+      return dept !== null && dept !== 'Client' && dept !== 'Other'
+    })
+  }, [crew])
+
+  // Bucket timecards by (memberId, dayIndex 0..6). Multi-entry days (not
+  // in current seed but allowed by schema): sum hours, keep most severe status.
+  type Cell = { hours: number; status: string }
+  const cellsByMember = useMemo(() => {
+    const map = new Map<string, Map<number, Cell>>()
+    const weekStartMs = weekStart.getTime()
+    for (const t of (timecards ?? [])) {
+      const row = t as { crewMemberId: string; date: string; hours: string | number; status: string }
+      const dayMs = new Date(row.date).getTime()
+      const dayIdx = Math.round((dayMs - weekStartMs) / (24 * 60 * 60 * 1000))
+      if (dayIdx < 0 || dayIdx > 6) continue
+      const hours = typeof row.hours === 'string' ? parseFloat(row.hours) : Number(row.hours)
+      let byDay = map.get(row.crewMemberId)
+      if (!byDay) { byDay = new Map<number, Cell>(); map.set(row.crewMemberId, byDay) }
+      const existing = byDay.get(dayIdx)
+      if (existing) {
+        byDay.set(dayIdx, {
+          hours: existing.hours + hours,
+          status: moreSevereStatus(existing.status, row.status),
+        })
+      } else {
+        byDay.set(dayIdx, { hours, status: row.status })
+      }
+    }
+    return map
+  }, [timecards, weekStart])
+
+  const grouped = useMemo(() => groupByDepartment(eligibleCrew), [eligibleCrew])
+  const eligibleCount = eligibleCrew.length
+
+  // Is any day this week "today" in UTC? Highlight header column.
+  const todayIdx = useMemo(() => {
+    const today = new Date()
+    const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()))
+    const diffDays = Math.round((todayUTC.getTime() - weekStart.getTime()) / (24 * 60 * 60 * 1000))
+    return diffDays >= 0 && diffDays <= 6 ? diffDays : -1
+  }, [weekStart])
+
+  const formatHours = (h: number) => (Math.abs(h - Math.round(h)) < 0.05 ? h.toFixed(1) : h.toFixed(1))
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Sheet nav — back + week selector */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-3 flex-shrink-0 gap-3">
+        <button onClick={onBack} className="flex items-center justify-center w-11 h-11 -ml-2 active:opacity-60">
+          <svg width="7" height="12" viewBox="0 0 7 12" fill="none"><path d="M6 1L1 6L6 11" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </button>
+        <div
+          className="flex items-center"
+          style={{
+            gap: 8,
+            padding: '6px 10px',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 8,
+            fontFamily: "'Geist Mono', monospace",
+            fontSize: 11,
+            color: '#a0a0b8',
+            letterSpacing: '0.04em',
+          }}
+        >
+          <button
+            onClick={() => { haptic('light'); setWeekStart(addDaysUTC(weekStart, -7)) }}
+            aria-label="Previous week"
+            style={{ background: 'transparent', border: 'none', color: '#62627a', cursor: 'pointer', padding: '0 2px' }}
+          >‹</button>
+          <span>{formatWeekLabel(weekStart, weekEnd)}</span>
+          <button
+            onClick={() => { haptic('light'); setWeekStart(addDaysUTC(weekStart, 7)) }}
+            aria-label="Next week"
+            style={{ background: 'transparent', border: 'none', color: '#62627a', cursor: 'pointer', padding: '0 2px' }}
+          >›</button>
+        </div>
+        <div style={{ width: 44 }} /> {/* spacer, balances the back button */}
+      </div>
+
+      {/* Title block */}
+      <div className="px-5 pb-4 flex-shrink-0">
+        <div style={{ fontSize: 22, fontWeight: 600, color: '#fff', marginBottom: 4 }}>Timecards</div>
+        <div className="font-mono uppercase" style={{ fontSize: 11, color: '#a0a0b8', letterSpacing: '0.06em' }}>
+          {eligibleCount} crew
+        </div>
+      </div>
+
+      {/* Grid — grouped by department */}
+      <div className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch', padding: '0 16px 24px' }}>
+        {grouped.map(({ department, members }) => (
+          <div key={department ?? '__none'} style={{ marginBottom: 18 }}>
+            <div
+              className="font-mono uppercase"
+              style={{
+                fontSize: 10,
+                letterSpacing: '0.12em',
+                color: accent,
+                padding: '8px 4px 6px',
+                borderBottom: '1px solid rgba(255,255,255,0.08)',
+                marginBottom: 4,
+              }}
+            >
+              {department ?? 'Untagged'}
+            </div>
+            {/* column header */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr repeat(7, 28px)',
+                gap: 4,
+                padding: '6px 4px 4px',
+                fontFamily: "'Geist Mono', monospace",
+                fontSize: 9,
+                color: '#62627a',
+                letterSpacing: '0.1em',
+              }}
+            >
+              <span />
+              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+                <span key={i} style={{ textAlign: 'center', color: i === todayIdx ? accent : undefined }}>
+                  {d}
+                </span>
+              ))}
+            </div>
+            {/* crew rows */}
+            {members.map(m => {
+              const byDay = cellsByMember.get(m.id)
+              return (
+                <div
+                  key={m.id}
+                  onClick={() => {
+                    haptic('light')
+                    console.log('[timecards] overview row tapped', m.id)
+                  }}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr repeat(7, 28px)',
+                    gap: 4,
+                    alignItems: 'center',
+                    padding: '9px 4px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    transition: 'background 0.12s',
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.03)' }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+                >
+                  <div className="flex items-center gap-2" style={{ fontSize: 13, fontWeight: 500 }}>
+                    <CrewAvatar name={m.User.name} size={22} />
+                    <span style={{ color: '#dddde8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {m.User.name}
+                    </span>
+                  </div>
+                  {[0, 1, 2, 3, 4, 5, 6].map(dayIdx => {
+                    const cell = byDay?.get(dayIdx)
+                    if (!cell) {
+                      return (
+                        <div
+                          key={dayIdx}
+                          style={{
+                            textAlign: 'center',
+                            fontFamily: "'Geist Mono', monospace",
+                            fontSize: 10,
+                            color: '#62627a',
+                            padding: '3px 0',
+                          }}
+                        >—</div>
+                      )
+                    }
+                    const dotColor = STATUS_DOT[cell.status] ?? '#62627a'
+                    const isReopened = cell.status === 'reopened'
+                    return (
+                      <div
+                        key={dayIdx}
+                        style={{
+                          textAlign: 'center',
+                          fontFamily: "'Geist Mono', monospace",
+                          fontSize: 10,
+                          color: '#ffffff',
+                          padding: '3px 0',
+                          borderRadius: 4,
+                          background: isReopened ? REOPENED_CELL_BG : undefined,
+                        }}
+                      >
+                        {formatHours(cell.hours)}
+                        <div
+                          style={{
+                            width: 5,
+                            height: 5,
+                            borderRadius: '50%',
+                            background: dotColor,
+                            margin: '2px auto 0',
+                          }}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── MAIN CREW PANEL ──────────────────────────────────────
 
-type Layer = 'list' | 'detail'
+type Layer = 'list' | 'overview' | 'detail'
 
 export function CrewPanel({ open, projectId, accent, onClose }: {
   open: boolean; projectId: string; accent: string; onClose: () => void
@@ -290,7 +568,7 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                 </div>
                 <TimecardsLabelButton
                   accent={accent}
-                  onClick={() => console.log('[timecards] crew-sheet button clicked')}
+                  onClick={() => { haptic('light'); setLayer('overview') }}
                 />
                 <button onClick={onClose} className="text-muted w-11 h-11 flex items-center justify-center active:opacity-60">
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
@@ -336,6 +614,23 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                   projectId={projectId}
                   onBack={() => setLayer('list')}
                   onRemoved={() => { setLayer('list'); setSelectedMember(null) }}
+                />
+              </motion.div>
+            )}
+
+            {/* Layer 2B — Producer Overview (Timecards) */}
+            {layer === 'overview' && (
+              <motion.div
+                className="flex flex-col flex-1 min-h-0"
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                transition={spring}
+              >
+                <ProducerOverview
+                  crew={allCrew}
+                  projectId={projectId}
+                  accent={accent}
+                  onBack={() => setLayer('list')}
                 />
               </motion.div>
             )}

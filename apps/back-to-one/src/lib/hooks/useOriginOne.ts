@@ -32,6 +32,8 @@ export const keys = {
   dmMessages:     (projectId: string, a: string, b: string) => ['dmMessages', projectId, a, b] as const,
   dmList:         (projectId: string, me: string) => ['dmList', projectId, me] as const,
   allCrew:        () => ['allCrew'] as const,
+  timecardsByWeek: (projectId: string, weekStartISO: string) =>
+    ['timecardsByWeek', projectId, weekStartISO] as const,
 }
 
 // ── PROJECTS ───────────────────────────────────────────────
@@ -139,6 +141,22 @@ export function useCrew(projectId: string) {
     queryKey: keys.crew(projectId),
     queryFn:  () => db.getCrew(projectId),
     enabled:  !!projectId,
+  })
+}
+
+// Fetch CrewTimecard rows for the inclusive [weekStartISO, weekEndISO] range.
+// Caller provides both bounds (typically Monday and the following Sunday as
+// YYYY-MM-DD strings). The key includes the week start so switching weeks
+// yields a fresh query rather than refetching a single mutable cache entry.
+export function useCrewTimecardsByWeek(
+  projectId: string,
+  weekStartISO: string,
+  weekEndISO: string,
+) {
+  return useQuery({
+    queryKey: keys.timecardsByWeek(projectId, weekStartISO),
+    queryFn:  () => db.getCrewTimecardsByWeek(projectId, weekStartISO, weekEndISO),
+    enabled:  !!projectId && !!weekStartISO && !!weekEndISO,
   })
 }
 
