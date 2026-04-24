@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Timecards UI — Visual Reference</title>
+<style>
+  :root {
+    --bg: #04040a;
+    --surface: rgba(10, 10, 18, 0.42);
+    --surface-raised: #0a0a12;
+    --border: rgba(255, 255, 255, 0.08);
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0b8;
+    --text-muted: #62627a;
+    --approved: #00b894;
+    --submitted: #6470f3;
+    --draft: #62627a;
+    --reopened: #e8a020;
+    --project-accent: #9b6ef3; /* P3 In Vino Veritas */
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: -apple-system, 'Inter', 'Geist Sans', sans-serif;
+    padding: 32px;
+    min-height: 100vh;
+  }
+
+  .page-header {
+    max-width: 920px;
+    margin: 0 auto 24px;
+    padding: 16px 20px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(15, 15, 25, 0.6);
+  }
+
+  .page-header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .page-header p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+
+  .page-header code {
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    color: var(--project-accent);
+  }
+
+  .frames {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 920px;
+    margin: 0 auto;
+  }
+
+  .frame-label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  .frame {
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+    min-height: 680px;
+    position: relative;
+  }
+
+  /* ── Sheet header ─────────────────────────────────────────── */
+  .sheet-grabber {
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 6px;
+  }
+  .sheet-grabber::before {
+    content: "";
+    width: 40px;
+    height: 4px;
+    background: rgba(255,255,255,0.14);
+    border-radius: 999px;
+  }
+
+  .sheet-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px 14px;
+  }
+  .back-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-primary);
+    font-size: 18px;
+    cursor: pointer;
+  }
+
+  /* Week selector */
+  .week-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+  }
+  .week-selector .arrow {
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 2px;
+  }
+
+  .sheet-title {
+    padding: 0 20px 20px;
+  }
+  .sheet-title h2 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .sheet-title .subtitle {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-family: 'Geist Mono', monospace;
+    letter-spacing: 0.03em;
+  }
+
+  /* ── Overview table (Frame A) ─────────────────────────────── */
+  .dept-group {
+    margin: 0 16px 18px;
+  }
+  .dept-label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--project-accent);
+    padding: 8px 4px 6px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+
+  .grid-header {
+    display: grid;
+    grid-template-columns: 1fr repeat(7, 28px);
+    gap: 4px;
+    padding: 6px 4px 4px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+  }
+  .grid-header .day { text-align: center; }
+  .grid-header .day.today { color: var(--project-accent); }
+
+  .crew-row {
+    display: grid;
+    grid-template-columns: 1fr repeat(7, 28px);
+    gap: 4px;
+    align-items: center;
+    padding: 9px 4px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .crew-row:hover {
+    background: rgba(255,255,255,0.03);
+  }
+
+  .crew-name {
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1.5px solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .cell {
+    text-align: center;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    position: relative;
+    padding: 3px 0;
+    border-radius: 4px;
+  }
+  .cell.empty { color: var(--text-muted); }
+  .cell.has-hours { color: var(--text-primary); }
+  .cell .status-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    margin: 2px auto 0;
+  }
+  .cell.approved .status-dot { background: var(--approved); }
+  .cell.submitted .status-dot { background: var(--submitted); }
+  .cell.draft .status-dot { background: var(--draft); }
+  .cell.reopened { background: rgba(232, 160, 32, 0.12); }
+  .cell.reopened .status-dot { background: var(--reopened); }
+
+  /* ── Individual week view (Frame B) ───────────────────────── */
+  .identity-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 4px 20px 22px;
+  }
+
+  .identity-block .avatar-lg {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 2px solid var(--project-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Geist Mono', monospace;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--project-accent);
+    margin-bottom: 14px;
+  }
+  .identity-block h2 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .identity-block .meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-family: 'Geist Mono', monospace;
+  }
+
+  .week-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px 10px;
+    border-top: 1px solid var(--border);
+  }
+  .week-header .section-label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .day-row {
+    display: flex;
+    align-items: flex-start;
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    gap: 14px;
+  }
+  .day-row:last-child { border-bottom: none; }
+
+  .day-row .day-label {
+    min-width: 68px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    padding-top: 3px;
+  }
+  .day-row .day-label .weekday { display: block; }
+  .day-row .day-label .date { color: var(--text-secondary); margin-top: 2px; }
+
+  .day-row .entry-content {
+    flex: 1;
+  }
+
+  .day-row.empty .entry-content {
+    color: var(--text-muted);
+    font-size: 13px;
+    padding-top: 3px;
+    font-style: italic;
+  }
+
+  .entry-card {
+    padding: 10px 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
+  .entry-card.reopened {
+    background: rgba(232, 160, 32, 0.08);
+    border-color: rgba(232, 160, 32, 0.3);
+  }
+
+  .entry-line-1 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .entry-hours {
+    font-size: 15px;
+    font-weight: 600;
+    font-family: 'Geist Mono', monospace;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .status-pill.approved {
+    background: rgba(0, 184, 148, 0.14);
+    color: var(--approved);
+  }
+  .status-pill.submitted {
+    background: rgba(100, 112, 243, 0.14);
+    color: var(--submitted);
+  }
+  .status-pill.draft {
+    background: rgba(98, 98, 122, 0.18);
+    color: var(--text-secondary);
+  }
+  .status-pill.reopened {
+    background: rgba(232, 160, 32, 0.16);
+    color: var(--reopened);
+  }
+
+  .entry-description {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+
+  .reopen-reason {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: rgba(232, 160, 32, 0.08);
+    border-left: 2px solid var(--reopened);
+    border-radius: 0 6px 6px 0;
+    font-size: 11px;
+    line-height: 1.55;
+    color: var(--text-primary);
+  }
+  .reopen-reason .label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--reopened);
+    margin-bottom: 4px;
+    display: block;
+  }
+  .reopen-reason .reopener {
+    display: block;
+    margin-top: 6px;
+    font-size: 10px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .add-entry-btn {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--project-accent);
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .annotation {
+    max-width: 920px;
+    margin: 24px auto 0;
+    padding: 14px 18px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+  .annotation strong {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .annotation code {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--project-accent);
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Timecards — Visual Reference</h1>
+  <p>
+    Both new surfaces shown, using real seed data from <code>In Vino Veritas</code> (P3), week of Apr 6–12, 2026.
+    Left: Producer Overview (replace-in-place inside the Crew sheet). Right: Individual Week View (replace-in-place inside the Crew Detail sheet).
+    Both use the project's accent color (violet) for headers and highlights. Thread tokens are untouched — this surface doesn't share pixels with them.
+  </p>
+</div>
+
+<div class="frames">
+
+  <!-- ═══════════════ FRAME A: PRODUCER OVERVIEW ═══════════════ -->
+  <div>
+    <div class="frame-label">A · Producer Overview — all eligible crew × 7 days</div>
+    <div class="frame">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-nav">
+        <div class="back-btn">‹</div>
+        <div class="week-selector">
+          <span class="arrow">‹</span>
+          <span>APR 6 – APR 12</span>
+          <span class="arrow">›</span>
+        </div>
+      </div>
+      <div class="sheet-title">
+        <h2>Timecards</h2>
+        <div class="subtitle">IN VINO VERITAS · 6 CREW</div>
+      </div>
+
+      <!-- DIRECTION -->
+      <div class="dept-group">
+        <div class="dept-label">Direction</div>
+        <div class="grid-header">
+          <span></span>
+          <span class="day">M</span><span class="day">T</span><span class="day">W</span>
+          <span class="day">T</span><span class="day">F</span><span class="day">S</span><span class="day">S</span>
+        </div>
+        <div class="crew-row">
+          <div class="crew-name">
+            <div class="avatar" style="color: #e8a020; border-color: #e8a020;">CB</div>
+            Clyde Bessey
+          </div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell has-hours approved">9.0<div class="status-dot"></div></div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+        </div>
+      </div>
+
+      <!-- PRODUCTION -->
+      <div class="dept-group">
+        <div class="dept-label">Production</div>
+        <div class="grid-header">
+          <span></span>
+          <span class="day">M</span><span class="day">T</span><span class="day">W</span>
+          <span class="day">T</span><span class="day">F</span><span class="day">S</span><span class="day">S</span>
+        </div>
+        <div class="crew-row">
+          <div class="crew-name">
+            <div class="avatar" style="color: #00b894; border-color: #00b894;">KP</div>
+            Kelly Pratt
+          </div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+        </div>
+        <div class="crew-row">
+          <div class="crew-name">
+            <div class="avatar" style="color: #6470f3; border-color: #6470f3;">RC</div>
+            Ryan Cole
+          </div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell has-hours reopened">12.0<div class="status-dot"></div></div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+        </div>
+        <div class="crew-row">
+          <div class="crew-name">
+            <div class="avatar" style="color: #e8507a; border-color: #e8507a;">TH</div>
+            Tyler Heckerman
+          </div>
+          <div class="cell has-hours approved">11.0<div class="status-dot"></div></div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+        </div>
+      </div>
+
+      <!-- CAMERA -->
+      <div class="dept-group">
+        <div class="dept-label">Camera</div>
+        <div class="grid-header">
+          <span></span>
+          <span class="day">M</span><span class="day">T</span><span class="day">W</span>
+          <span class="day">T</span><span class="day">F</span><span class="day">S</span><span class="day">S</span>
+        </div>
+        <div class="crew-row">
+          <div class="crew-name">
+            <div class="avatar" style="color: #3cbe6a; border-color: #3cbe6a;">OB</div>
+            Owen Blakely
+          </div>
+          <div class="cell has-hours approved">10.0<div class="status-dot"></div></div>
+          <div class="cell empty">—</div>
+          <div class="cell has-hours approved">12.0<div class="status-dot"></div></div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+        </div>
+      </div>
+
+      <!-- SOUND -->
+      <div class="dept-group">
+        <div class="dept-label">Sound</div>
+        <div class="grid-header">
+          <span></span>
+          <span class="day">M</span><span class="day">T</span><span class="day">W</span>
+          <span class="day">T</span><span class="day">F</span><span class="day">S</span><span class="day">S</span>
+        </div>
+        <div class="crew-row">
+          <div class="crew-name">
+            <div class="avatar" style="color: #9b6ef3; border-color: #9b6ef3;">TV</div>
+            Tom Vega
+          </div>
+          <div class="cell empty">—</div>
+          <div class="cell has-hours approved">10.5<div class="status-dot"></div></div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+          <div class="cell empty">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ FRAME B: INDIVIDUAL WEEK VIEW ═══════════════ -->
+  <div>
+    <div class="frame-label">B · Individual Week — Ryan Cole (producer viewing)</div>
+    <div class="frame">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-nav">
+        <div class="back-btn">‹</div>
+        <div class="week-selector">
+          <span class="arrow">‹</span>
+          <span>APR 6 – APR 12</span>
+          <span class="arrow">›</span>
+        </div>
+      </div>
+
+      <div class="identity-block">
+        <div class="avatar-lg">RC</div>
+        <h2>Ryan Cole</h2>
+        <div class="meta">PRODUCTION · IN VINO VERITAS</div>
+      </div>
+
+      <div class="week-header">
+        <div class="section-label">Week · 12.0 h total</div>
+        <div class="section-label" style="color: var(--reopened);">1 reopened</div>
+      </div>
+
+      <div class="day-row empty">
+        <div class="day-label"><span class="weekday">MON</span><span class="date">APR 6</span></div>
+        <div class="entry-content">—</div>
+      </div>
+
+      <div class="day-row empty">
+        <div class="day-label"><span class="weekday">TUE</span><span class="date">APR 7</span></div>
+        <div class="entry-content">—</div>
+      </div>
+
+      <div class="day-row">
+        <div class="day-label"><span class="weekday">WED</span><span class="date">APR 8</span></div>
+        <div class="entry-content">
+          <div class="entry-card reopened">
+            <div class="entry-line-1">
+              <span class="entry-hours">12.0 h</span>
+              <span class="status-pill reopened">⟲ Reopened</span>
+            </div>
+            <div class="entry-description">
+              Harvest day coordination — hours need locations split
+            </div>
+            <div class="reopen-reason">
+              <span class="label">Reopen reason</span>
+              Please split vineyard field hours from cellar hours — need locations broken out for the line-item audit.
+              <span class="reopener">— Tyler Heckerman · 3 days ago</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="day-row empty">
+        <div class="day-label"><span class="weekday">THU</span><span class="date">APR 9</span></div>
+        <div class="entry-content">—</div>
+      </div>
+
+      <div class="day-row empty">
+        <div class="day-label"><span class="weekday">FRI</span><span class="date">APR 10</span></div>
+        <div class="entry-content">—</div>
+      </div>
+
+      <div class="day-row empty">
+        <div class="day-label"><span class="weekday">SAT</span><span class="date">APR 11</span></div>
+        <div class="entry-content">—</div>
+      </div>
+
+      <div class="day-row empty">
+        <div class="day-label"><span class="weekday">SUN</span><span class="date">APR 12</span></div>
+        <div class="entry-content">—</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="annotation">
+  <strong>Notes on what's shown.</strong>
+  Frame A uses a per-department grouped grid — matches the existing Crew roster structure (same department groupings, same order).
+  Hours appear in the day cell; a colored dot below indicates status (teal=approved, amber=reopened, indigo=submitted, gray=draft).
+  Reopened cells are backlit amber for at-a-glance queue spotting.
+  Frame B is what a producer sees when they tap Ryan's row — the identity block at top, week selector, then seven day-rows below.
+  Empty days are low-contrast; days with entries get a card. The reopened entry carries the full context: hours, status, description, the reopen reason (with attribution), and crew would see an "Edit entry" CTA here (not shown, producer view).
+  <br><br>
+  <strong>What a crew member sees on Frame B</strong> is structurally identical but with an <code>Add hours</code> affordance on empty days and <code>Edit entry</code> on their own reopened/draft entries (not on approved ones — those are locked).
+</div>
+
+</body>
+</html>
