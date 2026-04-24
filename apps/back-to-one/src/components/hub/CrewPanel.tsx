@@ -10,6 +10,57 @@ import type { TeamMember } from '@/types'
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 40 }
 
+// ── Timecards affordances — buttons only (click handlers are stubbed until
+// the Timecards surface lands). Color defaults to text-secondary, shifts to
+// project accent on hover. ──────────────────────────────────────────────────
+
+function TimecardsLabelButton({ accent, onClick }: { accent: string; onClick: () => void }) {
+  const [hover, setHover] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="font-mono uppercase active:opacity-60"
+      style={{
+        fontSize: 11,
+        letterSpacing: '0.08em',
+        color: hover ? accent : '#a0a0b8',
+        background: 'transparent',
+        border: 'none',
+        padding: '6px 8px',
+        cursor: 'pointer',
+        transition: 'color 0.12s',
+      }}
+    >
+      Timecards
+    </button>
+  )
+}
+
+function TimecardsIconButton({ accent, onClick }: { accent: string; onClick: () => void }) {
+  const [hover, setHover] = useState(false)
+  const color = hover ? accent : '#a0a0b8'
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      aria-label="Timecards"
+      className="flex items-center justify-center w-11 h-11 active:opacity-60"
+      style={{ background: 'transparent', border: 'none', cursor: 'pointer', transition: 'color 0.12s' }}
+    >
+      {/* Clock icon — 20px, stroke follows hover state */}
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="10" cy="10" r="7.5" stroke={color} strokeWidth="1.5" />
+        <path d="M10 5.5V10l3 2" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  )
+}
+
 /** Get the department string from a crew member (field exists on ProjectMember but not yet on the TS type) */
 function getMemberDepartment(member: TeamMember): string | null {
   return (member as TeamMember & { department?: string | null }).department ?? null
@@ -76,6 +127,10 @@ function CrewDetail({ member, accent, projectId, onBack, onRemoved }: {
           <svg width="7" height="12" viewBox="0 0 7 12" fill="none"><path d="M6 1L1 6L6 11" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
         <div className="flex-1" />
+        <TimecardsIconButton
+          accent={accent}
+          onClick={() => console.log('[timecards] crew-detail icon clicked')}
+        />
       </div>
 
       {/* Profile */}
@@ -233,6 +288,10 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                   <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#dddde8' }}>Crew</div>
                   <div className="font-mono" style={{ fontSize: '0.48rem', color: '#62627a', marginTop: 2 }}>{allCrew.length} members</div>
                 </div>
+                <TimecardsLabelButton
+                  accent={accent}
+                  onClick={() => console.log('[timecards] crew-sheet button clicked')}
+                />
                 <button onClick={onClose} className="text-muted w-11 h-11 flex items-center justify-center active:opacity-60">
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
                 </button>
