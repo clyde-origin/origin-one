@@ -105,6 +105,13 @@ enum LocationStatus {
   passed
 }
 
+enum TimecardStatus {
+  draft       // crew started, not submitted
+  submitted   // crew submitted, awaiting producer
+  approved    // producer approved, locked for edit
+  reopened    // producer reopened, back to editable
+}
+
 // ─── Core identity and membership ────────────────────────────────────────────
 
 model User {
@@ -164,7 +171,54 @@ model ProjectMember {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  timecards           CrewTimecard[] @relation("TimecardCrew")
+  approvedTimecards   CrewTimecard[] @relation("TimecardApprover")
+  reopenedTimecards   CrewTimecard[] @relation("TimecardReopener")
+
   @@unique([projectId, userId])
+}
+
+// ─── Crew Timecards ──────────────────────────────────────────────────────────
+
+model CrewTimecard {
+  id            String    @id @default(uuid())
+
+  // Relations
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  crewMemberId  String
+  crewMember    ProjectMember @relation("TimecardCrew", fields: [crewMemberId], references: [id], onDelete: Restrict)
+
+  // Core data
+  date          DateTime  @db.Date
+  hours         Decimal   @db.Decimal(4, 2)  // e.g., 12.50 = 12h 30m
+  description   String    @db.Text
+
+  // State machine
+  status        TimecardStatus @default(draft)
+
+  // Lifecycle — submission & approval
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  approvedBy    String?
+  approver      ProjectMember? @relation("TimecardApprover", fields: [approvedBy], references: [id], onDelete: SetNull)
+
+  // Lifecycle — reopen
+  reopenedAt    DateTime?
+  reopenedBy    String?
+  reopener      ProjectMember? @relation("TimecardReopener", fields: [reopenedBy], references: [id], onDelete: SetNull)
+  reopenReason  String?        @db.Text
+
+  // Standard audit
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([crewMemberId])
+  @@index([projectId, date])       // project + date-range queries
+  @@index([crewMemberId, date])    // future cross-project dashboard
+  @@index([status])                // producer approval queue
 }
 
 // ─── Project ─────────────────────────────────────────────────────────────────
@@ -201,6 +255,7 @@ model Project {
   chatChannels     ChatChannel[]
   chatMessages     ChatMessage[]
   shotlistVersions ShotlistVersion[]
+  timecards        CrewTimecard[]
 }
 
 // ─── Scenes, Shots, Entities ─────────────────────────────────────────────────
