@@ -163,6 +163,7 @@ async function main() {
   await prisma.threadRead.deleteMany()
   await prisma.threadMessage.deleteMany()
   await prisma.thread.deleteMany()
+  await prisma.crewTimecard.deleteMany()
   await prisma.projectMember.deleteMany()
   await prisma.document.deleteMany()
   await prisma.shot.deleteMany()
@@ -2101,6 +2102,149 @@ FADE TO BLACK.`,
   ]})
 
   console.log('  Threads: 26 (9 unread, 10 read, 7 resolved)')
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // P8 — CREW TIMECARDS
+  // 35 entries across 5 projects (P5 intentionally empty).
+  // Distribution: 9 / 5 / 6 / 5 / 0 / 10 across P1–P6.
+  // States: 26 approved, 6 submitted, 2 draft, 1 reopened.
+  // Source of truth: apps/back-to-one/reference/crew-timecards-seed-v2.md
+  // Eligibility: excludes Client + Other departments (11 talent rows, 2 clients).
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Resolve a ProjectMember by (projectId, crew display name). The display
+  // name lives on the joined User row — ProjectMember has no name column.
+  // Fails fast on miss, matching the mustFind pattern used in Threads.
+  async function findMember(projectId: string, name: string) {
+    const m = await prisma.projectMember.findFirst({
+      where: { projectId, user: { is: { name } } },
+    })
+    if (!m) throw new Error(`[timecards seed] ProjectMember '${name}' not found on project ${projectId}`)
+    return m
+  }
+
+  // Timestamp helpers — explicit UTC so behavior is stable across machines.
+  //   tcDate(day)       → @db.Date column value (midnight UTC)
+  //   tcStamp(day, hh)  → submittedAt / approvedAt / reopenedAt timestamps
+  const tcDate  = (day: string) => new Date(`${day}T00:00:00.000Z`)
+  const tcStamp = (day: string, hh: number) =>
+    new Date(`${day}T${String(hh).padStart(2, '0')}:00:00.000Z`)
+
+  // ── P1 Timecards (9) ────────────────────────────────────────────────────
+  const p1PriyaMbr  = await findMember(p1.id, 'Priya Nair')
+  const p1TheoMbr   = await findMember(p1.id, 'Theo Hartmann')
+  const p1CarlosMbr = await findMember(p1.id, 'Carlos Vega')
+  const p1TanyaMbr  = await findMember(p1.id, 'Tanya Mills')
+  const p1DerekMbr  = await findMember(p1.id, 'Derek Huang')
+  const p1NinaMbr   = await findMember(p1.id, 'Nina Osei')
+  const p1FionaMbr  = await findMember(p1.id, 'Fiona Drake')
+  const p1AndreMbr  = await findMember(p1.id, 'Andre Kim')
+  const p1MiaMbr    = await findMember(p1.id, 'Mia Chen')
+  const p1KellyMbr  = await findMember(p1.id, 'Kelly Pratt')
+  const p1TylerHMbr = await findMember(p1.id, 'Tyler Heckerman')
+
+  await prisma.crewTimecard.createMany({ data: [
+    { projectId: p1.id, crewMemberId: p1PriyaMbr.id,  date: tcDate('2026-04-13'), hours: 12.0, description: 'Camera prep, beauty lighting tests at Bel Air estate', status: 'approved',  submittedAt: tcStamp('2026-04-13', 20), approvedAt: tcStamp('2026-04-14', 10), approvedBy: p1KellyMbr.id },
+    { projectId: p1.id, crewMemberId: p1TheoMbr.id,   date: tcDate('2026-04-13'), hours: 12.0, description: 'B-cam coverage, hero product macro inserts',           status: 'approved',  submittedAt: tcStamp('2026-04-13', 20), approvedAt: tcStamp('2026-04-14', 10), approvedBy: p1KellyMbr.id },
+    { projectId: p1.id, crewMemberId: p1CarlosMbr.id, date: tcDate('2026-04-14'), hours: 12.5, description: 'A-cam talent coverage, product reveals',               status: 'submitted', submittedAt: tcStamp('2026-04-14', 20) },
+    { projectId: p1.id, crewMemberId: p1TanyaMbr.id,  date: tcDate('2026-04-13'), hours: 13.0, description: 'Key + fill beauty setup, diffusion pass',              status: 'approved',  submittedAt: tcStamp('2026-04-13', 20), approvedAt: tcStamp('2026-04-14', 10), approvedBy: p1KellyMbr.id },
+    { projectId: p1.id, crewMemberId: p1DerekMbr.id,  date: tcDate('2026-04-14'), hours: 12.0, description: 'Grip rigging, dolly setup for beauty moves',           status: 'approved',  submittedAt: tcStamp('2026-04-14', 20), approvedAt: tcStamp('2026-04-15', 10), approvedBy: p1TylerHMbr.id },
+    { projectId: p1.id, crewMemberId: p1NinaMbr.id,   date: tcDate('2026-04-13'), hours: 12.0, description: 'Hero product styling, set dressing',                   status: 'approved',  submittedAt: tcStamp('2026-04-13', 20), approvedAt: tcStamp('2026-04-14', 10), approvedBy: p1KellyMbr.id },
+    { projectId: p1.id, crewMemberId: p1FionaMbr.id,  date: tcDate('2026-04-14'), hours: 10.5, description: 'Talent makeup, beauty continuity',                     status: 'submitted', submittedAt: tcStamp('2026-04-14', 20) },
+    { projectId: p1.id, crewMemberId: p1AndreMbr.id,  date: tcDate('2026-04-14'), hours: 11.0, description: 'VO booth capture, room tone',                          status: 'approved',  submittedAt: tcStamp('2026-04-14', 20), approvedAt: tcStamp('2026-04-15', 10), approvedBy: p1KellyMbr.id },
+    { projectId: p1.id, crewMemberId: p1MiaMbr.id,    date: tcDate('2026-04-13'), hours: 13.5, description: 'Crew coordination, talent wrangling, call sheets',     status: 'approved',  submittedAt: tcStamp('2026-04-13', 20), approvedAt: tcStamp('2026-04-14', 10), approvedBy: p1TylerHMbr.id },
+  ]})
+
+  // ── P2 Timecards (5) ────────────────────────────────────────────────────
+  const p2DaniMbr   = await findMember(p2.id, 'Dani Reeves')
+  const p2TylerGMbr = await findMember(p2.id, 'Tyler Green')
+  const p2KellyMbr  = await findMember(p2.id, 'Kelly Pratt')
+  const p2ClydeMbr  = await findMember(p2.id, 'Clyde Bessey')
+
+  await prisma.crewTimecard.createMany({ data: [
+    { projectId: p2.id, crewMemberId: p2DaniMbr.id,   date: tcDate('2026-04-14'), hours: 11.0, description: 'Mountain biking coverage, handheld + gimbal',   status: 'submitted', submittedAt: tcStamp('2026-04-14', 21) },
+    { projectId: p2.id, crewMemberId: p2DaniMbr.id,   date: tcDate('2026-04-15'), hours: 12.5, description: 'Skate park session, slow-mo and standard',      status: 'submitted', submittedAt: tcStamp('2026-04-15', 21) },
+    { projectId: p2.id, crewMemberId: p2TylerGMbr.id, date: tcDate('2026-04-14'), hours: 13.0, description: 'Location lockdown, athlete coordination',        status: 'approved',  submittedAt: tcStamp('2026-04-14', 20), approvedAt: tcStamp('2026-04-15', 10), approvedBy: p2KellyMbr.id },
+    { projectId: p2.id, crewMemberId: p2KellyMbr.id,  date: tcDate('2026-04-15'), hours: 13.5, description: 'Multi-location producing, own-time logged',      status: 'submitted', submittedAt: tcStamp('2026-04-15', 21) },
+    { projectId: p2.id, crewMemberId: p2ClydeMbr.id,  date: tcDate('2026-04-16'), hours: 10.0, description: 'Surf coverage directing at dawn',                status: 'draft' },
+  ]})
+
+  // ── P3 Timecards (6, incl. 1 reopened) ──────────────────────────────────
+  const p3OwenMbr   = await findMember(p3.id, 'Owen Blakely')
+  const p3TomMbr    = await findMember(p3.id, 'Tom Vega')
+  const p3RyanMbr   = await findMember(p3.id, 'Ryan Cole')
+  const p3TylerHMbr = await findMember(p3.id, 'Tyler Heckerman')
+  const p3ClydeMbr  = await findMember(p3.id, 'Clyde Bessey')
+  const p3KellyMbr  = await findMember(p3.id, 'Kelly Pratt')
+
+  await prisma.crewTimecard.createMany({ data: [
+    { projectId: p3.id, crewMemberId: p3OwenMbr.id,   date: tcDate('2026-04-06'), hours: 10.0, description: 'Vineyard establishing shots, golden hour', status: 'approved', submittedAt: tcStamp('2026-04-06', 20), approvedAt: tcStamp('2026-04-07', 10), approvedBy: p3KellyMbr.id },
+    { projectId: p3.id, crewMemberId: p3OwenMbr.id,   date: tcDate('2026-04-08'), hours: 12.0, description: 'Harvest multi-cam coverage',                status: 'approved', submittedAt: tcStamp('2026-04-08', 20), approvedAt: tcStamp('2026-04-09', 10), approvedBy: p3KellyMbr.id },
+    { projectId: p3.id, crewMemberId: p3TomMbr.id,    date: tcDate('2026-04-07'), hours: 10.5, description: 'Winemaker interview audio, lavs + boom',    status: 'approved', submittedAt: tcStamp('2026-04-07', 20), approvedAt: tcStamp('2026-04-08', 10), approvedBy: p3KellyMbr.id },
+    // The single reopened entry in the seed — full lifecycle present:
+    // submitted → approved (by Tyler H) → reopened (by Tyler H) with reason.
+    {
+      projectId: p3.id, crewMemberId: p3RyanMbr.id, date: tcDate('2026-04-08'), hours: 12.0,
+      description: 'Harvest day coordination — hours need locations split',
+      status: 'reopened',
+      submittedAt:  tcStamp('2026-04-08', 20),
+      approvedAt:   tcStamp('2026-04-09', 10),
+      approvedBy:   p3TylerHMbr.id,
+      reopenedAt:   tcStamp('2026-04-10', 14),
+      reopenedBy:   p3TylerHMbr.id,
+      reopenReason: 'Please split vineyard field hours from cellar hours — need locations broken out for the line-item audit.',
+    },
+    { projectId: p3.id, crewMemberId: p3TylerHMbr.id, date: tcDate('2026-04-06'), hours: 11.0, description: 'Vineyard owner coordination, location prep', status: 'approved', submittedAt: tcStamp('2026-04-06', 20), approvedAt: tcStamp('2026-04-07', 10), approvedBy: p3KellyMbr.id },
+    { projectId: p3.id, crewMemberId: p3ClydeMbr.id,  date: tcDate('2026-04-10'), hours:  9.0, description: 'Pickups and drone directing, wrap',           status: 'approved', submittedAt: tcStamp('2026-04-10', 20), approvedAt: tcStamp('2026-04-11', 10), approvedBy: p3TylerHMbr.id },
+  ]})
+
+  // ── P4 Timecards (5) ────────────────────────────────────────────────────
+  const p4AlexMbr   = await findMember(p4.id, 'Alex Drum')
+  const p4HanaMbr   = await findMember(p4.id, 'Hana Liu')
+  const p4TylerMMbr = await findMember(p4.id, 'Tyler Moss')
+  const p4KellyMbr  = await findMember(p4.id, 'Kelly Pratt')
+  const p4TylerHMbr = await findMember(p4.id, 'Tyler Heckerman')
+  const p4ClydeMbr  = await findMember(p4.id, 'Clyde Bessey')
+
+  await prisma.crewTimecard.createMany({ data: [
+    { projectId: p4.id, crewMemberId: p4AlexMbr.id,   date: tcDate('2026-04-11'), hours: 9.0, description: 'Episode 1 yoga sequences, locked-off + handheld', status: 'approved',  submittedAt: tcStamp('2026-04-11', 20), approvedAt: tcStamp('2026-04-12', 10), approvedBy: p4KellyMbr.id },
+    { projectId: p4.id, crewMemberId: p4HanaMbr.id,   date: tcDate('2026-04-11'), hours: 8.5, description: 'Instructor lavs, ambient room tone',                status: 'approved',  submittedAt: tcStamp('2026-04-11', 20), approvedAt: tcStamp('2026-04-12', 10), approvedBy: p4KellyMbr.id },
+    { projectId: p4.id, crewMemberId: p4TylerMMbr.id, date: tcDate('2026-04-11'), hours: 9.0, description: 'Episode 1 coordination, talent support',            status: 'approved',  submittedAt: tcStamp('2026-04-11', 20), approvedAt: tcStamp('2026-04-12', 10), approvedBy: p4TylerHMbr.id },
+    { projectId: p4.id, crewMemberId: p4AlexMbr.id,   date: tcDate('2026-04-16'), hours: 9.5, description: 'Episode 2 meditation segments, soft lighting',       status: 'submitted', submittedAt: tcStamp('2026-04-16', 20) },
+    { projectId: p4.id, crewMemberId: p4ClydeMbr.id,  date: tcDate('2026-04-16'), hours: 8.0, description: 'Episode 2 directing, early cut review',              status: 'draft' },
+  ]})
+
+  // ── P5 Timecards (0) ────────────────────────────────────────────────────
+  // Intentional empty state — Natural Order is a post-only project with no
+  // production phase that would generate timecards. Exercises empty-state UI.
+
+  // ── P6 Timecards (10, all approved — wrapped shoot) ─────────────────────
+  const p6MayaMbr   = await findMember(p6.id, 'Maya Lin')
+  const p6CalebMbr  = await findMember(p6.id, 'Caleb Stone')
+  const p6ChrisMbr  = await findMember(p6.id, 'Chris Tan')
+  const p6OmarMbr   = await findMember(p6.id, 'Omar Rashid')
+  const p6DarioMbr  = await findMember(p6.id, 'Dario Reyes')
+  const p6PetraMbr  = await findMember(p6.id, 'Petra Walsh')
+  const p6SofiaMbr  = await findMember(p6.id, 'Sofia Avila')
+  const p6RinaMbr   = await findMember(p6.id, 'Rina Cole')
+  const p6KellyMbr  = await findMember(p6.id, 'Kelly Pratt')
+  const p6TylerHMbr = await findMember(p6.id, 'Tyler Heckerman')
+  const p6ClydeMbr  = await findMember(p6.id, 'Clyde Bessey')
+
+  await prisma.crewTimecard.createMany({ data: [
+    { projectId: p6.id, crewMemberId: p6MayaMbr.id,  date: tcDate('2026-04-01'), hours: 12.0, description: 'Day 1 exterior ravine sequences, magic hour', status: 'approved', submittedAt: tcStamp('2026-04-01', 20), approvedAt: tcStamp('2026-04-02', 10), approvedBy: p6KellyMbr.id },
+    { projectId: p6.id, crewMemberId: p6CalebMbr.id, date: tcDate('2026-04-02'), hours: 13.5, description: 'Day 2 Lohm/Aleph dialogue coverage, A-cam',   status: 'approved', submittedAt: tcStamp('2026-04-02', 20), approvedAt: tcStamp('2026-04-03', 10), approvedBy: p6KellyMbr.id },
+    { projectId: p6.id, crewMemberId: p6ChrisMbr.id, date: tcDate('2026-04-02'), hours: 13.0, description: 'Dialogue capture, multi-track, boom + lavs',  status: 'approved', submittedAt: tcStamp('2026-04-02', 20), approvedAt: tcStamp('2026-04-03', 10), approvedBy: p6KellyMbr.id },
+    { projectId: p6.id, crewMemberId: p6OmarMbr.id,  date: tcDate('2026-04-03'), hours: 13.5, description: 'Scene 12 audio, dusk wind challenges',         status: 'approved', submittedAt: tcStamp('2026-04-03', 20), approvedAt: tcStamp('2026-04-04', 10), approvedBy: p6KellyMbr.id },
+    { projectId: p6.id, crewMemberId: p6DarioMbr.id, date: tcDate('2026-04-03'), hours: 14.0, description: 'Magic hour rigging, sunset extension pass',   status: 'approved', submittedAt: tcStamp('2026-04-03', 20), approvedAt: tcStamp('2026-04-04', 10), approvedBy: p6KellyMbr.id },
+    { projectId: p6.id, crewMemberId: p6PetraMbr.id, date: tcDate('2026-04-03'), hours: 13.0, description: 'Scene 12 prep, ravine practical effects',      status: 'approved', submittedAt: tcStamp('2026-04-03', 20), approvedAt: tcStamp('2026-04-04', 10), approvedBy: p6KellyMbr.id },
+    { projectId: p6.id, crewMemberId: p6SofiaMbr.id, date: tcDate('2026-04-02'), hours: 13.5, description: 'Day 2 producing, schedule adjustments',        status: 'approved', submittedAt: tcStamp('2026-04-02', 20), approvedAt: tcStamp('2026-04-03', 10), approvedBy: p6KellyMbr.id },
+    { projectId: p6.id, crewMemberId: p6RinaMbr.id,  date: tcDate('2026-04-01'), hours: 13.0, description: 'Day 1 coordination, call sheets, crafty',      status: 'approved', submittedAt: tcStamp('2026-04-01', 20), approvedAt: tcStamp('2026-04-02', 10), approvedBy: p6TylerHMbr.id },
+    { projectId: p6.id, crewMemberId: p6KellyMbr.id, date: tcDate('2026-04-01'), hours: 13.5, description: 'Day 1 producing, own-time',                     status: 'approved', submittedAt: tcStamp('2026-04-01', 20), approvedAt: tcStamp('2026-04-02', 10), approvedBy: p6TylerHMbr.id },
+    { projectId: p6.id, crewMemberId: p6ClydeMbr.id, date: tcDate('2026-04-04'), hours: 11.0, description: 'Day 4 pickups directing, wrap',                 status: 'approved', submittedAt: tcStamp('2026-04-04', 20), approvedAt: tcStamp('2026-04-05', 10), approvedBy: p6TylerHMbr.id },
+  ]})
+
+  console.log('  Timecards: 35 (9/5/6/5/0/10 across P1-P6; 26 approved, 6 submitted, 2 draft, 1 reopened)')
 
   // ── Final count ───────────────────────────────────────────────────────────
   const counts = {
