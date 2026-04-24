@@ -1177,6 +1177,118 @@ export async function deleteArtItem(id: string): Promise<void> {
   const { error } = await db.from('Entity').delete().eq('id', id)
   if (error) { console.error('deleteArtItem failed:', error); throw error }
 }
+
+// ── CREW TIMECARDS ───────────────────────────────────────
+
+// Fetch all timecard rows for a project within an inclusive date range.
+// Returns raw CrewTimecard rows (no joined ProjectMember) — the caller
+// already has ProjectMember data via useCrew() and joins client-side.
+export async function getCrewTimecardsByWeek(
+  projectId: string,
+  weekStartISO: string,  // YYYY-MM-DD, inclusive
+  weekEndISO: string,    // YYYY-MM-DD, inclusive
+) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('CrewTimecard')
+    .select('*')
+    .eq('projectId', projectId)
+    .gte('date', weekStartISO)
+    .lte('date', weekEndISO)
+    .order('date', { ascending: true })
+  if (error) { console.error('getCrewTimecardsByWeek failed:', error); throw error }
+  return data
+}
+
+// Create a new timecard entry in 'draft' state. Server defaults apply for
+// timestamps and status; we supply only the user-entered fields + identity.
+export async function createTimecard(input: {
+  projectId: string
+  crewMemberId: string
+  date: string           // YYYY-MM-DD
+  hours: number
+  description: string
+}) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('CrewTimecard')
+    .insert({
+      id: crypto.randomUUID(),
+      projectId: input.projectId,
+      crewMemberId: input.crewMemberId,
+      date: input.date,
+      hours: input.hours,
+      description: input.description,
+      status: 'draft',
+      updatedAt: new Date().toISOString(),
+    })
+    .select()
+    .single()
+  if (error) { console.error('createTimecard failed:', error); throw error }
+  return data
+}
+
+// Edit hours/description on an existing entry. Called for draft and reopened
+// entries; the UI enforces the allowed-state rule, server is permissive.
+export async function updateTimecard(
+  id: string,
+  fields: { hours?: number; description?: string },
+) {
+  const db = createClient()
+  const { error } = await db
+    .from('CrewTimecard')
+    .update({ ...fields, updatedAt: new Date().toISOString() })
+    .eq('id', id)
+  if (error) { console.error('updateTimecard failed:', error); throw error }
+}
+
+// draft → submitted. Crew clicks "Submit" on a draft (or a reopened entry
+// after editing) to move it into producer's approval queue.
+export async function submitTimecard(id: string): Promise<void> {
+  const db = createClient()
+  const now = new Date().toISOString()
+  const { error } = await db
+    .from('CrewTimecard')
+    .update({ status: 'submitted', submittedAt: now, updatedAt: now })
+    .eq('id', id)
+  if (error) { console.error('submitTimecard failed:', error); throw error }
+}
+
+// submitted → approved. Producer clicks "Approve" on a submitted entry.
+// approvedBy is the producer's ProjectMember.id (not User.id) per schema.
+export async function approveTimecard(id: string, approvedBy: string): Promise<void> {
+  const db = createClient()
+  const now = new Date().toISOString()
+  const { error } = await db
+    .from('CrewTimecard')
+    .update({ status: 'approved', approvedAt: now, approvedBy, updatedAt: now })
+    .eq('id', id)
+  if (error) { console.error('approveTimecard failed:', error); throw error }
+}
+
+// any → reopened. Producer clicks "Reopen" on an approved/submitted entry
+// and provides a reason. Existing approvedBy/approvedAt are preserved so the
+// record still carries "was approved by X" context; reopen fields layer on.
+export async function reopenTimecard(
+  id: string,
+  reopenedBy: string,
+  reopenReason: string,
+): Promise<void> {
+  const db = createClient()
+  const now = new Date().toISOString()
+  const { error } = await db
+    .from('CrewTimecard')
+    .update({
+      status: 'reopened',
+      reopenedAt: now,
+      reopenedBy,
+      reopenReason,
+      updatedAt: now,
+    })
+    .eq('id', id)
+  if (error) { console.error('reopenTimecard failed:', error); throw error }
+}
+
 // ── WORKFLOW NODES ───────────────────────────────────────
 
 export async function getWorkflowNodes(projectId: string) {
