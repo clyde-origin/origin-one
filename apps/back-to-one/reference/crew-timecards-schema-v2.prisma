@@ -1,0 +1,133 @@
+// Crew Timecards — Schema addition (v2, corrected)
+// PR: feat/schema-crew-timecards
+// Migration command: pnpm --filter @origin-one/db prisma migrate dev --name add_crew_timecards
+// Regenerate after: pnpm --filter @origin-one/db prisma generate
+//
+// v2 changes from v1:
+//   - crewMemberId FK: onDelete: Cascade → Restrict (approved timecards are records, survive crew removal)
+//   - approvedBy FK: onDelete: SetNull (timecard survives even if approver is hard-deleted)
+//   - reopenedBy FK: onDelete: SetNull (same reasoning)
+//   - Explicit @relation("TimecardCrew") on crewMember (required — three relations to ProjectMember)
+//   - Added reopenReason String? (context for crew when entry is reopened)
+//   - No @@unique constraint on (crewMemberId, projectId, date) — split days allowed
+//
+// This file shows ONLY the new model + enum + required relation fields.
+// Paste into packages/db/prisma/schema.prisma at appropriate locations.
+
+// =====================================================================
+// NEW MODEL — add to schema.prisma
+// =====================================================================
+
+model CrewTimecard {
+  id            String    @id @default(uuid())
+
+  // Relations
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  crewMemberId  String
+  crewMember    ProjectMember @relation("TimecardCrew", fields: [crewMemberId], references: [id], onDelete: Restrict)
+
+  // Core data
+  date          DateTime  @db.Date
+  hours         Decimal   @db.Decimal(4, 2)  // e.g., 12.50 = 12h 30m
+  description   String    @db.Text
+
+  // State machine
+  status        TimecardStatus @default(draft)
+
+  // Lifecycle — submission & approval
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  approvedBy    String?
+  approver      ProjectMember? @relation("TimecardApprover", fields: [approvedBy], references: [id], onDelete: SetNull)
+
+  // Lifecycle — reopen
+  reopenedAt    DateTime?
+  reopenedBy    String?
+  reopener      ProjectMember? @relation("TimecardReopener", fields: [reopenedBy], references: [id], onDelete: SetNull)
+  reopenReason  String?        @db.Text
+
+  // Standard audit
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([crewMemberId])
+  @@index([projectId, date])       // project + date-range queries
+  @@index([crewMemberId, date])    // future cross-project dashboard
+  @@index([status])                // producer approval queue
+}
+
+
+// =====================================================================
+// NEW ENUM — add to schema.prisma
+// =====================================================================
+
+enum TimecardStatus {
+  draft       // crew started, not submitted
+  submitted   // crew submitted, awaiting producer
+  approved    // producer approved, locked for edit
+  reopened    // producer reopened, back to editable
+}
+
+
+// =====================================================================
+// RELATIONS TO ADD — modify existing models
+// =====================================================================
+
+// In `model Project { ... }` add this line:
+//   timecards     CrewTimecard[]
+
+// In `model ProjectMember { ... }` add these three lines
+// (note: all three require explicit @relation names, matching forward side):
+//   timecards           CrewTimecard[] @relation("TimecardCrew")
+//   approvedTimecards   CrewTimecard[] @relation("TimecardApprover")
+//   reopenedTimecards   CrewTimecard[] @relation("TimecardReopener")
+
+
+// =====================================================================
+// DELIBERATELY EXCLUDED (defer to future Wrapbook integration PR)
+// =====================================================================
+//
+// - Rate fields (hourly rate, OT rate, day rate)
+// - Union fields (local, scale, fringe %)
+// - Overtime calculation
+// - Meal penalty tracking
+// - Attachment field (use Threads if notes/receipts needed)
+//
+// These are payroll-platform concerns. Adding prematurely will bloat the
+// schema and complicate the eventual Wrapbook integration. Add in a
+// dedicated payroll PR when integration target is confirmed.
+
+
+// =====================================================================
+// DESIGN NOTES
+// =====================================================================
+//
+// Uniqueness: NOT enforced. A crew member can have multiple timecard
+// entries for the same project on the same date. Covers split-day work
+// (e.g., location hours + office hours same day). UI should group by
+// date in display but schema allows multiple rows.
+//
+// Reopen reason: lightweight single field. If timecard later becomes a
+// threadable entity (15th type), this field becomes vestigial but is
+// harmless. Do not remove without a migration plan.
+//
+// onDelete semantics:
+//   - Project deleted → cascade timecards (kill project, kill its data)
+//   - Crew member (ProjectMember) deleted → RESTRICT (can't delete if
+//     timecards exist; requires archiving pattern or explicit cleanup)
+//   - Approver/Reopener deleted → SetNull (preserve financial record,
+//     lose identity attribution)
+
+
+// =====================================================================
+// POST-MIGRATION CHECKLIST
+// =====================================================================
+//
+// 1. Run migration: pnpm --filter @origin-one/db prisma migrate dev --name add_crew_timecards
+// 2. Regenerate client: pnpm --filter @origin-one/db prisma generate
+// 3. Verify all three apps compile (back-to-one, one-arc stub, one-lore stub)
+// 4. Commit as schema-only PR — NO UI code in this commit
+// 5. Merge, then start seed PR, then start UI PR
