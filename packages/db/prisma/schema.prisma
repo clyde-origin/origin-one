@@ -193,6 +193,7 @@ model CrewTimecard {
   // Core data
   date          DateTime  @db.Date
   hours         Decimal   @db.Decimal(4, 2)  // e.g., 12.50 = 12h 30m
+  rate          Decimal?  @db.Decimal(8, 2)
   description   String    @db.Text
 
   // State machine
