@@ -14,7 +14,7 @@ import {
 } from '@/lib/hooks/useOriginOne'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { FAB } from '@/components/ui/FAB'
+import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
@@ -408,6 +408,9 @@ export default function ChatPage({ params }: { params: { projectId: string } }) 
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null)
   const [dmPartnerId, setDmPartnerId] = useState<string | null>(null)
   const [creatingChannel, setCreatingChannel] = useState(false)
+  // Register the + handler with the global ActionBar — same handler the
+  // inline '+ topic' button uses, so both surfaces open the same sheet.
+  useFabAction({ onPress: () => { haptic('light'); setCreatingChannel(true) } })
 
   // Default to first channel when channels load
   useEffect(() => {
@@ -547,7 +550,8 @@ export default function ChatPage({ params }: { params: { projectId: string } }) 
         />
       </Sheet>
 
-      <FAB accent={accent} projectId={projectId} hideChat />
+      {/* + handler registered above via useFabAction. ActionBar is mounted globally.
+          The inline '+ topic' button at the channel-list header (line 263+) stays. */}
     </div>
   )
 }

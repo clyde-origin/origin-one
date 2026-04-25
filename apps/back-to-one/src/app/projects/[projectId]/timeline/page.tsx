@@ -508,7 +508,6 @@ export default function TimelinePage({ params }: { params: { projectId: string }
         )}
       </div>
 
-      {/* FAB */}
       {/* + handler registered above via useFabAction. ActionBar is mounted globally. */}
 
       {/* Add Milestone Sheet */}

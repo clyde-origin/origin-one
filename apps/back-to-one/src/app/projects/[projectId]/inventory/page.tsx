@@ -8,6 +8,7 @@ import {
 } from '@/lib/hooks/useOriginOne'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { haptic } from '@/lib/utils/haptics'
+import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { DEPARTMENTS, getProjectColor, statusHex, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
@@ -568,7 +569,7 @@ function InventoryDetailSheet({
           style={{
             gap: 10,
             padding: '12px 20px',
-            paddingBottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
+            paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
             borderTop: '1px solid rgba(255,255,255,0.06)',
             background: '#111',
           }}
@@ -620,6 +621,8 @@ export default function InventoryPage({ params }: { params: { projectId: string 
   const [selected, setSelected] = useState<InventoryItem | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [importHint, setImportHint] = useState(false)
+
+  useFabAction({ onPress: () => { haptic('light'); setShowCreate(true) } })
 
   const countsByDept = useMemo(() => {
     const m = new Map<string, number>()
@@ -676,25 +679,8 @@ export default function InventoryPage({ params }: { params: { projectId: string 
         <span>{totalNeeded} needed</span>
       </div>
 
-      {/* Actions row — Add item + Import (disabled w/ tooltip) */}
+      {/* Actions row — Import (disabled w/ tooltip). Add item lives on the global ActionBar +. */}
       <div className="flex flex-shrink-0" style={{ gap: 8, padding: '0 16px 12px' }}>
-        <button
-          onClick={() => { haptic('light'); setShowCreate(true) }}
-          className="flex-1 flex items-center justify-center cursor-pointer active:scale-[0.98] transition-transform"
-          style={{
-            gap: 7, padding: '11px 14px', borderRadius: 10,
-            background: `${accent}20`,
-            border: `1px solid ${accent}55`,
-            color: accent, fontSize: '0.78rem', fontWeight: 600,
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          Add item
-        </button>
-
         <div className="flex-1 relative">
           {importHint && (
             <div
@@ -823,7 +809,7 @@ export default function InventoryPage({ params }: { params: { projectId: string 
             <div className="font-mono" style={{ fontSize: '0.56rem', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.06em', lineHeight: 1.6 }}>
               No items in {activeTab} yet.
               <br />
-              Tap Add item to start.
+              Tap + to start.
             </div>
           </div>
         ) : (

@@ -569,7 +569,6 @@ export default function LocationsPage({ params }: { params: { projectId: string 
         )}
       </div>
 
-      {/* FAB */}
       {/* + handler registered above via useFabAction. ActionBar is mounted globally. */}
 
       {/* Create Sheet */}
