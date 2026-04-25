@@ -20,6 +20,7 @@ export type ChipType =
   | 'obj-milestone'
   | 'obj-deliverable'
   | 'obj-workflowStage'
+  | 'obj-inventoryItem'
 
 export type ThumbType = 'image' | 'avatar' | 'icon'
 
@@ -61,6 +62,7 @@ export function chipForType(t: ThreadAttachmentType): ChipType {
     case 'milestone':     return 'obj-milestone'     // cyan        #22d4d4
     case 'deliverable':   return 'obj-deliverable'   // red         #e84848
     case 'workflowStage': return 'obj-workflowStage' // lime        #a8d428
+    case 'inventoryItem': return 'obj-inventoryItem' // cerulean    #3a98c8
     default:              return 'obj-actionItem'
   }
 }
@@ -81,6 +83,7 @@ export function gradientForType(t: ThreadAttachmentType): string {
     case 'milestone':     return 'th-milestone'
     case 'deliverable':   return 'th-deliverable'
     case 'workflowStage': return 'th-workflowStage'
+    case 'inventoryItem': return 'th-inventoryItem'
     default:              return 'th-actionItem'
   }
 }
@@ -101,6 +104,7 @@ function labelForType(t: ThreadAttachmentType): string {
     case 'milestone':     return 'Milestone'
     case 'deliverable':   return 'Deliverable'
     case 'workflowStage': return 'Workflow'
+    case 'inventoryItem': return 'Inventory item'
     default:              return 'Thread'
   }
 }
@@ -189,6 +193,11 @@ export function useThreadContexts(
         queryFn: () => db.getWorkflowNodes(projectId),
         enabled: !!projectId && typesPresent.has('workflowStage'),
       },
+      {
+        queryKey: ['inventoryItems', projectId],
+        queryFn: () => db.getInventoryItems(projectId),
+        enabled: !!projectId && typesPresent.has('inventoryItem'),
+      },
     ],
   })
   void needsEntities
@@ -206,7 +215,9 @@ export function useThreadContexts(
     crew,
     moodboardRefs,
     workflowNodes,
+    inventoryItems,
   ] = results.map(r => r.data) as [
+    any[] | undefined,
     any[] | undefined,
     any[] | undefined,
     any[] | undefined,
@@ -243,6 +254,7 @@ export function useThreadContexts(
     const crewById = new Map<string, any>((crew ?? []).map(c => [c.userId, c]))
     const moodboardRefsById = new Map<string, any>((moodboardRefs ?? []).map(r => [r.id, r]))
     const workflowNodesById = new Map<string, any>((workflowNodes ?? []).map(n => [n.id, n]))
+    const inventoryItemsById = new Map<string, any>((inventoryItems ?? []).map(i => [i.id, i]))
 
     const out = new Map<string, ThreadContext>()
     for (const t of threads) {
@@ -259,10 +271,11 @@ export function useThreadContexts(
         crewById,
         moodboardRefsById,
         workflowNodesById,
+        inventoryItemsById,
       }))
     }
     return out
-  }, [threads, sceneBundles, scenes, actionItems, castRoles, artItems, characters, deliverables, locations, milestones, crew, moodboardRefs, workflowNodes])
+  }, [threads, sceneBundles, scenes, actionItems, castRoles, artItems, characters, deliverables, locations, milestones, crew, moodboardRefs, workflowNodes, inventoryItems])
 }
 
 interface Maps {
@@ -278,6 +291,7 @@ interface Maps {
   crewById: Map<string, any>
   moodboardRefsById: Map<string, any>
   workflowNodesById: Map<string, any>
+  inventoryItemsById: Map<string, any>
 }
 
 function buildContext(thread: Thread, m: Maps): ThreadContext {
@@ -440,6 +454,17 @@ function buildContext(thread: Thread, m: Maps): ThreadContext {
         thumbnailType: 'icon',
         thumbnailValue: null,
         thumbnailGradient: 'th-workflowStage',
+      }
+    }
+    case 'inventoryItem': {
+      const i = m.inventoryItemsById.get(thread.attachedToId)
+      if (!i) return genericContext(type)
+      return {
+        displayLabel: `Inventory: ${i.name}`,
+        chipType: 'obj-inventoryItem',
+        thumbnailType: 'icon',
+        thumbnailValue: null,
+        thumbnailGradient: 'th-inventoryItem',
       }
     }
     default:

@@ -132,6 +132,7 @@ export type ThreadAttachmentType =
   | 'milestone'
   | 'deliverable'
   | 'workflowStage'
+  | 'inventoryItem'
 
 export interface Thread {
   id: string

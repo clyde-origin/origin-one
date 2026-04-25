@@ -245,6 +245,19 @@ Last updated: April 20, 2026
 
 ---
 
+### Threadable entity types — expanded to canonical 15
+
+**Decision:** Threads can be attached to fifteen entity types. Adds `inventoryItem` as the 15th, alongside the original 14.  
+**Date:** April 25, 2026  
+**Rationale:** Inventory items span the production lifecycle and attract the same kind of cross-team conversation that other threadable surfaces do (e.g. "is this prop arriving Tuesday?", "who has the camera package on day 3?"). Threading on Inventory was deferred when InventoryItem schema landed (PR #20) and expanded here once the page was real (PR #24).  
+**Tradeoffs:** The 14-type lock from April 19 is now superseded. Future additions follow the same discipline: dedicated PR, rationale, BRAND_TOKENS chip color, thread-tokens entry, batched loader case.
+
+The `thread-context.ts` file now contains six explicit-enumeration sites for each threadable type (chip type, gradient, label, batched query, map slot, build-context case). At 15 types this is manageable; at 20+ it becomes a registry-pattern refactor candidate. Defer until a real new threadable type surfaces the cost.
+
+**Revisit trigger:** Same as the 14-type lock — a new major surface needs threading.
+
+---
+
 ### Canonical department list — 13 entries
 
 **Decision:** The canonical list of crew departments is defined exactly once in `apps/back-to-one/src/lib/utils/phase.ts` as the `DEPARTMENTS` export. All consumers import from this single source.  
