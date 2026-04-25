@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Inventory — Back to One</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #04040a;
+    --surface: rgba(10, 10, 18, 0.42);
+    --surface-raised: #0a0a12;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0b8;
+    --text-muted: #62627a;
+
+    --phase-pre: #e8a020;
+    --phase-prod: #6470f3;
+    --phase-post: #00b894;
+
+    --status-needed: #e84848;
+    --status-ordered: #e8a020;
+    --status-arrived: #4ab8e8;
+    --status-packed: #6470f3;
+    --status-returned: #00b894;
+
+    --radius-sheet: 20px;
+    --radius-md: 12px;
+    --radius-sm: 8px;
+
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Geist', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* background glow */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 80% at 50% 40%, rgba(100, 112, 243, 0.08), transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page {
+    position: relative;
+    z-index: 1;
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 0 0 120px;
+  }
+
+  /* header */
+  .page-header {
+    padding: 32px 20px 24px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .page-title {
+    font-size: 30px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+  .page-meta {
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .page-meta .dot { color: var(--text-muted); margin: 0 8px; }
+
+  /* actions row */
+  .actions {
+    display: flex;
+    gap: 10px;
+    padding: 16px 20px 0;
+  }
+  .action-btn {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    backdrop-filter: blur(16px);
+    transition: all 180ms var(--ease);
+  }
+  .action-btn:hover {
+    border-color: var(--border-strong);
+    background: rgba(100, 112, 243, 0.08);
+  }
+  .action-btn svg { width: 14px; height: 14px; stroke: currentColor; }
+
+  /* department tabs */
+  .tabs-scroll {
+    margin-top: 20px;
+    padding: 0 20px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabs-scroll::-webkit-scrollbar { display: none; }
+  .tabs {
+    display: inline-flex;
+    gap: 6px;
+    padding-bottom: 4px;
+  }
+  .tab {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    padding: 8px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 180ms var(--ease);
+  }
+  .tab:hover { border-color: var(--border-strong); color: var(--text-primary); }
+  .tab.active {
+    background: rgba(100, 112, 243, 0.12);
+    border-color: rgba(100, 112, 243, 0.45);
+    color: var(--text-primary);
+  }
+  .tab-count {
+    font-size: 10px;
+    color: var(--text-muted);
+    background: rgba(255,255,255,0.06);
+    padding: 2px 6px;
+    border-radius: 9999px;
+  }
+  .tab.active .tab-count { background: rgba(100, 112, 243, 0.25); color: #c9ceff; }
+
+  /* list header */
+  .list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px 20px 12px;
+  }
+  .list-title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .list-sub {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* items list */
+  .items {
+    padding: 0 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    backdrop-filter: blur(16px);
+    transition: all 180ms var(--ease);
+    cursor: pointer;
+  }
+  .item:hover { border-color: var(--border-strong); }
+  .item-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .item-main { flex: 1; min-width: 0; }
+  .item-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .item-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
+  .item-meta .divider { color: var(--border-strong); }
+  .qty {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+  .source-tag {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.04);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .source-tag.imported { color: #9ba5d1; background: rgba(100, 112, 243, 0.08); }
+
+  /* footer row — notes on left, assignee chip on right */
+  .item-footer {
+    margin-top: 10px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .item-notes {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.45;
+    flex: 1;
+    min-width: 0;
+  }
+  .item-assignee {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px 4px 4px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    flex-shrink: 0;
+    transition: border-color 180ms var(--ease);
+  }
+  .item-assignee:hover { border-color: var(--border-strong); }
+  .item-assignee .mini-avatar {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Geist Mono', monospace;
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    border: 1px solid;
+    flex-shrink: 0;
+  }
+  .item-assignee .mini-avatar.jr { color: #e8a020; border-color: rgba(232, 160, 32, 0.55); background: rgba(232, 160, 32, 0.12); }
+  .item-assignee .mini-avatar.dp { color: #4ab8e8; border-color: rgba(74, 184, 232, 0.55); background: rgba(74, 184, 232, 0.12); }
+  .item-assignee .mini-avatar.al { color: #00b894; border-color: rgba(0, 184, 148, 0.55); background: rgba(0, 184, 148, 0.12); }
+  .item-assignee .assignee-initials {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+  }
+  .item-assignee-empty {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 9999px;
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 180ms var(--ease), border-color 180ms var(--ease);
+  }
+  .item-assignee-empty:hover {
+    color: var(--text-secondary);
+    border-color: var(--border-strong);
+  }
+
+  .status {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 9999px;
+    border: 1px solid;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .status.needed   { color: var(--status-needed);   border-color: rgba(232, 72, 72, 0.35);  background: rgba(232, 72, 72, 0.08); }
+  .status.ordered  { color: var(--status-ordered);  border-color: rgba(232, 160, 32, 0.35); background: rgba(232, 160, 32, 0.08); }
+  .status.arrived  { color: var(--status-arrived);  border-color: rgba(74, 184, 232, 0.35); background: rgba(74, 184, 232, 0.08); }
+  .status.packed   { color: var(--status-packed);   border-color: rgba(100, 112, 243, 0.35); background: rgba(100, 112, 243, 0.08); }
+  .status.returned { color: var(--status-returned); border-color: rgba(0, 184, 148, 0.35); background: rgba(0, 184, 148, 0.08); }
+
+  /* empty state */
+  .empty {
+    margin: 20px;
+    padding: 48px 24px;
+    text-align: center;
+    background: var(--surface);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-sheet);
+  }
+  .empty-icon {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+  }
+  .empty-title {
+    font-size: 15px;
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .empty-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    max-width: 280px;
+    margin: 0 auto 20px;
+  }
+  .empty-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+  .empty-actions .action-btn { flex: 0 0 auto; padding: 10px 16px; }
+
+  /* role lock indicator */
+  .role-note {
+    margin: 20px;
+    padding: 12px 14px;
+    background: rgba(232, 160, 32, 0.06);
+    border: 1px solid rgba(232, 160, 32, 0.18);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .role-note .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--phase-pre);
+    flex-shrink: 0;
+  }
+
+  /* section divider */
+  .section-divider {
+    margin: 28px 20px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-divider::before,
+  .section-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .section-divider-label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  /* inventory preview (hub panel) */
+  .hub-section {
+    margin-top: 36px;
+    padding: 0 20px;
+  }
+  .hub-section-header {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .hub-section-title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+  .hub-section-sub {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+  }
+
+  .inv-scroll {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -20px;
+    padding: 4px 20px 8px;
+  }
+  .inv-scroll::-webkit-scrollbar { display: none; }
+
+  .inv-track {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: calc((100% - 36px) / 4); /* 4 visible, 3 gaps of 12px */
+    gap: 12px;
+  }
+
+  .inv-chip {
+    aspect-ratio: 1 / 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    backdrop-filter: blur(16px);
+    transition: all 180ms var(--ease);
+    color: var(--text-secondary);
+    text-align: center;
+  }
+  .inv-chip:hover {
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+  }
+  .inv-chip-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+  }
+  .inv-chip-icon svg { width: 100%; height: 100%; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .inv-chip-label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: currentColor;
+  }
+
+  .inv-chip.view-all {
+    border-style: dashed;
+    color: var(--text-muted);
+  }
+  .inv-chip.view-all:hover {
+    border-style: solid;
+    color: var(--text-primary);
+  }
+
+  /* detail sheet */
+  .sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms var(--ease);
+    z-index: 50;
+  }
+  .sheet-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .sheet {
+    position: fixed;
+    left: 50%;
+    bottom: 0;
+    transform: translate(-50%, 100%);
+    width: 100%;
+    max-width: 520px;
+    max-height: 92vh;
+    background: #0a0a14;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    transition: transform 380ms var(--ease);
+    z-index: 51;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sheet.open { transform: translate(-50%, 0); }
+
+  .sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: rgba(255,255,255,0.14);
+    border-radius: 9999px;
+    margin: 10px auto 0;
+    flex-shrink: 0;
+  }
+
+  .sheet-header {
+    padding: 16px 20px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .sheet-eyebrow {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .sheet-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 180ms var(--ease);
+  }
+  .sheet-close:hover { color: var(--text-primary); }
+
+  .sheet-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .field {
+    display: block;
+    margin-bottom: 18px;
+  }
+  .field-label {
+    display: block;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+  .input, .textarea, .select {
+    width: 100%;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 15px;
+    transition: border-color 180ms var(--ease), background 180ms var(--ease);
+  }
+  .input:focus, .textarea:focus, .select:focus {
+    outline: none;
+    border-color: rgba(100, 112, 243, 0.5);
+    background: rgba(100, 112, 243, 0.04);
+  }
+  .textarea { min-height: 80px; resize: vertical; line-height: 1.5; }
+
+  .field-name-large .input {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    padding: 14px 16px;
+  }
+
+  .row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* status picker */
+  .status-picker {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .status-chip {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 8px 12px;
+    border-radius: 9999px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 180ms var(--ease);
+  }
+  .status-chip:hover { border-color: var(--border-strong); color: var(--text-primary); }
+  .status-chip.selected.needed   { color: var(--status-needed);   border-color: rgba(232, 72, 72, 0.45);  background: rgba(232, 72, 72, 0.1); }
+  .status-chip.selected.ordered  { color: var(--status-ordered);  border-color: rgba(232, 160, 32, 0.45); background: rgba(232, 160, 32, 0.1); }
+  .status-chip.selected.arrived  { color: var(--status-arrived);  border-color: rgba(74, 184, 232, 0.45); background: rgba(74, 184, 232, 0.1); }
+  .status-chip.selected.packed   { color: var(--status-packed);   border-color: rgba(100, 112, 243, 0.45); background: rgba(100, 112, 243, 0.1); }
+  .status-chip.selected.returned { color: var(--status-returned); border-color: rgba(0, 184, 148, 0.45); background: rgba(0, 184, 148, 0.1); }
+
+  /* assignee picker */
+  .assignee {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: border-color 180ms var(--ease);
+  }
+  .assignee:hover { border-color: var(--border-strong); }
+  .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    border: 1.5px solid;
+  }
+  .avatar.jr { color: #e8a020; border-color: rgba(232, 160, 32, 0.55); background: rgba(232, 160, 32, 0.1); }
+  .avatar.empty { color: var(--text-muted); border-color: var(--border-strong); border-style: dashed; background: transparent; }
+  .assignee-info { flex: 1; min-width: 0; }
+  .assignee-name { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+  .assignee-role {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .assignee-empty {
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+  .assignee .chevron {
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  /* sheet footer */
+  .sheet-footer {
+    padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0));
+    display: flex;
+    gap: 10px;
+    border-top: 1px solid var(--border);
+    background: #0a0a14;
+    flex-shrink: 0;
+  }
+  .btn {
+    flex: 1;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 180ms var(--ease);
+    border: 1px solid;
+  }
+  .btn-ghost {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text-secondary);
+  }
+  .btn-ghost:hover { border-color: var(--border-strong); color: var(--text-primary); }
+  .btn-primary {
+    background: rgba(100, 112, 243, 0.15);
+    border-color: rgba(100, 112, 243, 0.45);
+    color: #c9ceff;
+    flex: 2;
+  }
+  .btn-primary:hover { background: rgba(100, 112, 243, 0.22); border-color: rgba(100, 112, 243, 0.6); }
+
+  .btn-delete {
+    background: transparent;
+    border: none;
+    color: var(--status-needed);
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 10px 12px;
+    margin-top: 8px;
+    text-align: center;
+    width: 100%;
+    opacity: 0.7;
+    transition: opacity 180ms var(--ease);
+  }
+  .btn-delete:hover { opacity: 1; }
+</style>
+</head>
+<body>
+  <div class="page">
+
+    <header class="page-header">
+      <div class="eyebrow">The Weave · B Story</div>
+      <h1 class="page-title">Inventory</h1>
+      <div class="page-meta">
+        <span>14 departments</span>
+        <span class="dot">·</span>
+        <span>42 items</span>
+        <span class="dot">·</span>
+        <span>7 needed</span>
+      </div>
+    </header>
+
+    <!-- HUB PREVIEW REFERENCE — this is what appears on the Hub page above Workflow -->
+    <div class="section-divider">
+      <span class="section-divider-label">Hub preview — what you tap from the hub</span>
+    </div>
+
+    <div class="hub-section">
+      <div class="hub-section-header">
+        <div class="hub-section-title">Inventory</div>
+        <div class="hub-section-sub">42 items · 7 needed</div>
+      </div>
+
+      <div class="inv-scroll">
+        <div class="inv-track">
+
+          <div class="inv-chip" onclick="window.scrollTo({top: 600, behavior: 'smooth'})">
+            <div class="inv-chip-icon">
+              <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </div>
+            <div class="inv-chip-label">Camera</div>
+          </div>
+
+          <div class="inv-chip">
+            <div class="inv-chip-icon">
+              <svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 1 4 12.75c-.56.4-1 1.03-1 1.75V18H9v-1.5c0-.72-.44-1.35-1-1.75A7 7 0 0 1 12 2z"/></svg>
+            </div>
+            <div class="inv-chip-label">Lighting</div>
+          </div>
+
+          <div class="inv-chip">
+            <div class="inv-chip-icon">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="3" r="1.5"/><line x1="12" y1="4.5" x2="12" y2="18"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="6" y1="22" x2="12" y2="18"/><line x1="18" y1="22" x2="12" y2="18"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+            </div>
+            <div class="inv-chip-label">G&amp;E</div>
+          </div>
+
+          <div class="inv-chip">
+            <div class="inv-chip-icon">
+              <svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+            </div>
+            <div class="inv-chip-label">Sound</div>
+          </div>
+
+          <div class="inv-chip">
+            <div class="inv-chip-icon">
+              <svg viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 22s-7-4-7-10a5 5 0 0 1 5-5c2.76 0 5 2.24 5 5s2.24 5 5 5c0 6-7 10-8 10z"/></svg>
+            </div>
+            <div class="inv-chip-label">Art</div>
+          </div>
+
+          <div class="inv-chip">
+            <div class="inv-chip-icon">
+              <svg viewBox="0 0 24 24"><path d="M4 20V10c0-2 1-3 3-3h10c2 0 3 1 3 3v10"/><path d="M4 20h16"/><path d="M9 7V4h6v3"/></svg>
+            </div>
+            <div class="inv-chip-label">Wardrobe</div>
+          </div>
+
+          <div class="inv-chip">
+            <div class="inv-chip-icon">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M8 14c-2 0-4 2-4 4v2h16v-2c0-2-2-4-4-4"/><path d="M9 12l1 2"/><path d="M15 12l-1 2"/></svg>
+            </div>
+            <div class="inv-chip-label">HMU</div>
+          </div>
+
+          <div class="inv-chip view-all">
+            <div class="inv-chip-icon">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>
+            </div>
+            <div class="inv-chip-label">View all</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="section-divider">
+      <span class="section-divider-label">Full Inventory page</span>
+    </div>
+
+    <div class="actions">
+      <button class="action-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add item
+      </button>
+      <button class="action-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Import PDF / Excel
+      </button>
+    </div>
+
+    <div class="tabs-scroll">
+      <div class="tabs">
+        <button class="tab">Production <span class="tab-count">3</span></button>
+        <button class="tab">Direction <span class="tab-count">1</span></button>
+        <button class="tab active">Camera <span class="tab-count">8</span></button>
+        <button class="tab">G&amp;E <span class="tab-count">6</span></button>
+        <button class="tab">Lighting <span class="tab-count">5</span></button>
+        <button class="tab">Sound <span class="tab-count">4</span></button>
+        <button class="tab">Art <span class="tab-count">7</span></button>
+        <button class="tab">Wardrobe <span class="tab-count">3</span></button>
+        <button class="tab">HMU <span class="tab-count">2</span></button>
+        <button class="tab">Casting <span class="tab-count">0</span></button>
+        <button class="tab">Post <span class="tab-count">2</span></button>
+        <button class="tab">Client <span class="tab-count">0</span></button>
+        <button class="tab">Other <span class="tab-count">1</span></button>
+      </div>
+    </div>
+
+    <div class="list-header">
+      <div>
+        <div class="list-title">Camera</div>
+      </div>
+      <div class="list-sub">8 items · Jordan R.</div>
+    </div>
+
+    <div class="items">
+
+      <div class="item">
+        <div class="item-top">
+          <div class="item-main">
+            <div class="item-name">RED V-Raptor 8K VV</div>
+            <div class="item-meta">
+              <span class="qty">×1</span>
+              <span class="divider">·</span>
+              <span>Keslow Camera</span>
+              <span class="divider">·</span>
+              <span class="source-tag imported">Imported</span>
+            </div>
+          </div>
+          <span class="status packed">Packed</span>
+        </div>
+        <div class="item-footer">
+          <div class="item-notes"></div>
+          <div class="item-assignee">
+            <div class="mini-avatar jr">JR</div>
+            <span class="assignee-initials">Jordan R.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="item" onclick="openSheet()">
+        <div class="item-top">
+          <div class="item-main">
+            <div class="item-name">Zeiss Supreme Prime Set</div>
+            <div class="item-meta">
+              <span class="qty">×7</span>
+              <span class="divider">·</span>
+              <span>21, 25, 29, 35, 50, 85, 100mm</span>
+            </div>
+          </div>
+          <span class="status arrived">Arrived</span>
+        </div>
+        <div class="item-footer">
+          <div class="item-notes">Pulled for desert exteriors — confirm filter kit compatibility with matte box.</div>
+          <div class="item-assignee">
+            <div class="mini-avatar jr">JR</div>
+            <span class="assignee-initials">Jordan R.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-top">
+          <div class="item-main">
+            <div class="item-name">DJI Ronin 4D-8K</div>
+            <div class="item-meta">
+              <span class="qty">×1</span>
+              <span class="divider">·</span>
+              <span>Backup body</span>
+            </div>
+          </div>
+          <span class="status ordered">Ordered</span>
+        </div>
+        <div class="item-footer">
+          <div class="item-notes"></div>
+          <button class="item-assignee-empty">+ Assign</button>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-top">
+          <div class="item-main">
+            <div class="item-name">Tilta Nucleus-M FIZ</div>
+            <div class="item-meta">
+              <span class="qty">×2</span>
+              <span class="divider">·</span>
+              <span>Wireless follow focus</span>
+            </div>
+          </div>
+          <span class="status needed">Needed</span>
+        </div>
+        <div class="item-footer">
+          <div class="item-notes"></div>
+          <div class="item-assignee">
+            <div class="mini-avatar dp">DP</div>
+            <span class="assignee-initials">Dev P.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-top">
+          <div class="item-main">
+            <div class="item-name">SmallHD Cine 17</div>
+            <div class="item-meta">
+              <span class="qty">×1</span>
+              <span class="divider">·</span>
+              <span>Director's monitor</span>
+              <span class="divider">·</span>
+              <span class="source-tag imported">Imported</span>
+            </div>
+          </div>
+          <span class="status packed">Packed</span>
+        </div>
+        <div class="item-footer">
+          <div class="item-notes"></div>
+          <div class="item-assignee">
+            <div class="mini-avatar jr">JR</div>
+            <span class="assignee-initials">Jordan R.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-top">
+          <div class="item-main">
+            <div class="item-name">Cfexpress 660GB cards</div>
+            <div class="item-meta">
+              <span class="qty">×8</span>
+              <span class="divider">·</span>
+              <span>Purchased — own stock</span>
+            </div>
+          </div>
+          <span class="status arrived">Arrived</span>
+        </div>
+        <div class="item-footer">
+          <div class="item-notes"></div>
+          <div class="item-assignee">
+            <div class="mini-avatar dp">DP</div>
+            <span class="assignee-initials">Dev P.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-top">
+          <div class="item-main">
+            <div class="item-name">ARRI Trinity 2 stabilizer</div>
+            <div class="item-meta">
+              <span class="qty">×1</span>
+              <span class="divider">·</span>
+              <span>Day 3 only — Dev P.</span>
+            </div>
+          </div>
+          <span class="status ordered">Ordered</span>
+        </div>
+        <div class="item-footer">
+          <div class="item-notes"></div>
+          <div class="item-assignee">
+            <div class="mini-avatar dp">DP</div>
+            <span class="assignee-initials">Dev P.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="item-top">
+          <div class="item-main">
+            <div class="item-name">Teradek Bolt 4K LT</div>
+            <div class="item-meta">
+              <span class="qty">×2</span>
+              <span class="divider">·</span>
+              <span>Video village</span>
+            </div>
+          </div>
+          <span class="status returned">Returned</span>
+        </div>
+        <div class="item-footer">
+          <div class="item-notes">Returned after camera test — exchange for updated firmware unit.</div>
+          <button class="item-assignee-empty">+ Assign</button>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="role-note">
+      <span class="dot"></span>
+      <span>You're assigned to Camera on this project — you can edit this list.</span>
+    </div>
+
+    <div class="section-divider">
+      <span class="section-divider-label">Empty department preview</span>
+    </div>
+
+    <div class="empty">
+      <div class="empty-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8"/></svg>
+      </div>
+      <div class="empty-title">No items yet</div>
+      <div class="empty-sub">Start the Casting packing list from scratch, or import an existing sheet.</div>
+      <div class="empty-actions">
+        <button class="action-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add item
+        </button>
+        <button class="action-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Import
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Detail sheet backdrop + sheet -->
+  <div class="sheet-backdrop" id="backdrop" onclick="closeSheet()"></div>
+  <div class="sheet" id="sheet">
+    <div class="sheet-handle"></div>
+
+    <div class="sheet-header">
+      <div class="sheet-eyebrow">Camera · Item</div>
+      <button class="sheet-close" onclick="closeSheet()" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="sheet-body">
+
+      <div class="field field-name-large">
+        <label class="field-label">Item</label>
+        <input class="input" type="text" value="Zeiss Supreme Prime Set" />
+      </div>
+
+      <div class="row-2">
+        <div class="field">
+          <label class="field-label">Quantity</label>
+          <input class="input" type="number" value="7" min="1" />
+        </div>
+        <div class="field">
+          <label class="field-label">Department</label>
+          <select class="select">
+            <option>Camera</option>
+            <option>G&amp;E</option>
+            <option>Lighting</option>
+            <option>Sound</option>
+            <option>Art</option>
+            <option>Wardrobe</option>
+            <option>HMU</option>
+            <option>Production</option>
+            <option>Direction</option>
+            <option>Casting</option>
+            <option>Post</option>
+            <option>Client</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Status</label>
+        <div class="status-picker">
+          <button class="status-chip" data-status="needed">Needed</button>
+          <button class="status-chip" data-status="ordered">Ordered</button>
+          <button class="status-chip selected arrived" data-status="arrived">Arrived</button>
+          <button class="status-chip" data-status="packed">Packed</button>
+          <button class="status-chip" data-status="returned">Returned</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Assigned to</label>
+        <div class="assignee">
+          <div class="avatar jr">JR</div>
+          <div class="assignee-info">
+            <div class="assignee-name">Jordan R.</div>
+            <div class="assignee-role">Director of Photography</div>
+          </div>
+          <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Source</label>
+        <input class="input" type="text" value="Keslow Camera" placeholder="Rental house, owned, purchased…" />
+      </div>
+
+      <div class="field">
+        <label class="field-label">Notes</label>
+        <textarea class="textarea" placeholder="Anything the team should know about this item">Pulled for desert exteriors — confirm filter kit compatibility with matte box.</textarea>
+      </div>
+
+      <button class="btn-delete">Remove from inventory</button>
+
+    </div>
+
+    <div class="sheet-footer">
+      <button class="btn btn-ghost" onclick="closeSheet()">Cancel</button>
+      <button class="btn btn-primary" onclick="closeSheet()">Save changes</button>
+    </div>
+  </div>
+
+  <script>
+    const sheet = document.getElementById('sheet');
+    const backdrop = document.getElementById('backdrop');
+
+    function openSheet() {
+      sheet.classList.add('open');
+      backdrop.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeSheet() {
+      sheet.classList.remove('open');
+      backdrop.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    // status chip selection
+    document.querySelectorAll('.status-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('.status-chip').forEach(c => {
+          c.classList.remove('selected', 'needed', 'ordered', 'arrived', 'packed', 'returned');
+        });
+        chip.classList.add('selected', chip.dataset.status);
+      });
+    });
+
+    // close on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeSheet();
+    });
+  </script>
+
+</body>
+</html>
