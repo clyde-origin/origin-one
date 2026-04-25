@@ -139,6 +139,7 @@ Closes milestone.
 | Chat | ✅ chat.html | ✅ Done |
 | Threads (inbox + detail wiring) | ✅ threads-full.html | ✅ Done |
 | Tone / Moodboard | ✅ tone-moodboard.html | ✅ Done (seed Apr 20) |
+| Timeline | ✅ timeline-full.html | ✅ Done |
 | Inventory | ✅ inventory-page.html | ⬜ Upcoming |
 | Crew Profile v2 | ⬜ needs HTML reference | ⬜ Upcoming (draft HTML first) |
 | FAB | ✅ fab-arc-preview.html | 🟡 Done (safe-area rollout pending) |
