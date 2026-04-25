@@ -451,6 +451,7 @@ async function main() {
   await prisma.threadMessage.deleteMany()
   await prisma.thread.deleteMany()
   await prisma.crewTimecard.deleteMany()
+  await prisma.inventoryItem.deleteMany()
   await prisma.projectMember.deleteMany()
   await prisma.document.deleteMany()
   await prisma.shot.deleteMany()
@@ -2766,6 +2767,331 @@ FADE TO BLACK.`,
     `${withRate}/${allRows.length} with rates)`
   )
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // P9 — INVENTORY ITEMS
+  // Six hand-written per-project blocks, Location-style. Status mix targets
+  // a realistic mid-production portfolio with packed-heavy weight; per-project
+  // skew respects each show's phase (P1 packed-heavy one-day, P2 needed/
+  // ordered-heavy pre-pro, P3 producing, P4 prepping, P5 in production with
+  // a couple returned, P6 even-spread festival short). ImportSource biased to
+  // 'manual' (~80%); 'pdf' marks rental-house bundles (Camera + G&E),
+  // 'excel' marks production-coordinator master lists.
+  // Eligibility for assignees: any ProjectMember on the project; falls back
+  // to null when the role isn't on the project (e.g. P5 has no DP/Gaffer).
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Per-project ProjectMember lookup — one query per project, then in-memory
+  // index by user name (and role for Clyde, who holds two rows per project).
+  type InvMember = { id: string; role: string; user: { name: string } }
+  async function membersFor(projectId: string): Promise<InvMember[]> {
+    const rows = await prisma.projectMember.findMany({
+      where: { projectId },
+      select: { id: true, role: true, user: { select: { name: true } } },
+    })
+    return rows as InvMember[]
+  }
+  const findInvAssignee = (members: InvMember[], name: string, role?: string): string | null =>
+    members.find(m => m.user.name === name && (!role || m.role === role))?.id ?? null
+
+  // ── P1 — Simple Skin Promo (one-day product spot, packed-heavy) ─────────
+  const p1Members = await membersFor(p1.id)
+  const p1Priya  = findInvAssignee(p1Members, 'Priya Nair')         // DP
+  const p1Theo   = findInvAssignee(p1Members, 'Theo Hartmann')      // 1st AC
+  const p1Carlos = findInvAssignee(p1Members, 'Carlos Vega')        // 2nd AC
+  const p1Tanya  = findInvAssignee(p1Members, 'Tanya Mills')        // Gaffer
+  const p1Derek  = findInvAssignee(p1Members, 'Derek Huang')        // Key Grip
+  const p1Luis   = findInvAssignee(p1Members, 'Luis Fernandez')     // Best Boy Grip
+  const p1Claire = findInvAssignee(p1Members, 'Claire Renault')     // Art Director
+  const p1Nina   = findInvAssignee(p1Members, 'Nina Osei')          // Set Decorator
+  const p1Brendan = findInvAssignee(p1Members, 'Brendan Walsh')     // Props Master
+  const p1Andre  = findInvAssignee(p1Members, 'Andre Kim')          // Sound Mixer
+
+  await prisma.inventoryItem.createMany({ data: [
+    // Camera
+    { projectId: p1.id, name: 'ARRI Amira camera body w/ EVF',           quantity: 1, description: 'EF + PL mount, internal ND',                department: 'Camera',     status: 'packed',   source: 'Keslow Camera',          importSource: 'manual', assigneeId: p1Priya,  sortOrder: 0  },
+    { projectId: p1.id, name: 'ARRI Master Primes (32, 50, 75, 100mm)',   quantity: 4, description: 'T1.3 PL primes, hero lensing',             department: 'Camera',     status: 'packed',   source: 'Keslow Camera',          importSource: 'pdf',    assigneeId: p1Theo,   sortOrder: 10 },
+    { projectId: p1.id, name: 'Master Prime extras (14mm, 135mm)',       quantity: 2, description: 'Wide and tele extras held in case',        department: 'Camera',     status: 'returned', source: 'Keslow Camera',          importSource: 'manual', assigneeId: p1Theo,   sortOrder: 20 },
+    { projectId: p1.id, name: 'Probe macro lens kit',                     quantity: 1, description: 'Laowa 24mm probe macro for product macro', department: 'Camera',     status: 'arrived',  source: 'Camtec',                 importSource: 'manual', assigneeId: p1Theo,   sortOrder: 30 },
+    { projectId: p1.id, name: 'Polarizer + diffusion filter set',         quantity: 1, description: '4x5.65 IRND + Pola + 1/4 Black Pro-Mist',  department: 'Camera',     status: 'arrived',  source: 'Tiffen',                 importSource: 'manual', assigneeId: p1Theo,   sortOrder: 40 },
+    { projectId: p1.id, name: 'Cambo Multi-Stand product table',          quantity: 1, description: 'Pro tabletop rig with hi/lo column',       department: 'Camera',     status: 'packed',   source: 'Cambo USA',              importSource: 'manual', assigneeId: p1Carlos, sortOrder: 50 },
+
+    // Lighting
+    { projectId: p1.id, name: 'Aputure 600d Pro',                          quantity: 2, description: 'Daylight COB w/ light dome and snoot',     department: 'Lighting',   status: 'packed',   source: 'VER Rentals',            importSource: 'manual', assigneeId: p1Tanya,  sortOrder: 0  },
+    { projectId: p1.id, name: 'Astera Titan tubes',                        quantity: 4, description: 'RGB tunable, beauty fill and rim',         department: 'Lighting',   status: 'packed',   source: 'VER Rentals',            importSource: 'pdf',    assigneeId: p1Tanya,  sortOrder: 10 },
+    { projectId: p1.id, name: 'Diffusion / negative-fill flag kit',        quantity: 1, description: '4x4 silks, neg flags, scrims',             department: 'Lighting',   status: 'arrived',  source: 'VER Rentals',            importSource: 'manual', assigneeId: p1Tanya,  sortOrder: 20 },
+
+    // G&E
+    { projectId: p1.id, name: 'C-stand kit + sandbags',                    quantity: 6, description: 'Hi-roller stands and 25lb shotbags',       department: 'G&E',        status: 'packed',   source: 'VER Rentals',            importSource: 'manual', assigneeId: p1Derek,  sortOrder: 0  },
+    { projectId: p1.id, name: 'Apple boxes (full + halves)',               quantity: 4, description: 'Standard + half-apple sets, painted black', department: 'G&E',        status: 'packed',   source: 'VER Rentals',            importSource: 'manual', assigneeId: p1Luis,   sortOrder: 10 },
+
+    // Art
+    { projectId: p1.id, name: 'Lumière hero product samples (×30 SKUs)',  quantity: 30, description: 'Full product line, hero + macro continuity', department: 'Art',        status: 'arrived',  source: 'Client (Lumière)',       importSource: 'excel',  assigneeId: p1Nina,    sortOrder: 0  },
+    { projectId: p1.id, name: 'Beauty styling kit',                        quantity: 1, description: 'Lint rollers, anti-static spray, gloves',  department: 'Art',        status: 'packed',   source: 'Hand & Tool',            importSource: 'manual', assigneeId: p1Brendan, sortOrder: 10 },
+    { projectId: p1.id, name: 'Marble + acrylic tabletop surfaces',        quantity: 6, description: 'Hero surfaces for product stills',         department: 'Art',        status: 'ordered',  source: 'Set Decorators Inc.',    importSource: 'manual', assigneeId: p1Claire,  sortOrder: 20 },
+
+    // (Sound — minimal, VO only — folded into above counts via 14 total items)
+  ]})
+
+  // ── P2 — Full Send (action piece, even spread + needed/ordered-heavy) ───
+  const p2Members = await membersFor(p2.id)
+  const p2Dani    = findInvAssignee(p2Members, 'Dani Reeves')        // DP
+  const p2TylerG  = findInvAssignee(p2Members, 'Tyler Green')        // Production Coordinator
+  const p2TylerH  = findInvAssignee(p2Members, 'Tyler Heckerman')    // Producer
+  const p2Kelly   = findInvAssignee(p2Members, 'Kelly Pratt')        // Producer
+
+  await prisma.inventoryItem.createMany({ data: [
+    // Camera
+    { projectId: p2.id, name: 'RED V-Raptor 8K body',                      quantity: 1, description: 'A-cam, full-frame VV',                       department: 'Camera',     status: 'packed',   source: 'Keslow Camera',          importSource: 'pdf',    assigneeId: p2Dani,   sortOrder: 0  },
+    { projectId: p2.id, name: 'RED Komodo-X B-cam body',                   quantity: 1, description: 'B-cam + crash-cam, helmet rig compatible',  department: 'Camera',     status: 'packed',   source: 'Keslow Camera',          importSource: 'manual', assigneeId: p2Dani,   sortOrder: 10 },
+    { projectId: p2.id, name: 'DZOFilm Vespid prime set (25/35/50/75/100)', quantity: 5, description: 'T2.1 EF/PL primes, action lensing',          department: 'Camera',     status: 'packed',   source: 'Old Fast Glass',         importSource: 'pdf',    assigneeId: p2Dani,   sortOrder: 20 },
+    { projectId: p2.id, name: 'Sigma 18-35mm Cine zoom',                   quantity: 1, description: 'Fast cine zoom for handheld coverage',      department: 'Camera',     status: 'arrived',  source: 'Old Fast Glass',         importSource: 'manual', assigneeId: p2Dani,   sortOrder: 30 },
+    { projectId: p2.id, name: 'DJI Ronin 4D 6K',                           quantity: 1, description: 'Combo gimbal/cam, LiDAR autofocus',         department: 'Camera',     status: 'packed',   source: 'DJI Direct',             importSource: 'manual', assigneeId: p2Dani,   sortOrder: 40 },
+    { projectId: p2.id, name: 'Tilta Float arm + Easyrig Vario 5',         quantity: 1, description: 'Float arm + Vario 5 vest combo',            department: 'Camera',     status: 'arrived',  source: 'Tilta',                  importSource: 'manual', assigneeId: p2Dani,   sortOrder: 50 },
+    { projectId: p2.id, name: 'cforce mini RF wireless follow focus',      quantity: 1, description: 'For drone + gimbal lensing',                department: 'Camera',     status: 'needed',   source: 'Backorder — ARRI',       importSource: 'manual', assigneeId: p2Dani,   sortOrder: 60 },
+    { projectId: p2.id, name: 'Variable ND + Polarizer kit',               quantity: 1, description: '4x5.65 ND set + circular pola',            department: 'Camera',     status: 'packed',   source: 'Tiffen',                 importSource: 'manual', assigneeId: p2Dani,   sortOrder: 70 },
+
+    // G&E (no Gaffer on P2 — null assignees)
+    { projectId: p2.id, name: 'Aputure Nova P600c',                        quantity: 2, description: 'RGBWW color-mixing panel, weather-rated',  department: 'G&E',        status: 'arrived',  source: 'VER Rentals',            importSource: 'manual', assigneeId: null,     sortOrder: 0  },
+    { projectId: p2.id, name: 'Aputure Light Storm 600d Pro',              quantity: 1, description: 'Daylight COB for sun-fill action plates',  department: 'G&E',        status: 'packed',   source: 'VER Rentals',            importSource: 'manual', assigneeId: null,     sortOrder: 10 },
+    { projectId: p2.id, name: 'Astera Helios tubes',                       quantity: 8, description: 'Battery-powered tubes for night shoots',   department: 'G&E',        status: 'packed',   source: 'VER Rentals',            importSource: 'pdf',    assigneeId: null,     sortOrder: 20 },
+    { projectId: p2.id, name: 'Heavy-duty C-stand + sandbag kit',          quantity: 8, description: 'Steel hi-rollers, 35lb shotbags',          department: 'G&E',        status: 'packed',   source: 'VER Rentals',            importSource: 'manual', assigneeId: null,     sortOrder: 30 },
+    { projectId: p2.id, name: 'Tilta Nucleus-M wireless follow focus',     quantity: 1, description: 'Backup wireless follow focus for B-cam',   department: 'G&E',        status: 'needed',   source: 'Backorder',              importSource: 'manual', assigneeId: null,     sortOrder: 40 },
+
+    // Sound (no mixer on P2 — null assignees)
+    { projectId: p2.id, name: 'Sennheiser MKE 600 boom + windjammer',      quantity: 1, description: 'Outdoor boom, action coverage',            department: 'Sound',      status: 'arrived',  source: 'Coffey Sound',           importSource: 'manual', assigneeId: null,     sortOrder: 0  },
+    { projectId: p2.id, name: 'Lectrosonics SMV wireless',                 quantity: 4, description: 'Body packs for athlete lavs',              department: 'Sound',      status: 'ordered',  source: 'Coffey Sound',           importSource: 'manual', assigneeId: null,     sortOrder: 10 },
+    { projectId: p2.id, name: 'Sound Devices MixPre-10 II',                quantity: 1, description: '10-input recorder for run-and-gun',         department: 'Sound',      status: 'ordered',  source: 'Coffey Sound',           importSource: 'manual', assigneeId: null,     sortOrder: 20 },
+
+    // Drone
+    { projectId: p2.id, name: 'DJI Inspire 3 + camera package',            quantity: 1, description: 'X9-8K camera, RTK module',                  department: 'Camera',     status: 'packed',   source: 'DJI Direct',             importSource: 'manual', assigneeId: p2Dani,   sortOrder: 80 },
+    { projectId: p2.id, name: 'DJI X9-8K Air gimbal lens kit',             quantity: 1, description: 'DL primes 18/24/35mm',                      department: 'Camera',     status: 'arrived',  source: 'DJI Direct',             importSource: 'manual', assigneeId: p2Dani,   sortOrder: 90 },
+
+    // Production
+    { projectId: p2.id, name: 'Comtek M-216 walkies',                      quantity: 8, description: 'Single-channel walkies + batteries',       department: 'Production', status: 'arrived',  source: 'Coffey Sound',           importSource: 'excel',  assigneeId: p2TylerG, sortOrder: 0  },
+    { projectId: p2.id, name: 'Pelican 1610 cases',                        quantity: 6, description: 'Cube cases for camera + grip travel',      department: 'Production', status: 'packed',   source: 'Pelican',                importSource: 'manual', assigneeId: p2TylerG, sortOrder: 10 },
+    { projectId: p2.id, name: 'Hi-vis safety vests',                       quantity: 12, description: 'Class 2 retroreflective vests, action set', department: 'Production', status: 'packed',   source: 'Grainger',               importSource: 'manual', assigneeId: p2TylerG, sortOrder: 20 },
+    { projectId: p2.id, name: 'Talent waivers + release forms',            quantity: 1, description: 'Athlete release packets, master template',  department: 'Production', status: 'needed',   source: 'Internal — legal',       importSource: 'excel',  assigneeId: p2TylerG, sortOrder: 30 },
+    { projectId: p2.id, name: 'Production wrap-out sheets',                quantity: 1, description: 'Wrap kit, tag printers, return manifests',  department: 'Production', status: 'needed',   source: 'Internal',               importSource: 'manual', assigneeId: p2TylerG, sortOrder: 40 },
+
+    // Grip
+    { projectId: p2.id, name: 'Kessler Pocket Dolly Plus',                 quantity: 1, description: '2ft track, low-profile slider',             department: 'G&E',        status: 'packed',   source: 'Kessler',                importSource: 'manual', assigneeId: null,     sortOrder: 50 },
+    { projectId: p2.id, name: 'Magic Arm + super-clamp set',               quantity: 1, description: '3-arm rigging kit, pipe clamps',            department: 'G&E',        status: 'packed',   source: 'Manfrotto',              importSource: 'manual', assigneeId: null,     sortOrder: 60 },
+    { projectId: p2.id, name: '4x4 frame kit (silk + neg)',                quantity: 1, description: '1/4 silk + neg fills with frame',           department: 'G&E',        status: 'arrived',  source: 'VER Rentals',            importSource: 'manual', assigneeId: null,     sortOrder: 70 },
+
+    // Misc
+    { projectId: p2.id, name: 'Action sports padding kit',                 quantity: 1, description: 'Crash pads + safety mats for talent',       department: 'Production', status: 'ordered',  source: 'Stunt Supply',           importSource: 'manual', assigneeId: p2TylerH, sortOrder: 50 },
+    { projectId: p2.id, name: 'Branded Vanta wardrobe pieces',             quantity: 8, description: 'Hero athlete jackets and tees',             department: 'Wardrobe',   status: 'needed',   source: 'Client (Vanta)',         importSource: 'manual', assigneeId: p2Kelly,  sortOrder: 0  },
+  ]})
+
+  // ── P3 — In Vino Veritas (wine doc, arrived/packed-heavy) ──────────────
+  const p3Members = await membersFor(p3.id)
+  const p3Owen  = findInvAssignee(p3Members, 'Owen Blakely')    // DP
+  const p3Tom   = findInvAssignee(p3Members, 'Tom Vega')        // Sound Mixer
+  const p3Ryan  = findInvAssignee(p3Members, 'Ryan Cole')       // Production Coordinator
+
+  await prisma.inventoryItem.createMany({ data: [
+    // Camera
+    { projectId: p3.id, name: 'ARRI Alexa Mini LF body',                   quantity: 1, description: 'Hero body, beauty + interview coverage',     department: 'Camera',     status: 'packed',   source: 'Keslow Camera',          importSource: 'manual', assigneeId: p3Owen, sortOrder: 0  },
+    { projectId: p3.id, name: 'Cooke S7/i prime set (32/40/50/65/75/100)', quantity: 6, description: 'Beauty primes for vintner interviews',       department: 'Camera',     status: 'packed',   source: 'Old Fast Glass',         importSource: 'pdf',    assigneeId: p3Owen, sortOrder: 10 },
+    { projectId: p3.id, name: 'Atlas Orion anamorphic 50mm',               quantity: 1, description: 'B-roll texture lens for vineyard wides',     department: 'Camera',     status: 'arrived',  source: 'Old Fast Glass',         importSource: 'manual', assigneeId: p3Owen, sortOrder: 20 },
+    { projectId: p3.id, name: 'Tilta Nucleus-M wireless follow focus',     quantity: 1, description: 'For Steadicam handoffs',                     department: 'Camera',     status: 'packed',   source: 'Tilta',                  importSource: 'manual', assigneeId: p3Owen, sortOrder: 30 },
+    { projectId: p3.id, name: 'Steadicam M-1 rig',                         quantity: 1, description: 'Cellar walk-throughs, harvest coverage',     department: 'Camera',     status: 'packed',   source: 'Owen Blakely (owner-op)', importSource: 'manual', assigneeId: p3Owen, sortOrder: 40 },
+    { projectId: p3.id, name: 'ARRI EVF-2 monitor',                        quantity: 1, description: 'Director on-set monitor',                    department: 'Camera',     status: 'arrived',  source: 'Keslow Camera',          importSource: 'manual', assigneeId: p3Owen, sortOrder: 50 },
+    { projectId: p3.id, name: 'Variable ND filter kit',                    quantity: 1, description: 'Tiffen IRND 0.3 to 3.0',                     department: 'Camera',     status: 'packed',   source: 'Tiffen',                 importSource: 'manual', assigneeId: p3Owen, sortOrder: 60 },
+    { projectId: p3.id, name: 'Lens cleaning kit + sensor swabs',          quantity: 1, description: 'Field cleaning, vineyard dust',              department: 'Camera',     status: 'ordered',  source: 'B&H Photo',              importSource: 'manual', assigneeId: p3Owen, sortOrder: 70 },
+
+    // Sound
+    { projectId: p3.id, name: 'Sound Devices 833 mixer-recorder',          quantity: 1, description: '12-input bag-mounted recorder',              department: 'Sound',      status: 'packed',   source: 'Coffey Sound',           importSource: 'manual', assigneeId: p3Tom,  sortOrder: 0  },
+    { projectId: p3.id, name: 'DPA 4060 lavs',                             quantity: 6, description: 'Beauty lavs, multi-lav vintner interviews',  department: 'Sound',      status: 'packed',   source: 'Coffey Sound',           importSource: 'manual', assigneeId: p3Tom,  sortOrder: 10 },
+    { projectId: p3.id, name: 'Sennheiser MKH 416 boom',                   quantity: 1, description: 'Long shotgun for interview B-channel',       department: 'Sound',      status: 'packed',   source: 'Coffey Sound',           importSource: 'manual', assigneeId: p3Tom,  sortOrder: 20 },
+    { projectId: p3.id, name: 'Tentacle Sync E',                           quantity: 4, description: 'Timecode boxes, jam-sync per body',          department: 'Sound',      status: 'packed',   source: 'Coffey Sound',           importSource: 'manual', assigneeId: p3Tom,  sortOrder: 30 },
+
+    // Lighting
+    { projectId: p3.id, name: 'Aputure 600d Pro',                          quantity: 3, description: 'Daylight key + bounce for cellar interiors', department: 'Lighting',   status: 'packed',   source: 'VER Rentals',            importSource: 'manual', assigneeId: null,   sortOrder: 0  },
+    { projectId: p3.id, name: 'Astera Titan tubes',                        quantity: 6, description: 'Tunable tubes for harvest hour fill',         department: 'Lighting',   status: 'packed',   source: 'VER Rentals',            importSource: 'manual', assigneeId: null,   sortOrder: 10 },
+    { projectId: p3.id, name: 'Quasar Q-LED Crossfade',                    quantity: 4, description: 'Tunable rim + practical augmentation',       department: 'Lighting',   status: 'packed',   source: 'VER Rentals',            importSource: 'manual', assigneeId: null,   sortOrder: 20 },
+
+    // Art / Food
+    { projectId: p3.id, name: 'Food styling kit',                          quantity: 1, description: 'Tweezers, brushes, mister set, garnish kit', department: 'Art',        status: 'needed',   source: 'Sourcing — TBD',         importSource: 'manual', assigneeId: null,   sortOrder: 0  },
+    { projectId: p3.id, name: 'Wine pour rigs + spit cup props',           quantity: 1, description: 'Hero rigs for ceremonial pour shots',         department: 'Art',        status: 'arrived',  source: 'Set Decorators Inc.',    importSource: 'manual', assigneeId: null,   sortOrder: 10 },
+    { projectId: p3.id, name: 'Vintage harvest baskets',                   quantity: 6, description: 'Period-correct baskets — director rejected',  department: 'Art',        status: 'returned', source: 'Period Props LA',        importSource: 'manual', assigneeId: null,   sortOrder: 20 },
+
+    // Production
+    { projectId: p3.id, name: 'Pelican 1510 cases',                        quantity: 8, description: 'Carry-on cases for vineyard travel',          department: 'Production', status: 'packed',   source: 'Pelican',                importSource: 'excel',  assigneeId: p3Ryan, sortOrder: 0  },
+    { projectId: p3.id, name: 'Vineyard NDA + filming permits',            quantity: 1, description: 'Multi-property releases, signed',             department: 'Production', status: 'arrived',  source: 'Internal — legal',       importSource: 'excel',  assigneeId: p3Ryan, sortOrder: 10 },
+  ]})
+
+  // ── P4 — Flexibility Course A (studio prep, needed/ordered-heavy) ───────
+  const p4Members = await membersFor(p4.id)
+  const p4Alex   = findInvAssignee(p4Members, 'Alex Drum')        // DP
+  const p4Hana   = findInvAssignee(p4Members, 'Hana Liu')         // Boom Op
+  const p4TylerM = findInvAssignee(p4Members, 'Tyler Moss')       // Coordinator
+  const p4Kelly  = findInvAssignee(p4Members, 'Kelly Pratt')      // Producer
+
+  await prisma.inventoryItem.createMany({ data: [
+    // Camera
+    { projectId: p4.id, name: 'Sony FX6 (A-cam)',                          quantity: 1, description: 'Multi-cam A unit, 4K interview-style',       department: 'Camera',     status: 'arrived',  source: 'Keslow Camera',          importSource: 'pdf',    assigneeId: p4Alex,   sortOrder: 0  },
+    { projectId: p4.id, name: 'Sony FX6 (B-cam)',                          quantity: 1, description: 'Multi-cam B unit for split coverage',        department: 'Camera',     status: 'ordered',  source: 'Keslow Camera',          importSource: 'pdf',    assigneeId: p4Alex,   sortOrder: 10 },
+    { projectId: p4.id, name: 'Sony FE 24-70 GM',                          quantity: 1, description: 'A-cam zoom for instructional coverage',      department: 'Camera',     status: 'packed',   source: 'Keslow Camera',          importSource: 'manual', assigneeId: p4Alex,   sortOrder: 20 },
+    { projectId: p4.id, name: 'Sony FE 70-200 GM',                         quantity: 1, description: 'Tele compression for tight detail shots',    department: 'Camera',     status: 'needed',   source: 'Backorder — Sony',       importSource: 'manual', assigneeId: p4Alex,   sortOrder: 30 },
+    { projectId: p4.id, name: 'Atomos Ninja V+',                           quantity: 1, description: 'External 8K ProRes RAW recorder',            department: 'Camera',     status: 'arrived',  source: 'B&H Photo',              importSource: 'manual', assigneeId: p4Alex,   sortOrder: 40 },
+    { projectId: p4.id, name: 'Tilta Float arm',                           quantity: 1, description: 'Body-mount stabilizer for moving demos',     department: 'Camera',     status: 'needed',   source: 'Tilta',                  importSource: 'manual', assigneeId: p4Alex,   sortOrder: 50 },
+
+    // Lighting
+    { projectId: p4.id, name: 'Litepanels Gemini 2x1',                     quantity: 3, description: 'Soft RGBWW key, fill, and rim',              department: 'Lighting',   status: 'ordered',  source: 'VER Rentals',            importSource: 'pdf',    assigneeId: null,     sortOrder: 0  },
+    { projectId: p4.id, name: 'Aputure Light Dome SE (large)',             quantity: 1, description: 'Soft key for instructor close-ups',          department: 'Lighting',   status: 'arrived',  source: 'B&H Photo',              importSource: 'manual', assigneeId: null,     sortOrder: 10 },
+    { projectId: p4.id, name: 'Astera Titan tubes',                        quantity: 4, description: 'Backdrop fill and rim, color-matched',       department: 'Lighting',   status: 'arrived',  source: 'VER Rentals',            importSource: 'manual', assigneeId: null,     sortOrder: 20 },
+    { projectId: p4.id, name: 'White paper backdrop (8ft)',                quantity: 1, description: 'Studio sweep for clean key',                 department: 'Lighting',   status: 'packed',   source: 'Savage Universal',       importSource: 'manual', assigneeId: null,     sortOrder: 30 },
+
+    // Sound
+    { projectId: p4.id, name: 'Sennheiser EW-DX wireless',                 quantity: 2, description: 'Instructor lavs, dual-channel',              department: 'Sound',      status: 'ordered',  source: 'Coffey Sound',           importSource: 'manual', assigneeId: p4Hana,   sortOrder: 0  },
+    { projectId: p4.id, name: 'Røde NTG5 boom',                            quantity: 1, description: 'Light shotgun for studio dialogue',          department: 'Sound',      status: 'arrived',  source: 'B&H Photo',              importSource: 'manual', assigneeId: p4Hana,   sortOrder: 10 },
+    { projectId: p4.id, name: 'Zoom F8 Pro recorder',                      quantity: 1, description: 'Backup sync recorder, 8 inputs',             department: 'Sound',      status: 'needed',   source: 'B&H Photo',              importSource: 'manual', assigneeId: p4Hana,   sortOrder: 20 },
+
+    // Production
+    { projectId: p4.id, name: 'Atomos Shogun Connect (livestream check)',  quantity: 1, description: 'Network-aware monitor for stream test',      department: 'Production', status: 'needed',   source: 'B&H Photo',              importSource: 'excel',  assigneeId: p4TylerM, sortOrder: 0  },
+    { projectId: p4.id, name: 'Teleprompter rig (small)',                  quantity: 1, description: 'On-cam prompter for instructor cue cards',   department: 'Production', status: 'ordered',  source: 'Prompter People',        importSource: 'manual', assigneeId: p4TylerM, sortOrder: 10 },
+
+    // Wardrobe / Misc
+    { projectId: p4.id, name: 'Yoga mat set (×6 colors)',                  quantity: 6, description: 'Hero mat colors for talent continuity',      department: 'Wardrobe',   status: 'arrived',  source: 'Manduka',                importSource: 'manual', assigneeId: null,     sortOrder: 0  },
+    { projectId: p4.id, name: 'Insurance + permit binder',                 quantity: 1, description: 'Studio rider, gen-liability docs',           department: 'Production', status: 'packed',   source: 'Internal',               importSource: 'excel',  assigneeId: p4Kelly,  sortOrder: 20 },
+  ]})
+
+  // ── P5 — Natural Order (climate doc, packed-heavy + a couple returned) ──
+  // Note: P5 has a lean post-only crew on the seed. Most camera/sound items
+  // run unassigned. Producer/coordinator items go to Tyler H / Kelly / Clyde.
+  const p5Members = await membersFor(p5.id)
+  const p5TylerH = findInvAssignee(p5Members, 'Tyler Heckerman')
+  const p5Kelly  = findInvAssignee(p5Members, 'Kelly Pratt')
+
+  await prisma.inventoryItem.createMany({ data: [
+    // Camera (10) — heavy on durable bodies, mostly packed for travel
+    { projectId: p5.id, name: 'Sony FX3 (A-cam)',                          quantity: 1, description: 'Compact A-cam, multi-location coverage',     department: 'Camera',     status: 'packed',   source: 'Keslow Camera',          importSource: 'pdf',    assigneeId: null, sortOrder: 0   },
+    { projectId: p5.id, name: 'Sony FX3 (B-cam)',                          quantity: 1, description: 'Compact B-cam, run-and-gun',                 department: 'Camera',     status: 'packed',   source: 'Keslow Camera',          importSource: 'pdf',    assigneeId: null, sortOrder: 10  },
+    { projectId: p5.id, name: 'Sony FX6 (long-form interview)',            quantity: 1, description: 'Stationary interview rig',                   department: 'Camera',     status: 'packed',   source: 'Keslow Camera',          importSource: 'pdf',    assigneeId: null, sortOrder: 20  },
+    { projectId: p5.id, name: 'Canon RF 24-105mm L',                       quantity: 1, description: 'A-cam workhorse zoom',                       department: 'Camera',     status: 'packed',   source: 'B&H Photo',              importSource: 'manual', assigneeId: null, sortOrder: 30  },
+    { projectId: p5.id, name: 'Canon RF 70-200mm L',                       quantity: 1, description: 'Wildlife and tele-coverage',                 department: 'Camera',     status: 'packed',   source: 'B&H Photo',              importSource: 'manual', assigneeId: null, sortOrder: 40  },
+    { projectId: p5.id, name: 'Sigma 24-70mm Art (Sony E)',                quantity: 1, description: 'B-cam zoom backup',                          department: 'Camera',     status: 'arrived',  source: 'B&H Photo',              importSource: 'manual', assigneeId: null, sortOrder: 50  },
+    { projectId: p5.id, name: 'Tamron 17-28mm',                            quantity: 1, description: 'Wide for landscape and field interview B',   department: 'Camera',     status: 'arrived',  source: 'B&H Photo',              importSource: 'manual', assigneeId: null, sortOrder: 60  },
+    { projectId: p5.id, name: 'SmallHD Ultra 7 monitor',                   quantity: 1, description: 'High-bright field monitor',                  department: 'Camera',     status: 'packed',   source: 'B&H Photo',              importSource: 'manual', assigneeId: null, sortOrder: 70  },
+    { projectId: p5.id, name: 'Atomos Ninja V+',                           quantity: 1, description: 'External recorder for 4K ProRes RAW',        department: 'Camera',     status: 'packed',   source: 'B&H Photo',              importSource: 'manual', assigneeId: null, sortOrder: 80  },
+    { projectId: p5.id, name: 'Variable ND filter set',                    quantity: 1, description: 'Failed spec — returned to vendor',           department: 'Camera',     status: 'returned', source: 'B&H Photo',              importSource: 'manual', assigneeId: null, sortOrder: 90  },
+
+    // Sound (5)
+    { projectId: p5.id, name: 'Lectrosonics SMV wireless',                 quantity: 3, description: 'Subject lavs, multi-channel field',          department: 'Sound',      status: 'packed',   source: 'Coffey Sound',           importSource: 'pdf',    assigneeId: null, sortOrder: 0  },
+    { projectId: p5.id, name: 'Sennheiser MKH 416 boom',                   quantity: 1, description: 'Outdoor shotgun, climate-rated',             department: 'Sound',      status: 'packed',   source: 'Coffey Sound',           importSource: 'manual', assigneeId: null, sortOrder: 10 },
+    { projectId: p5.id, name: 'Zoom F8 Pro recorder',                      quantity: 1, description: 'Bag-mounted backup recorder',                department: 'Sound',      status: 'packed',   source: 'B&H Photo',              importSource: 'manual', assigneeId: null, sortOrder: 20 },
+    { projectId: p5.id, name: 'Røde Wind Protect (large)',                 quantity: 2, description: 'Heavy weather windjammers',                  department: 'Sound',      status: 'arrived',  source: 'B&H Photo',              importSource: 'manual', assigneeId: null, sortOrder: 30 },
+    { projectId: p5.id, name: 'Tentacle Sync E',                           quantity: 3, description: 'Sync timecode across cameras',               department: 'Sound',      status: 'packed',   source: 'Coffey Sound',           importSource: 'manual', assigneeId: null, sortOrder: 40 },
+
+    // G&E / Power (4)
+    { projectId: p5.id, name: 'Aputure F22c (battery panel)',              quantity: 1, description: 'Battery-powered RGB panel for field use',    department: 'G&E',        status: 'packed',   source: 'B&H Photo',              importSource: 'pdf',    assigneeId: null, sortOrder: 0  },
+    { projectId: p5.id, name: 'Anton/Bauer Titon Base packs',              quantity: 8, description: '14.4V 240Wh field batteries',                 department: 'G&E',        status: 'packed',   source: 'Anton/Bauer Direct',     importSource: 'manual', assigneeId: null, sortOrder: 10 },
+    { projectId: p5.id, name: 'Battery charger station (Gold mount)',      quantity: 1, description: '4-bay rapid charger',                        department: 'G&E',        status: 'packed',   source: 'Anton/Bauer Direct',     importSource: 'manual', assigneeId: null, sortOrder: 20 },
+    { projectId: p5.id, name: 'Power station 220Wh',                       quantity: 4, description: 'Field AC/DC power packs for remote shoots',  department: 'G&E',        status: 'arrived',  source: 'EcoFlow',                importSource: 'manual', assigneeId: null, sortOrder: 30 },
+
+    // Cases / Travel (5)
+    { projectId: p5.id, name: 'Pelican 1610 cases',                        quantity: 8, description: 'Cube cases for camera + lighting travel',    department: 'Production', status: 'packed',   source: 'Pelican',                importSource: 'excel',  assigneeId: p5TylerH, sortOrder: 0  },
+    { projectId: p5.id, name: 'Pelican 1510 carry-on cases',               quantity: 4, description: 'Air-travel-rated carry-ons',                 department: 'Production', status: 'packed',   source: 'Pelican',                importSource: 'excel',  assigneeId: p5TylerH, sortOrder: 10 },
+    { projectId: p5.id, name: 'Custom foam inserts',                       quantity: 1, description: 'CNC-cut foam for camera + lens layouts',     department: 'Production', status: 'arrived',  source: 'CNC Foam',               importSource: 'manual', assigneeId: p5TylerH, sortOrder: 20 },
+    { projectId: p5.id, name: 'Tundra duffles',                            quantity: 4, description: 'Soft-side travel duffles for grip kit',      department: 'Production', status: 'packed',   source: 'Yeti',                   importSource: 'excel',  assigneeId: p5Kelly,  sortOrder: 30 },
+    { projectId: p5.id, name: 'Coolers + ice packs',                       quantity: 4, description: 'Field hydration + battery cool-down',        department: 'Production', status: 'needed',   source: 'Sourcing — local',       importSource: 'manual', assigneeId: p5Kelly,  sortOrder: 40 },
+
+    // Misc (3)
+    { projectId: p5.id, name: 'Permit binders + remote location forms',    quantity: 1, description: 'BLM, NPS, state-park release packets',       department: 'Production', status: 'packed',   source: 'Internal — legal',       importSource: 'excel',  assigneeId: p5Kelly,  sortOrder: 50 },
+    { projectId: p5.id, name: 'Rain covers (camera + crew)',               quantity: 4, description: 'Storm-proof covers for body + gear',         department: 'G&E',        status: 'arrived',  source: 'Think Tank Photo',       importSource: 'manual', assigneeId: null,     sortOrder: 40 },
+    { projectId: p5.id, name: 'Lens-rain covers',                          quantity: 4, description: 'Wrong size — vendor exchange pending',       department: 'Camera',     status: 'returned', source: 'Think Tank Photo',       importSource: 'manual', assigneeId: null,     sortOrder: 100 },
+  ]})
+
+  // ── P6 — The Weave (festival short, even spread) ────────────────────────
+  const p6Members = await membersFor(p6.id)
+  const p6Caleb  = findInvAssignee(p6Members, 'Caleb Stone')      // DP
+  const p6Maya   = findInvAssignee(p6Members, 'Maya Lin')         // 1st AC
+  const p6SamP   = findInvAssignee(p6Members, 'Sam Park')         // Grip
+  const p6Dario  = findInvAssignee(p6Members, 'Dario Reyes')      // Best Boy Electric
+  const p6Chris  = findInvAssignee(p6Members, 'Chris Tan')        // Sound Mixer
+  const p6Omar   = findInvAssignee(p6Members, 'Omar Rashid')      // Boom Op
+  const p6Petra  = findInvAssignee(p6Members, 'Petra Walsh')      // Art Director
+  const p6Sofia  = findInvAssignee(p6Members, 'Sofia Avila')      // Producer
+  const p6Rina   = findInvAssignee(p6Members, 'Rina Cole')        // Coordinator
+
+  await prisma.inventoryItem.createMany({ data: [
+    // Camera (10)
+    { projectId: p6.id, name: 'ARRI Alexa Mini LF',                        quantity: 1, description: 'Hero body, large-format narrative',          department: 'Camera',     status: 'packed',   source: 'Keslow Camera',          importSource: 'pdf',    assigneeId: p6Caleb, sortOrder: 0   },
+    { projectId: p6.id, name: 'Cooke S4/i mini prime set (18/25/32/50/75)', quantity: 5, description: 'Vintage character primes, narrative lens kit', department: 'Camera',     status: 'packed',   source: 'Old Fast Glass',         importSource: 'pdf',    assigneeId: p6Caleb, sortOrder: 10  },
+    { projectId: p6.id, name: 'Angenieux 25-250mm Optimo',                 quantity: 1, description: 'Hero zoom for select wide → tight pushes',   department: 'Camera',     status: 'arrived',  source: 'Old Fast Glass',         importSource: 'manual', assigneeId: p6Caleb, sortOrder: 20  },
+    { projectId: p6.id, name: 'Steadicam M-1 rig',                         quantity: 1, description: 'Owner-op rig for ravine sequences',          department: 'Camera',     status: 'packed',   source: 'Caleb Stone (owner-op)', importSource: 'manual', assigneeId: p6Caleb, sortOrder: 30  },
+    { projectId: p6.id, name: 'Tilta Float arm',                           quantity: 1, description: 'Stabilizer for run-and-gun coverage',        department: 'Camera',     status: 'arrived',  source: 'Tilta',                  importSource: 'manual', assigneeId: p6Caleb, sortOrder: 40  },
+    { projectId: p6.id, name: 'Tilta Nucleus-M wireless follow focus',     quantity: 1, description: 'Hero wireless FF',                            department: 'Camera',     status: 'packed',   source: 'Tilta',                  importSource: 'manual', assigneeId: p6Maya,  sortOrder: 50  },
+    { projectId: p6.id, name: 'Cmotion lens encoder',                      quantity: 1, description: 'For metadata-correct lens recording',         department: 'Camera',     status: 'packed',   source: 'cmotion',                importSource: 'manual', assigneeId: p6Maya,  sortOrder: 60  },
+    { projectId: p6.id, name: 'ND filter set (Tiffen IRND 0.3-3.0)',       quantity: 1, description: '4x5.65 IRND set, full stops',                department: 'Camera',     status: 'packed',   source: 'Tiffen',                 importSource: 'manual', assigneeId: p6Maya,  sortOrder: 70  },
+    { projectId: p6.id, name: 'ARRI EVF-2 monitor',                        quantity: 2, description: 'Director + DP monitors',                     department: 'Camera',     status: 'arrived',  source: 'Keslow Camera',          importSource: 'manual', assigneeId: p6Maya,  sortOrder: 80  },
+    { projectId: p6.id, name: 'Camera report binder + slate',              quantity: 1, description: '1st AC kit, slate + reports',                department: 'Camera',     status: 'packed',   source: 'Internal',               importSource: 'manual', assigneeId: p6Maya,  sortOrder: 90  },
+
+    // Lighting (6)
+    { projectId: p6.id, name: 'ARRI SkyPanel S60-C',                       quantity: 2, description: 'Hero soft RGB panels for night INT',         department: 'Lighting',   status: 'arrived',  source: 'VER Rentals',            importSource: 'manual', assigneeId: null,    sortOrder: 0  },
+    { projectId: p6.id, name: 'ARRI SkyPanel S30-C',                       quantity: 2, description: 'Mid-size RGB for lift, fill',                department: 'Lighting',   status: 'ordered',  source: 'VER Rentals',            importSource: 'manual', assigneeId: null,    sortOrder: 10 },
+    { projectId: p6.id, name: 'Astera Titan tubes',                        quantity: 8, description: 'Practical augmentation, period bias',         department: 'Lighting',   status: 'packed',   source: 'VER Rentals',            importSource: 'manual', assigneeId: null,    sortOrder: 20 },
+    { projectId: p6.id, name: 'Aputure Nova P600c',                        quantity: 2, description: 'RGBWW for color-rich night exterior',        department: 'Lighting',   status: 'ordered',  source: 'VER Rentals',            importSource: 'manual', assigneeId: null,    sortOrder: 30 },
+    { projectId: p6.id, name: 'Quasar Q-LED Crossfade',                    quantity: 6, description: 'In-frame practicals',                         department: 'Lighting',   status: 'arrived',  source: 'VER Rentals',            importSource: 'manual', assigneeId: null,    sortOrder: 40 },
+    { projectId: p6.id, name: 'Diffusion / silk frame kit',                quantity: 1, description: '8x8 + 12x12 silks, soft frames',             department: 'Lighting',   status: 'needed',   source: 'Sourcing — VER',         importSource: 'manual', assigneeId: null,    sortOrder: 50 },
+
+    // G&E / Grip (5)
+    { projectId: p6.id, name: 'Magic Arm + super-clamp kit',               quantity: 1, description: '3-arm rigging kit, period set work',         department: 'G&E',        status: 'packed',   source: 'Manfrotto',              importSource: 'manual', assigneeId: p6SamP,  sortOrder: 0  },
+    { projectId: p6.id, name: 'C-stand kit (×12) + sandbags',              quantity: 12, description: 'Heavy-duty hi-rollers, 35lb shotbags',       department: 'G&E',        status: 'packed',   source: 'VER Rentals',            importSource: 'manual', assigneeId: p6SamP,  sortOrder: 10 },
+    { projectId: p6.id, name: '4x4, 6x6, 8x8 frame kits',                  quantity: 3, description: 'Silk + neg + 1/4 grid set',                  department: 'G&E',        status: 'arrived',  source: 'VER Rentals',            importSource: 'manual', assigneeId: p6SamP,  sortOrder: 20 },
+    { projectId: p6.id, name: 'Furniture pads + duvetyne (×20yds)',        quantity: 1, description: 'Sound damp, set-bounce control',              department: 'G&E',        status: 'ordered',  source: 'VER Rentals',            importSource: 'manual', assigneeId: p6SamP,  sortOrder: 30 },
+    { projectId: p6.id, name: 'Generator (Multiquip Whisperwatt 25kva)',   quantity: 1, description: 'Sound-rated genny for night exterior',        department: 'G&E',        status: 'packed',   source: 'Multiquip',              importSource: 'manual', assigneeId: p6Dario, sortOrder: 40 },
+
+    // Sound (5)
+    { projectId: p6.id, name: 'Sound Devices 833 mixer-recorder',          quantity: 1, description: 'Hero recorder for narrative scenes',          department: 'Sound',      status: 'arrived',  source: 'Coffey Sound',           importSource: 'manual', assigneeId: p6Chris, sortOrder: 0  },
+    { projectId: p6.id, name: 'DPA 4060 lavs',                             quantity: 8, description: 'Period-friendly micro lavs',                 department: 'Sound',      status: 'packed',   source: 'Coffey Sound',           importSource: 'manual', assigneeId: p6Chris, sortOrder: 10 },
+    { projectId: p6.id, name: 'Sennheiser MKH 416 boom',                   quantity: 1, description: 'Hero shotgun for outdoor scenes',             department: 'Sound',      status: 'packed',   source: 'Coffey Sound',           importSource: 'manual', assigneeId: p6Chris, sortOrder: 20 },
+    { projectId: p6.id, name: 'Sennheiser MKH 50 boom',                    quantity: 1, description: 'Interior dialogue, tighter pickup',           department: 'Sound',      status: 'arrived',  source: 'Coffey Sound',           importSource: 'manual', assigneeId: p6Chris, sortOrder: 30 },
+    { projectId: p6.id, name: 'Lectrosonics SMV wireless',                 quantity: 6, description: 'Multi-talent wireless body packs',            department: 'Sound',      status: 'packed',   source: 'Coffey Sound',           importSource: 'manual', assigneeId: p6Omar,  sortOrder: 40 },
+
+    // Art (5)
+    { projectId: p6.id, name: 'Hero books + leather-bound props',          quantity: 1, description: 'Hero practical books, period continuity',     department: 'Art',        status: 'arrived',  source: 'Period Props LA',        importSource: 'manual', assigneeId: p6Petra, sortOrder: 0  },
+    { projectId: p6.id, name: 'Period-correct stationery + ink set',       quantity: 1, description: 'Letter-writing scenes, hand-prop continuity', department: 'Art',        status: 'arrived',  source: 'Period Props LA',        importSource: 'manual', assigneeId: p6Petra, sortOrder: 10 },
+    { projectId: p6.id, name: 'FRACTURE-universe set dressing crate',      quantity: 1, description: 'Show-bible-canon dressing for hero set',      department: 'Art',        status: 'packed',   source: 'B Story Internal',       importSource: 'manual', assigneeId: p6Petra, sortOrder: 20 },
+    { projectId: p6.id, name: 'Picture vehicle (1973 Mercedes 280SE)',     quantity: 1, description: 'Hero PV — vintage rental still being sourced', department: 'Art',        status: 'needed',   source: 'Sourcing — Cinema Vehicles', importSource: 'manual', assigneeId: p6Petra, sortOrder: 30 },
+    { projectId: p6.id, name: 'Practical electrical (lanterns, sconces)',  quantity: 1, description: 'Bulbs, gels, dimmers for in-frame practicals', department: 'Art',        status: 'ordered',  source: 'Period Props LA',        importSource: 'manual', assigneeId: p6Petra, sortOrder: 40 },
+
+    // HMU + Wardrobe (3)
+    { projectId: p6.id, name: 'Period wardrobe (3 talents × 4 changes)',   quantity: 12, description: '12 hero looks, fittings complete',           department: 'Wardrobe',   status: 'packed',   source: 'Costume House',          importSource: 'manual', assigneeId: null,    sortOrder: 0  },
+    { projectId: p6.id, name: 'Hair piece + period wig set',               quantity: 1, description: 'One wig wrong — vendor exchange pending',     department: 'HMU',        status: 'returned', source: 'Western Costume',        importSource: 'manual', assigneeId: null,    sortOrder: 0  },
+    { projectId: p6.id, name: 'Distressing kit + bloodwork supplies',      quantity: 1, description: 'Aging fabric, bloodwork for the climax',     department: 'HMU',        status: 'packed',   source: 'Frend\'s Beauty',        importSource: 'manual', assigneeId: null,    sortOrder: 10 },
+
+    // Production (4)
+    { projectId: p6.id, name: 'Pelican 1610 cases',                        quantity: 12, description: 'Cube cases for camera + grip travel',         department: 'Production', status: 'packed',   source: 'Pelican',                importSource: 'excel',  assigneeId: p6Sofia, sortOrder: 0  },
+    { projectId: p6.id, name: 'Walkie packages',                           quantity: 16, description: 'Multi-channel walkies + 16 chargers',         department: 'Production', status: 'packed',   source: 'Coffey Sound',           importSource: 'manual', assigneeId: p6Sofia, sortOrder: 10 },
+    { projectId: p6.id, name: 'Crafty + on-set hospitality kit',           quantity: 1, description: 'Coffee, snacks, dietary continuity',          department: 'Production', status: 'arrived',  source: 'Sourcing — Local',       importSource: 'manual', assigneeId: p6Rina,  sortOrder: 20 },
+    { projectId: p6.id, name: 'Production binders (calls, scripts, breakdown)', quantity: 1, description: 'Master prod binder per department',     department: 'Production', status: 'needed',   source: 'Internal',               importSource: 'manual', assigneeId: p6Rina,  sortOrder: 30 },
+  ]})
+
+  // Inventory summary log — counts per project + status + source breakdown
+  const invAll = await prisma.inventoryItem.findMany({
+    select: { projectId: true, status: true, importSource: true, assigneeId: true },
+  })
+  const invByProject = new Map<string, number>()
+  const invByStatus: Record<string, number> = { needed: 0, ordered: 0, arrived: 0, packed: 0, returned: 0 }
+  const invBySource: Record<string, number> = { manual: 0, pdf: 0, excel: 0 }
+  let invUnassigned = 0
+  for (const r of invAll) {
+    invByProject.set(r.projectId, (invByProject.get(r.projectId) ?? 0) + 1)
+    invByStatus[r.status]++
+    invBySource[r.importSource]++
+    if (!r.assigneeId) invUnassigned++
+  }
+  const invCount = (id: string) => invByProject.get(id) ?? 0
+  console.log(
+    `  Inventory: ${invAll.length} ` +
+    `(${invCount(p1.id)}/${invCount(p2.id)}/${invCount(p3.id)}/${invCount(p4.id)}/${invCount(p5.id)}/${invCount(p6.id)} across P1-P6; ` +
+    `${invByStatus.needed} needed, ${invByStatus.ordered} ordered, ${invByStatus.arrived} arrived, ${invByStatus.packed} packed, ${invByStatus.returned} returned; ` +
+    `${invBySource.manual} manual, ${invBySource.pdf} pdf, ${invBySource.excel} excel; ` +
+    `${invUnassigned} unassigned)`
+  )
+
   // ── Final count ───────────────────────────────────────────────────────────
   const counts = {
     projects:          await prisma.project.count(),
@@ -2779,6 +3105,7 @@ FADE TO BLACK.`,
     milestones:        await prisma.milestone.count(),
     actionItems:       await prisma.actionItem.count(),
     locations:         await prisma.location.count(),
+    inventoryItems:    await prisma.inventoryItem.count(),
     talents:           await prisma.talent.count(),
     talentAssignments: await prisma.talentAssignment.count(),
     workflowNodes:     await prisma.workflowNode.count(),
@@ -2804,6 +3131,7 @@ FADE TO BLACK.`,
   console.log(`  Milestones:         ${counts.milestones}`)
   console.log(`  ActionItems:        ${counts.actionItems}`)
   console.log(`  Locations:          ${counts.locations}`)
+  console.log(`  InventoryItems:     ${counts.inventoryItems}`)
   console.log(`  Talents:            ${counts.talents}`)
   console.log(`  TalentAssignments:  ${counts.talentAssignments}`)
   console.log(`  WorkflowNodes:      ${counts.workflowNodes}`)
