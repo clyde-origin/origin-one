@@ -597,20 +597,26 @@ function ProducerOverview({
 // ── INDIVIDUAL WEEK VIEW (Frame B) ────────────────────────
 // Identity + week selector + 7 day-rows. Handles the full CRUD surface:
 // crew logs/edits own entries, producer approves/reopens. "Viewer mode"
-// switches on isProducerView from the caller (derived from the viewer
-// identity shim on CrewPanel — see CURRENT_VIEWER note there).
+// switches on isSelfView, computed locally from viewerMember.id vs
+// member.id — see the const at the top of the function body.
 
 function IndividualWeekView({
-  member, projectId, accent, projectName, viewerMember, isProducerView, onBack,
+  member, projectId, accent, projectName, viewerMember, onBack,
 }: {
   member: TeamMember
   projectId: string
   accent: string
   projectName: string
   viewerMember: TeamMember | null
-  isProducerView: boolean
   onBack: () => void
 }) {
+  // Self-view is the canonical permission predicate this PR previews — when
+  // real Auth lands, viewer.id === viewedMember.id is the gate that hides
+  // producer-only affordances (Approve, Reopen, Reopen-reason editor) so the
+  // viewer can never act on their own work as a "producer". Identity-only,
+  // not role-aware: a producer drilling into their own week sees the same
+  // self-view restrictions a crew member sees on themselves.
+  const isSelfView = !!viewerMember && viewerMember.id === member.id
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeekUTC(new Date()))
   const weekEnd = useMemo(() => addDaysUTC(weekStart, 6), [weekStart])
   const weekStartISO = isoDay(weekStart)
@@ -815,7 +821,7 @@ function IndividualWeekView({
                   <EntryCard
                     entry={entry}
                     accent={accent}
-                    isProducerView={isProducerView}
+                    isSelfView={isSelfView}
                     reopenerName={crewNameById(entry.reopenedBy)}
                     isReopening={!!isReopeningThis}
                     onEdit={() => setEditingEntryId(entry.id)}
@@ -838,9 +844,7 @@ function IndividualWeekView({
                 ) : (
                   /* Empty day */
                   <div style={{ fontSize: 13, color: '#62627a', paddingTop: 3 }}>
-                    {isProducerView ? (
-                      <span style={{ fontStyle: 'italic' }}>—</span>
-                    ) : (
+                    {isSelfView ? (
                       <button
                         onClick={() => { haptic('light'); setAddingForDayIdx(dayIdx) }}
                         style={{
@@ -853,6 +857,8 @@ function IndividualWeekView({
                           padding: 0,
                         }}
                       >+ Add hours</button>
+                    ) : (
+                      <span style={{ fontStyle: 'italic' }}>—</span>
                     )}
                   </div>
                 )}
@@ -1068,14 +1074,14 @@ function EntryEditor({
 // ── Entry card (read + action buttons) ────────────────────
 
 function EntryCard({
-  entry, accent, isProducerView, reopenerName, isReopening,
+  entry, accent, isSelfView, reopenerName, isReopening,
   onEdit, onSubmit, onApprove, onStartReopen, onCancelReopen, onConfirmReopen, pending,
 }: {
   entry: {
     id: string; hours: number; rate: number | null; description: string; status: string; reopenReason: string | null
   }
   accent: string
-  isProducerView: boolean
+  isSelfView: boolean
   reopenerName: string
   isReopening: boolean
   onEdit: () => void
@@ -1089,13 +1095,17 @@ function EntryCard({
   const { status } = entry
   const isReopenedTinted = status === 'reopened'
 
-  // Action-set by viewer × status
-  const showEdit       = !isProducerView && (status === 'draft' || status === 'reopened')
-  const showSubmit     = !isProducerView && (status === 'draft' || status === 'reopened')
-  const showApprove    = isProducerView && status === 'submitted'
-  const showReopen     = isProducerView && (status === 'approved' || status === 'submitted')
-  const showLockedHint = !isProducerView && status === 'approved'
-  const showAwaiting   = isProducerView && status === 'draft'
+  // Action-set by self-view × status. Self-view → owner-only actions
+  // (Edit/Submit + Locked hint). Cross-view → producer-only actions
+  // (Approve/Reopen + Awaiting hint). The Reopen-reason input is gated by
+  // `isReopening`, which only flips on via the Reopen button — so it's
+  // implicitly suppressed in self-view.
+  const showEdit       = isSelfView && (status === 'draft' || status === 'reopened')
+  const showSubmit     = isSelfView && (status === 'draft' || status === 'reopened')
+  const showApprove    = !isSelfView && status === 'submitted'
+  const showReopen     = !isSelfView && (status === 'approved' || status === 'submitted')
+  const showLockedHint = isSelfView && status === 'approved'
+  const showAwaiting   = !isSelfView && status === 'draft'
 
   // Rate display: hidden when null. When present, show "$rate/day · $total".
   // Total = hours × rate. Both already Number-typed at the IndividualWeekView
@@ -1332,7 +1342,9 @@ function ReopenReasonInput({
 // ── MAIN CREW PANEL ──────────────────────────────────────
 
 type Layer = 'list' | 'overview' | 'detail' | 'week'
-type WeekOrigin = 'overview' | 'detail'
+// 'list' is the back-target for Crew who jump straight from the panel header
+// into their own week (skipping Producer Overview entirely).
+type WeekOrigin = 'overview' | 'detail' | 'list'
 
 export function CrewPanel({ open, projectId, accent, onClose }: {
   open: boolean; projectId: string; accent: string; onClose: () => void
@@ -1384,10 +1396,31 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
     return { currentViewerMember: sameRole[0], isFallback: true }
   }, [allCrew, storedRole, storedName])
 
-  const isProducerView = !!currentViewerMember && currentViewerMember.id !== selectedMember?.id
-
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const showFallbackBanner = isFallback && !!currentViewerMember && !bannerDismissed
+
+  // Role-gated entry into Timecards from the panel header. Producer (and any
+  // unset/legacy state) lands on Producer Overview as before; Crew skips
+  // Overview entirely and drops directly into their own Individual Week View.
+  // Edge case: a Crew viewer with no matching ProjectMember on this project
+  // (project has zero crew members of that role) falls back to Overview with
+  // a console.warn — the fallback banner from PR #13 covers user-visible
+  // communication when identity itself is the mismatch.
+  function openTimecards() {
+    haptic('light')
+    if (storedRole === 'crew') {
+      if (currentViewerMember) {
+        setSelectedMember(currentViewerMember)
+        setWeekOrigin('list')
+        setLayer('week')
+        return
+      }
+      console.warn(
+        '[CrewPanel] Crew viewer has no matching ProjectMember in this project — falling back to Producer Overview.',
+      )
+    }
+    setLayer('overview')
+  }
 
   // Reset to list when panel opens
   useEffect(() => {
@@ -1495,7 +1528,7 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                 </div>
                 <TimecardsLabelButton
                   accent={accent}
-                  onClick={() => { haptic('light'); setLayer('overview') }}
+                  onClick={openTimecards}
                 />
                 <button onClick={onClose} className="text-muted w-11 h-11 flex items-center justify-center active:opacity-60">
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
@@ -1578,7 +1611,6 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                   accent={accent}
                   projectName={project?.name ?? ''}
                   viewerMember={currentViewerMember}
-                  isProducerView={isProducerView}
                   onBack={() => setLayer(weekOrigin)}
                 />
               </motion.div>
