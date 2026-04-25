@@ -242,6 +242,7 @@ Organized by severity. Non-blocking unless noted.
 | Props / Wardrobe pickup-options child tables | If a real production needs multiple sourcing records per scripted prop/wardrobe, add `PropSourceOption` / `WardrobeSourceOption` as child tables under the 1:1 PropSourced / WardrobeSourced. |
 | Camera Metadata per shot (OMC/SMPTE RIS OSVP) | Long-term interop concern. Ships when post workflow requires it. |
 | OMC-aligned RDF/JSON-LD schema publication | Interop publication for Movielabs community. Long-term. |
+| Rate-unit semantics + math | Current schema has `rate Decimal(8,2)` with no unit field. UI hardcodes "/day" label and computes `total = hours × rate`, which produces incorrect totals for day-rate roles (e.g. 6 hours × $900/day = $5,400, should be $900). Hourly-rate roles like editors aren't representable. Proper fix is `rateUnit` enum (`'day' \| 'hour'`) plus unit-aware math, landing alongside budget functionality where rate-unit will have a proper consumer. Until then, the math in EntryCard subtext and ProducerOverview totals is cosmetically wrong but not structurally wrong — no real money flows through the demo. Do not "fix" the math in isolation — wait for the budget feature work. |
 
 ---
 
