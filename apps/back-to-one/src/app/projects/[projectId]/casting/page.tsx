@@ -13,7 +13,7 @@ import {
 } from '@/lib/hooks/useOriginOne'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { FAB } from '@/components/ui/FAB'
+import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
@@ -567,6 +567,8 @@ export default function CastingPage({ params }: { params: { projectId: string } 
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  // Register the + handler with the global ActionBar.
+  useFabAction({ onPress: () => { haptic('light'); setCreating(true) } })
   const [charMenuOpen, setCharMenuOpen] = useState(false)
   const [charDetail, setCharDetail] = useState<EntityItem | null>(null)
   const qc = useQueryClient()
@@ -815,7 +817,7 @@ export default function CastingPage({ params }: { params: { projectId: string } 
         )}
       </AnimatePresence>
 
-      <FAB accent={accent} projectId={projectId} onPress={() => { haptic('light'); setCreating(true) }} />
+      {/* + handler registered above via useFabAction. ActionBar is mounted globally. */}
     </div>
   )
 }

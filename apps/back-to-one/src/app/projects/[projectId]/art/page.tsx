@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useProject, useArtItems, useCreateArtItem, useUpdateArtItem, useDeleteArtItem } from '@/lib/hooks/useOriginOne'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { FAB } from '@/components/ui/FAB'
+import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
@@ -441,6 +441,9 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
   const [selected, setSelected] = useState<ArtEntity | null>(null)
   const [showCreate, setShowCreate] = useState(false)
 
+  // Register the + handler with the global ActionBar.
+  useFabAction({ onPress: () => { haptic('light'); setShowCreate(true) } })
+
   const tabItems = allItems.filter(i => i.type === activeTab)
   // activeTab is a ThreadAttachmentType-compatible string (prop | wardrobe | hmu)
   const threadByItemId = useThreadsByEntity(projectId, activeTab as ThreadAttachmentType)
@@ -544,8 +547,7 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
         )}
       </div>
 
-      {/* FAB */}
-      <FAB accent={accent} projectId={projectId} onPress={() => { haptic('light'); setShowCreate(true) }} />
+      {/* + handler registered above via useFabAction. ActionBar is mounted globally. */}
 
       {/* Detail / Create Sheet */}
       <AnimatePresence>

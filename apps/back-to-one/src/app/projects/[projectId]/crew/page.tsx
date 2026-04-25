@@ -6,8 +6,7 @@ import { useProject, useCrew, useAddCrewMember, useUpdateCrewMember, useAllCrew 
 
 import { CrewAvatar } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { FAB } from '@/components/ui/FAB'
-import { SideFabs } from '@/components/ui/SideFabs'
+import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor , statusHex, statusLabel } from '@/lib/utils/phase'
@@ -252,6 +251,8 @@ export default function CrewPage({ params }: { params: { projectId: string } }) 
   const [tab, setTab] = useState<RoleTab>('All')
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
   const [showNewSheet, setShowNewSheet] = useState(false)
+  // Register the + handler with the global ActionBar.
+  useFabAction({ onPress: () => { haptic('light'); setShowNewSheet(true) } })
 
   const { data: crew, isLoading } = useCrew(projectId)
   const addMember = useAddCrewMember(projectId)
@@ -320,9 +321,9 @@ export default function CrewPage({ params }: { params: { projectId: string } }) 
         )}
       </AnimatePresence>
 
-      <FAB accent={accent} projectId={projectId} onPress={() => { haptic('light'); setShowNewSheet(true) }} />
-
-      <SideFabs projectId={projectId} />
+      {/* + handler registered above via useFabAction. ActionBar is mounted globally.
+          SideFabs deleted in PR 2a — chat / threads now live in ActionBar (also
+          incidentally fixes the broken Threads route that pointed at /resources). */}
 
       <Sheet open={showNewSheet} onClose={() => setShowNewSheet(false)}>
         <NewMemberSheet
