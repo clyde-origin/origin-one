@@ -133,16 +133,23 @@ async function upsertCrew(
   return user
 }
 
+// `department` is optional: omit to fall back to DEPARTMENT_BY_NAME (one
+// department per name — the original convention), pass explicitly to attach
+// a different department to a same-user-different-role row (e.g. Clyde
+// directing under 'Direction' AND producing under 'Production'). The
+// composite unique (projectId, userId, role) is what makes multi-role
+// possible; the upsert key follows it.
 async function assignProjectCrew(
   projectId: string,
   userId: string,
   role: Role,
+  department?: string,
 ): Promise<void> {
-  const department = departmentForUser(userId)
+  const dept = department ?? departmentForUser(userId)
   await prisma.projectMember.upsert({
-    where: { projectId_userId: { projectId, userId } },
-    update: { role, department },
-    create: { projectId, userId, role, department },
+    where: { projectId_userId_role: { projectId, userId, role } },
+    update: { department: dept },
+    create: { projectId, userId, role, department: dept },
   })
 }
 

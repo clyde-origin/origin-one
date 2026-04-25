@@ -601,22 +601,28 @@ function ProducerOverview({
 // member.id — see the const at the top of the function body.
 
 function IndividualWeekView({
-  member, projectId, accent, projectName, viewerMember, onBack,
+  member, projectId, accent, projectName, viewerMember, allCrew, onBack,
 }: {
   member: TeamMember
   projectId: string
   accent: string
   projectName: string
   viewerMember: TeamMember | null
+  allCrew: TeamMember[]
   onBack: () => void
 }) {
   // Self-view is the canonical permission predicate this PR previews — when
-  // real Auth lands, viewer.id === viewedMember.id is the gate that hides
-  // producer-only affordances (Approve, Reopen, Reopen-reason editor) so the
-  // viewer can never act on their own work as a "producer". Identity-only,
-  // not role-aware: a producer drilling into their own week sees the same
-  // self-view restrictions a crew member sees on themselves.
-  const isSelfView = !!viewerMember && viewerMember.id === member.id
+  // real Auth lands, viewer.userId === viewedMember.userId is the gate that
+  // hides producer-only affordances (Approve, Reopen, Reopen-reason editor)
+  // so the viewer can never act on their own work as a "producer". Identity-
+  // only, not role-aware: a producer drilling into their own week sees the
+  // same self-view restrictions a crew member sees on themselves.
+  //
+  // Compares User.id (via ProjectMember.userId), not ProjectMember.id —
+  // a single User may now hold multiple ProjectMember rows on the same
+  // project under distinct roles, and any of those rows is "self" for
+  // permission purposes.
+  const isSelfView = !!viewerMember && viewerMember.userId === member.userId
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeekUTC(new Date()))
   const weekEnd = useMemo(() => addDaysUTC(weekStart, 6), [weekStart])
   const weekStartISO = isoDay(weekStart)
@@ -688,19 +694,20 @@ function IndividualWeekView({
   const avatarInitials = member.User.name.split(/\s+/).map(s => s[0]).slice(0, 2).join('').toUpperCase()
   const formatHours = (h: number) => h.toFixed(1)
 
-  // Used to render the reopener name in the reason block.
+  // Reopener-name lookup. Project-wide ProjectMember.id → User.name map built
+  // from allCrew so any project member who reopened an entry gets attributed
+  // correctly (not just the current viewer). Fallback "Producer" when the id
+  // is missing or no longer in the project's crew list.
   const crewNameById = useMemo(() => {
-    // Resolved via the parent-provided allCrew list on the outer CrewPanel;
-    // we only have `member` here, so look-up is shallow. For a richer lookup
-    // we'd need allCrew — acceptable for tonight since the only attribution
-    // shown is on reopened entries and we don't have allCrew plumbed through.
-    // Fallback: "Producer" when unresolved. Refined post-Auth.
+    const map = new Map<string, string>()
+    for (const m of allCrew) {
+      if (m?.User?.name) map.set(m.id, m.User.name)
+    }
     return (id: string | null): string => {
       if (!id) return 'Producer'
-      if (id === viewerMember?.id) return viewerMember.User.name
-      return 'Producer'
+      return map.get(id) ?? 'Producer'
     }
-  }, [viewerMember])
+  }, [allCrew])
 
   // ── Day-level render helpers ──────────────────────────────
 
@@ -795,6 +802,10 @@ function IndividualWeekView({
                     pending={createTc.isPending}
                     onCancel={() => setAddingForDayIdx(null)}
                     onSave={(hours, rate, description) => {
+                      // crewMemberId records the role under which this entry
+                      // was logged. viewerMember resolves to the row matching
+                      // the logged-in role (per viewer-identity shim) — log
+                      // in as Producer, act as Producer.
                       createTc.mutate(
                         { projectId, crewMemberId: member.id, date: label.iso, hours, rate, description },
                         { onSuccess: () => setAddingForDayIdx(null) },
@@ -828,12 +839,16 @@ function IndividualWeekView({
                     onSubmit={() => submitTc.mutate(entry.id)}
                     onApprove={() => {
                       if (!viewerMember) return
+                      // approvedBy records the role under which this approval
+                      // was made. See viewer-identity invariant above.
                       approveTc.mutate({ id: entry.id, approvedBy: viewerMember.id })
                     }}
                     onStartReopen={() => setReopeningEntryId(entry.id)}
                     onCancelReopen={() => setReopeningEntryId(null)}
                     onConfirmReopen={(reason) => {
                       if (!viewerMember) return
+                      // reopenedBy records the role under which this reopen
+                      // was made. See viewer-identity invariant above.
                       reopenTc.mutate(
                         { id: entry.id, reopenedBy: viewerMember.id, reopenReason: reason },
                         { onSuccess: () => setReopeningEntryId(null) },
@@ -1611,6 +1626,7 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                   accent={accent}
                   projectName={project?.name ?? ''}
                   viewerMember={currentViewerMember}
+                  allCrew={allCrew}
                   onBack={() => setLayer(weekOrigin)}
                 />
               </motion.div>
