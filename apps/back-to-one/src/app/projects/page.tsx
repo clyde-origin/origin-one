@@ -13,6 +13,7 @@ import { haptic } from '@/lib/utils/haptics'
 import { useLongPress } from '@/lib/hooks/useLongPress'
 import { ProjectActionSheet } from '@/components/projects/ProjectActionSheet'
 import { GlobalPanels, type PanelId } from '@/components/projects/GlobalPanels'
+import { clearStoredViewer } from '@/lib/utils/viewerIdentity'
 import type { Project } from '@/types'
 
 // ── HELPERS ──────────────────────────────────────────────────
@@ -230,7 +231,7 @@ export default function ProjectsPage() {
 
   function handleLogout() {
     haptic('medium')
-    localStorage.removeItem('origin_one_user_name')
+    clearStoredViewer()
     router.push('/')
   }
 
