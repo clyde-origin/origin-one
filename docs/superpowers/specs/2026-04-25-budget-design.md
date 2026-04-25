@@ -37,7 +37,7 @@ A film-industry-grade production budget module embedded in Back to One: nested A
 | `Project` | Reads name, type, color, currency for budget header. |
 | `Milestone` | Read-only reference for milestone-anchored line entries. NOT the canonical phase source. |
 | **`ShootDay` (new)** | Reads `count(by type)` → `prepDays`/`shootDays`/`postDays` global variables. |
-| `Thread` | Writes new `attachableType: 'budget_line'` (15th type). Per-line discussion. |
+| `Thread` | TypeScript-only: adds `'budgetLine'` to `ThreadAttachmentType` union (16th, after `'inventoryItem'`). No schema change — `Thread.attachedToType` is a `String` field. Per-line discussion. |
 | `Storage / receipts bucket (new)` | Writes receipt photos. Auth-check RLS from day one (storage discipline). |
 | `Workflow` (deliverables) | Read-only cross-link — line items can reference deliverables, not the inverse. |
 
@@ -69,7 +69,7 @@ Each decision was presented with 3–5 options, tradeoffs, and a recommendation.
 | Q7 | Exports + CSV shape | **D + (i)** | Topsheet PDF + Detail PDF + generic CSV. Generic well-named CSV columns. `@react-pdf/renderer` server-side. |
 | Q8 | Non-labor actuals | **C — Expense + receipts** | New `Expense` model + new `receipts` Supabase bucket with auth-check RLS. Mobile-first capture. |
 | Q9 | Variables / formulas | **B — Formula qty + variables table** | Qty is a string evaluated by a small restricted parser (numbers, +−×÷, parens, identifiers). User-defined variables in `BudgetVariable`. |
-| Q10 | Polish features | **All four (a, b, c, d)** | Markups (a) + tags (b) + variance flags (c) + threadable lines (d, 15th `attachableType`). |
+| Q10 | Polish features | **All four (a, b, c, d)** | Markups (a) + tags (b) + variance flags (c) + threadable lines (d, 16th `ThreadAttachmentType`). |
 | Q11 | Sequencing | **C — Brainstorm-now, build-later** | Spec is the deliverable today. Implementation can land pre-Auth at producer's discretion. |
 
 ### Discoveries during the session (not part of original Q&A)
@@ -340,8 +340,10 @@ model Project {
   shootDays ShootDay[]
 }
 
-// Thread: add 'budget_line' to the attachable type set.
-// (Thread already polymorphic; one-line addition wherever the type is enumerated.)
+// Thread: NO schema change. Thread.attachedToType is `String` (already polymorphic).
+// Add 'budgetLine' to the TypeScript union ThreadAttachmentType in
+// apps/back-to-one/src/types/index.ts (becomes 16th type after 'inventoryItem'),
+// plus matching chip/gradient/label helpers in apps/back-to-one/src/lib/thread-context.ts.
 ```
 
 ### 3.3 Storage
@@ -695,7 +697,7 @@ UI chip pattern (`variance over` / `variance warn` / `variance under`). Computed
 
 ### 9.4 Threadable line items
 
-Adds `'budget_line'` to the `Thread.attachableType` enumeration. Existing Threads infrastructure (15 attachable types after this) handles everything else. UI: thread chip on `<LineRow>` (violet read, amber unread, matching `BRAND_TOKENS` thread system).
+Adds `'budgetLine'` to the `ThreadAttachmentType` TypeScript union (16th type, after `'inventoryItem'` from PR #25). No schema migration — `Thread.attachedToType` is already a free-form `String` field. Existing Threads infrastructure handles everything else: thread chip on `<LineRow>` (violet read, amber unread, matching `BRAND_TOKENS` thread system); `chipForType`, `gradientForType`, `labelForType` helpers in `apps/back-to-one/src/lib/thread-context.ts` get a `budgetLine` branch.
 
 ---
 
@@ -703,7 +705,7 @@ Adds `'budget_line'` to the `Thread.attachableType` enumeration. Existing Thread
 
 Per project rules: schema PRs are dedicated (no schema riding on feature branches); each feature is a complete arc; main stays green.
 
-**Suggested sequence** (each is a separate PR):
+**Suggested sequence** (each is a separate PR). Note: `origin/main` has moved beyond this branch's base — current `main` is at `e3defd0` (PR #25 → 15 ThreadAttachmentTypes; PR #24 → Inventory UI shipped). Rebase before starting.
 
 | PR | Type | Scope |
 |---|---|---|
@@ -795,6 +797,8 @@ These are explicitly NOT being built and should not be added to the plan without
   - PR #17 — `feat(seed): add Clyde Bessey as Producer on all 6 projects`
   - PR #18 — `seed: richer CrewTimecard data with rates and now-relative dates`
   - PR #19 — `docs: document deferred rate-unit work as known issue` ← **resolved by PR 3 in sequence**
+  - PR #24 — `feat(back-to-one): Inventory UI` (Inventory now shipped — InventoryItem step in BUILD_STATUS sequence is done)
+  - PR #25 — `feat(threading): expand ThreadAttachmentType to 15 types` (`'budgetLine'` becomes the 16th, TypeScript-only)
 
 ---
 
