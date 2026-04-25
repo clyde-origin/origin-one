@@ -9,7 +9,7 @@ import { getShotsByProject } from '@/lib/db/queries'
 import {
   useProjects, useProject, useActionItems, useToggleActionItem, useCreateActionItem, useMilestones, useCreateMilestone, useCrew,
   useScenes, useMoodboard, useThreads,
-  useLocations, useArtItems, useCastRoles, useWorkflowNodes,
+  useLocations, useArtItems, useCastRoles, useWorkflowNodes, useInventoryItems,
 } from '@/lib/hooks/useOriginOne'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { CrewAvatar, ThreadsIcon } from '@/components/ui'
@@ -620,6 +620,7 @@ export function HubContent({ projectId }: { projectId: string }) {
   const { data: artItems } = useArtItems(projectId)
   const { data: castRoles } = useCastRoles(projectId)
   const { data: workflowNodes } = useWorkflowNodes(projectId)
+  const { data: inventoryItems } = useInventoryItems(projectId)
   const toggle = useToggleActionItem(projectId)
   const createTask = useCreateActionItem(projectId)
   const createMilestone = useCreateMilestone(projectId)
@@ -654,6 +655,8 @@ export function HubContent({ projectId }: { projectId: string }) {
   const allMoodRefs = moodRefs ?? []
   const allLocations = locations ?? [], allArt = artItems ?? [], allCast = castRoles ?? []
   const allWorkflow = workflowNodes ?? []
+  const allInventory = inventoryItems ?? []
+  const inventoryNeeded = allInventory.filter((i: any) => i.status === 'needed').length
   const allThreads = threads ?? []
 
   const openItems = allItems.filter(i => i.status !== 'done')
@@ -968,7 +971,112 @@ export function HubContent({ projectId }: { projectId: string }) {
             </div>
           </div>
 
-          {/* 4. WORKFLOW */}
+          {/* 4. INVENTORY — featured department chips strip + View all */}
+          <div style={{ padding: '0 2px' }}>
+            <div
+              className="cursor-pointer"
+              onClick={() => router.push(`/projects/${projectId}/inventory`)}
+            >
+              <ModuleHeader
+                name="Inventory"
+                meta={
+                  allInventory.length > 0
+                    ? `${allInventory.length} items${inventoryNeeded > 0 ? ` · ${inventoryNeeded} needed` : ''}`
+                    : 'No items yet'
+                }
+              />
+            </div>
+            <div
+              className="overflow-x-auto no-scrollbar"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
+              <div className="flex" style={{ gap: 8, padding: '4px 2px 2px' }}>
+                {([
+                  { dept: 'Camera',
+                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> },
+                  { dept: 'Lighting',
+                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 1 4 12.75c-.56.4-1 1.03-1 1.75V18H9v-1.5c0-.72-.44-1.35-1-1.75A7 7 0 0 1 12 2z"/></svg> },
+                  { dept: 'G&E',
+                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="3" r="1.5"/><line x1="12" y1="4.5" x2="12" y2="18"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="6" y1="22" x2="12" y2="18"/><line x1="18" y1="22" x2="12" y2="18"/></svg> },
+                  { dept: 'Sound',
+                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg> },
+                  { dept: 'Art',
+                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/></svg> },
+                  { dept: 'Wardrobe',
+                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20V10c0-2 1-3 3-3h10c2 0 3 1 3 3v10"/><path d="M4 20h16"/><path d="M9 7V4h6v3"/></svg> },
+                  { dept: 'HMU',
+                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M8 14c-2 0-4 2-4 4v2h16v-2c0-2-2-4-4-4"/></svg> },
+                ] as const).map(({ dept, icon }) => {
+                  const count = allInventory.filter((i: any) => i.department === dept).length
+                  return (
+                    <div
+                      key={dept}
+                      onClick={() => { haptic('light'); router.push(`/projects/${projectId}/inventory`) }}
+                      className="flex flex-col items-center justify-center cursor-pointer active:opacity-80 transition-opacity"
+                      style={{
+                        width: 76, height: 76, flexShrink: 0,
+                        borderRadius: 14,
+                        background: 'rgba(10,10,18,0.42)',
+                        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+                        border: '1px solid rgba(255,255,255,0.07)',
+                        gap: 6,
+                      }}
+                    >
+                      <div
+                        className="flex items-center justify-center"
+                        style={{
+                          width: 28, height: 28, borderRadius: 10,
+                          background: 'rgba(100,112,243,0.10)',
+                          color: '#9ba6ff',
+                        }}
+                      >
+                        {icon}
+                      </div>
+                      <span
+                        className="font-mono uppercase"
+                        style={{ fontSize: '0.40rem', letterSpacing: '0.08em', color: count > 0 ? '#a0a0b8' : '#62627a' }}
+                      >
+                        {dept}
+                      </span>
+                    </div>
+                  )
+                })}
+                {/* View all chip */}
+                <div
+                  onClick={() => { haptic('light'); router.push(`/projects/${projectId}/inventory`) }}
+                  className="flex flex-col items-center justify-center cursor-pointer active:opacity-80 transition-opacity"
+                  style={{
+                    width: 76, height: 76, flexShrink: 0,
+                    borderRadius: 14,
+                    background: 'rgba(196,90,220,0.04)',
+                    border: '1px dashed rgba(196,90,220,0.28)',
+                    gap: 6,
+                  }}
+                >
+                  <div
+                    className="flex items-center justify-center"
+                    style={{
+                      width: 28, height: 28, borderRadius: 10,
+                      background: 'rgba(196,90,220,0.12)',
+                      color: 'rgba(196,90,220,0.85)',
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="9"/><path d="M9 12h6"/><path d="M12 9v6"/>
+                    </svg>
+                  </div>
+                  <span
+                    className="font-mono uppercase"
+                    style={{ fontSize: '0.40rem', letterSpacing: '0.08em', color: 'rgba(196,90,220,0.75)' }}
+                  >
+                    View all
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. WORKFLOW */}
           <div className="cursor-pointer" style={{ padding: '0 2px' }} onClick={() => router.push(`/projects/${projectId}/workflow`)}>
             <ModuleHeader name="Workflow" meta={`${allWorkflow.length} nodes`} />
             {allWorkflow.length > 0 ? (
