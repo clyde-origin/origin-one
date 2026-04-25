@@ -12,6 +12,11 @@ import { CrewAvatar } from '@/components/ui'
 import { haptic } from '@/lib/utils/haptics'
 import { DEPARTMENTS } from '@/lib/utils/phase'
 import { formatUSD } from '@/lib/utils/currency'
+import {
+  readStoredViewerName,
+  readStoredViewerRole,
+  type ViewerRole,
+} from '@/lib/utils/viewerIdentity'
 import type { TeamMember } from '@/types'
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 40 }
@@ -1339,15 +1344,50 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
   const [weekOrigin, setWeekOrigin] = useState<WeekOrigin>('overview')
 
-  // Temporary viewer-identity shim. Resolves to the first ProjectMember with
-  // role='producer' — Tyler Heckerman in every seed project. Producer view
-  // whenever this viewer is looking at someone else's timecards.
+  // Pre-Auth viewer-identity shim. Reads role + name from localStorage (set
+  // on the entry screen) and resolves to a matching ProjectMember on this
+  // project. Falls back to first-of-role when the typed name has no match —
+  // surfaced via the banner so identity is never silently wrong.
   // TODO: replace with Auth session when landed. Single spot to swap.
-  const currentViewerMember = useMemo(
-    () => allCrew.find(m => m.role === 'producer') ?? null,
-    [allCrew],
-  )
+  const [storedRole, setStoredRole] = useState<ViewerRole | null>(null)
+  const [storedName, setStoredName] = useState<string | null>(null)
+  useEffect(() => {
+    setStoredRole(readStoredViewerRole())
+    setStoredName(readStoredViewerName())
+  }, [])
+
+  const { currentViewerMember, isFallback } = useMemo<{
+    currentViewerMember: TeamMember | null
+    isFallback: boolean
+  }>(() => {
+    // No stored role (revisit before role-toggle entry): preserve historical
+    // behaviour — first producer, no fallback flag.
+    if (!storedRole) {
+      return { currentViewerMember: allCrew.find(m => m.role === 'producer') ?? null, isFallback: false }
+    }
+
+    const sameRole = allCrew.filter(m => m.role === storedRole)
+
+    // No name typed — pick first-of-role, no banner.
+    if (!storedName) {
+      return { currentViewerMember: sameRole[0] ?? null, isFallback: false }
+    }
+
+    // Try exact case-insensitive name match within role.
+    const target = storedName.toLowerCase()
+    const exact = sameRole.find(m => (m.User?.name ?? '').toLowerCase() === target)
+    if (exact) return { currentViewerMember: exact, isFallback: false }
+
+    // No match — fall back to first-of-role and flag the banner. If this
+    // project has zero members of that role, no viewer (banner suppressed).
+    if (sameRole.length === 0) return { currentViewerMember: null, isFallback: false }
+    return { currentViewerMember: sameRole[0], isFallback: true }
+  }, [allCrew, storedRole, storedName])
+
   const isProducerView = !!currentViewerMember && currentViewerMember.id !== selectedMember?.id
+
+  const [bannerDismissed, setBannerDismissed] = useState(false)
+  const showFallbackBanner = isFallback && !!currentViewerMember && !bannerDismissed
 
   // Reset to list when panel opens
   useEffect(() => {
@@ -1392,6 +1432,50 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
             <div className="flex justify-center pt-3 pb-0 flex-shrink-0">
               <div className="w-9 h-1 rounded-full bg-white/10" />
             </div>
+
+            {/* Fallback identity banner — surfaces when typed name didn't
+                match a real ProjectMember of the stored role. Dismiss is
+                session-only (resets on next page load). */}
+            {showFallbackBanner && currentViewerMember && (
+              <div
+                className="flex items-center px-5 py-2 flex-shrink-0"
+                style={{
+                  background: 'rgba(255,255,255,0.02)',
+                  borderBottom: '1px solid rgba(255,255,255,0.04)',
+                }}
+              >
+                <span style={{
+                  flex: 1,
+                  fontSize: 11,
+                  color: '#62627a',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>
+                  Viewing as <span style={{ color: '#a0a0b8' }}>{currentViewerMember.User.name}</span> — typed name not found, showing fallback.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setBannerDismissed(true)}
+                  aria-label="Dismiss banner"
+                  className="ml-3 active:opacity-60"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 4,
+                    color: '#62627a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                    <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+            )}
 
             {/* Layer 1 — Crew List */}
             <motion.div
