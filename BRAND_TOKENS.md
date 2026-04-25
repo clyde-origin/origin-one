@@ -64,6 +64,51 @@ surface that renders thread UI imports from there — no inline hex literals.
 
 ---
 
+## Inventory Item Status
+
+Inventory items move through a five-state production lifecycle:
+needed → ordered → arrived → packed → returned. The status colors
+intentionally reuse the phase palette where the meaning is parallel,
+plus a standalone red for `needed`.
+
+### Status palette
+
+| Token             | Hex       | Phase reuse | Meaning                            |
+|-------------------|-----------|-------------|------------------------------------|
+| `STATUS_NEEDED`   | `#e84848` | none        | Not yet sourced. Action required.  |
+| `STATUS_ORDERED`  | `#e8a020` | = pre amber | Sourced, in transit or on order.   |
+| `STATUS_ARRIVED`  | `#4ab8e8` | none (sky)  | Received, awaiting pack.           |
+| `STATUS_PACKED`   | `#6470f3` | = prod indigo | On-truck, ready for production.  |
+| `STATUS_RETURNED` | `#00b894` | = post teal | Wrapped and returned to source.    |
+
+### Phase color reuse rule
+
+Phase colors (amber / indigo / teal) are reserved for Pre / Prod / Post
+phase semantics globally. Inventory item status is the **only sanctioned
+exception** to that rule, and only for these three reuses:
+
+- `ordered` reuses pre-amber — an ordered item is in pre-production motion
+- `packed` reuses prod-indigo — a packed item is production-ready
+- `returned` reuses post-teal — a returned item has wrapped
+
+No other surface may reuse phase colors for non-phase semantics. Any
+future status palette must use non-phase hex values or propose a
+parallel justification PR.
+
+### Chip pattern
+
+Match the thread chip pattern: `bg = base @ 0.10 alpha`,
+`border = base @ 0.22`, `color = base @ 0.9`.
+
+### Convention
+
+Inventory pages may inline these hex values directly per the Locations /
+Art precedent (see `locations/page.tsx:21-26`, `art/page.tsx:41-46`).
+TypeScript export to a shared tokens file is deferred until a second
+surface needs the same palette.
+
+---
+
 ## Other sections
 
 *Reserved for subsequent token migration PRs.* Phase tokens, project accents,
