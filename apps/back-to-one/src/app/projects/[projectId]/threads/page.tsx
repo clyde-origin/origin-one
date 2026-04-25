@@ -77,6 +77,7 @@ const CHIP_STYLES: Record<string, { bg: string; border: string; color: string }>
   'obj-milestone':     { bg: 'rgba(34,212,212,0.1)',  border: 'rgba(34,212,212,0.22)',  color: 'rgba(34,212,212,0.9)'  }, // #22d4d4 cyan
   'obj-deliverable':   { bg: 'rgba(232,72,72,0.1)',   border: 'rgba(232,72,72,0.22)',   color: 'rgba(232,72,72,0.9)'   }, // #e84848 red
   'obj-workflowStage': { bg: 'rgba(168,212,40,0.1)',  border: 'rgba(168,212,40,0.22)',  color: 'rgba(168,212,40,0.9)'  }, // #a8d428 lime
+  'obj-inventoryItem': { bg: 'rgba(58,152,200,0.1)',  border: 'rgba(58,152,200,0.22)',  color: 'rgba(58,152,200,0.9)'  }, // #3a98c8 cerulean
 }
 
 // ── Sub-components ────────────────────────────────────────

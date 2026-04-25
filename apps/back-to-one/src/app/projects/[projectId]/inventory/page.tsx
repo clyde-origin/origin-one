@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { haptic } from '@/lib/utils/haptics'
 import { DEPARTMENTS, getProjectColor, statusHex, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
+import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import type { InventoryItem, InventoryItemStatus, ImportSource, TeamMember } from '@/types'
 
 // ── Status palette (BRAND_TOKENS § Inventory Item Status) ─────────────
@@ -219,6 +220,15 @@ function InventoryDetailSheet({
   const updateMut = useUpdateInventoryItem(projectId)
   const deleteMut = useDeleteInventoryItem(projectId)
 
+  // Thread surface — wired only on edit (no thread before the row exists).
+  // attachedToId falls back to '' on create; the hook guards against that.
+  const { TriggerIcon, PreviewRow, MessageZone, StartSheetOverlay } = useDetailSheetThreads({
+    projectId,
+    attachedToType: 'inventoryItem',
+    attachedToId: !isCreate && item ? item.id : null,
+    subjectLabel: item?.name ?? '',
+  })
+
   const [name, setName] = useState('')
   const [quantity, setQuantity] = useState<number>(1)
   const [department, setDepartment] = useState<string>('Camera')
@@ -363,17 +373,20 @@ function InventoryDetailSheet({
           <span className="font-mono uppercase" style={{ fontSize: '0.62rem', letterSpacing: '0.15em', color: 'rgba(255,255,255,0.35)' }}>
             {subjectLabel}
           </span>
-          <button
-            onClick={onClose}
-            style={{
-              fontSize: 14, fontWeight: 600,
-              padding: '6px 14px', borderRadius: 20,
-              background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.08)',
-              color: 'rgba(255,255,255,0.55)',
-              cursor: 'pointer',
-            }}
-          >Cancel</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {!isCreate && TriggerIcon}
+            <button
+              onClick={onClose}
+              style={{
+                fontSize: 14, fontWeight: 600,
+                padding: '6px 14px', borderRadius: 20,
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.08)',
+                color: 'rgba(255,255,255,0.55)',
+                cursor: 'pointer',
+              }}
+            >Cancel</button>
+          </div>
         </div>
 
         {/* Body */}
@@ -519,8 +532,13 @@ function InventoryDetailSheet({
               />
             </div>
 
-            {/* TODO PR D — thread surface (inventory becomes 15th
-                ThreadAttachmentType when threading union expands) */}
+            {/* Thread surface — only on edit (no thread before the row exists). */}
+            {!isCreate && item && (
+              <>
+                {PreviewRow}
+                {MessageZone}
+              </>
+            )}
 
             {/* Destructive */}
             {!isCreate && item && (
@@ -571,6 +589,10 @@ function InventoryDetailSheet({
           </button>
         </div>
       </motion.div>
+
+      {/* Thread "start" sheet — only mounts when the user opens it from the
+          TriggerIcon. Lives at sibling depth so it overlays the detail sheet. */}
+      {!isCreate && StartSheetOverlay}
     </>
   )
 }

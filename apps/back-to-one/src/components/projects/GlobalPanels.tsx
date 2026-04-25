@@ -62,6 +62,7 @@ function genericThreadLabel(attachedToType: string): string {
     case 'milestone':     return 'Milestone'
     case 'deliverable':   return 'Deliverable'
     case 'workflowStage': return 'Workflow'
+    case 'inventoryItem': return 'Inventory'
     default:              return 'Thread'
   }
 }
