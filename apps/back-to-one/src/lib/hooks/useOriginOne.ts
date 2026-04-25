@@ -180,7 +180,7 @@ export function useCreateTimecard(projectId: string) {
 export function useUpdateTimecard(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: { hours?: number; description?: string } }) =>
+    mutationFn: ({ id, fields }: { id: string; fields: { hours?: number; rate?: number | null; description?: string } }) =>
       db.updateTimecard(id, fields),
     onSuccess:  () => invalidateTimecards(qc, projectId),
   })
