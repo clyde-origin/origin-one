@@ -175,7 +175,7 @@ model ProjectMember {
   approvedTimecards   CrewTimecard[] @relation("TimecardApprover")
   reopenedTimecards   CrewTimecard[] @relation("TimecardReopener")
 
-  @@unique([projectId, userId])
+  @@unique([projectId, userId, role])
 }
 
 // ─── Crew Timecards ──────────────────────────────────────────────────────────
