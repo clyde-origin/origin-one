@@ -345,6 +345,7 @@ FADE TO BLACK.`,
   // P1 — ProjectMembers (24 crew)
   // Role mapping: director→director, producer→producer, coordinator→coordinator, crew→crew
   await assignProjectCrew(p1.id, clydeBessey.id,    'director')
+  await assignProjectCrew(p1.id, clydeBessey.id,    'producer', 'Production')
   await assignProjectCrew(p1.id, tylerHeckerman.id, 'producer')
   await assignProjectCrew(p1.id, kellyPratt.id,     'producer')
   await assignProjectCrew(p1.id, jamesCalloway.id, 'coordinator')
@@ -658,6 +659,7 @@ CUT TO BLACK.`,
 
   // P2 — ProjectMembers (8 crew)
   await assignProjectCrew(p2.id, clydeBessey.id,    'director')
+  await assignProjectCrew(p2.id, clydeBessey.id,    'producer', 'Production')
   await assignProjectCrew(p2.id, tylerHeckerman.id, 'producer')
   await assignProjectCrew(p2.id, kellyPratt.id,     'producer')
   await assignProjectCrew(p2.id, daniReeves.id,     'crew')
@@ -917,6 +919,7 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
 
   // P3 — ProjectMembers (9 crew)
   await assignProjectCrew(p3.id, clydeBessey.id,    'director')
+  await assignProjectCrew(p3.id, clydeBessey.id,    'producer', 'Production')
   await assignProjectCrew(p3.id, tylerHeckerman.id, 'producer')
   await assignProjectCrew(p3.id, kellyPratt.id,     'producer')
   await assignProjectCrew(p3.id, owenBlakely.id,    'crew')
@@ -1195,6 +1198,7 @@ END EPISODE 1.`,
 
   // P4 — ProjectMembers (7 crew)
   await assignProjectCrew(p4.id, clydeBessey.id,    'director')
+  await assignProjectCrew(p4.id, clydeBessey.id,    'producer', 'Production')
   await assignProjectCrew(p4.id, tylerHeckerman.id, 'producer')
   await assignProjectCrew(p4.id, kellyPratt.id,     'producer')
   await assignProjectCrew(p4.id, alexDrum.id,       'crew')
@@ -1436,6 +1440,7 @@ FADE TO BLACK.`,
 
   // P5 — ProjectMembers (7 crew)
   await assignProjectCrew(p5.id, clydeBessey.id,    'director')
+  await assignProjectCrew(p5.id, clydeBessey.id,    'producer', 'Production')
   await assignProjectCrew(p5.id, tylerHeckerman.id, 'producer')
   await assignProjectCrew(p5.id, kellyPratt.id,     'producer')
   await assignProjectCrew(p5.id, rafiTorres.id,     'crew')
@@ -1742,6 +1747,7 @@ FADE TO BLACK.`,
 
   // P6 — ProjectMembers (16 crew)
   await assignProjectCrew(p6.id, clydeBessey.id,    'director')
+  await assignProjectCrew(p6.id, clydeBessey.id,    'producer', 'Production')
   await assignProjectCrew(p6.id, tylerHeckerman.id, 'producer')
   await assignProjectCrew(p6.id, kellyPratt.id,     'producer')
   await assignProjectCrew(p6.id, calebStone.id,     'crew')
