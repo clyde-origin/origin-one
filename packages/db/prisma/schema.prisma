@@ -480,6 +480,8 @@ model Location {
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   entity  Entity? @relation(fields: [entityId], references: [id])
+
+  @@index([entityId])
 }
 
 // ─── Folders & Resources ─────────────────────────────────────────────────────
