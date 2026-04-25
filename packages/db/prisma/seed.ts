@@ -113,6 +113,281 @@ function departmentForUser(userId: string): string {
   return DEPARTMENT_BY_NAME[name] ?? 'Other'
 }
 
+// ─── Timecard generation tables ──────────────────────────────────────────────
+//
+// Title + rate-tier maps used by the CrewTimecard generator further down. They
+// live up here next to DEPARTMENT_BY_NAME so all crew metadata stays in one
+// readable block. Demo data — a real production would derive titles and rates
+// from a contract/HR system, not a hand-curated map.
+//
+// Derivation: titles below are inferred from
+//   1. the role used in upsertCrew (director/producer/coordinator/crew),
+//   2. the department in DEPARTMENT_BY_NAME (Camera, Lighting, Sound, etc.),
+//   3. clues in the original 35-row timecards — descriptions like
+//      "B-cam coverage", "key + fill setup", "VO booth capture" pin a name
+//      to a likely title (DP / Gaffer / Sound Mixer).
+// Names without a clear signal default to 'PA' via JOB_TITLE_DEFAULT.
+//
+// Eligibility filter (department NOT IN ('Client', 'Other')) drops 13 names
+// upstream, so most 'Other'/'Client' crew never see this table.
+
+const JOB_TITLE_BY_NAME: Record<string, string> = {
+  // Direction
+  'Clyde Bessey': 'Director',
+
+  // Production (producer / coordinator / PA)
+  'Tyler Heckerman': 'Producer',
+  'Kelly Pratt': 'Producer',
+  'Sofia Avila': 'Producer',
+  'James Calloway': 'Production Coordinator',
+  'Mia Chen': 'Production Coordinator',
+  'Tyler Green': 'Production Coordinator',
+  'Tyler Moss': 'Coordinator',
+  'Ryan Cole': 'Production Coordinator',
+  'Rina Cole': 'Coordinator',
+
+  // Camera (DP / 1st AC / 2nd AC)
+  'Priya Nair': 'DP',
+  'Dani Reeves': 'DP',
+  'Owen Blakely': 'DP',
+  'Alex Drum': 'DP',
+  'Caleb Stone': 'DP',
+  'Theo Hartmann': '1st AC',
+  'Sam Okafor': '1st AC',
+  'Maya Lin': '1st AC',
+  'Carlos Vega': '2nd AC',
+
+  // Lighting
+  'Tanya Mills': 'Gaffer',
+  'Rick Souza': 'Gaffer',
+  'Dario Reyes': 'Best Boy Electric',
+
+  // G&E (Grip)
+  'Derek Huang': 'Key Grip',
+  'Luis Fernandez': 'Best Boy Grip',
+  'Sam Park': 'Grip',
+
+  // Sound (Mixer / Boom)
+  'Andre Kim': 'Sound Mixer',
+  'Tom Vega': 'Sound Mixer',
+  'Chris Tan': 'Sound Mixer',
+  'Pete Larsson': 'Sound Mixer',
+  'Hana Liu': 'Boom Op',
+  'Omar Rashid': 'Boom Op',
+
+  // Art
+  'Claire Renault': 'Art Director',
+  'Petra Walsh': 'Art Director',
+  'Nina Osei': 'Set Decorator',
+  'Brendan Walsh': 'Props Master',
+
+  // Wardrobe / HMU
+  'Isabel Torres': 'Wardrobe Stylist',
+  'Jasmine Bell': 'HMU Artist',
+  'Fiona Drake': 'HMU Artist',
+
+  // Casting (lone Casting-dept name) treated as Coordinator for rate purposes
+  'Vera Hastings': 'Coordinator',
+
+  // Post
+  'Rafi Torres': 'Editor',
+  'Cleo Strand': 'Colorist',
+
+  // Direction-flavoured (Script Supervisor)
+  'Dana Vance': 'Coordinator',
+}
+const JOB_TITLE_DEFAULT = 'PA'
+
+function jobTitleForName(name: string): string {
+  return JOB_TITLE_BY_NAME[name] ?? JOB_TITLE_DEFAULT
+}
+
+// Rate cards per tier. 'standard' covers branded/commercial work, 'indie'
+// covers independent productions. Numbers are dollars/day. Titles missing
+// from a tier table return null from rateFor() — drives the partial-rate-
+// coverage realism in the generator.
+const RATE_STANDARD: Record<string, number> = {
+  'Director': 1000, 'Producer': 900, 'Coordinator': 600,
+  'DP': 750, '1st AC': 550, '2nd AC': 400,
+  'Gaffer': 650, 'Best Boy Electric': 500,
+  'Key Grip': 600, 'Best Boy Grip': 475, 'Grip': 425,
+  'Sound Mixer': 700, 'Boom Op': 450,
+  'Art Director': 650, 'Set Decorator': 525, 'Props Master': 500,
+  'Wardrobe Stylist': 550, 'HMU Artist': 500,
+  'Editor': 700, 'Colorist': 750, 'GFX Artist': 650,
+  'PA': 350, 'Production Coordinator': 500,
+}
+const RATE_INDIE: Record<string, number> = {
+  'Director': 750, 'Producer': 650, 'Coordinator': 450,
+  'DP': 500, '1st AC': 400, '2nd AC': 300,
+  'Gaffer': 450, 'Best Boy Electric': 375,
+  'Key Grip': 425, 'Best Boy Grip': 350, 'Grip': 300,
+  'Sound Mixer': 475, 'Boom Op': 325,
+  'Art Director': 475, 'Set Decorator': 400, 'Props Master': 375,
+  'Wardrobe Stylist': 400, 'HMU Artist': 375,
+  'Editor': 525, 'Colorist': 575, 'GFX Artist': 500,
+  'PA': 250, 'Production Coordinator': 375,
+}
+type RateTier = 'standard' | 'indie'
+function rateFor(jobTitle: string, tier: RateTier): number | null {
+  const table = tier === 'standard' ? RATE_STANDARD : RATE_INDIE
+  return table[jobTitle] ?? null
+}
+
+// Per-project rate tier. Branded/commercial jobs run standard; independent
+// productions run lower indie rates.
+const PROJECT_TIER: Record<string, RateTier> = {
+  'Simple Skin Promo':     'standard',
+  'Full Send':             'standard',
+  'In Vino Veritas':       'standard',
+  'Flexibility Course A':  'indie',
+  'Natural Order':         'indie',
+  'The Weave':             'indie',
+}
+
+// Description templates per title. Generator picks deterministically by
+// (project, member, day-index) so a member's week reads varied without being
+// random across re-runs of the same date.
+const DESCRIPTION_TEMPLATES: Record<string, string[]> = {
+  'Director': [
+    'Director session: blocking and rehearsal with talent',
+    'Coverage decisions on the day, scene-by-scene oneliners',
+    'Edit review with cutter — notes pass on assembly',
+    'Tone meeting with DP and gaffer for tomorrow',
+  ],
+  'Producer': [
+    'Production wrap meeting, vendor payments, schedule confirms',
+    'Crew calls, location locks, and cost report sync',
+    'Insurance and permits review, day-of contingencies',
+    'Talent agency follow-ups, deal memos out',
+  ],
+  'Production Coordinator': [
+    'Call sheets out, crew roster reconcile, lodging confirms',
+    'PO chase, payroll start packs, vendor onboarding',
+    'Travel manifest and ground transport bookings',
+  ],
+  'Coordinator': [
+    'Day-of coordination, crew ride share, runner support',
+    'Continuity binder, paperwork chase across departments',
+    'Talent wrangling and on-set hospitality',
+  ],
+  'DP': [
+    'Coverage on hero scenes — wide masters and inserts',
+    'Lensing tests, lighting walkthrough with gaffer',
+    'Magic-hour scheduling, sun-path and exposure plan',
+    'Operating A-cam, pickups and second-unit splinter',
+  ],
+  '1st AC': [
+    'Pulling focus, lens swaps, mag loading for shoot day',
+    'Camera prep — chip and check, monitors and follow-focus',
+    'Slating coverage and managing camera report',
+  ],
+  '2nd AC': [
+    'Camera report, slate, mag and battery rotation',
+    'Equipment movement between setups, lens cleanings',
+  ],
+  'Gaffer': [
+    'Key + fill setup, diffusion pass and color temp tune',
+    'Blue-hour exterior lighting — practicals and bounce',
+    'Pre-light for next day, generator and distro check',
+  ],
+  'Best Boy Electric': [
+    'Cable runs, electrics rigging and load balance',
+    'Generator runs, distro setup, lamp truck pulls',
+  ],
+  'Key Grip': [
+    'Dolly and slider rigging, camera car prep',
+    'Flag and cutter work, neg fill into the windows',
+    'Rigging for tomorrow, scaffold and crane plan',
+  ],
+  'Best Boy Grip': [
+    'Truck loadout, grip ordering and net build',
+    'Stand work and overhead frame for the wide',
+  ],
+  'Grip': [
+    'On-set rigging, swing/strike across scenes',
+    'Apple-box wrangling, hand-held rig support',
+  ],
+  'Sound Mixer': [
+    'Production audio, lavs and boom mix to multi-track',
+    'Room tone and wild lines, sync claps with camera',
+    'Cart setup and timecode jam, location ambient pre-roll',
+  ],
+  'Boom Op': [
+    'Boom on dialogue scenes, lavs B and C',
+    'Wireless management and battery rotations',
+  ],
+  'Art Director': [
+    'Set dressing approvals, prep walk-through',
+    'Continuity sweeps and color adjustments on set',
+    'Vendor coordination, returns and damages walk',
+  ],
+  'Set Decorator': [
+    'Hero set dress and detail pass on the close-ups',
+    'Picture-vehicle styling and on-set adjustments',
+  ],
+  'Props Master': [
+    'Hero prop continuity, on-set repairs and resets',
+    'Action prop checks, rehearsal blocking with talent',
+  ],
+  'Wardrobe Stylist': [
+    'Talent wardrobe continuity, set adjustments and steaming',
+    'Pull returns and damages, fitting prep for next block',
+  ],
+  'HMU Artist': [
+    'Talent makeup, beauty continuity through the day',
+    'Touch-ups between takes, character looks for next scene',
+  ],
+  'Editor': [
+    'Assembly cut, scenes 1–3 with sync audio',
+    'Producer review notes pass, structural rebuild',
+    'Selects and stringout, organizing dailies into bins',
+  ],
+  'Colorist': [
+    'Dailies grade, look reference baked into proxies',
+    'Final pass on scene 4, secondary skin pass',
+  ],
+  'GFX Artist': [
+    'Title comps and lower-third design pass',
+    'Cleanup VFX on hero shot, rotoscope plates',
+  ],
+  'PA': [
+    'On-set support, runs and crafty resets',
+    'Lockups during dialogue takes, traffic control',
+    'Truck loadout and trash pulls between setups',
+  ],
+}
+const FALLBACK_DESCRIPTIONS = [
+  'On-set support across departments',
+  'Day-of production work',
+  'Setup and strike for the block',
+]
+function descriptionFor(jobTitle: string, salt: number): string {
+  const list = DESCRIPTION_TEMPLATES[jobTitle] ?? FALLBACK_DESCRIPTIONS
+  return list[salt % list.length]
+}
+
+// Tiny deterministic PRNG (mulberry32) so re-runs given the same date produce
+// the same output. Seed it per-project from a simple string hash.
+function strHash(s: string): number {
+  let h = 2166136261
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
+}
+function mulberry32(seed: number): () => number {
+  let a = seed
+  return function () {
+    a = (a + 0x6D2B79F5) | 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
 async function upsertCrew(
   teamId: string,
   name: string,
@@ -157,6 +432,11 @@ async function assignProjectCrew(
 
 async function main() {
   console.log('Seeding — Origin Point projects...\n')
+
+  // Anchor "today" once for the run so every relative-date helper that
+  // references it stays consistent within a single seed (and the dates
+  // shift forward naturally each time the seed runs).
+  const TODAY = new Date()
 
   // ── Wipe in reverse-dependency order ──────────────────────────────────────
   await prisma.talentAssignment.deleteMany()
@@ -2117,17 +2397,25 @@ FADE TO BLACK.`,
   console.log('  Threads: 26 (9 unread, 10 read, 7 resolved)')
 
   // ══════════════════════════════════════════════════════════════════════════
-  // P8 — CREW TIMECARDS
-  // 35 entries across 5 projects (P5 intentionally empty).
-  // Distribution: 9 / 5 / 6 / 5 / 0 / 10 across P1–P6.
-  // States: 26 approved, 6 submitted, 2 draft, 1 reopened.
-  // Source of truth: apps/back-to-one/reference/crew-timecards-seed-v2.md
-  // Eligibility: excludes Client + Other departments (11 talent rows, 2 clients).
+  // P8 — CREW TIMECARDS  (now-relative, generator-driven)
+  // ~170-210 entries across all 6 projects, anchored on TODAY:
+  //   - prep window:  TODAY-21 .. TODAY-12  (sparse, ~20% density)
+  //   - shoot window: TODAY-10 .. TODAY-2   (heavy,  ~50% density)
+  //   - wrap window:  TODAY-0  .. TODAY+2   (light,  ~15% density)
+  // P5 (Natural Order) seeds a thin slice (4 shoot days, no reopens) so the
+  // app sees a sparsely-populated project state without testing empty-state.
+  // Status correlates with date: older = approved-heavy, newer = draft-heavy.
+  // Rate coverage ~70%; per-project rate tier from PROJECT_TIER.
+  // Clyde Bessey logs separately on his director and producer rows so the
+  // multi-role schema (PR #16) is visibly exercised across all 6 projects.
+  // Eligibility: department NOT IN ('Client', 'Other').
   // ══════════════════════════════════════════════════════════════════════════
 
-  // Resolve a ProjectMember by (projectId, crew display name). The display
-  // name lives on the joined User row — ProjectMember has no name column.
-  // Fails fast on miss, matching the mustFind pattern used in Threads.
+  // Resolve a ProjectMember by (projectId, crew display name). Role-blind —
+  // returns the first match. After PR #16/#17 a single User can hold multiple
+  // ProjectMember rows per project under different roles, so callers that
+  // care about the role must use findMemberByRole.
+  // Kept for backward reference; new generator below uses findMemberByRole.
   async function findMember(projectId: string, name: string) {
     const m = await prisma.projectMember.findFirst({
       where: { projectId, user: { is: { name } } },
@@ -2136,128 +2424,347 @@ FADE TO BLACK.`,
     return m
   }
 
-  // Timestamp helpers — explicit UTC so behavior is stable across machines.
-  //   tcDate(day)       → @db.Date column value (midnight UTC)
-  //   tcStamp(day, hh)  → submittedAt / approvedAt / reopenedAt timestamps
+  // Role-aware variant — required for Clyde, who has both director and
+  // producer rows per project (PR #17). Lets the generator place director-
+  // flavour timecards on the director row and producer-flavour on the
+  // producer row without ambiguity.
+  async function findMemberByRole(projectId: string, name: string, role: Role) {
+    const m = await prisma.projectMember.findFirst({
+      where: { projectId, role, user: { is: { name } } },
+    })
+    if (!m) throw new Error(`[timecards seed] ProjectMember '${name}' (role=${role}) not found on project ${projectId}`)
+    return m
+  }
+
+  // Legacy fixed-date helpers — preserved to keep older comment references
+  // intact. The new generator uses relativeDate / relativeStamp instead.
   const tcDate  = (day: string) => new Date(`${day}T00:00:00.000Z`)
   const tcStamp = (day: string, hh: number) =>
     new Date(`${day}T${String(hh).padStart(2, '0')}:00:00.000Z`)
+  void tcDate; void tcStamp; void findMember  // satisfy no-unused while keeping helpers documented
 
-  // ── P1 Timecards (9) ────────────────────────────────────────────────────
-  const p1PriyaMbr  = await findMember(p1.id, 'Priya Nair')
-  const p1TheoMbr   = await findMember(p1.id, 'Theo Hartmann')
-  const p1CarlosMbr = await findMember(p1.id, 'Carlos Vega')
-  const p1TanyaMbr  = await findMember(p1.id, 'Tanya Mills')
-  const p1DerekMbr  = await findMember(p1.id, 'Derek Huang')
-  const p1NinaMbr   = await findMember(p1.id, 'Nina Osei')
-  const p1FionaMbr  = await findMember(p1.id, 'Fiona Drake')
-  const p1AndreMbr  = await findMember(p1.id, 'Andre Kim')
-  const p1MiaMbr    = await findMember(p1.id, 'Mia Chen')
-  const p1KellyMbr  = await findMember(p1.id, 'Kelly Pratt')
-  const p1TylerHMbr = await findMember(p1.id, 'Tyler Heckerman')
+  // Now-relative date helpers. Negative = past, positive = future. Returned
+  // as midnight UTC for date columns; relativeStamp adds an hour offset for
+  // submittedAt / approvedAt / reopenedAt timestamps.
+  function relativeDate(daysFromToday: number): Date {
+    const d = new Date(TODAY)
+    d.setUTCHours(0, 0, 0, 0)
+    d.setUTCDate(d.getUTCDate() + daysFromToday)
+    return d
+  }
+  function relativeStamp(daysFromToday: number, hour: number): Date {
+    const d = relativeDate(daysFromToday)
+    d.setUTCHours(hour, 0, 0, 0)
+    return d
+  }
 
-  await prisma.crewTimecard.createMany({ data: [
-    { projectId: p1.id, crewMemberId: p1PriyaMbr.id,  date: tcDate('2026-04-13'), hours: 12.0, description: 'Camera prep, beauty lighting tests at Bel Air estate', status: 'approved',  submittedAt: tcStamp('2026-04-13', 20), approvedAt: tcStamp('2026-04-14', 10), approvedBy: p1KellyMbr.id },
-    { projectId: p1.id, crewMemberId: p1TheoMbr.id,   date: tcDate('2026-04-13'), hours: 12.0, description: 'B-cam coverage, hero product macro inserts',           status: 'approved',  submittedAt: tcStamp('2026-04-13', 20), approvedAt: tcStamp('2026-04-14', 10), approvedBy: p1KellyMbr.id },
-    { projectId: p1.id, crewMemberId: p1CarlosMbr.id, date: tcDate('2026-04-14'), hours: 12.5, description: 'A-cam talent coverage, product reveals',               status: 'submitted', submittedAt: tcStamp('2026-04-14', 20) },
-    { projectId: p1.id, crewMemberId: p1TanyaMbr.id,  date: tcDate('2026-04-13'), hours: 13.0, description: 'Key + fill beauty setup, diffusion pass',              status: 'approved',  submittedAt: tcStamp('2026-04-13', 20), approvedAt: tcStamp('2026-04-14', 10), approvedBy: p1KellyMbr.id },
-    { projectId: p1.id, crewMemberId: p1DerekMbr.id,  date: tcDate('2026-04-14'), hours: 12.0, description: 'Grip rigging, dolly setup for beauty moves',           status: 'approved',  submittedAt: tcStamp('2026-04-14', 20), approvedAt: tcStamp('2026-04-15', 10), approvedBy: p1TylerHMbr.id },
-    { projectId: p1.id, crewMemberId: p1NinaMbr.id,   date: tcDate('2026-04-13'), hours: 12.0, description: 'Hero product styling, set dressing',                   status: 'approved',  submittedAt: tcStamp('2026-04-13', 20), approvedAt: tcStamp('2026-04-14', 10), approvedBy: p1KellyMbr.id },
-    { projectId: p1.id, crewMemberId: p1FionaMbr.id,  date: tcDate('2026-04-14'), hours: 10.5, description: 'Talent makeup, beauty continuity',                     status: 'submitted', submittedAt: tcStamp('2026-04-14', 20) },
-    { projectId: p1.id, crewMemberId: p1AndreMbr.id,  date: tcDate('2026-04-14'), hours: 11.0, description: 'VO booth capture, room tone',                          status: 'approved',  submittedAt: tcStamp('2026-04-14', 20), approvedAt: tcStamp('2026-04-15', 10), approvedBy: p1KellyMbr.id },
-    { projectId: p1.id, crewMemberId: p1MiaMbr.id,    date: tcDate('2026-04-13'), hours: 13.5, description: 'Crew coordination, talent wrangling, call sheets',     status: 'approved',  submittedAt: tcStamp('2026-04-13', 20), approvedAt: tcStamp('2026-04-14', 10), approvedBy: p1TylerHMbr.id },
-  ]})
+  // Status by recency. Older entries skew approved, today/future skew draft.
+  // The 'reopened' bucket is provisional — picked from approved entries by
+  // a post-pass so the lifecycle (submitted → approved → reopened) is intact.
+  type TStatus = 'draft' | 'submitted' | 'approved'
+  function statusForDate(daysAgo: number, rng: () => number): TStatus {
+    const r = rng()
+    if (daysAgo >= 7) return r < 0.85 ? 'approved' : 'submitted'
+    if (daysAgo >= 3) return r < 0.55 ? 'approved' : r < 0.85 ? 'submitted' : 'draft'
+    if (daysAgo >= 0) return r < 0.15 ? 'approved' : r < 0.50 ? 'submitted' : 'draft'
+    return 'draft' // future
+  }
 
-  // ── P2 Timecards (5) ────────────────────────────────────────────────────
-  const p2DaniMbr   = await findMember(p2.id, 'Dani Reeves')
-  const p2TylerGMbr = await findMember(p2.id, 'Tyler Green')
-  const p2KellyMbr  = await findMember(p2.id, 'Kelly Pratt')
-  const p2ClydeMbr  = await findMember(p2.id, 'Clyde Bessey')
+  // Random hours in 0.5 increments within [min, max].
+  function randomHours(rng: () => number, min: number, max: number): number {
+    const steps = Math.round((max - min) / 0.5)
+    const k = Math.floor(rng() * (steps + 1))
+    return min + k * 0.5
+  }
 
-  await prisma.crewTimecard.createMany({ data: [
-    { projectId: p2.id, crewMemberId: p2DaniMbr.id,   date: tcDate('2026-04-14'), hours: 11.0, description: 'Mountain biking coverage, handheld + gimbal',   status: 'submitted', submittedAt: tcStamp('2026-04-14', 21) },
-    { projectId: p2.id, crewMemberId: p2DaniMbr.id,   date: tcDate('2026-04-15'), hours: 12.5, description: 'Skate park session, slow-mo and standard',      status: 'submitted', submittedAt: tcStamp('2026-04-15', 21) },
-    { projectId: p2.id, crewMemberId: p2TylerGMbr.id, date: tcDate('2026-04-14'), hours: 13.0, description: 'Location lockdown, athlete coordination',        status: 'approved',  submittedAt: tcStamp('2026-04-14', 20), approvedAt: tcStamp('2026-04-15', 10), approvedBy: p2KellyMbr.id },
-    { projectId: p2.id, crewMemberId: p2KellyMbr.id,  date: tcDate('2026-04-15'), hours: 13.5, description: 'Multi-location producing, own-time logged',      status: 'submitted', submittedAt: tcStamp('2026-04-15', 21) },
-    { projectId: p2.id, crewMemberId: p2ClydeMbr.id,  date: tcDate('2026-04-16'), hours: 10.0, description: 'Surf coverage directing at dawn',                status: 'draft' },
-  ]})
+  // Deterministic Fisher-Yates pick of N from arr.
+  function pickN<T>(arr: readonly T[], n: number, rng: () => number): T[] {
+    const a = [...arr]
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1))
+      ;[a[i], a[j]] = [a[j], a[i]]
+    }
+    return a.slice(0, Math.max(0, Math.min(n, a.length)))
+  }
 
-  // ── P3 Timecards (6, incl. 1 reopened) ──────────────────────────────────
-  const p3OwenMbr   = await findMember(p3.id, 'Owen Blakely')
-  const p3TomMbr    = await findMember(p3.id, 'Tom Vega')
-  const p3RyanMbr   = await findMember(p3.id, 'Ryan Cole')
-  const p3TylerHMbr = await findMember(p3.id, 'Tyler Heckerman')
-  const p3ClydeMbr  = await findMember(p3.id, 'Clyde Bessey')
-  const p3KellyMbr  = await findMember(p3.id, 'Kelly Pratt')
+  // Producer-pick for approvedBy / reopenedBy — deterministic: idx 0 approves,
+  // idx 1 (or 0 if singleton) reopens. Producer pool typically includes
+  // Tyler Heckerman, Kelly Pratt, and Clyde Bessey (post PR #17).
+  function pickApprover(producers: { id: string }[]): string {
+    return producers[0]?.id ?? '' // safe — every project has at least one producer
+  }
+  function pickReopener(producers: { id: string }[]): string {
+    return (producers[1] ?? producers[0])?.id ?? ''
+  }
 
-  await prisma.crewTimecard.createMany({ data: [
-    { projectId: p3.id, crewMemberId: p3OwenMbr.id,   date: tcDate('2026-04-06'), hours: 10.0, description: 'Vineyard establishing shots, golden hour', status: 'approved', submittedAt: tcStamp('2026-04-06', 20), approvedAt: tcStamp('2026-04-07', 10), approvedBy: p3KellyMbr.id },
-    { projectId: p3.id, crewMemberId: p3OwenMbr.id,   date: tcDate('2026-04-08'), hours: 12.0, description: 'Harvest multi-cam coverage',                status: 'approved', submittedAt: tcStamp('2026-04-08', 20), approvedAt: tcStamp('2026-04-09', 10), approvedBy: p3KellyMbr.id },
-    { projectId: p3.id, crewMemberId: p3TomMbr.id,    date: tcDate('2026-04-07'), hours: 10.5, description: 'Winemaker interview audio, lavs + boom',    status: 'approved', submittedAt: tcStamp('2026-04-07', 20), approvedAt: tcStamp('2026-04-08', 10), approvedBy: p3KellyMbr.id },
-    // The single reopened entry in the seed — full lifecycle present:
-    // submitted → approved (by Tyler H) → reopened (by Tyler H) with reason.
-    {
-      projectId: p3.id, crewMemberId: p3RyanMbr.id, date: tcDate('2026-04-08'), hours: 12.0,
-      description: 'Harvest day coordination — hours need locations split',
-      status: 'reopened',
-      submittedAt:  tcStamp('2026-04-08', 20),
-      approvedAt:   tcStamp('2026-04-09', 10),
-      approvedBy:   p3TylerHMbr.id,
-      reopenedAt:   tcStamp('2026-04-10', 14),
-      reopenedBy:   p3TylerHMbr.id,
-      reopenReason: 'Please split vineyard field hours from cellar hours — need locations broken out for the line-item audit.',
-    },
-    { projectId: p3.id, crewMemberId: p3TylerHMbr.id, date: tcDate('2026-04-06'), hours: 11.0, description: 'Vineyard owner coordination, location prep', status: 'approved', submittedAt: tcStamp('2026-04-06', 20), approvedAt: tcStamp('2026-04-07', 10), approvedBy: p3KellyMbr.id },
-    { projectId: p3.id, crewMemberId: p3ClydeMbr.id,  date: tcDate('2026-04-10'), hours:  9.0, description: 'Pickups and drone directing, wrap',           status: 'approved', submittedAt: tcStamp('2026-04-10', 20), approvedAt: tcStamp('2026-04-11', 10), approvedBy: p3TylerHMbr.id },
-  ]})
+  type Phase = 'prep' | 'shoot' | 'wrap'
+  type ProjectMemberLite = { id: string; userId: string; user: { name: string } }
 
-  // ── P4 Timecards (5) ────────────────────────────────────────────────────
-  const p4AlexMbr   = await findMember(p4.id, 'Alex Drum')
-  const p4HanaMbr   = await findMember(p4.id, 'Hana Liu')
-  const p4TylerMMbr = await findMember(p4.id, 'Tyler Moss')
-  const p4KellyMbr  = await findMember(p4.id, 'Kelly Pratt')
-  const p4TylerHMbr = await findMember(p4.id, 'Tyler Heckerman')
-  const p4ClydeMbr  = await findMember(p4.id, 'Clyde Bessey')
+  type GenOpts = {
+    project: { id: string; name: string }
+    prepDayCount:   number
+    shootDayCount:  number
+    wrapDayCount:   number
+    prepDensity:    number
+    shootDensity:   number
+    wrapDensity:    number
+    activeLoggerCap: number
+    clydeDirectorCount: number
+    clydeProducerCount: number
+    includeReopened: boolean
+    reopenedTarget:  number  // 0 if !includeReopened
+  }
 
-  await prisma.crewTimecard.createMany({ data: [
-    { projectId: p4.id, crewMemberId: p4AlexMbr.id,   date: tcDate('2026-04-11'), hours: 9.0, description: 'Episode 1 yoga sequences, locked-off + handheld', status: 'approved',  submittedAt: tcStamp('2026-04-11', 20), approvedAt: tcStamp('2026-04-12', 10), approvedBy: p4KellyMbr.id },
-    { projectId: p4.id, crewMemberId: p4HanaMbr.id,   date: tcDate('2026-04-11'), hours: 8.5, description: 'Instructor lavs, ambient room tone',                status: 'approved',  submittedAt: tcStamp('2026-04-11', 20), approvedAt: tcStamp('2026-04-12', 10), approvedBy: p4KellyMbr.id },
-    { projectId: p4.id, crewMemberId: p4TylerMMbr.id, date: tcDate('2026-04-11'), hours: 9.0, description: 'Episode 1 coordination, talent support',            status: 'approved',  submittedAt: tcStamp('2026-04-11', 20), approvedAt: tcStamp('2026-04-12', 10), approvedBy: p4TylerHMbr.id },
-    { projectId: p4.id, crewMemberId: p4AlexMbr.id,   date: tcDate('2026-04-16'), hours: 9.5, description: 'Episode 2 meditation segments, soft lighting',       status: 'submitted', submittedAt: tcStamp('2026-04-16', 20) },
-    { projectId: p4.id, crewMemberId: p4ClydeMbr.id,  date: tcDate('2026-04-16'), hours: 8.0, description: 'Episode 2 directing, early cut review',              status: 'draft' },
-  ]})
+  type TCRow = {
+    projectId: string
+    crewMemberId: string
+    date: Date
+    hours: number
+    rate: number | null
+    description: string
+    status: TStatus | 'reopened'
+    submittedAt?: Date
+    approvedAt?: Date | null
+    approvedBy?: string | null
+    reopenedAt?: Date | null
+    reopenedBy?: string | null
+    reopenReason?: string | null
+  }
 
-  // ── P5 Timecards (0) ────────────────────────────────────────────────────
-  // Intentional empty state — Natural Order is a post-only project with no
-  // production phase that would generate timecards. Exercises empty-state UI.
+  // Reopen-reason templates — kickbacks a real producer would actually send.
+  const REOPEN_REASONS = [
+    'Please split out the location move time as separate entries — needs to break out for the line-item audit.',
+    'Hours look high for a prep day — confirm and resubmit, or break out activity if there was an evening pickup.',
+    'Add detail to the description — what was the rebuild for, exactly?',
+    'Rate looks off for this role — please double-check your day rate before resubmitting.',
+  ]
 
-  // ── P6 Timecards (10, all approved — wrapped shoot) ─────────────────────
-  const p6MayaMbr   = await findMember(p6.id, 'Maya Lin')
-  const p6CalebMbr  = await findMember(p6.id, 'Caleb Stone')
-  const p6ChrisMbr  = await findMember(p6.id, 'Chris Tan')
-  const p6OmarMbr   = await findMember(p6.id, 'Omar Rashid')
-  const p6DarioMbr  = await findMember(p6.id, 'Dario Reyes')
-  const p6PetraMbr  = await findMember(p6.id, 'Petra Walsh')
-  const p6SofiaMbr  = await findMember(p6.id, 'Sofia Avila')
-  const p6RinaMbr   = await findMember(p6.id, 'Rina Cole')
-  const p6KellyMbr  = await findMember(p6.id, 'Kelly Pratt')
-  const p6TylerHMbr = await findMember(p6.id, 'Tyler Heckerman')
-  const p6ClydeMbr  = await findMember(p6.id, 'Clyde Bessey')
+  async function generateProjectTimecards(opts: GenOpts): Promise<TCRow[]> {
+    const { project } = opts
+    const tier = PROJECT_TIER[project.name] ?? 'standard'
+    const rng = mulberry32(strHash(project.name))
 
-  await prisma.crewTimecard.createMany({ data: [
-    { projectId: p6.id, crewMemberId: p6MayaMbr.id,  date: tcDate('2026-04-01'), hours: 12.0, description: 'Day 1 exterior ravine sequences, magic hour', status: 'approved', submittedAt: tcStamp('2026-04-01', 20), approvedAt: tcStamp('2026-04-02', 10), approvedBy: p6KellyMbr.id },
-    { projectId: p6.id, crewMemberId: p6CalebMbr.id, date: tcDate('2026-04-02'), hours: 13.5, description: 'Day 2 Lohm/Aleph dialogue coverage, A-cam',   status: 'approved', submittedAt: tcStamp('2026-04-02', 20), approvedAt: tcStamp('2026-04-03', 10), approvedBy: p6KellyMbr.id },
-    { projectId: p6.id, crewMemberId: p6ChrisMbr.id, date: tcDate('2026-04-02'), hours: 13.0, description: 'Dialogue capture, multi-track, boom + lavs',  status: 'approved', submittedAt: tcStamp('2026-04-02', 20), approvedAt: tcStamp('2026-04-03', 10), approvedBy: p6KellyMbr.id },
-    { projectId: p6.id, crewMemberId: p6OmarMbr.id,  date: tcDate('2026-04-03'), hours: 13.5, description: 'Scene 12 audio, dusk wind challenges',         status: 'approved', submittedAt: tcStamp('2026-04-03', 20), approvedAt: tcStamp('2026-04-04', 10), approvedBy: p6KellyMbr.id },
-    { projectId: p6.id, crewMemberId: p6DarioMbr.id, date: tcDate('2026-04-03'), hours: 14.0, description: 'Magic hour rigging, sunset extension pass',   status: 'approved', submittedAt: tcStamp('2026-04-03', 20), approvedAt: tcStamp('2026-04-04', 10), approvedBy: p6KellyMbr.id },
-    { projectId: p6.id, crewMemberId: p6PetraMbr.id, date: tcDate('2026-04-03'), hours: 13.0, description: 'Scene 12 prep, ravine practical effects',      status: 'approved', submittedAt: tcStamp('2026-04-03', 20), approvedAt: tcStamp('2026-04-04', 10), approvedBy: p6KellyMbr.id },
-    { projectId: p6.id, crewMemberId: p6SofiaMbr.id, date: tcDate('2026-04-02'), hours: 13.5, description: 'Day 2 producing, schedule adjustments',        status: 'approved', submittedAt: tcStamp('2026-04-02', 20), approvedAt: tcStamp('2026-04-03', 10), approvedBy: p6KellyMbr.id },
-    { projectId: p6.id, crewMemberId: p6RinaMbr.id,  date: tcDate('2026-04-01'), hours: 13.0, description: 'Day 1 coordination, call sheets, crafty',      status: 'approved', submittedAt: tcStamp('2026-04-01', 20), approvedAt: tcStamp('2026-04-02', 10), approvedBy: p6TylerHMbr.id },
-    { projectId: p6.id, crewMemberId: p6KellyMbr.id, date: tcDate('2026-04-01'), hours: 13.5, description: 'Day 1 producing, own-time',                     status: 'approved', submittedAt: tcStamp('2026-04-01', 20), approvedAt: tcStamp('2026-04-02', 10), approvedBy: p6TylerHMbr.id },
-    { projectId: p6.id, crewMemberId: p6ClydeMbr.id, date: tcDate('2026-04-04'), hours: 11.0, description: 'Day 4 pickups directing, wrap',                 status: 'approved', submittedAt: tcStamp('2026-04-04', 20), approvedAt: tcStamp('2026-04-05', 10), approvedBy: p6TylerHMbr.id },
-  ]})
+    // Eligible crew (excl. Client/Other and excl. Clyde — Clyde is placed
+    // explicitly below on his director and producer rows).
+    const eligibleAll = await prisma.projectMember.findMany({
+      where: {
+        projectId: project.id,
+        department: { notIn: ['Client', 'Other'] },
+        user: { name: { not: 'Clyde Bessey' } },
+      },
+      select: { id: true, userId: true, user: { select: { name: true } } },
+    }) as ProjectMemberLite[]
 
-  console.log('  Timecards: 35 (9/5/6/5/0/10 across P1-P6; 26 approved, 6 submitted, 2 draft, 1 reopened)')
+    // Producer pool for approvedBy / reopenedBy lookups. Includes Clyde's
+    // producer row post-#17, so a project's "approver" can plausibly be any
+    // producer including Clyde.
+    const producers = await prisma.projectMember.findMany({
+      where: { projectId: project.id, role: 'producer' },
+      select: { id: true },
+    })
+
+    // Deterministically cap "active loggers" — not every eligible crew member
+    // logs every day. The cap models real attendance.
+    const activeLoggers = pickN(eligibleAll, Math.min(opts.activeLoggerCap, eligibleAll.length), rng)
+
+    const rows: TCRow[] = []
+
+    // ── Day windows ────────────────────────────────────────────────────────
+    const prepDays:  number[] = []
+    const shootDays: number[] = []
+    const wrapDays:  number[] = []
+    // Prep: -21 .. -(21 - prepCount + 1), inclusive
+    for (let i = 0; i < opts.prepDayCount;  i++) prepDays.push(-21 + i)
+    // Shoot: -10 .. -(10 - shootCount + 1)
+    for (let i = 0; i < opts.shootDayCount; i++) shootDays.push(-10 + i)
+    // Wrap: 0 .. wrapCount-1
+    for (let i = 0; i < opts.wrapDayCount;  i++) wrapDays.push(i)
+
+    // ── Per-day generation ─────────────────────────────────────────────────
+    function pushDayEntries(dayOffset: number, phase: Phase, density: number) {
+      const count = Math.round(activeLoggers.length * density)
+      const todays = pickN(activeLoggers, count, rng)
+      for (let i = 0; i < todays.length; i++) {
+        const m = todays[i]
+        rows.push(buildEntry(m, dayOffset, phase, i))
+      }
+    }
+    function buildEntry(m: ProjectMemberLite, dayOffset: number, phase: Phase, salt: number): TCRow {
+      const title = jobTitleForName(m.user.name)
+      const rateBase = rateFor(title, tier)
+      // 70% rate-populated, 30% null (drives the partial-coverage UI realism).
+      const rate = rng() < 0.70 ? rateBase : null
+
+      const hours =
+        phase === 'prep'  ? randomHours(rng, 6, 10) :
+        phase === 'shoot' ? randomHours(rng, 10, 14) :
+                            randomHours(rng, 4, 8)
+
+      const status = statusForDate(-dayOffset, rng)
+      const description = descriptionFor(title, salt + Math.abs(dayOffset))
+
+      const row: TCRow = {
+        projectId: project.id,
+        crewMemberId: m.id,
+        date: relativeDate(dayOffset),
+        hours,
+        rate,
+        description,
+        status,
+      }
+      if (status === 'submitted') {
+        row.submittedAt = relativeStamp(dayOffset, 20)
+      } else if (status === 'approved') {
+        row.submittedAt = relativeStamp(dayOffset, 20)
+        row.approvedAt  = relativeStamp(dayOffset + 1, 10)
+        row.approvedBy  = pickApprover(producers)
+      }
+      return row
+    }
+
+    for (const d of prepDays)  pushDayEntries(d, 'prep',  opts.prepDensity)
+    for (const d of shootDays) pushDayEntries(d, 'shoot', opts.shootDensity)
+    for (const d of wrapDays)  pushDayEntries(d, 'wrap',  opts.wrapDensity)
+
+    // ── Clyde dual-role placement ──────────────────────────────────────────
+    // Director entries on shoot days; producer entries on different days
+    // (offset to prep/shoot transitions and wrap) so the seed reads cleanly.
+    const clydeDir = await findMemberByRole(project.id, 'Clyde Bessey', 'director')
+    const clydeProd = await findMemberByRole(project.id, 'Clyde Bessey', 'producer')
+
+    // Director days drawn from shoot window middle.
+    const dirDayPool = shootDays.length > 0
+      ? shootDays
+      : [-5, -4, -3] // P5-style fallback
+    const dirDays = pickN(dirDayPool, opts.clydeDirectorCount, rng)
+    for (let i = 0; i < dirDays.length; i++) {
+      const d = dirDays[i]
+      rows.push({
+        projectId: project.id,
+        crewMemberId: clydeDir.id,
+        date: relativeDate(d),
+        hours: randomHours(rng, 8, 12),
+        rate: rng() < 0.85 ? rateFor('Director', tier) : null, // Clyde almost always logs his rate
+        description: descriptionFor('Director', i + 7 + Math.abs(d)),
+        status: statusForDate(-d, rng),
+      })
+      // Fill timestamps based on status
+      const last = rows[rows.length - 1]
+      if (last.status === 'submitted') {
+        last.submittedAt = relativeStamp(d, 20)
+      } else if (last.status === 'approved') {
+        last.submittedAt = relativeStamp(d, 20)
+        last.approvedAt = relativeStamp(d + 1, 10)
+        last.approvedBy = pickApprover(producers)
+      }
+    }
+
+    // Producer days drawn from wrap + late shoot, distinct from director days.
+    const prodDayPool = [...wrapDays, ...shootDays.slice(-2)].filter(d => !dirDays.includes(d))
+    const prodDays = pickN(prodDayPool.length > 0 ? prodDayPool : [-2, -1, 0], opts.clydeProducerCount, rng)
+    for (let i = 0; i < prodDays.length; i++) {
+      const d = prodDays[i]
+      rows.push({
+        projectId: project.id,
+        crewMemberId: clydeProd.id,
+        date: relativeDate(d),
+        hours: randomHours(rng, 6, 10),
+        rate: rng() < 0.85 ? rateFor('Producer', tier) : null,
+        description: descriptionFor('Producer', i + 13 + Math.abs(d)),
+        status: statusForDate(-d, rng),
+      })
+      const last = rows[rows.length - 1]
+      if (last.status === 'submitted') {
+        last.submittedAt = relativeStamp(d, 20)
+      } else if (last.status === 'approved') {
+        last.submittedAt = relativeStamp(d, 20)
+        last.approvedAt = relativeStamp(d + 1, 10)
+        last.approvedBy = pickApprover(producers)
+      }
+    }
+
+    // ── Reopen post-pass — convert N old approved entries to full lifecycle ─
+    if (opts.includeReopened && opts.reopenedTarget > 0) {
+      const candidates = rows
+        .map((r, idx) => ({ r, idx, age: Math.round((TODAY.getTime() - r.date.getTime()) / 86400000) }))
+        .filter(x => x.r.status === 'approved' && x.age >= 7)
+        .sort((a, b) => b.age - a.age)
+      const picks = candidates.slice(0, opts.reopenedTarget)
+      for (let i = 0; i < picks.length; i++) {
+        const { r } = picks[i]
+        // Reopen lands 2-3 days after the approval.
+        const dayOffset = Math.round((r.date.getTime() - TODAY.getTime()) / 86400000)
+        r.status = 'reopened'
+        r.reopenedAt   = relativeStamp(dayOffset + 3, 14)
+        r.reopenedBy   = pickReopener(producers)
+        r.reopenReason = REOPEN_REASONS[i % REOPEN_REASONS.length]
+      }
+    }
+
+    return rows
+  }
+
+  // Per-project options.
+  const fullProject = (projectIdArg: { id: string; name: string }): GenOpts => ({
+    project: projectIdArg,
+    prepDayCount:  6,
+    shootDayCount: 5,
+    wrapDayCount:  3,
+    prepDensity:   0.20,
+    shootDensity:  0.50,
+    wrapDensity:   0.15,
+    activeLoggerCap:    8,
+    clydeDirectorCount: 3,
+    clydeProducerCount: 3,
+    includeReopened:    true,
+    reopenedTarget:     1,
+  })
+  const lightProject = (projectIdArg: { id: string; name: string }): GenOpts => ({
+    project: projectIdArg,
+    prepDayCount:  0,
+    shootDayCount: 4,
+    wrapDayCount:  1,
+    prepDensity:   0,
+    shootDensity:  0.30,
+    wrapDensity:   0.20,
+    activeLoggerCap:    5,
+    clydeDirectorCount: 1,
+    clydeProducerCount: 1,
+    includeReopened:    false,
+    reopenedTarget:     0,
+  })
+
+  const allRows: TCRow[] = []
+  for (const proj of [
+    fullProject(p1),
+    fullProject(p2),
+    fullProject(p3),
+    fullProject(p4),
+    lightProject(p5),
+    fullProject(p6),
+  ]) {
+    const rows = await generateProjectTimecards(proj)
+    allRows.push(...rows)
+  }
+
+  await prisma.crewTimecard.createMany({ data: allRows })
+
+  // Per-project + status breakdown for the summary log.
+  const perProjectCounts: Record<string, number> = {}
+  const statusCounts: Record<string, number> = { draft: 0, submitted: 0, approved: 0, reopened: 0 }
+  let withRate = 0
+  for (const r of allRows) {
+    perProjectCounts[r.projectId] = (perProjectCounts[r.projectId] ?? 0) + 1
+    statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1
+    if (r.rate !== null) withRate++
+  }
+  const perCount = (id: string) => perProjectCounts[id] ?? 0
+  console.log(
+    `  Timecards: ${allRows.length} ` +
+    `(${perCount(p1.id)}/${perCount(p2.id)}/${perCount(p3.id)}/${perCount(p4.id)}/${perCount(p5.id)}/${perCount(p6.id)} across P1-P6; ` +
+    `${statusCounts.approved} approved, ${statusCounts.submitted} submitted, ${statusCounts.draft} draft, ${statusCounts.reopened} reopened; ` +
+    `${withRate}/${allRows.length} with rates)`
+  )
 
   // ── Final count ───────────────────────────────────────────────────────────
   const counts = {
