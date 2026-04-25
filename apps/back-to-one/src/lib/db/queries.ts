@@ -945,6 +945,93 @@ export async function deleteLocation(id: string): Promise<void> {
   const { error } = await db.from('Location').delete().eq('id', id)
   if (error) { console.error('deleteLocation failed:', error); throw error }
 }
+
+// ── INVENTORY ─────────────────────────────────────────────
+// Flat select — assigneeId is a bare ProjectMember.id, the page resolves
+// it via useCrew(projectId) and stitches client-side. Same pattern as
+// CrewTimecard / ActionItem / Location.
+// Order: by department first (groups items in tab views), then sortOrder
+// within each department.
+
+export async function getInventoryItems(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('InventoryItem')
+    .select('*')
+    .eq('projectId', projectId)
+    .order('department', { ascending: true })
+    .order('sortOrder', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function createInventoryItem(
+  item: {
+    projectId: string
+    name: string
+    quantity?: number
+    description?: string | null
+    department?: string | null
+    status?: string
+    source?: string | null
+    notes?: string | null
+    importSource?: string
+    assigneeId?: string | null
+    sortOrder?: number
+  }
+) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('InventoryItem')
+    .insert({
+      id: crypto.randomUUID(),
+      projectId: item.projectId,
+      name: item.name,
+      quantity: item.quantity ?? 1,
+      description: item.description ?? null,
+      department: item.department ?? null,
+      status: item.status ?? 'needed',
+      source: item.source ?? null,
+      notes: item.notes ?? null,
+      importSource: item.importSource ?? 'manual',
+      assigneeId: item.assigneeId ?? null,
+      sortOrder: item.sortOrder ?? 0,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createInventoryItem failed:', error); throw error }
+  return data
+}
+
+export async function updateInventoryItem(
+  id: string,
+  fields: {
+    name?: string
+    quantity?: number
+    description?: string | null
+    department?: string | null
+    status?: string
+    source?: string | null
+    notes?: string | null
+    importSource?: string
+    assigneeId?: string | null
+    sortOrder?: number
+  }
+): Promise<void> {
+  const db = createClient()
+  const { error } = await db
+    .from('InventoryItem')
+    .update(fields)
+    .eq('id', id)
+  if (error) { console.error('updateInventoryItem failed:', error); throw error }
+}
+
+export async function deleteInventoryItem(id: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('InventoryItem').delete().eq('id', id)
+  if (error) { console.error('deleteInventoryItem failed:', error); throw error }
+}
+
 // ── ENTITIES (characters, props) ─────────────────────────
 
 export async function getEntities(projectId: string, type?: 'character' | 'prop') {

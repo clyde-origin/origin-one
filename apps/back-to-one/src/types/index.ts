@@ -261,6 +261,38 @@ export interface Location {
   updatedAt: string
 }
 
+// ── INVENTORY ──────────────────────────────────────────────
+
+export type InventoryItemStatus =
+  | 'needed'
+  | 'ordered'
+  | 'arrived'
+  | 'packed'
+  | 'returned'
+
+export type ImportSource = 'manual' | 'pdf' | 'excel'
+
+// Flat shape, no joined assignee — matches the Location / CrewTimecard /
+// ActionItem precedent. The Inventory page resolves assigneeId → User name
+// client-side via useCrew(projectId), same pattern HubContent uses for
+// ActionItem.assignedTo.
+export interface InventoryItem {
+  id: string
+  projectId: string
+  name: string
+  quantity: number
+  description: string | null
+  department: string | null
+  status: InventoryItemStatus
+  source: string | null
+  notes: string | null
+  importSource: ImportSource
+  assigneeId: string | null
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
 export interface CastRole {
   id: string
   projectId: string

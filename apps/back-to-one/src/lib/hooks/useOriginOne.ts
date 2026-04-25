@@ -19,6 +19,7 @@ export const keys = {
   moodboard:      (projectId: string) => ['moodboard', projectId] as const,
   moodboardTabs:  (projectId: string) => ['moodboardTabs', projectId] as const,
   locations:      (projectId: string) => ['locations', projectId] as const,
+  inventoryItems: (projectId: string) => ['inventoryItems', projectId] as const,
   castRoles:      (projectId: string) => ['castRoles', projectId] as const,
   artItems:       (projectId: string) => ['artItems', projectId] as const,
   threads:        (projectId: string, meId: string | null) => ['threads', projectId, meId ?? ''] as const,
@@ -616,6 +617,41 @@ export function useDeleteLocation(projectId: string) {
   return useMutation({
     mutationFn: db.deleteLocation,
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.locations(projectId) }),
+  })
+}
+
+// ── INVENTORY ─────────────────────────────────────────────
+
+export function useInventoryItems(projectId: string) {
+  return useQuery({
+    queryKey: keys.inventoryItems(projectId),
+    queryFn:  () => db.getInventoryItems(projectId),
+    enabled:  !!projectId,
+  })
+}
+
+export function useCreateInventoryItem(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createInventoryItem,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.inventoryItems(projectId) }),
+  })
+}
+
+export function useUpdateInventoryItem(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: Parameters<typeof db.updateInventoryItem>[1] }) =>
+      db.updateInventoryItem(id, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.inventoryItems(projectId) }),
+  })
+}
+
+export function useDeleteInventoryItem(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteInventoryItem,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.inventoryItems(projectId) }),
   })
 }
 
