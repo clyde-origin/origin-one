@@ -112,6 +112,20 @@ enum TimecardStatus {
   reopened    // producer reopened, back to editable
 }
 
+enum InventoryItemStatus {
+  needed
+  ordered
+  arrived
+  packed
+  returned
+}
+
+enum ImportSource {
+  manual
+  pdf
+  excel
+}
+
 // ─── Core identity and membership ────────────────────────────────────────────
 
 model User {
@@ -171,9 +185,10 @@ model ProjectMember {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  timecards           CrewTimecard[] @relation("TimecardCrew")
-  approvedTimecards   CrewTimecard[] @relation("TimecardApprover")
-  reopenedTimecards   CrewTimecard[] @relation("TimecardReopener")
+  timecards              CrewTimecard[]  @relation("TimecardCrew")
+  approvedTimecards      CrewTimecard[]  @relation("TimecardApprover")
+  reopenedTimecards      CrewTimecard[]  @relation("TimecardReopener")
+  inventoryItemsAssigned InventoryItem[]
 
   @@unique([projectId, userId, role])
 }
@@ -257,6 +272,7 @@ model Project {
   chatMessages     ChatMessage[]
   shotlistVersions ShotlistVersion[]
   timecards        CrewTimecard[]
+  inventoryItems   InventoryItem[]
 }
 
 // ─── Scenes, Shots, Entities ─────────────────────────────────────────────────
@@ -483,6 +499,29 @@ model Location {
   entity  Entity? @relation(fields: [entityId], references: [id])
 
   @@index([entityId])
+}
+
+model InventoryItem {
+  id           String              @id @default(dbgenerated("gen_random_uuid()"))
+  projectId    String
+  name         String
+  quantity     Int                 @default(1)
+  description  String?
+  department   String?
+  status       InventoryItemStatus @default(needed)
+  source       String?
+  notes        String?
+  importSource ImportSource        @default(manual)
+  assigneeId   String?
+  sortOrder    Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  project  Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee ProjectMember? @relation(fields: [assigneeId], references: [id])
+
+  @@index([projectId])
+  @@index([assigneeId])
 }
 
 // ─── Folders & Resources ─────────────────────────────────────────────────────
