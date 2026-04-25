@@ -1202,11 +1202,13 @@ export async function getCrewTimecardsByWeek(
 
 // Create a new timecard entry in 'draft' state. Server defaults apply for
 // timestamps and status; we supply only the user-entered fields + identity.
+// rate is optional — null/undefined both store NULL.
 export async function createTimecard(input: {
   projectId: string
   crewMemberId: string
   date: string           // YYYY-MM-DD
   hours: number
+  rate?: number | null   // nullable per schema; absent = NULL
   description: string
 }) {
   const db = createClient()
@@ -1218,6 +1220,7 @@ export async function createTimecard(input: {
       crewMemberId: input.crewMemberId,
       date: input.date,
       hours: input.hours,
+      rate: input.rate ?? null,
       description: input.description,
       status: 'draft',
       updatedAt: new Date().toISOString(),
@@ -1228,11 +1231,12 @@ export async function createTimecard(input: {
   return data
 }
 
-// Edit hours/description on an existing entry. Called for draft and reopened
-// entries; the UI enforces the allowed-state rule, server is permissive.
+// Edit hours/description/rate on an existing entry. Called for draft and
+// reopened entries; the UI enforces the allowed-state rule, server is permissive.
+// Pass rate: null to clear an existing rate, omit to leave unchanged.
 export async function updateTimecard(
   id: string,
-  fields: { hours?: number; description?: string },
+  fields: { hours?: number; rate?: number | null; description?: string },
 ) {
   const db = createClient()
   const { error } = await db

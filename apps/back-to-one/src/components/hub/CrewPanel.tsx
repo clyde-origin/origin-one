@@ -11,6 +11,7 @@ import { useProject } from '@/lib/hooks/useOriginOne'
 import { CrewAvatar } from '@/components/ui'
 import { haptic } from '@/lib/utils/haptics'
 import { DEPARTMENTS } from '@/lib/utils/phase'
+import { formatUSD } from '@/lib/utils/currency'
 import type { TeamMember } from '@/types'
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 40 }
@@ -401,6 +402,28 @@ function ProducerOverview({
     return map
   }, [timecards, weekStart])
 
+  // Weekly dollar total + rate-coverage stats. Rate comes back from Supabase
+  // as a Decimal-string when present; convert at this boundary. Entries with
+  // null rate contribute 0 to dollar total but still count toward "total
+  // entries" for the coverage denominator.
+  const weekTotals = useMemo(() => {
+    let dollarTotal = 0
+    let entriesWithRate = 0
+    let totalEntries = 0
+    for (const t of (timecards ?? [])) {
+      totalEntries++
+      const row = t as { hours: string | number; rate: string | number | null }
+      if (row.rate == null) continue
+      const rate = typeof row.rate === 'string' ? parseFloat(row.rate) : Number(row.rate)
+      if (!Number.isFinite(rate)) continue
+      const hours = typeof row.hours === 'string' ? parseFloat(row.hours) : Number(row.hours)
+      if (!Number.isFinite(hours)) continue
+      dollarTotal += hours * rate
+      entriesWithRate++
+    }
+    return { dollarTotal, entriesWithRate, totalEntries }
+  }, [timecards])
+
   const grouped = useMemo(() => groupByDepartment(eligibleCrew), [eligibleCrew])
   const eligibleCount = eligibleCrew.length
 
@@ -430,6 +453,23 @@ function ProducerOverview({
         <div className="font-mono uppercase" style={{ fontSize: 11, color: '#a0a0b8', letterSpacing: '0.06em' }}>
           {eligibleCount} crew
         </div>
+        {/* Weekly dollar total + coverage note. Hidden entirely when the week
+            has zero entries — matches the existing empty-week posture. */}
+        {weekTotals.totalEntries > 0 && (
+          <>
+            <div
+              className="font-mono"
+              style={{ fontSize: 12, color: '#dddde8', marginTop: 6 }}
+            >
+              {formatUSD(weekTotals.dollarTotal)} this week
+            </div>
+            <div
+              style={{ fontSize: 10, color: '#62627a', marginTop: 2 }}
+            >
+              {weekTotals.entriesWithRate} of {weekTotals.totalEntries} entries have rates
+            </div>
+          </>
+        )}
       </div>
 
       {/* Grid — grouped by department */}
@@ -589,7 +629,7 @@ function IndividualWeekView({
   // If a day has multiple entries (schema allows it), we render the first only
   // for now — the seed has no split-days. Flagged for follow-up if needed.
   type Entry = {
-    id: string; date: string; hours: number; description: string; status: string
+    id: string; date: string; hours: number; rate: number | null; description: string; status: string
     submittedAt: string | null; approvedAt: string | null; approvedBy: string | null
     reopenedAt: string | null; reopenedBy: string | null; reopenReason: string | null
   }
@@ -602,10 +642,18 @@ function IndividualWeekView({
       const dayIdx = Math.round((dayMs - weekStartMs) / (24 * 60 * 60 * 1000))
       if (dayIdx < 0 || dayIdx > 6) continue
       if (map.has(dayIdx)) continue  // first-wins; split-day deferred
+      // Decimal columns (hours, rate) come back from Supabase as strings.
+      // Convert to Number once, here at the boundary; downstream code treats
+      // them as plain numbers.
+      const rateRaw = row.rate
+      const rate = rateRaw == null
+        ? null
+        : (typeof rateRaw === 'string' ? parseFloat(rateRaw) : Number(rateRaw))
       map.set(dayIdx, {
         id: row.id,
         date: row.date,
         hours: typeof row.hours === 'string' ? parseFloat(row.hours) : Number(row.hours),
+        rate: rate !== null && Number.isFinite(rate) ? rate : null,
         description: row.description,
         status: row.status,
         submittedAt: row.submittedAt ?? null,
@@ -730,13 +778,14 @@ function IndividualWeekView({
                   <EntryEditor
                     key={`add-${dayIdx}`}
                     initialHours={''}
+                    initialRate={''}
                     initialDescription={''}
                     accent={accent}
                     pending={createTc.isPending}
                     onCancel={() => setAddingForDayIdx(null)}
-                    onSave={(hours, description) => {
+                    onSave={(hours, rate, description) => {
                       createTc.mutate(
-                        { projectId, crewMemberId: member.id, date: label.iso, hours, description },
+                        { projectId, crewMemberId: member.id, date: label.iso, hours, rate, description },
                         { onSuccess: () => setAddingForDayIdx(null) },
                       )
                     }}
@@ -745,13 +794,14 @@ function IndividualWeekView({
                   <EntryEditor
                     key={`edit-${entry.id}`}
                     initialHours={entry.hours.toString()}
+                    initialRate={entry.rate !== null ? entry.rate.toFixed(2) : ''}
                     initialDescription={entry.description}
                     accent={accent}
                     pending={updateTc.isPending}
                     onCancel={() => setEditingEntryId(null)}
-                    onSave={(hours, description) => {
+                    onSave={(hours, rate, description) => {
                       updateTc.mutate(
-                        { id: entry.id, fields: { hours, description } },
+                        { id: entry.id, fields: { hours, rate, description } },
                         { onSuccess: () => setEditingEntryId(null) },
                       )
                     }}
@@ -812,20 +862,62 @@ function IndividualWeekView({
 
 // ── Inline entry editor (add or edit) ─────────────────────
 
+const RATE_MAX = 999999.99
+
 function EntryEditor({
-  initialHours, initialDescription, accent, pending, onSave, onCancel,
+  initialHours, initialRate, initialDescription, accent, pending, onSave, onCancel,
 }: {
   initialHours: string
+  initialRate: string         // "" means rate is unset (stores NULL)
   initialDescription: string
   accent: string
   pending: boolean
-  onSave: (hours: number, description: string) => void
+  onSave: (hours: number, rate: number | null, description: string) => void
   onCancel: () => void
 }) {
   const [hoursStr, setHoursStr] = useState(initialHours)
+  const [rateStr, setRateStr] = useState(initialRate)
   const [description, setDescription] = useState(initialDescription)
+  const [rateError, setRateError] = useState<string | null>(null)
+
   const hoursNum = parseFloat(hoursStr)
-  const canSave = !pending && Number.isFinite(hoursNum) && hoursNum > 0 && hoursNum <= 24 && description.trim().length > 0
+  // Rate parsing: empty input → null (clears rate). Non-empty must be a
+  // finite, non-negative number ≤ RATE_MAX. Invalid blocks save.
+  const trimmedRate = rateStr.trim()
+  let rateValue: number | null = null
+  let rateValid = true
+  if (trimmedRate.length > 0) {
+    const parsed = parseFloat(trimmedRate)
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > RATE_MAX) {
+      rateValid = false
+    } else {
+      rateValue = parsed
+    }
+  }
+  const canSave =
+    !pending &&
+    Number.isFinite(hoursNum) && hoursNum > 0 && hoursNum <= 24 &&
+    description.trim().length > 0 &&
+    rateValid
+
+  // Format on blur: 750 → "750.00". Empty stays empty.
+  const handleRateBlur = () => {
+    const v = rateStr.trim()
+    if (v.length === 0) { setRateError(null); return }
+    const parsed = parseFloat(v)
+    if (!Number.isFinite(parsed)) { setRateError('Rate must be a number.'); return }
+    if (parsed < 0) { setRateError('Rate must be zero or positive.'); return }
+    if (parsed > RATE_MAX) { setRateError(`Rate cannot exceed ${formatUSD(RATE_MAX)}.`); return }
+    setRateError(null)
+    setRateStr(parsed.toFixed(2))
+  }
+  const handleRateFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.select()
+  }
+  const handleRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setRateStr(e.target.value)
+    if (rateError) setRateError(null)  // clear stale error on re-edit
+  }
 
   return (
     <div
@@ -836,6 +928,7 @@ function EntryEditor({
         borderRadius: 8,
       }}
     >
+      {/* Hours */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
         <input
           type="number"
@@ -860,6 +953,65 @@ function EntryEditor({
           }}
         />
       </div>
+
+      {/* Rate (per day) — optional */}
+      <div style={{ marginBottom: 8 }}>
+        <label
+          className="font-mono uppercase block"
+          style={{
+            fontSize: 9,
+            letterSpacing: '0.1em',
+            color: '#62627a',
+            marginBottom: 4,
+          }}
+        >Rate (per day)</label>
+        <div style={{ position: 'relative', width: 132 }}>
+          <span
+            aria-hidden="true"
+            className="font-mono"
+            style={{
+              position: 'absolute',
+              left: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: 14,
+              color: '#62627a',
+              pointerEvents: 'none',
+            }}
+          >$</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0"
+            placeholder="750.00"
+            value={rateStr}
+            onChange={handleRateChange}
+            onFocus={handleRateFocus}
+            onBlur={handleRateBlur}
+            aria-invalid={rateError ? 'true' : undefined}
+            aria-describedby={rateError ? 'rate-error' : undefined}
+            style={{
+              width: '100%',
+              background: 'rgba(255,255,255,0.04)',
+              border: `1px solid ${rateError ? 'rgba(232,86,74,0.4)' : 'rgba(255,255,255,0.06)'}`,
+              borderRadius: 6,
+              padding: '8px 10px 8px 22px',  // left padding leaves room for $ adornment
+              color: '#fff',
+              fontSize: 14,
+              fontFamily: "'Geist Mono', monospace",
+              outline: 'none',
+            }}
+          />
+        </div>
+        {rateError && (
+          <div
+            id="rate-error"
+            style={{ fontSize: 10, color: '#e8564a', marginTop: 4 }}
+          >{rateError}</div>
+        )}
+      </div>
+
       <textarea
         placeholder="What did you work on?"
         value={description}
@@ -891,7 +1043,7 @@ function EntryEditor({
           }}
         >Cancel</button>
         <button
-          onClick={() => { if (canSave) onSave(hoursNum, description.trim()) }}
+          onClick={() => { if (canSave) onSave(hoursNum, rateValue, description.trim()) }}
           disabled={!canSave}
           className="font-mono uppercase"
           style={{
@@ -915,7 +1067,7 @@ function EntryCard({
   onEdit, onSubmit, onApprove, onStartReopen, onCancelReopen, onConfirmReopen, pending,
 }: {
   entry: {
-    id: string; hours: number; description: string; status: string; reopenReason: string | null
+    id: string; hours: number; rate: number | null; description: string; status: string; reopenReason: string | null
   }
   accent: string
   isProducerView: boolean
@@ -940,6 +1092,12 @@ function EntryCard({
   const showLockedHint = !isProducerView && status === 'approved'
   const showAwaiting   = isProducerView && status === 'draft'
 
+  // Rate display: hidden when null. When present, show "$rate/day · $total".
+  // Total = hours × rate. Both already Number-typed at the IndividualWeekView
+  // boundary (Decimal | string from Prisma → Number there).
+  const showRate = entry.rate !== null
+  const dailyTotal = showRate ? entry.hours * (entry.rate as number) : 0
+
   return (
     <div
       style={{
@@ -950,12 +1108,26 @@ function EntryCard({
       }}
     >
       {/* Line 1 — hours + status pill */}
-      <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+      <div className="flex items-center justify-between" style={{ marginBottom: showRate ? 4 : 8 }}>
         <span className="font-mono" style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>
           {entry.hours.toFixed(1)} h
         </span>
         <StatusPill status={status} />
       </div>
+
+      {/* Rate + computed total — only when rate is set */}
+      {showRate && (
+        <div
+          className="font-mono"
+          style={{
+            fontSize: 11,
+            color: '#a0a0b8',
+            marginBottom: 8,
+          }}
+        >
+          {formatUSD(entry.rate)}/day · {formatUSD(dailyTotal)} total
+        </div>
+      )}
 
       {/* Description */}
       <div style={{ fontSize: 12, color: '#a0a0b8', lineHeight: 1.5, marginBottom: showLockedHint || showAwaiting ? 0 : 8 }}>
