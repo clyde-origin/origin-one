@@ -5,20 +5,20 @@
 // match the project-scoped ActionBar exactly — strong glass + accent glow +
 // drop shadow — so the two surfaces read as one bar across navigation.
 //
-// Slot map: [— / — / + / Threads / —]
-//   back     hidden — root has nowhere to go back to
-//   chat     hidden — no company chat until Auth
-//   +        visible — toggles the existing 5-arc fan in projects/page.tsx
-//            via RootFabContext
-//   threads  visible — routes to /projects/threads; toggle-to-close while on
-//            the route
-//   resources hidden — V2
-//
-// The hidden chat slot renders as a `visibility: hidden` placeholder so the
-// cluster width and + centering match the project-scoped ActionBar's
-// [chat / + / threads] cluster geometry. The hidden back/resources slots
-// are simply not rendered (back/resources live OUTSIDE the cluster in the
-// project-scoped bar; nothing visually fills those positions here).
+// Slot map: [— / chat / + / Threads / Resources]
+//   back      hidden — root has nowhere to go back to (left:16 stays empty)
+//   chat      visible — reduced opacity, no-op handler. Company-level chat
+//             is gated on Auth; the slot is here for visual symmetry with
+//             the project-scoped bar so the cluster reads identical across
+//             navigation
+//   +         visible — toggles the 5-arc fan in projects/page.tsx via
+//             RootFabContext
+//   threads   visible — routes to /projects/threads; toggle-to-close while
+//             on the route. Active state (accent fill + intensified glow)
+//             when pathname matches
+//   resources visible — reduced opacity, no-op handler. Company-level
+//             resources is V2 schema work (nullable projectId on Resource +
+//             Folder + Storage bucket). Slot is here for visual symmetry
 
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
@@ -112,6 +112,18 @@ function buttonStyle(variant: ButtonVariant, accent: string): React.CSSPropertie
   }
 }
 
+// Icons mirror ActionBar.tsx's verbatim — same paths, same stroke widths,
+// same viewBoxes — so chat/threads/resources read identical across the two
+// bars.
+
+function ChatIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+
 function PlusIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
@@ -128,6 +140,17 @@ function ThreadsIcon() {
     </svg>
   )
 }
+
+function ResourcesIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+    </svg>
+  )
+}
+
+const DISABLED_OPACITY = 0.45
 
 function ActionBarButton({
   size, variant, accent, onClick, ariaLabel, children,
@@ -180,6 +203,17 @@ export function ActionBarRoot() {
     }
   }
 
+  // Chat and resources are present for visual symmetry with the project-
+  // scoped bar but their destinations don't exist yet. No haptic, no
+  // navigation — just a developer hint and a no-op. Reduced opacity on
+  // the wrapper signals the disabled affordance.
+  function handleChat() {
+    console.log('[ActionBarRoot] company chat coming with Auth')
+  }
+  function handleResources() {
+    console.log('[ActionBarRoot] company resources coming with V2')
+  }
+
   return (
     <div
       className="pointer-events-none"
@@ -191,9 +225,10 @@ export function ActionBarRoot() {
         zIndex: Z_INDEX,
       }}
     >
-      {/* Cluster — [hidden_chat / + / threads], centered. The chat
-          placeholder preserves cluster width so + lands at horizontal
-          center, matching the project-scoped ActionBar's cluster. */}
+      {/* Cluster — [chat / + / threads], centered. Chat is present at
+          DISABLED_OPACITY for visual symmetry with the project-scoped bar
+          but tap is a no-op (company chat is gated on Auth). + and threads
+          render at full opacity. */}
       <div
         className="pointer-events-auto"
         style={{
@@ -203,10 +238,17 @@ export function ActionBarRoot() {
           display: 'flex', alignItems: 'center', gap: CLUSTER_GAP,
         }}
       >
-        <div
-          aria-hidden="true"
-          style={{ width: SIZE_SATELLITE, height: SIZE_SATELLITE, visibility: 'hidden' }}
-        />
+        <div style={{ opacity: DISABLED_OPACITY }}>
+          <ActionBarButton
+            size={SIZE_SATELLITE}
+            variant="satellite"
+            accent={accent}
+            onClick={handleChat}
+            ariaLabel="Chat (coming with Auth)"
+          >
+            <ChatIcon />
+          </ActionBarButton>
+        </div>
 
         <motion.div
           animate={{ rotate: fanOpen ? 45 : 0 }}
@@ -231,6 +273,29 @@ export function ActionBarRoot() {
           ariaLabel={threadsActive ? 'Close threads' : 'Threads'}
         >
           <ThreadsIcon />
+        </ActionBarButton>
+      </div>
+
+      {/* Resources — right edge. Reduced opacity, no-op handler. Mirrors
+          the project-scoped ActionBar's resources-at-right placement so
+          the two bars read identical across navigation. */}
+      <div
+        className="pointer-events-auto"
+        style={{
+          position: 'absolute',
+          right: 16, top: '50%',
+          transform: 'translateY(-50%)',
+          opacity: DISABLED_OPACITY,
+        }}
+      >
+        <ActionBarButton
+          size={SIZE_SATELLITE}
+          variant="satellite"
+          accent={accent}
+          onClick={handleResources}
+          ariaLabel="Resources (coming with V2)"
+        >
+          <ResourcesIcon />
         </ActionBarButton>
       </div>
     </div>
