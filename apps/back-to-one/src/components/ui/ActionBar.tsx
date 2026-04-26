@@ -282,21 +282,61 @@ function BranchFan({
   const ag = parseInt(accent.slice(3, 5), 16)
   const ab = parseInt(accent.slice(5, 7), 16)
 
-  // Per-branch position offsets from FAB center (matches Hub's existing fan).
-  // Index 0 = left, 1 = center (rises higher), 2 = right.
-  const positions: Array<{ left: number; bottom: number }> = [
+  // Per-branches-length geometry. Each `positions` row is the button's
+  // CSS top/bottom anchor (button is 48×48, so its visible center sits at
+  // left+24, bottom+24 from the cluster anchor). lineEndpoints are SVG
+  // viewBox coordinates (220×110, origin at top-left, line origin at
+  // 110/98 — the FAB center).
+  //
+  //   1 branch  → centered directly above the + (no asymmetry to fix).
+  //   2 branches → symmetric left/right at equal angle.
+  //   3 branches → Hub's existing triangle (left-low, center-high,
+  //                right-low). Preserved verbatim — Hub renders correctly
+  //                today and any geometry change there would be a
+  //                regression.
+  //
+  // Bug pre-this-change: `positions` was a 3-element array used for every
+  // length, so a 2-branch fan picked rows 0+1 — left-low + center-high —
+  // visibly asymmetric. Reported on Scenemaker shotlist mode.
+  type Position = { left: number; bottom: number }
+  type Endpoint = { x: number; y: number }
+
+  const POS_1: Position[] = [
+    { left: -24, bottom: 46 },
+  ]
+  const LINE_1: Endpoint[] = [
+    { x: 110, y: 28 },
+  ]
+
+  const POS_2: Position[] = [
+    { left: -74, bottom: 31 },
+    { left:  26, bottom: 31 },
+  ]
+  const LINE_2: Endpoint[] = [
+    { x: 60,  y: 43 },
+    { x: 160, y: 43 },
+  ]
+
+  const POS_3: Position[] = [
     { left: -90, bottom: 26 },
     { left: -22, bottom: 90 },
     { left:  46, bottom: 26 },
   ]
-
-  // SVG line endpoints from the +'s anchor point. The viewBox sits behind
-  // the cluster, so coordinates are relative to FAB center.
-  const lineEndpoints = [
-    { x: 22, y: 46 },
-    { x: 110, y: 8 },
+  const LINE_3: Endpoint[] = [
+    { x: 22,  y: 46 },
+    { x: 110, y: 8  },
     { x: 198, y: 46 },
   ]
+
+  const positions: Position[] =
+    branches.length === 1 ? POS_1 :
+    branches.length === 2 ? POS_2 :
+    POS_3
+
+  const lineEndpoints: Endpoint[] =
+    branches.length === 1 ? LINE_1 :
+    branches.length === 2 ? LINE_2 :
+    LINE_3
 
   return (
     <>
@@ -318,7 +358,7 @@ function BranchFan({
         }}
         width="220" height="110" viewBox="0 0 220 110"
       >
-        {branches.slice(0, 3).map((_, i) => (
+        {branches.slice(0, positions.length).map((_, i) => (
           <line
             key={i}
             x1={110} y1={98}
@@ -343,16 +383,20 @@ function BranchFan({
           zIndex: Z_INDEX,
         }}
       >
-        {branches.slice(0, 3).map((b, i) => {
+        {branches.slice(0, positions.length).map((b, i) => {
           const pos = positions[i]
-          // Center branch (index 1) gets a slight delay so it pops last.
-          const delay = i === 1 ? 0.05 : 0
+          // 3-branch only: the center (index 1) pops slightly later and
+          // from a larger y offset than the outers, mirroring Hub. With
+          // 1 or 2 branches there is no "center" — animation is uniform.
+          const isCenterBranch = branches.length === 3 && i === 1
+          const delay = isCenterBranch ? 0.05 : 0
+          const yOffset = isCenterBranch ? 30 : 20
           return (
             <motion.button
               key={b.label}
-              initial={{ opacity: 0, y: i === 1 ? 30 : 20 }}
+              initial={{ opacity: 0, y: yOffset }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: i === 1 ? 30 : 20 }}
+              exit={{ opacity: 0, y: yOffset }}
               transition={{ type: 'spring', damping: 20, stiffness: 280, delay }}
               onClick={() => onSelect(b)}
               style={{
