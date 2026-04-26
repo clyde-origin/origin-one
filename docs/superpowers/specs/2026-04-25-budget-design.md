@@ -361,6 +361,42 @@ New bucket: **`receipts`**. Auth-check RLS from day one (`auth.role() = 'authent
 - **`ShootDay` has unique `(projectId, date)`** — one row per date; `type` is the variable.
 - **Threading via existing polymorphic Thread** — no FK on `BudgetLine`; `Thread.attachableType='budget_line'` + `attachableId=lineId`.
 
+### 3.5 Type layer (Zod)
+
+The `packages/schema` package wraps each Prisma model with a Zod schema, using a **dual-export pattern**: the same name lives at both value and type position. This is the canonical source for both TypeScript types and runtime validation across the monorepo. Prisma-generated types are NOT exported across package boundaries — apps import from `@origin-one/schema`, not from the Prisma client.
+
+**Template:** `packages/schema/src/shoot-day.ts` (shipped in PR #33). Apply the same shape to all budget types.
+
+```typescript
+import { z } from "zod";
+
+export const ShootDayType = z.enum(["pre", "prod", "post"]);
+export type ShootDayType = z.infer<typeof ShootDayType>;
+
+export const ShootDay = z.object({ /* … fields … */ });
+export type ShootDay = z.infer<typeof ShootDay>;
+```
+
+**Field-pattern cheat sheet for budget types:**
+
+| Prisma type | Zod treatment | Notes |
+|---|---|---|
+| `String @id @default(uuid())` | `z.string().uuid()` | |
+| `String?` (nullable) | `.nullable()` on the inner schema | NOT `.optional()` — Prisma emits `null`, not `undefined` |
+| `String[]` (array) | `z.array(z.string()).default([])` | E.g. `BudgetLine.tags` |
+| `DateTime` or `@db.Date` | `z.coerce.date()` | Handles both ISO-string (JSON serialize) and Date (direct query) |
+| `Decimal @db.Decimal(p,s)` | `z.coerce.number()` | All budget money is USD ≤ 2 decimals, precision well within JS Number range. Revisit with a Decimal library only if ever crossing 8+ digits or doing repeated arithmetic on the same value |
+| `enum X { ... }` | `z.enum([...])` mirroring the values exactly | |
+| `Int` | `z.number().int()` | E.g. `sortOrder` |
+| `Json` | `z.unknown()` then per-callsite refinement | Budget types have none |
+
+**Files this layer adds (per PR sequence):**
+
+- **PR 3:** New `packages/schema/src/rate-unit.ts` (`z.enum(['day', 'hour'])`). Modify `crew-timecard.ts` to add `rateUnit` field.
+- **PR 4:** Eight new files under `packages/schema/src/` — one per budget model (`budget.ts`, `budget-version.ts`, `budget-account.ts`, `budget-line.ts`, `budget-line-amount.ts`, `budget-variable.ts`, `budget-markup.ts`, `expense.ts`). Modifications to `crew-timecard.ts` (`lineItemId`), `project-member.ts` (`defaultLineItemId`), `project.ts` (`budget` back-relation). All re-exported from `packages/schema/src/index.ts`.
+
+**Don't:** Don't import Prisma-generated types directly in app code. Always go through `@origin-one/schema`.
+
 ---
 
 ## 4. Expression evaluator (formula qty + variables)
