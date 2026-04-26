@@ -25,7 +25,8 @@ import {
   type DragOverEvent,
   type DragEndEvent,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useDroppable,
   useSensor,
   useSensors,
@@ -237,11 +238,14 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
     [overId],
   )
 
-  // Sensors: pointer-distance for desktop+touch, keyboard for accessibility.
-  // No TouchSensor delay — wiggle mode is the explicit "I want to drag" signal,
-  // so once it's on, drag activates on any 5px movement.
+  // Sensors are split by input type because TouchSensor uses non-passive event
+  // listeners and can preventDefault on touchmove to suppress native page
+  // scroll — PointerSensor can't (its listeners are passive on iOS Safari).
+  // Both activate on 5px movement; wiggle mode is the explicit "I want to
+  // drag" gate, so no activation delay is needed.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
