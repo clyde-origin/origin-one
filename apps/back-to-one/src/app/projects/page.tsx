@@ -527,46 +527,23 @@ export default function ProjectsPage() {
         )}
       </AnimatePresence>
 
-      {/* FAB zone — zero-size anchor at FAB center point */}
-      <div style={{ position: 'fixed', bottom: 68, left: '50%', width: 0, height: 0, zIndex: 7, overflow: 'visible' }}>
+      {/* FAB zone — zero-size anchor at FAB center point. Bottom anchor
+          matches ActionBar's `calc(18px + safe-area-inset-bottom)` so the
+          two surfaces read as a single visual language. */}
+      <div style={{ position: 'fixed', bottom: 'calc(18px + env(safe-area-inset-bottom, 0px))', left: '50%', width: 0, height: 0, zIndex: 7, overflow: 'visible' }}>
 
-        {/* Dashed branch lines from center to each arc button */}
-        <AnimatePresence>
-          {selFabOpen && (
-            <motion.svg
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              style={{ position: 'absolute', transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 9, overflow: 'visible' }}
-              width="1" height="1"
-            >
-              {([
-                { x: -99, y: -39, activeStroke: 'rgba(232,160,32,0.45)', panel: 'tasks' as PanelId },
-                { x: -57, y: -67, activeStroke: 'rgba(100,112,243,0.45)', panel: 'milestones' as PanelId },
-                { x: 0,   y: -78, activeStroke: 'rgba(0,184,148,0.45)', panel: 'schedule' as PanelId },
-                { x: 57,  y: -67, activeStroke: 'rgba(74,184,232,0.45)', panel: 'threads' as PanelId },
-                { x: 99,  y: -39, activeStroke: 'rgba(232,196,74,0.45)', panel: 'activity' as PanelId },
-              ]).map((l) => (
-                <line key={l.panel} x1="0" y1="0" x2={l.x} y2={l.y}
-                  stroke={activePanel === l.panel ? l.activeStroke : activePanel ? 'rgba(196,90,220,0.1)' : 'rgba(196,90,220,0.22)'}
-                  strokeWidth="1" strokeDasharray="3 3" />
-              ))}
-              <circle cx="0" cy="0" r="2.5" fill="rgba(196,90,220,0.4)" />
-            </motion.svg>
-          )}
-        </AnimatePresence>
-
-        {/* Arc buttons — 48px, icon only, per-button color */}
+        {/* Arc buttons — 48px, icon only, per-button color. Strong-glass +
+            per-arc-color glow + drop shadow, matching ActionBar's satellite
+            variant. Glow tracks each arc's panel color (no project context
+            at root). */}
         {([
-          { panel: 'tasks' as PanelId, tx: -99, ty: -39, delay: 0, color: '#e8a020', bg: 'rgba(232,160,32,', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round"/><path d="M12 9v4M10 11h4" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round"/></svg> },
-          { panel: 'milestones' as PanelId, tx: -57, ty: -67, delay: 0.04, color: '#6470f3', bg: 'rgba(100,112,243,', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2L10.5 6.5H13.5L11 9.5L12 13.5L8 11L4 13.5L5 9.5L2.5 6.5H5.5L8 2Z" stroke="#6470f3" strokeWidth="1.2" strokeLinejoin="round"/></svg> },
-          { panel: 'schedule' as PanelId, tx: 0, ty: -78, delay: 0.08, color: '#00b894', bg: 'rgba(0,184,148,', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="#00b894" strokeWidth="1.2"/><path d="M5 2v2M11 2v2" stroke="#00b894" strokeWidth="1.2" strokeLinecap="round"/><path d="M2 7h12" stroke="#00b894" strokeWidth="1"/><rect x="5" y="9" width="2" height="2" rx="0.5" fill="#00b894" opacity="0.7"/><rect x="9" y="9" width="2" height="2" rx="0.5" fill="#00b894" opacity="0.7"/></svg> },
-          { panel: 'threads' as PanelId, tx: 57, ty: -67, delay: 0.12, color: '#4ab8e8', bg: 'rgba(74,184,232,', icon: <ThreadsIcon size={18} color="#4ab8e8" /> },
-          { panel: 'activity' as PanelId, tx: 99, ty: -39, delay: 0.16, color: '#e8c44a', bg: 'rgba(232,196,74,', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M9 2L4 9h4l-1 5L14 7h-4l-1-5z" stroke="#e8c44a" strokeWidth="1.3" strokeLinejoin="round"/></svg> },
+          { panel: 'tasks' as PanelId, tx: -99, ty: -39, delay: 0, color: '#e8a020', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round"/><path d="M12 9v4M10 11h4" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round"/></svg> },
+          { panel: 'milestones' as PanelId, tx: -57, ty: -67, delay: 0.04, color: '#6470f3', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2L10.5 6.5H13.5L11 9.5L12 13.5L8 11L4 13.5L5 9.5L2.5 6.5H5.5L8 2Z" stroke="#6470f3" strokeWidth="1.2" strokeLinejoin="round"/></svg> },
+          { panel: 'schedule' as PanelId, tx: 0, ty: -78, delay: 0.08, color: '#00b894', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="#00b894" strokeWidth="1.2"/><path d="M5 2v2M11 2v2" stroke="#00b894" strokeWidth="1.2" strokeLinecap="round"/><path d="M2 7h12" stroke="#00b894" strokeWidth="1"/><rect x="5" y="9" width="2" height="2" rx="0.5" fill="#00b894" opacity="0.7"/><rect x="9" y="9" width="2" height="2" rx="0.5" fill="#00b894" opacity="0.7"/></svg> },
+          { panel: 'threads' as PanelId, tx: 57, ty: -67, delay: 0.12, color: '#4ab8e8', icon: <ThreadsIcon size={18} color="#4ab8e8" /> },
+          { panel: 'activity' as PanelId, tx: 99, ty: -39, delay: 0.16, color: '#e8c44a', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M9 2L4 9h4l-1 5L14 7h-4l-1-5z" stroke="#e8c44a" strokeWidth="1.3" strokeLinejoin="round"/></svg> },
         ]).map((b) => {
-          const isActive = activePanel === b.panel
-          const isInactive = activePanel !== null && !isActive
+          const isInactive = activePanel !== null && activePanel !== b.panel
           return (
           <motion.div key={b.panel}
             initial={false}
@@ -585,10 +562,10 @@ export default function ProjectsPage() {
               onClick={() => { haptic('light'); setActivePanel(prev => prev === b.panel ? null : b.panel) }}
               style={{
                 width: 48, height: 48, borderRadius: '50%',
-                background: isActive ? `${b.bg}0.18)` : `${b.bg}0.1)`,
-                backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-                border: isActive ? `1px solid ${b.bg}0.55)` : `1px solid ${b.bg}0.3)`,
-                boxShadow: isActive ? `0 0 16px ${b.bg}0.3)` : 'none',
+                background: 'rgba(8,8,14,0.85)',
+                backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+                border: `0.5px solid ${b.color}45`,
+                boxShadow: `0 4px 18px rgba(0,0,0,0.4), 0 0 14px ${b.color}38`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer',
               }}
