@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useProject, useResources, useCreateResource } from '@/lib/hooks/useOriginOne'
+import { useProject, useResources, useCreateResource, useMeId } from '@/lib/hooks/useOriginOne'
 
 import { LoadingState, EmptyState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -55,7 +55,7 @@ function ResourceRow({ resource }: { resource: Resource }) {
 function NewSheet({ projectId, onClose, onCreate }: {
   projectId: string
   onClose: () => void
-  onCreate: (data: { projectId: string; title: string; url: string; type: ResourceType; createdBy: string }) => void
+  onCreate: (data: { projectId: string; title: string; url: string; type: ResourceType }) => void
 }) {
   const [title, setTitle] = useState('')
   const [type, setType]   = useState<ResourceType>('link')
@@ -63,7 +63,7 @@ function NewSheet({ projectId, onClose, onCreate }: {
 
   const handleSubmit = () => {
     if (!title.trim() || !url.trim()) return
-    onCreate({ projectId, title: title.trim(), url: url.trim(), type, createdBy: '' })
+    onCreate({ projectId, title: title.trim(), url: url.trim(), type })
     onClose()
   }
 
@@ -119,6 +119,11 @@ export default function ResourcesPage({ params }: { params: { projectId: string 
 
   const { data: resources, isLoading } = useResources(projectId)
   const create = useCreateResource(projectId)
+  // Resource.createdBy is a non-null FK to User. Resolve the current user
+  // via useMeId() (placeholder pre-Auth, real session post-Auth) and inject
+  // it when the sheet hands off the form payload — keeps NewSheet decoupled
+  // from auth resolution.
+  const meId = useMeId()
 
   const allResources = resources ?? []
 
@@ -138,7 +143,10 @@ export default function ResourcesPage({ params }: { params: { projectId: string 
 
       <Sheet open={creating} onClose={() => setCreating(false)}>
         <NewSheet projectId={projectId} onClose={() => setCreating(false)}
-          onCreate={(data) => create.mutate(data as any)} />
+          onCreate={(data) => {
+            if (!meId) return // pre-Auth seed-empty edge case; sheet will close, no row written
+            create.mutate({ ...data, createdBy: meId })
+          }} />
       </Sheet>
     </div>
   )
