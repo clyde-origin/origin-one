@@ -8,6 +8,7 @@ import {
   useProjects, useCrew, useArchiveProject, useDeleteProject, useUpdateProject,
 } from '@/lib/hooks/useOriginOne'
 import { SkeletonLine, CrewAvatar } from '@/components/ui'
+import { useRootFab } from '@/components/ui/ActionBarRoot'
 import { getProjectColor, statusHex, STATUS_LABELS_SHORT } from '@/lib/utils/phase'
 import { haptic } from '@/lib/utils/haptics'
 import { useLongPress } from '@/lib/hooks/useLongPress'
@@ -379,8 +380,17 @@ export default function ProjectsPage() {
     }
   }, [editMode, handleTouchMove, handleTouchEnd])
 
-  const [selFabOpen, setSelFabOpen] = useState(false)
+  // Fan-open state lifted to RootFabContext (provided by projects/layout.tsx).
+  // ActionBarRoot's + button toggles it; this page reads it to drive arc render.
+  const { fanOpen: selFabOpen, closeFan } = useRootFab()
   const [activePanel, setActivePanel] = useState<PanelId | null>(null)
+
+  // Mirror the original "tap + closes both fan and panel" behavior: any
+  // transition of fan open→closed (from the bar +, the dim overlay, or
+  // navigation that calls closeFan) clears any active panel.
+  useEffect(() => {
+    if (!selFabOpen) setActivePanel(null)
+  }, [selFabOpen])
   const isLoading = loadingProjects
 
   return (
@@ -517,7 +527,7 @@ export default function ProjectsPage() {
       <AnimatePresence>
         {(activePanel || selFabOpen) && (
           <motion.div key="dim-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-            onClick={() => { setSelFabOpen(false); setActivePanel(null) }}
+            onClick={() => { closeFan(); setActivePanel(null) }}
             style={{
               position: 'fixed', inset: 0, zIndex: 3,
               background: selFabOpen ? 'rgba(4,4,10,0.75)' : 'rgba(4,4,10,0.65)',
@@ -602,17 +612,11 @@ export default function ProjectsPage() {
           )
         })}
 
-        {/* Main FAB button — shrinks on open */}
-        <motion.button
-          onClick={() => { haptic('medium'); if (selFabOpen) { setActivePanel(null) }; setSelFabOpen(prev => !prev) }}
-          animate={selFabOpen
-            ? { rotate: 45, width: 44, height: 44, top: -22, left: -22, background: 'rgba(196,90,220,0.2)', boxShadow: '0 4px 24px rgba(196,90,220,0.45)' }
-            : { rotate: 0, width: 52, height: 52, top: -26, left: -26, background: 'rgba(196,90,220,0.15)', boxShadow: '0 4px 20px rgba(196,90,220,0.25), inset 0 1px 0 rgba(255,255,255,0.1)' }
-          }
-          transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
-          style={{ position: 'absolute', top: -26, left: -26, width: 52, height: 52, borderRadius: '50%', background: 'rgba(196,90,220,0.15)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1.5px solid rgba(196,90,220,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 11 }}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2V14M2 8H14" stroke="rgba(255,255,255,0.9)" strokeWidth="2" strokeLinecap="round" /></svg>
-        </motion.button>
+        {/* Main FAB lifted to ActionBarRoot (mounted by projects/layout.tsx).
+            The arcs above remain anchored to the same FAB zone so they fan
+            from the bar's + position when the user taps it. The legacy
+            indigo/violet glass + button has been replaced by the bar's
+            primary-variant + (strong glass + brand-indigo glow). */}
       </div>
 
       {/* Global panels */}
