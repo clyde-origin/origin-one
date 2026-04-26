@@ -294,6 +294,22 @@ export interface InventoryItem {
   updatedAt: string
 }
 
+// ── SHOOT DAY ──────────────────────────────────────────────
+
+export type ShootDayType = 'pre' | 'prod' | 'post'
+
+export interface ShootDay {
+  id: string
+  projectId: string
+  date: string                  // ISO 'YYYY-MM-DD' from Postgres @db.Date
+  type: ShootDayType
+  notes: string | null
+  locationId: string | null
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
 export interface CastRole {
   id: string
   projectId: string

@@ -1146,6 +1146,67 @@ export async function deleteInventoryItem(id: string): Promise<void> {
   if (error) { console.error('deleteInventoryItem failed:', error); throw error }
 }
 
+// ── SHOOT DAYS ───────────────────────────────────────────
+
+export async function getShootDays(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ShootDay')
+    .select('*')
+    .eq('projectId', projectId)
+    .order('date', { ascending: true })
+    .order('sortOrder', { ascending: true })
+  if (error) throw error
+  return data
+}
+
+export async function createShootDay(input: {
+  projectId: string
+  date: string                  // ISO date 'YYYY-MM-DD'
+  type: 'pre' | 'prod' | 'post'
+  notes?: string | null
+  locationId?: string | null
+  sortOrder?: number
+}) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ShootDay')
+    .insert({
+      id: crypto.randomUUID(),
+      projectId: input.projectId,
+      date: input.date,
+      type: input.type,
+      notes: input.notes ?? null,
+      locationId: input.locationId ?? null,
+      sortOrder: input.sortOrder ?? 0,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createShootDay failed:', error); throw error }
+  return data
+}
+
+export async function updateShootDay(
+  id: string,
+  fields: {
+    date?: string
+    type?: 'pre' | 'prod' | 'post'
+    notes?: string | null
+    locationId?: string | null
+    sortOrder?: number
+  }
+): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('ShootDay').update(fields).eq('id', id)
+  if (error) { console.error('updateShootDay failed:', error); throw error }
+}
+
+export async function deleteShootDay(id: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('ShootDay').delete().eq('id', id)
+  if (error) { console.error('deleteShootDay failed:', error); throw error }
+}
+
 // ── ENTITIES (characters, locations, props) ──────────────
 
 export async function getEntities(projectId: string, type?: 'character' | 'location' | 'prop') {

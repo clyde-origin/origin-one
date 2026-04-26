@@ -22,6 +22,7 @@ export const keys = {
   moodboardTabs:  (projectId: string) => ['moodboardTabs', projectId] as const,
   locations:      (projectId: string) => ['locations', projectId] as const,
   inventoryItems: (projectId: string) => ['inventoryItems', projectId] as const,
+  shootDays:      (projectId: string) => ['shootDays', projectId] as const,
   castRoles:      (projectId: string) => ['castRoles', projectId] as const,
   artItems:       (projectId: string) => ['artItems', projectId] as const,
   threads:        (projectId: string, meId: string | null) => ['threads', projectId, meId ?? ''] as const,
@@ -671,6 +672,41 @@ export function useDeleteInventoryItem(projectId: string) {
   return useMutation({
     mutationFn: db.deleteInventoryItem,
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.inventoryItems(projectId) }),
+  })
+}
+
+// ── SHOOT DAYS ────────────────────────────────────────────
+
+export function useShootDays(projectId: string) {
+  return useQuery({
+    queryKey: keys.shootDays(projectId),
+    queryFn:  () => db.getShootDays(projectId),
+    enabled:  !!projectId,
+  })
+}
+
+export function useCreateShootDay(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createShootDay,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.shootDays(projectId) }),
+  })
+}
+
+export function useUpdateShootDay(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: Parameters<typeof db.updateShootDay>[1] }) =>
+      db.updateShootDay(id, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.shootDays(projectId) }),
+  })
+}
+
+export function useDeleteShootDay(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteShootDay,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.shootDays(projectId) }),
   })
 }
 

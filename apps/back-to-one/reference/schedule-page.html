@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Schedule — back-to-one reference</title>
+<style>
+  :root {
+    --bg: #04040a;
+    --surface: rgba(10,10,18,0.42);
+    --border: rgba(255,255,255,0.07);
+    --text: #e8e8f0;
+    --muted: #a0a0b8;
+    --label: #62627a;
+    --pre:  #e8a020;
+    --prod: #6470f3;
+    --post: #00b894;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui; }
+  .screen { max-width: 480px; margin: 0 auto; min-height: 100vh; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font-size: 1rem; font-weight: 600; text-align: center; padding: 16px 0 6px; }
+  .meta { text-align: center; font-family: ui-monospace, monospace; font-size: 0.50rem; letter-spacing: 0.06em; color: #c45adc; }
+  .status { text-align: center; font-family: ui-monospace, monospace; font-size: 0.38rem; padding: 2px 8px; border-radius: 12px; background: rgba(0,184,148,0.10); color: #00b894; align-self: center; margin: 4px auto; }
+  .counts { display: flex; gap: 14px; justify-content: center; padding: 6px 16px 14px; font-family: ui-monospace, monospace; font-size: 0.5rem; letter-spacing: 0.1em; text-transform: uppercase; }
+  .counts span.pre  { color: var(--pre); }
+  .counts span.prod { color: var(--prod); }
+  .counts span.post { color: var(--post); }
+  .row {
+    background: var(--surface); backdrop-filter: blur(16px);
+    border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px 14px;
+    display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto;
+    row-gap: 4px; column-gap: 8px; align-items: center;
+  }
+  .row .date { font-size: 0.85rem; font-weight: 500; }
+  .row .sub  { grid-column: 1 / span 2; font-family: ui-monospace, monospace; font-size: 0.42rem; letter-spacing: 0.08em; color: var(--label); text-transform: uppercase; }
+  .chip { font-family: ui-monospace, monospace; font-size: 0.42rem; letter-spacing: 0.1em; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; }
+  .chip.pre  { background: rgba(232,160,32,0.08); border: 1px solid rgba(232,160,32,0.35); color: var(--pre); }
+  .chip.prod { background: rgba(100,112,243,0.08); border: 1px solid rgba(100,112,243,0.35); color: var(--prod); }
+  .chip.post { background: rgba(0,184,148,0.08); border: 1px solid rgba(0,184,148,0.35); color: var(--post); }
+</style>
+</head>
+<body>
+<div class="screen">
+  <h1>Schedule</h1>
+  <div class="meta">In Vino Veritas</div>
+  <div class="status">ACTIVE</div>
+
+  <div class="counts">
+    <span class="pre">PREP 5</span>
+    <span class="prod">SHOOT 8</span>
+    <span class="post">POST 3</span>
+  </div>
+
+  <div class="row">
+    <div class="date">Mon Apr 14</div><span class="chip pre">Prep</span>
+    <div class="sub">Recce Napa</div>
+  </div>
+  <div class="row">
+    <div class="date">Tue Apr 22</div><span class="chip prod">Shoot</span>
+    <div class="sub">Vineyard — golden hour</div>
+  </div>
+  <div class="row">
+    <div class="date">Wed May 7</div><span class="chip post">Post</span>
+    <div class="sub">Editorial v1</div>
+  </div>
+</div>
+
+<!--
+Schedule page (PR 2 of the Budget arc).
+- Producer-gated (Q8 — spec docs/superpowers/specs/2026-04-25-budget-design.md).
+- "+ Add ShootDay" lives in ActionBar (FabActionContext, useFabAction).
+- Shoot day counts feed budget formula globals: prepDays / shootDays / postDays.
+- Hub preview block (producer-only) shows the same three phase counts.
+
+Path B per spec §5.4 — minimal Schedule UI; full stripboard / call sheets later.
+-->
+</body>
+</html>
