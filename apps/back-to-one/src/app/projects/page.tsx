@@ -1,11 +1,14 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   useProjects, useCrew, useArchiveProject, useDeleteProject, useUpdateProject,
+  useMeId, useUserProjectFolders, useUserProjectPlacements,
+  useCreateUserProjectFolder, useUpdateUserProjectFolder, useDeleteUserProjectFolder,
+  useUpsertUserProjectPlacement,
 } from '@/lib/hooks/useOriginOne'
 import { SkeletonLine, CrewAvatar } from '@/components/ui'
 import { useRootFab } from '@/components/ui/ActionBarRoot'
@@ -13,6 +16,9 @@ import { getProjectColor, statusHex, STATUS_LABELS_SHORT } from '@/lib/utils/pha
 import { haptic } from '@/lib/utils/haptics'
 import { useLongPress } from '@/lib/hooks/useLongPress'
 import { ProjectActionSheet } from '@/components/projects/ProjectActionSheet'
+import { FolderCard } from '@/components/projects/FolderCard'
+import { OpenFolderSheet } from '@/components/projects/OpenFolderSheet'
+import { FolderActionSheet } from '@/components/projects/FolderActionSheet'
 import { GlobalPanels, type PanelId } from '@/components/projects/GlobalPanels'
 import { ThreadsSheet } from '@/components/projects/ThreadsSheet'
 import { ChatSheet } from '@/components/projects/ChatSheet'
@@ -388,13 +394,70 @@ export default function ProjectsPage() {
   // The same context owns threadsOpen, chatOpen, and resourcesOpen — toggled
   // by the corresponding bar buttons. All three sheets share visual style
   // and z-stacking, with mutual exclusion against fan/panel below.
+  const meId = useMeId()
+  const { data: folders } = useUserProjectFolders()
+  const { data: placements } = useUserProjectPlacements()
+  const allFolders = folders ?? []
+  const allPlacements = placements ?? []
+
+  const createFolderMutation = useCreateUserProjectFolder()
+  const updateFolderMutation = useUpdateUserProjectFolder()
+  const deleteFolderMutation = useDeleteUserProjectFolder()
+  const placementMutation = useUpsertUserProjectPlacement()
+
+  const [actionFolder, setActionFolder] = useState<{ id: string; name: string; color: string | null } | null>(null)
+
   const {
     fanOpen: selFabOpen, closeFan,
     threadsOpen, closeThreads,
     chatOpen, closeChat,
     resourcesOpen, closeResources,
+    openFolderId, setOpenFolderId, closeOpenFolder,
   } = useRootFab()
   const [activePanel, setActivePanel] = useState<PanelId | null>(null)
+
+  // ── Merged home-grid items ────────────────────────────────────
+  type HomeItem =
+    | { kind: 'folder'; id: string; sortOrder: number; folder: typeof allFolders[number] }
+    | { kind: 'project'; id: string; sortOrder: number; project: Project }
+
+  const homeItems = useMemo<HomeItem[]>(() => {
+    const placementById = new Map(allPlacements.map(p => [p.projectId, p]))
+    const inFolder = new Set(
+      allPlacements.filter(p => p.folderId !== null).map(p => p.projectId)
+    )
+
+    const folderItems: HomeItem[] = allFolders.map(f => ({
+      kind: 'folder', id: f.id, sortOrder: f.sortOrder, folder: f,
+    }))
+
+    const projectItems: HomeItem[] = allProjects
+      .filter(p => !inFolder.has(p.id))
+      .map(p => {
+        const pl = placementById.get(p.id)
+        const so = pl && pl.folderId === null ? pl.sortOrder
+                 : Number.MAX_SAFE_INTEGER - new Date(p.createdAt).getTime()
+        return { kind: 'project', id: p.id, sortOrder: so, project: p }
+      })
+
+    return [...folderItems, ...projectItems].sort((a, b) => a.sortOrder - b.sortOrder)
+  }, [allProjects, allFolders, allPlacements])
+
+  const folderProjects = useMemo(() => {
+    // Map folderId → projects (in placement.sortOrder)
+    const result = new Map<string, Project[]>()
+    for (const f of allFolders) result.set(f.id, [])
+    const byProjectId = new Map(allProjects.map(p => [p.id, p]))
+    const sorted = [...allPlacements]
+      .filter(p => p.folderId !== null)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+    for (const pl of sorted) {
+      const project = byProjectId.get(pl.projectId)
+      const list = result.get(pl.folderId!)
+      if (project && list) list.push(project)
+    }
+    return result
+  }, [allProjects, allFolders, allPlacements])
 
   // Mirror the original "tap + closes both fan and panel" behavior: any
   // transition of fan open→closed (from the bar +, the dim overlay, or
@@ -475,25 +538,49 @@ export default function ProjectsPage() {
                 </div>
               )}
 
-              {/* Flat project grid */}
-              {sortedProjects.map((p, i) => {
+              {/* Unified home grid — folders + top-level projects sorted by sortOrder */}
+              {homeItems.map((it, i) => {
+                if (it.kind === 'folder') {
+                  return (
+                    <div key={`folder-${it.id}`}>
+                      <FolderCard
+                        folder={it.folder}
+                        projects={folderProjects.get(it.id) ?? []}
+                        editMode={editMode}
+                        isGhost={false}
+                        isDragging={false}
+                        // Task 16 wires this to dragTargetId — false for now.
+                        isDropTarget={false}
+                        dimmed={(!!actionProject && actionProject.id !== it.id) || (!!dragProjectId)}
+                        wiggleDelay={i * 0.08}
+                        onLongPress={() => {
+                          haptic('light')
+                          if (editMode) return
+                          setEditMode(true)
+                        }}
+                        onClick={() => { haptic('light'); setOpenFolderId(it.id) }}
+                      />
+                    </div>
+                  )
+                }
+                // project slate render — same pattern as existing
+                const p = it.project
                 const isDragging = dragProjectId === p.id
-                const isGhost = isDragging
                 return (
                   <div
-                    key={p.id}
+                    key={`project-${p.id}`}
                     onTouchStart={e => handleTouchStart(e, p.id)}
                     style={{ position: 'relative' }}
                   >
                     <SlateCard
                       project={p} color={getColor(p.id)}
                       dimmed={(!!actionProject && actionProject.id !== p.id) || (!!dragProjectId && !isDragging)}
-                      editMode={editMode} isGhost={isGhost} isDragging={false}
+                      editMode={editMode} isGhost={isDragging} isDragging={false}
                       wiggleDelay={i * 0.08}
                       onLongPress={() => {
                         haptic('light')
                         if (editMode) return
-                        setActionProject({ id: p.id, name: p.name, client: p.client, type: p.type, aspectRatio: p.aspectRatio, projectColor: getColor(p.id) })
+                        setActionProject({ id: p.id, name: p.name, client: p.client ?? '', type: p.type ?? '', aspectRatio: p.aspectRatio ?? '', projectColor: getColor(p.id) })
                       }}
                       onClick={() => router.push(`/projects/${p.id}`)}
                     />
