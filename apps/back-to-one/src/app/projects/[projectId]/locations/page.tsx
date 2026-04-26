@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useProject, useLocations, useCreateLocation, useUpdateLocation, useDeleteLocation } from '@/lib/hooks/useOriginOne'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
@@ -11,6 +12,13 @@ import { EmptyCTA } from '@/components/ui/EmptyState'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
 import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
+import {
+  EntityDetailSheet,
+  ENTITY_COLORS,
+  getEntityInitials,
+  type EntityItem,
+} from '@/app/projects/[projectId]/scenemaker/components/EntityDrawer'
+import { getEntities, updateEntity as dbUpdateEntity } from '@/lib/db/queries'
 import type { Location, LocationStatus } from '@/types'
 
 // ── Constants ────────────────────────────────────────────
@@ -439,11 +447,32 @@ export default function LocationsPage({ params }: { params: { projectId: string 
   const createLoc = useCreateLocation(projectId)
   const updateLoc = useUpdateLocation(projectId)
   const deleteLoc = useDeleteLocation(projectId)
-  // Logistics/production-record thread stream — keyed by Location.id. Entity
-  // type='location' has its own separate 'character'-like creative stream;
-  // the two do not aggregate (see DECISIONS.md § Entity-vs-production-record
-  // threading rule).
+  const qc = useQueryClient()
+  // Single thread bucket for attachedToType='location'. Production-side keys
+  // by Location.id; creative-side (the Scripted Locations dropdown below) keys
+  // by Entity.id. Same bucket, different ID spaces — no collision since the
+  // tables are separate. Streams stay separate per DECISIONS.md
+  // "Entity-vs-production-record threading rule".
   const threadByLocationId = useThreadsByEntity(projectId, 'location')
+
+  // Script-side Entity(type='location') rows for the Scripted Locations
+  // dropdown — creative-side bridge that mirrors Casting's Characters dropdown.
+  // Cache key matches EntityDrawer (`['entities', projectId, 'locations']`) so
+  // edits made here invalidate the drawer's view too.
+  const { data: locationEntities } = useQuery({
+    queryKey: ['entities', projectId, 'locations'],
+    queryFn: () => getEntities(projectId, 'location'),
+  })
+  const scriptLocations: EntityItem[] = useMemo(() => {
+    return (locationEntities ?? [])
+      .map((e: any) => ({
+        id: e.id,
+        name: e.name,
+        description: e.description ?? null,
+        imageUrl: e.metadata?.imageUrl ?? null,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [locationEntities])
 
   const [selected, setSelected] = useState<Location | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -453,6 +482,29 @@ export default function LocationsPage({ params }: { params: { projectId: string 
   const [newTabName, setNewTabName] = useState('')
   const [showAddTab, setShowAddTab] = useState(false)
   const tabInputRef = useRef<HTMLInputElement>(null)
+
+  // Scripted Locations dropdown state — mirrors Casting's Characters bridge.
+  const [scriptMenuOpen, setScriptMenuOpen] = useState(false)
+  const [scriptDetail, setScriptDetail] = useState<EntityItem | null>(null)
+
+  useEffect(() => {
+    if (!scriptMenuOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setScriptMenuOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [scriptMenuOpen])
+
+  const handleScriptSave = useCallback(async (name: string, description: string, entityId?: string) => {
+    if (!entityId) { setScriptDetail(null); return }
+    try {
+      await dbUpdateEntity(entityId, { name, description })
+      qc.invalidateQueries({ queryKey: ['entities', projectId, 'locations'] })
+      qc.invalidateQueries({ queryKey: ['locations', projectId] })
+    } catch (err) {
+      console.error('Failed to save scripted location from Locations:', err)
+    }
+    setScriptDetail(null)
+  }, [qc, projectId])
 
   const allLocations = (locations ?? []) as Location[]
 
@@ -485,6 +537,91 @@ export default function LocationsPage({ params }: { params: { projectId: string 
           </div>
         ) : ''}
       />
+
+      {/* Count row + Scripted Locations dropdown — creative-side bridge into
+          the shared Entity sheet (same sheet as Scenemaker EntityDrawer).
+          Threads started from here land on the Entity and stay separate from
+          the per-card production threads on the Locations list below.
+          Mirrors the Characters dropdown on the Casting page. */}
+      {(allLocations.length > 0 || scriptLocations.length > 0) && (
+        <div style={{ padding: '6px 20px 2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+          <span className="font-mono" style={{ fontSize: '0.52rem', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            {allLocations.length} booked · {scriptLocations.length} scripted
+          </span>
+          <button
+            onClick={() => { haptic('light'); setScriptMenuOpen(v => !v) }}
+            className="font-mono uppercase"
+            style={{
+              fontSize: '0.52rem', letterSpacing: '0.12em', color: accent,
+              background: `${accent}14`,
+              border: `1px solid ${accent}`,
+              borderRadius: 999,
+              padding: '4px 10px',
+              cursor: 'pointer',
+            }}
+            aria-haspopup="menu"
+            aria-expanded={scriptMenuOpen}
+          >
+            Scripted ▾
+          </button>
+          {scriptMenuOpen && (
+            <>
+              <div
+                onClick={() => setScriptMenuOpen(false)}
+                style={{ position: 'fixed', inset: 0, zIndex: 30 }}
+              />
+              <div
+                role="menu"
+                style={{
+                  position: 'absolute', top: '100%', right: 20, zIndex: 31,
+                  marginTop: 4, minWidth: 200, maxHeight: 320, overflowY: 'auto',
+                  background: '#141420',
+                  border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10,
+                  padding: '6px 0',
+                  boxShadow: '0 18px 40px rgba(0,0,0,0.55)',
+                }}
+              >
+                {scriptLocations.length === 0 ? (
+                  <div className="font-mono" style={{ padding: '8px 14px', fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
+                    No scripted locations yet
+                  </div>
+                ) : scriptLocations.map(s => (
+                  <button
+                    key={s.id}
+                    role="menuitem"
+                    onClick={() => {
+                      haptic('light')
+                      setScriptMenuOpen(false)
+                      setScriptDetail(s)
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                      padding: '8px 14px', background: 'transparent', border: 'none',
+                      cursor: 'pointer', textAlign: 'left', color: '#dddde8',
+                      fontSize: 13, fontFamily: "'Geist', sans-serif",
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)' }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+                  >
+                    <span style={{ position: 'relative', flexShrink: 0 }}>
+                      <span style={{
+                        width: 22, height: 22, borderRadius: '50%',
+                        background: ENTITY_COLORS.locations.bg,
+                        border: `1px solid ${ENTITY_COLORS.locations.border}`,
+                        color: ENTITY_COLORS.locations.base,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 9, fontWeight: 700,
+                      }}>{getEntityInitials(s.name)}</span>
+                      <ThreadRowBadge entry={threadByLocationId.get(s.id)} />
+                    </span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={{
@@ -614,6 +751,26 @@ export default function LocationsPage({ params }: { params: { projectId: string 
               />
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Scripted Locations bridge — shared EntityDetailSheet, same surface
+          as Scenemaker EntityDrawer. Threads here attach as
+          ('location', entity.id), keeping creative discussion separate from
+          the per-card production threads on each Location row. */}
+      <AnimatePresence>
+        {scriptDetail && (
+          <EntityDetailSheet
+            key="scripted-loc-bridge-sheet"
+            type="locations"
+            projectId={projectId}
+            colors={ENTITY_COLORS.locations}
+            label="Locations"
+            entity={scriptDetail}
+            onSave={handleScriptSave}
+            onClose={() => setScriptDetail(null)}
+            getInitials={getEntityInitials}
+          />
         )}
       </AnimatePresence>
     </div>
