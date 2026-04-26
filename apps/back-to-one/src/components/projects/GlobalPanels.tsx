@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   useProjects, useAllActionItems, useAllMilestones, useToggleActionItem,
@@ -9,6 +9,7 @@ import { getProjectColor, MILESTONE_STATUS_HEX, STATUS_HEX } from '@/lib/utils/p
 import { GhostCircle, GhostRect, GhostPill } from '@/components/ui/EmptyState'
 import { haptic } from '@/lib/utils/haptics'
 import { CrewPanel } from '@/components/projects/CrewPanel'
+import { PanelDetailSheet, type PanelDetail, type CrewDetailRow } from '@/components/projects/PanelDetailSheet'
 import type { ActionItem, Milestone, Project } from '@/types'
 
 // ── TYPES ────────────────────────────────────────────────────
@@ -127,7 +128,7 @@ function EmptyPanelRows() {
 // ACTION ITEMS PANEL
 // ══════════════════════════════════════════════════════════════
 
-function ActionItemsPanel({ items, projects }: { items: ActionItem[]; projects: Project[] }) {
+function ActionItemsPanel({ items, projects, onSelect }: { items: ActionItem[]; projects: Project[]; onSelect: (item: ActionItem) => void }) {
   const overdue  = items.filter(i => i.status !== 'done' && i.dueDate && daysUntil(i.dueDate) < 0)
   const today    = items.filter(i => i.status !== 'done' && i.dueDate && isToday(i.dueDate))
   const upcoming = items.filter(i => i.status !== 'done' && i.dueDate && daysUntil(i.dueDate) > 0)
@@ -146,7 +147,7 @@ function ActionItemsPanel({ items, projects }: { items: ActionItem[]; projects: 
         <>
           <Sec label="Overdue" count={overdue.length} countColor="#e8564a" />
           {overdue.map(item => (
-            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="overdue" />
+            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="overdue" onSelect={onSelect} />
           ))}
         </>
       )}
@@ -154,7 +155,7 @@ function ActionItemsPanel({ items, projects }: { items: ActionItem[]; projects: 
         <>
           <Sec label="Today" count={today.length} />
           {today.map(item => (
-            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="today" />
+            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="today" onSelect={onSelect} />
           ))}
         </>
       )}
@@ -162,10 +163,10 @@ function ActionItemsPanel({ items, projects }: { items: ActionItem[]; projects: 
         <>
           <Sec label="Upcoming" count={upcoming.length + undated.length} />
           {upcoming.map(item => (
-            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="upcoming" />
+            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="upcoming" onSelect={onSelect} />
           ))}
           {undated.map(item => (
-            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="upcoming" />
+            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="upcoming" onSelect={onSelect} />
           ))}
         </>
       )}
@@ -173,7 +174,7 @@ function ActionItemsPanel({ items, projects }: { items: ActionItem[]; projects: 
         <>
           <Sec label="Done" />
           {done.slice(0, 5).map(item => (
-            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="done" />
+            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="done" onSelect={onSelect} />
           ))}
         </>
       )}
@@ -181,7 +182,7 @@ function ActionItemsPanel({ items, projects }: { items: ActionItem[]; projects: 
   )
 }
 
-function ActionRow({ item, pName, variant }: { item: ActionItem; pName: string; variant: 'overdue' | 'today' | 'upcoming' | 'done' }) {
+function ActionRow({ item, pName, variant, onSelect }: { item: ActionItem; pName: string; variant: 'overdue' | 'today' | 'upcoming' | 'done'; onSelect: (item: ActionItem) => void }) {
   const toggle = useToggleActionItem(item.projectId)
   const chkColors = {
     overdue: { border: 'rgba(232,86,74,0.5)', bg: 'rgba(232,86,74,0.08)' },
@@ -201,8 +202,11 @@ function ActionRow({ item, pName, variant }: { item: ActionItem; pName: string; 
 
   return (
     <div style={{ padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+      {/* Checkbox stays as the toggle hit-target. The row body taps the
+          detail open — taps are partitioned so toggling done doesn't
+          accidentally open the detail. */}
       <div
-        onClick={() => { haptic('light'); toggle.mutate({ id: item.id, done: item.status !== 'done' }) }}
+        onClick={(e) => { e.stopPropagation(); haptic('light'); toggle.mutate({ id: item.id, done: item.status !== 'done' }) }}
         style={{
           width: 17, height: 17, borderRadius: '50%', flexShrink: 0, marginTop: 1, cursor: 'pointer',
           border: `1.5px solid ${chkColors[variant].border}`, background: chkColors[variant].bg,
@@ -211,7 +215,11 @@ function ActionRow({ item, pName, variant }: { item: ActionItem; pName: string; 
         }}>
         {variant === 'done' && '✓'}
       </div>
-      <div>
+      <div
+        onClick={() => { haptic('light'); onSelect(item) }}
+        className="active:opacity-70 transition-opacity"
+        style={{ flex: 1, cursor: 'pointer' }}
+      >
         <div style={{
           fontWeight: 500, fontSize: 13, color: variant === 'done' ? '#62627a' : '#dddde8',
           lineHeight: 1.3,
@@ -235,7 +243,7 @@ function ActionRow({ item, pName, variant }: { item: ActionItem; pName: string; 
 // MILESTONES PANEL
 // ══════════════════════════════════════════════════════════════
 
-function MilestonesPanel({ milestones, projects }: { milestones: Milestone[]; projects: Project[] }) {
+function MilestonesPanel({ milestones, projects, onSelect }: { milestones: Milestone[]; projects: Project[]; onSelect: (m: Milestone) => void }) {
   const upcoming = milestones.filter(m => daysUntil(m.date) >= 0).sort((a, b) => daysUntil(a.date) - daysUntil(b.date))
   const past = milestones.filter(m => daysUntil(m.date) < 0)
 
@@ -254,7 +262,12 @@ function MilestonesPanel({ milestones, projects }: { milestones: Milestone[]; pr
             const cdColor = days <= 7 ? '#e8564a' : days <= 14 ? '#e8a020' : '#62627a'
             const dotColor = MILESTONE_STATUS_HEX[ms.status] ?? '#c45adc'
             return (
-              <div key={ms.id} style={{ padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                key={ms.id}
+                onClick={() => { haptic('light'); onSelect(ms) }}
+                className="active:opacity-70 transition-opacity"
+                style={{ padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+              >
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: 13, color: '#dddde8' }}>{ms.title}</div>
@@ -275,7 +288,12 @@ function MilestonesPanel({ milestones, projects }: { milestones: Milestone[]; pr
         <>
           <Sec label="Completed" />
           {past.map(ms => (
-            <div key={ms.id} style={{ padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: 10, opacity: 0.5 }}>
+            <div
+              key={ms.id}
+              onClick={() => { haptic('light'); onSelect(ms) }}
+              className="active:opacity-70 transition-opacity"
+              style={{ padding: '9px 0', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', gap: 10, opacity: 0.5, cursor: 'pointer' }}
+            >
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00b894', flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 13, color: '#62627a' }}>{ms.title}</div>
@@ -296,15 +314,17 @@ function MilestonesPanel({ milestones, projects }: { milestones: Milestone[]; pr
 // SCHEDULE PANEL (mini calendar + event list from milestones/shoots)
 // ══════════════════════════════════════════════════════════════
 
-function SchedulePanel({ milestones, projects }: { milestones: Milestone[]; projects: Project[] }) {
+function SchedulePanel({ milestones, projects, onSelectMilestone }: { milestones: Milestone[]; projects: Project[]; onSelectMilestone: (m: Milestone) => void }) {
   const today = new Date()
   const [viewMonth, setViewMonth] = useState(today.getMonth())
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
-  // Build events from milestones + project shoot dates
+  // Build events from milestones + project shoot dates. Milestone-typed
+  // events carry a back-reference to the source Milestone so tapping the
+  // row can open the same detail sheet the Milestones panel uses.
   const events = useMemo(() => {
-    const evts: { date: string; title: string; sub: string; type: string; color: string; projectName: string; time: string }[] = []
+    const evts: { date: string; title: string; sub: string; type: string; color: string; projectName: string; time: string; milestone?: Milestone }[] = []
     // Milestones as events
     milestones.forEach(ms => {
       evts.push({
@@ -315,6 +335,7 @@ function SchedulePanel({ milestones, projects }: { milestones: Milestone[]; proj
         color: '#e8564a',
         projectName: projectName(projects, ms.projectId),
         time: '—',
+        milestone: ms,
       })
     })
     // Shoot date ranges from projects
@@ -455,8 +476,19 @@ function SchedulePanel({ milestones, projects }: { milestones: Milestone[]; proj
         ) : (
           displayEvents.map((evt, i) => {
             const tc = typeColors[evt.type] || typeColors.Milestone
+            const tappable = !!evt.milestone
+            const onTap = tappable && evt.milestone ? () => { haptic('light'); onSelectMilestone(evt.milestone!) } : undefined
             return (
-              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: i < displayEvents.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+              <div
+                key={i}
+                onClick={onTap}
+                className={tappable ? 'active:opacity-70 transition-opacity' : ''}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0',
+                  borderBottom: i < displayEvents.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                  cursor: tappable ? 'pointer' : 'default',
+                }}
+              >
                 <div style={{ width: 36, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 2 }}>
                   <div className="font-mono" style={{ fontSize: 9, color: '#62627a', lineHeight: 1.2, textAlign: 'center' }}>{evt.time}</div>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: evt.color, marginTop: 4, flexShrink: 0 }} />
@@ -558,6 +590,11 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
   const allItems = actionItems ?? []
   const allMilestones = milestones ?? []
 
+  // Selected detail row — slides up over the current panel body when set.
+  // Reset on panel switch (swipe between panels) or panel close so opening a
+  // different panel doesn't surface a detail belonging to the previous one.
+  const [detail, setDetail] = useState<PanelDetail | null>(null)
+
   const [prevPanel, setPrevPanel] = useState<PanelId | null>(null)
   const activeIdx = activePanel ? PANEL_ORDER.indexOf(activePanel) : -1
   const prevIdx = prevPanel ? PANEL_ORDER.indexOf(prevPanel) : -1
@@ -567,6 +604,11 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
   if (activePanel && activePanel !== prevPanel) {
     setPrevPanel(activePanel)
   }
+
+  // Close any open detail when the panel itself closes or switches.
+  useEffect(() => {
+    setDetail(null)
+  }, [activePanel])
 
   // Swipe handling
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
@@ -672,18 +714,48 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
                 }}
               >
                 {activePanel === 'schedule' ? (
-                  <SchedulePanel milestones={allMilestones} projects={allProjects} />
+                  <SchedulePanel
+                    milestones={allMilestones}
+                    projects={allProjects}
+                    onSelectMilestone={(m) => setDetail({ type: 'milestone', item: m })}
+                  />
                 ) : (
                   <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 16px', WebkitOverflowScrolling: 'touch' }}
                     className="no-scrollbar">
-                    {activePanel === 'tasks' && <ActionItemsPanel items={allItems} projects={allProjects} />}
-                    {activePanel === 'milestones' && <MilestonesPanel milestones={allMilestones} projects={allProjects} />}
-                    {activePanel === 'crew' && <CrewPanel projects={allProjects} />}
+                    {activePanel === 'tasks' && (
+                      <ActionItemsPanel
+                        items={allItems}
+                        projects={allProjects}
+                        onSelect={(item) => setDetail({ type: 'task', item })}
+                      />
+                    )}
+                    {activePanel === 'milestones' && (
+                      <MilestonesPanel
+                        milestones={allMilestones}
+                        projects={allProjects}
+                        onSelect={(m) => setDetail({ type: 'milestone', item: m })}
+                      />
+                    )}
+                    {activePanel === 'crew' && (
+                      <CrewPanel
+                        projects={allProjects}
+                        onSelect={(row) => setDetail({ type: 'crew', row })}
+                      />
+                    )}
                     {activePanel === 'activity' && <ActivityPanel projects={allProjects} />}
                   </div>
                 )}
               </motion.div>
             </AnimatePresence>
+
+            {/* Item detail — slides up over the current panel body. Z is
+                relative to the panel frame, so it stays clipped to the
+                panel's rounded bottom and never escapes the glass shell. */}
+            <PanelDetailSheet
+              detail={detail}
+              projects={allProjects}
+              onClose={() => setDetail(null)}
+            />
           </motion.div>
         </>
       )}
