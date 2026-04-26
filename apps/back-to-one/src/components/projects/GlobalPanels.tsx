@@ -718,8 +718,16 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
                 exit={{ opacity: 0, x: -slideDir * 24 }}
                 transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
                 style={{
-                  flex: 1, display: 'flex', flexDirection: 'column',
-                  overflow: activePanel === 'schedule' ? 'hidden' : undefined,
+                  // overflow: 'hidden' + minHeight: 0 always, not just for
+                  // schedule. iOS Safari standalone PWA needs the flex parent
+                  // to be a real containment block for the inner overflow-y:
+                  // auto child to register as a scroll surface; without
+                  // overflow set, Tasks/Milestones/Crew/Activity content just
+                  // overflows the wrapper and nothing scrolls. min-h-0 is the
+                  // canonical fix for nested-flex scrollers.
+                  flex: 1, minHeight: 0,
+                  display: 'flex', flexDirection: 'column',
+                  overflow: 'hidden',
                 }}
               >
                 {activePanel === 'schedule' ? (
@@ -730,7 +738,8 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
                   />
                 ) : (
                   <div style={{
-                      flex: 1, overflowY: 'auto', padding: '0 18px 16px',
+                      flex: 1, minHeight: 0,
+                      overflowY: 'auto', padding: '0 18px 16px',
                       WebkitOverflowScrolling: 'touch',
                       overscrollBehavior: 'contain',
                     }}
