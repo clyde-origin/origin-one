@@ -16,6 +16,7 @@ import { CrewAvatar, ThreadsIcon } from '@/components/ui'
 import { HubSkeleton } from '@/components/hub/HubSkeleton'
 import { CrewPanel } from '@/components/hub/CrewPanel'
 import { CreateTaskSheet, CreateMilestoneSheet, CreateCreativeSheet } from '@/components/create'
+import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
@@ -625,10 +626,56 @@ export function HubContent({ projectId }: { projectId: string }) {
   const createTask = useCreateActionItem(projectId)
   const createMilestone = useCreateMilestone(projectId)
 
-  const [fabOpen, setFabOpen] = useState(false)
   const [showCreateTask, setShowCreateTask] = useState(false)
   const [showCreateMilestone, setShowCreateMilestone] = useState(false)
   const [showCreateCreative, setShowCreateCreative] = useState(false)
+
+  // Hub registers a 3-branch + with the global ActionBar. Branches fan out
+  // from the +. Project accent flows through the milestone branch's icon —
+  // re-register when accent changes (project switch).
+  // Label fix: the third branch was previously labeled 'Add Crew' but its
+  // icon, state, and downstream sheet are all about Creative (scene/shot/
+  // tone selection). Renamed to 'Creative' here.
+  useFabAction({
+    branches: [
+      {
+        label: 'Action',
+        color: '#e8a020',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="9" r="7" stroke="#e8a020" strokeWidth="1.3" />
+            <path d="M5.5 9L8 11.5L12.5 6.5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ),
+        action: () => setShowCreateTask(true),
+      },
+      {
+        label: 'Milestone',
+        color: projectColor,
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <line x1="2" y1="9" x2="16" y2="9" stroke={projectColor} strokeWidth="1.3" />
+            <circle cx="6" cy="9" r="2.5" fill={projectColor} />
+            <circle cx="12" cy="9" r="2.5" fill={projectColor} />
+          </svg>
+        ),
+        action: () => setShowCreateMilestone(true),
+      },
+      {
+        label: 'Creative',
+        color: '#6470f3',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="2" y="3" width="14" height="12" rx="1.5" stroke="#6470f3" strokeWidth="1.3" />
+            <path d="M2 7.5H16" stroke="#6470f3" strokeWidth="1.3" />
+            <path d="M6.5 3V7.5M11.5 3V7.5" stroke="#6470f3" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        ),
+        action: () => setShowCreateCreative(true),
+      },
+    ],
+  }, [projectColor])
+
   const [selectedAI, setSelectedAI] = useState<ActionItem | null>(null)
   const [selectedMS, setSelectedMS] = useState<Milestone | null>(null)
   const [selectedCrew, setSelectedCrew] = useState<CrewMember | null>(null)
@@ -1107,218 +1154,9 @@ export function HubContent({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {/* ══ FAB SYSTEM (Framer Motion) ══ */}
-      {/* Overlay */}
-      <AnimatePresence>
-        {fabOpen && (
-          <motion.div
-            key="fab-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            onClick={() => setFabOpen(false)}
-            style={{
-              position: 'fixed', inset: 0, zIndex: 20,
-              background: 'rgba(4,4,10,0.75)',
-              backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)',
-            }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Branch lines SVG */}
-      <AnimatePresence>
-        {fabOpen && (
-          <motion.svg
-            key="fab-branches"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{
-              position: 'fixed',
-              bottom: 'calc(54px + env(safe-area-inset-bottom, 0px))',
-              left: '50%', x: '-50%',
-              zIndex: 28, pointerEvents: 'none',
-            }}
-            width="220" height="110" viewBox="0 0 220 110"
-          >
-            <line x1="110" y1="98" x2="22" y2="46" stroke={`rgba(${pr},${pg},${pb},0.2)`} strokeWidth="1" strokeDasharray="3 3" />
-            <line x1="110" y1="98" x2="110" y2="8" stroke={`rgba(${pr},${pg},${pb},0.2)`} strokeWidth="1" strokeDasharray="3 3" />
-            <line x1="110" y1="98" x2="198" y2="46" stroke={`rgba(${pr},${pg},${pb},0.2)`} strokeWidth="1" strokeDasharray="3 3" />
-            <circle cx="110" cy="98" r="3" fill={`rgba(${pr},${pg},${pb},0.35)`} />
-          </motion.svg>
-        )}
-      </AnimatePresence>
-
-      {/* Branch options — symmetric fan from center anchor */}
-      <div style={{
-        position: 'fixed',
-        bottom: 'calc(54px + env(safe-area-inset-bottom, 0px))',
-        left: '50%', transform: 'translateX(-50%)',
-        width: 0, height: 0, zIndex: 30, pointerEvents: 'none',
-      }}>
-        {/* Left: Action Item */}
-        <motion.button
-          onClick={() => { setFabOpen(false); haptic('light'); setShowCreateTask(true) }}
-          animate={fabOpen ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 280 }}
-          style={{
-            position: 'absolute', bottom: 26, left: -90,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-            pointerEvents: fabOpen ? 'auto' : 'none',
-          }}
-        >
-          <div style={{
-            width: 48, height: 48, borderRadius: '50%',
-            background: 'rgba(232,160,32,0.1)', border: '1px solid rgba(232,160,32,0.3)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <circle cx="9" cy="9" r="7" stroke="#e8a020" strokeWidth="1.3" />
-              <path d="M5.5 9L8 11.5L12.5 6.5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-          <span className="font-mono uppercase" style={{ fontSize: '0.38rem', letterSpacing: '0.06em', color: '#e8a020', whiteSpace: 'nowrap' }}>Action</span>
-        </motion.button>
-
-        {/* Center: Milestone — rises highest, 0.05s delay */}
-        <motion.button
-          onClick={() => { setFabOpen(false); haptic('light'); setShowCreateMilestone(true) }}
-          animate={fabOpen ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 280, delay: fabOpen ? 0.05 : 0 }}
-          style={{
-            position: 'absolute', bottom: 90, left: -22,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-            pointerEvents: fabOpen ? 'auto' : 'none',
-          }}
-        >
-          <div style={{
-            width: 48, height: 48, borderRadius: '50%',
-            background: `rgba(${pr},${pg},${pb},0.12)`, border: `1px solid rgba(${pr},${pg},${pb},0.35)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <line x1="2" y1="9" x2="16" y2="9" stroke={projectColor} strokeWidth="1.3" />
-              <circle cx="6" cy="9" r="2.5" fill={projectColor} />
-              <circle cx="12" cy="9" r="2.5" fill={projectColor} />
-            </svg>
-          </div>
-          <span className="font-mono uppercase" style={{ fontSize: '0.38rem', letterSpacing: '0.06em', color: projectColor, whiteSpace: 'nowrap' }}>Milestone</span>
-        </motion.button>
-
-        {/* Right: Creative */}
-        <motion.button
-          onClick={() => { setFabOpen(false); haptic('light'); setShowCreateCreative(true) }}
-          animate={fabOpen ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 280 }}
-          style={{
-            position: 'absolute', bottom: 26, left: 46,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-            pointerEvents: fabOpen ? 'auto' : 'none',
-          }}
-        >
-          <div style={{
-            width: 48, height: 48, borderRadius: '50%',
-            background: 'rgba(100,112,243,0.1)', border: '1px solid rgba(100,112,243,0.3)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <rect x="2" y="3" width="14" height="12" rx="1.5" stroke="#6470f3" strokeWidth="1.3" />
-              <path d="M2 7.5H16" stroke="#6470f3" strokeWidth="1.3" />
-              <path d="M6.5 3V7.5M11.5 3V7.5" stroke="#6470f3" strokeWidth="1.3" strokeLinecap="round" />
-            </svg>
-          </div>
-          <span className="font-mono uppercase" style={{ fontSize: '0.38rem', letterSpacing: '0.06em', color: '#6470f3', whiteSpace: 'nowrap' }}>Add Crew</span>
-        </motion.button>
-      </div>
-
-      {/* FAB zone — main + side FABs + back chevron */}
-      <div style={{
-        position: 'fixed',
-        bottom: 68,
-        left: 0, right: 0, zIndex: 30,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: 52,
-      }}>
-        {/* Back chevron — further left of Chat, slides off-screen when FAB opens */}
-        <motion.div
-          onClick={() => { haptic('light'); router.push('/projects') }}
-          animate={fabOpen ? { x: -200, opacity: 0 } : { x: -58, opacity: 1 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 260 }}
-          style={{
-            position: 'absolute', width: 36, height: 36, borderRadius: '50%',
-            background: `rgba(${pr},${pg},${pb},0.1)`,
-            backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-            border: `1px solid rgba(${pr},${pg},${pb},0.2)`,
-            boxShadow: `0 2px 12px rgba(${pr},${pg},${pb},0.12), inset 0 1px 0 rgba(255,255,255,0.08)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            top: '50%', left: '50%', marginLeft: -18, marginTop: -18,
-            cursor: 'pointer',
-          }}
-        >
-          <svg width="8" height="12" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="rgba(255,255,255,0.5)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        </motion.div>
-
-        {/* Chat FAB — slides left from center, glass */}
-        <motion.div
-          onClick={() => { haptic('light'); setFabOpen(false); router.push(`/projects/${projectId}/chat`) }}
-          animate={fabOpen ? { x: -110, opacity: 1 } : { x: 0, opacity: 0 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 280 }}
-          style={{
-            position: 'absolute', width: 38, height: 38, borderRadius: '50%',
-            background: `rgba(${pr},${pg},${pb},0.08)`,
-            backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-            border: `1px solid rgba(${pr},${pg},${pb},0.2)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            top: '50%', left: '50%', marginLeft: -19, marginTop: -19,
-            cursor: 'pointer', pointerEvents: fabOpen ? 'auto' : 'none',
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M2 2h10a1 1 0 011 1v5.5a1 1 0 01-1 1H5l-3 2.5V3a1 1 0 011-1z" stroke="rgba(255,255,255,0.55)" strokeWidth="1.1" strokeLinejoin="round" />
-          </svg>
-        </motion.div>
-
-        {/* Main FAB — glassmorphism */}
-        <motion.button
-          onClick={() => { haptic('medium'); setFabOpen(prev => !prev) }}
-          animate={{ rotate: fabOpen ? 45 : 0 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 280 }}
-          style={{
-            width: 52, height: 52, borderRadius: '50%',
-            background: `rgba(${pr},${pg},${pb},0.15)`,
-            backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-            border: `1.5px solid rgba(${pr},${pg},${pb},0.45)`,
-            boxShadow: `0 4px 24px rgba(${pr},${pg},${pb},0.25), inset 0 1px 0 rgba(255,255,255,0.1)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', position: 'relative', zIndex: 31, flexShrink: 0,
-          }}
-        >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path d="M9 3V15M3 9H15" stroke="rgba(255,255,255,0.9)" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        </motion.button>
-
-        {/* Threads FAB — slides right from center, glass */}
-        <motion.div
-          onClick={() => { haptic('light'); setFabOpen(false); router.push(`/projects/${projectId}/threads`) }}
-          animate={fabOpen ? { x: 110, opacity: 1 } : { x: 0, opacity: 0 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 280 }}
-          style={{
-            position: 'absolute', width: 38, height: 38, borderRadius: '50%',
-            background: `rgba(${pr},${pg},${pb},0.08)`,
-            backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-            border: `1px solid rgba(${pr},${pg},${pb},0.2)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            top: '50%', left: '50%', marginLeft: -19, marginTop: -19,
-            cursor: 'pointer', pointerEvents: fabOpen ? 'auto' : 'none',
-          }}
-        >
-          <ThreadsIcon size={14} unreadCount={unreadThreads} />
-        </motion.div>
-      </div>
+      {/* FAB cluster (back / chat / + / threads + branch fan) lifted to the
+          global ActionBar in PR 2a. + behavior registered above via
+          useFabAction. */}
 
       {/* ══ SHEETS ══ */}
       <Sheet open={!!selectedAI} onClose={() => setSelectedAI(null)}><AIDetailSheet item={selectedAI} crew={allCrew} onClose={() => setSelectedAI(null)} /></Sheet>

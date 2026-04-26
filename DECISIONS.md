@@ -245,6 +245,16 @@ Last updated: April 20, 2026
 
 ---
 
+### ActionBar lives in apps/back-to-one, not packages/ui
+
+**Decision:** ActionBar and FabActionContext are placed in `apps/back-to-one/src/`, not `packages/ui/`.
+**Date:** April 25, 2026
+**Rationale:** `packages/ui` is currently a pure-TS utility lib with zero React components. Lifting ActionBar there would require pulling React, `next/navigation`, and `framer-motion` into the package, coupling one-arc and one-lore to Next.js prematurely. ActionBar's routes and registered actions are Back-to-One-specific. Every other UI component already lives in `apps/back-to-one/src/components/ui/` — this matches established convention.
+**Tradeoffs:** If a peer ActionBar becomes useful in one-arc or one-lore later, abstraction has to be extracted then.
+**Revisit trigger:** A second app needs a structurally similar persistent nav bar.
+
+---
+
 ### Threadable entity types — expanded to canonical 15
 
 **Decision:** Threads can be attached to fifteen entity types. Adds `inventoryItem` as the 15th, alongside the original 14.  

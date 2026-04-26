@@ -4,7 +4,7 @@ import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useProject, useLocations, useCreateLocation, useUpdateLocation, useDeleteLocation } from '@/lib/hooks/useOriginOne'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { FAB } from '@/components/ui/FAB'
+import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { EmptyCTA } from '@/components/ui/EmptyState'
@@ -447,6 +447,8 @@ export default function LocationsPage({ params }: { params: { projectId: string 
 
   const [selected, setSelected] = useState<Location | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  // Register the + handler with the global ActionBar.
+  useFabAction({ onPress: () => { haptic('light'); setShowCreate(true) } })
   const [activeTab, setActiveTab] = useState('All')
   const [newTabName, setNewTabName] = useState('')
   const [showAddTab, setShowAddTab] = useState(false)
@@ -567,8 +569,7 @@ export default function LocationsPage({ params }: { params: { projectId: string 
         )}
       </div>
 
-      {/* FAB */}
-      <FAB accent={accent} projectId={projectId} onPress={() => { haptic('light'); setShowCreate(true) }} />
+      {/* + handler registered above via useFabAction. ActionBar is mounted globally. */}
 
       {/* Create Sheet */}
       <CreateLocationSheet

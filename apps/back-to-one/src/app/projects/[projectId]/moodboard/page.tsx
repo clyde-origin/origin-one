@@ -17,7 +17,7 @@ import { uploadMoodboardImage } from '@/lib/db/queries'
 import { LoadingState } from '@/components/ui'
 import { EmptyCTA } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { FAB } from '@/components/ui/FAB'
+import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
@@ -564,6 +564,9 @@ export default function MoodboardPage({ params }: { params: { projectId: string 
 
   const startAdd = () => { haptic('light'); setCreating(true) }
 
+  // Register the + handler with the global ActionBar.
+  useFabAction({ onPress: startAdd })
+
   const handleAddTab = async () => {
     haptic('light')
     const name = `Board ${allTabs.length + 1}`
@@ -649,7 +652,7 @@ export default function MoodboardPage({ params }: { params: { projectId: string 
         )}
       </div>
 
-      <FAB accent={accent} projectId={projectId} onPress={startAdd} />
+      {/* + handler registered above via useFabAction. ActionBar is mounted globally. */}
 
       {/* Detail Sheet */}
       <Sheet open={!!selected} onClose={() => {

@@ -6,7 +6,7 @@ import { useProject, useResources, useCreateResource } from '@/lib/hooks/useOrig
 
 import { LoadingState, EmptyState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { FAB } from '@/components/ui/FAB'
+import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor , statusHex, statusLabel } from '@/lib/utils/phase'
@@ -114,6 +114,8 @@ export default function ResourcesPage({ params }: { params: { projectId: string 
   const { data: project } = useProject(projectId)
   const accent = project?.color || getProjectColor(projectId)
   const [creating, setCreating] = useState(false)
+  // Register the + handler with the global ActionBar.
+  useFabAction({ onPress: () => { haptic('light'); setCreating(true) } })
 
   const { data: resources, isLoading } = useResources(projectId)
   const create = useCreateResource(projectId)
@@ -132,7 +134,7 @@ export default function ResourcesPage({ params }: { params: { projectId: string 
         )}
       </div>
 
-      <FAB accent={accent} projectId={projectId} onPress={() => { haptic('light'); setCreating(true) }} />
+      {/* + handler registered above via useFabAction. ActionBar is mounted globally. */}
 
       <Sheet open={creating} onClose={() => setCreating(false)}>
         <NewSheet projectId={projectId} onClose={() => setCreating(false)}

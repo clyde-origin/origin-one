@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Back to One — ActionBar States</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-page: #0c0c12;
+    --bg-phone: #04040a;
+    --border: rgba(255,255,255,0.08);
+    --text: rgba(255,255,255,0.92);
+    --text-secondary: rgba(255,255,255,0.58);
+    --text-muted: rgba(255,255,255,0.38);
+    --glass-bg: rgba(8,8,14,0.6);
+    --glass-border: rgba(255,255,255,0.14);
+    --icon: rgba(255,255,255,0.9);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg-page);
+    color: var(--text);
+    font-family: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  .doc {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 48px 32px 96px;
+  }
+  .doc-head {
+    display: flex; flex-direction: column; gap: 4px;
+    margin: 0 0 32px;
+  }
+  .doc-eyebrow {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin: 0;
+  }
+  .doc-title {
+    font-size: 28px;
+    font-weight: 500;
+    margin: 4px 0 0;
+    letter-spacing: -0.01em;
+  }
+  .doc-meta {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 8px;
+  }
+  .doc-note {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0 0 40px;
+    padding: 18px 20px;
+    background: rgba(255,255,255,0.025);
+    border: 0.5px solid var(--border);
+    border-radius: 14px;
+    line-height: 1.6;
+  }
+  .doc-note p { margin: 0; }
+  .doc-note p + p { margin-top: 10px; }
+  .doc-note b { color: var(--text); font-weight: 500; }
+  .doc-note code {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 12.5px;
+    background: rgba(255,255,255,0.05);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--text);
+  }
+  .frame-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 36px;
+  }
+  .frame { display: flex; flex-direction: column; gap: 14px; }
+  .frame-label {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 0;
+    letter-spacing: 0.2px;
+  }
+  .frame-label b { color: var(--text); font-weight: 500; }
+  .phone {
+    position: relative;
+    width: 100%;
+    height: 620px;
+    background: var(--bg-phone);
+    border-radius: 30px;
+    overflow: hidden;
+    border: 0.5px solid var(--border);
+  }
+  .surface {
+    position: absolute;
+    inset: 0;
+    padding: 28px 20px 120px;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  .surface-eyebrow {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 0 0 8px;
+  }
+  .surface-title {
+    font-size: 22px;
+    font-weight: 500;
+    margin: 0 0 24px;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .tile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tile { height: 88px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 0.5px solid rgba(255,255,255,0.05); }
+  .row { display: flex; gap: 12px; padding: 13px 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); align-items: center; }
+  .row-dot { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.06); flex-shrink: 0; }
+  .row-cell { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+  .line { height: 7px; border-radius: 4px; background: rgba(255,255,255,0.07); }
+  .line-s { width: 55%; }
+  .sheet {
+    position: absolute;
+    left: 14px; right: 14px; bottom: 0;
+    height: 78%;
+    background: #0a0a12;
+    border: 0.5px solid var(--glass-border);
+    border-bottom: none;
+    border-radius: 22px 22px 0 0;
+    padding: 16px 20px 120px;
+    box-sizing: border-box;
+  }
+  .sheet-handle { width: 36px; height: 4px; background: rgba(255,255,255,0.18); border-radius: 2px; margin: 0 auto 18px; }
+  .surface-dim { filter: brightness(0.55); }
+
+  .actionbar {
+    position: absolute;
+    left: 0; right: 0; bottom: 18px;
+    height: 52px;
+  }
+  .ab-back {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .ab-resources {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .ab-cluster {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .ab-btn {
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: var(--glass-bg);
+    border: 0.5px solid var(--glass-border);
+    color: var(--icon);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  .ab-sm { width: 36px; height: 36px; }
+  .ab-lg { width: 52px; height: 52px; }
+  .ab-empty-lg { width: 52px; height: 52px; visibility: hidden; }
+
+  @media (max-width: 720px) {
+    .doc { padding: 32px 16px 64px; }
+    .doc-title { font-size: 22px; }
+    .frame-grid { grid-template-columns: 1fr; gap: 24px; }
+    .phone { height: 560px; }
+  }
+</style>
+</head>
+<body>
+<main class="doc">
+  <header class="doc-head">
+    <p class="doc-eyebrow">Back to One — Reference</p>
+    <h1 class="doc-title">ActionBar — three states</h1>
+    <p class="doc-meta">Last updated April 25, 2026 · Spec for PR 2a</p>
+  </header>
+
+  <section class="doc-note">
+    <p><b>Scope.</b> ActionBar mounts on project-scoped routes only — Hub, all subpages, and over open detail sheets. It does <b>not</b> mount on the projects root, which keeps its existing 5-arc fan and dashed "new project" tile.</p>
+    <p><b>Layout.</b> Glass overlay style on every button. Back at bottom-left (<code>36px</code>), chat / + / threads cluster centered (<code>chat 36 · + 52 · threads 36</code>, gap <code>10</code>), resources at bottom-right (<code>36px</code>). Bar bottom inset <code>18px</code>.</p>
+    <p><b>+ slot.</b> When + hides on a detail sheet, the slot stays empty — cluster width remains uniform across states.</p>
+    <p><b>Behavior.</b> <code>back</code> is contextual (closes top-of-stack: detail sheet → page; subpage → Hub; Hub → projects list). <code>chat</code>, <code>threads</code>, <code>resources</code> always navigate to global project-scoped views regardless of surface. <code>+</code> behavior is registered per-page via <code>FabActionContext</code>.</p>
+  </section>
+
+  <section class="frame-grid">
+
+    <div class="frame">
+      <p class="frame-label"><b>1.</b> Hub — back returns to projects list</p>
+      <div class="phone">
+        <div class="surface">
+          <p class="surface-eyebrow">The Weave</p>
+          <h2 class="surface-title">Hub</h2>
+          <div class="tile-grid">
+            <div class="tile"></div><div class="tile"></div>
+            <div class="tile"></div><div class="tile"></div>
+            <div class="tile"></div><div class="tile"></div>
+          </div>
+        </div>
+        <div class="actionbar">
+          <div class="ab-back">
+            <div class="ab-btn ab-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </div>
+          </div>
+          <div class="ab-cluster">
+            <div class="ab-btn ab-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <div class="ab-btn ab-lg">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </div>
+            <div class="ab-btn ab-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+            </div>
+          </div>
+          <div class="ab-resources">
+            <div class="ab-btn ab-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame">
+      <p class="frame-label"><b>2.</b> Subpage (Workflow) — back returns to Hub</p>
+      <div class="phone">
+        <div class="surface">
+          <p class="surface-eyebrow">Workflow</p>
+          <h2 class="surface-title">Pipeline</h2>
+          <div class="row"><div class="row-dot"></div><div class="row-cell"><div class="line"></div><div class="line line-s"></div></div></div>
+          <div class="row"><div class="row-dot"></div><div class="row-cell"><div class="line"></div><div class="line line-s"></div></div></div>
+          <div class="row"><div class="row-dot"></div><div class="row-cell"><div class="line"></div><div class="line line-s"></div></div></div>
+          <div class="row"><div class="row-dot"></div><div class="row-cell"><div class="line"></div><div class="line line-s"></div></div></div>
+          <div class="row"><div class="row-dot"></div><div class="row-cell"><div class="line"></div><div class="line line-s"></div></div></div>
+        </div>
+        <div class="actionbar">
+          <div class="ab-back">
+            <div class="ab-btn ab-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </div>
+          </div>
+          <div class="ab-cluster">
+            <div class="ab-btn ab-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <div class="ab-btn ab-lg">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </div>
+            <div class="ab-btn ab-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+            </div>
+          </div>
+          <div class="ab-resources">
+            <div class="ab-btn ab-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame">
+      <p class="frame-label"><b>3.</b> Detail sheet open — + hidden, back closes the sheet</p>
+      <div class="phone">
+        <div class="surface surface-dim">
+          <p class="surface-eyebrow">Workflow</p>
+          <h2 class="surface-title">Pipeline</h2>
+        </div>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <p class="surface-eyebrow">Stage</p>
+          <h2 class="surface-title" style="font-size: 18px;">Color session</h2>
+          <div class="row"><div class="row-dot"></div><div class="row-cell"><div class="line"></div><div class="line line-s"></div></div></div>
+          <div class="row"><div class="row-dot"></div><div class="row-cell"><div class="line"></div><div class="line line-s"></div></div></div>
+          <div class="row"><div class="row-dot"></div><div class="row-cell"><div class="line"></div><div class="line line-s"></div></div></div>
+          <div class="row"><div class="row-dot"></div><div class="row-cell"><div class="line"></div><div class="line line-s"></div></div></div>
+        </div>
+        <div class="actionbar">
+          <div class="ab-back">
+            <div class="ab-btn ab-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </div>
+          </div>
+          <div class="ab-cluster">
+            <div class="ab-btn ab-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <div class="ab-empty-lg"></div>
+            <div class="ab-btn ab-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+            </div>
+          </div>
+          <div class="ab-resources">
+            <div class="ab-btn ab-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+</main>
+</body>
+</html>

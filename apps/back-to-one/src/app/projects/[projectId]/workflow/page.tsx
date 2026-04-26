@@ -20,7 +20,7 @@ import {
 import { LoadingState } from '@/components/ui'
 import { GhostCircle, GhostRect, GhostPill, SectionLabel, EmptyCTA } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { FAB } from '@/components/ui/FAB'
+import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
@@ -739,6 +739,8 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
   const [selectedNode, setSelectedNode] = useState<any>(null)
   const [assignNode, setAssignNode] = useState<any>(null)
   const [creating, setCreating] = useState(false)
+  // Register the + handler with the global ActionBar.
+  useFabAction({ onPress: () => { haptic('light'); setCreating(true) } })
   const [selectedDel, setSelectedDel] = useState<any>(null)
   const [creatingDel, setCreatingDel] = useState(false)
   const [openConnector, setOpenConnector] = useState<string | null>(null)
@@ -970,7 +972,7 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
         />
       </Sheet>
 
-      <FAB accent={accent} projectId={projectId} onPress={() => { haptic('light'); setCreating(true) }} />
+      {/* + handler registered above via useFabAction. ActionBar is mounted globally. */}
     </div>
   )
 }

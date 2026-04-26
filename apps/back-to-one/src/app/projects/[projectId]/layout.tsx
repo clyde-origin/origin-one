@@ -4,6 +4,8 @@ import { usePathname } from 'next/navigation'
 import { AnimatePresence } from 'framer-motion'
 import { HubContent } from '@/components/hub/HubContent'
 import { SubPageOverlay } from '@/components/ui/SubPageOverlay'
+import { ActionBar } from '@/components/ui/ActionBar'
+import { FabActionProvider } from '@/lib/contexts/FabActionContext'
 
 export default function ProjectLayout({
   children,
@@ -18,7 +20,7 @@ export default function ProjectLayout({
   const isHub = segments.length <= 2
 
   return (
-    <>
+    <FabActionProvider>
       <HubContent projectId={params.projectId} />
       <AnimatePresence>
         {!isHub && (
@@ -27,6 +29,7 @@ export default function ProjectLayout({
           </SubPageOverlay>
         )}
       </AnimatePresence>
-    </>
+      <ActionBar />
+    </FabActionProvider>
   )
 }

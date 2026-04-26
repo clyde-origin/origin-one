@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useProject, useActionItems, useToggleActionItem, useCreateActionItem, useUpdateActionItem, useCrew } from '@/lib/hooks/useOriginOne'
 import { LoadingState, EmptyState, CrewAvatar, SkeletonLine } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { FAB } from '@/components/ui/FAB'
+import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { CreateTaskSheet } from '@/components/create'
 import { haptic } from '@/lib/utils/haptics'
 import { formatDate, isLate, getProjectColor, statusLabel, statusHex, DEPT_COLORS, DEPT_SHORT as DEPT_SHORT_MAP } from '@/lib/utils/phase'
@@ -284,6 +284,8 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
   const [showCompleted, setShowCompleted] = useState(false)
   const [deptFilter, setDeptFilter] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
+  // Register the + handler with the global ActionBar.
+  useFabAction({ onPress: () => { haptic('light'); setShowAdd(true) } })
   const { data: items, isLoading: loadingItems } = useActionItems(projectId)
   const { data: crew, isLoading: loadingCrew } = useCrew(projectId)
   const toggle = useToggleActionItem(projectId)
@@ -476,8 +478,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
         )}
       </div>
 
-      {/* FAB */}
-      <FAB accent={accent} projectId={projectId} onPress={() => { haptic('light'); setShowAdd(true) }} />
+      {/* + handler registered above via useFabAction. ActionBar is mounted globally. */}
 
       {/* Add Sheet */}
       <CreateTaskSheet

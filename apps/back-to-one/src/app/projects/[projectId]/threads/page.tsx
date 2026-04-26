@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import { useProject, useThreads, usePostMessage, useCrew, useMarkThreadRead, useMeId } from '@/lib/hooks/useOriginOne'
 import { useThreadContexts, type ThreadContext } from '@/lib/thread-context'
 import { Sheet } from '@/components/ui/Sheet'
@@ -430,7 +429,6 @@ function ThreadDetailSheet({
 
 export default function ThreadsPage({ params }: { params: { projectId: string } }) {
   const { projectId } = params
-  const router = useRouter()
   const { data: project } = useProject(projectId)
   const { data: threads, isLoading: loadingThreads } = useThreads(projectId)
   const { data: crew, isLoading: loadingCrew } = useCrew(projectId)
@@ -556,26 +554,7 @@ export default function ThreadsPage({ params }: { params: { projectId: string } 
         />
       </Sheet>
 
-      {/* Back button — FAB position, bottom center */}
-      <button
-        onClick={() => { haptic('light'); router.back() }}
-        aria-label="Back"
-        style={{
-          position: 'fixed',
-          bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 52, height: 52, borderRadius: '50%',
-          background: 'rgba(10,10,18,0.7)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: 'rgba(255,255,255,0.7)', fontSize: 22, lineHeight: 1,
-          cursor: 'pointer',
-          zIndex: 30,
-        }}
-      >‹</button>
+      {/* Back button lifted to global ActionBar. */}
     </div>
   )
 }

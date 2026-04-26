@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useProject, useMilestones, useCreateMilestone, useUpdateMilestone, useAddMilestonePerson, useRemoveMilestonePerson, useCrew } from '@/lib/hooks/useOriginOne'
 import { LoadingState, EmptyState, CrewAvatar, SkeletonLine } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { FAB } from '@/components/ui/FAB'
+import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { CreateMilestoneSheet } from '@/components/create'
 import { haptic } from '@/lib/utils/haptics'
 import { formatDate, isLate, getProjectColor, MILESTONE_STATUS_HEX, MILESTONE_STATUS_LABEL, statusLabel, statusHex } from '@/lib/utils/phase'
@@ -313,6 +313,8 @@ export default function TimelinePage({ params }: { params: { projectId: string }
   const [selectedMS, setSelectedMS] = useState<Milestone | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
+  // Register the + handler with the global ActionBar.
+  useFabAction({ onPress: () => { haptic('light'); setShowAdd(true) } })
   const createMilestone = useCreateMilestone(projectId)
 
   const msListRef = useRef<HTMLDivElement>(null)
@@ -506,8 +508,7 @@ export default function TimelinePage({ params }: { params: { projectId: string }
         )}
       </div>
 
-      {/* FAB */}
-      <FAB accent={accent} projectId={projectId} onPress={() => { haptic('light'); setShowAdd(true) }} />
+      {/* + handler registered above via useFabAction. ActionBar is mounted globally. */}
 
       {/* Add Milestone Sheet */}
       <CreateMilestoneSheet
