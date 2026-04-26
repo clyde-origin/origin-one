@@ -106,10 +106,10 @@ enum LocationStatus {
 }
 
 enum TimecardStatus {
-  draft       // crew started, not submitted
-  submitted   // crew submitted, awaiting producer
-  approved    // producer approved, locked for edit
-  reopened    // producer reopened, back to editable
+  draft // crew started, not submitted
+  submitted // crew submitted, awaiting producer
+  approved // producer approved, locked for edit
+  reopened // producer reopened, back to editable
 }
 
 enum RateUnit {
@@ -141,19 +141,21 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  teamMembers     TeamMember[]
-  projectMembers  ProjectMember[]
-  documents       Document[]
-  actionItems     ActionItem[]
-  threads         Thread[]
-  threadMessages  ThreadMessage[]
-  resolvedThreads Thread[]          @relation("ResolvedBy")
-  threadReads     ThreadRead[]
-  milestonePeople MilestonePerson[]
-  resources       Resource[]
-  workflowNodes   WorkflowNode[]
-  chatSent        ChatMessage[]     @relation("ChatSender")
-  chatReceived    ChatMessage[]     @relation("ChatRecipient")
+  teamMembers       TeamMember[]
+  projectMembers    ProjectMember[]
+  documents         Document[]
+  actionItems       ActionItem[]
+  threads           Thread[]
+  threadMessages    ThreadMessage[]
+  resolvedThreads   Thread[]               @relation("ResolvedBy")
+  threadReads       ThreadRead[]
+  milestonePeople   MilestonePerson[]
+  resources         Resource[]
+  workflowNodes     WorkflowNode[]
+  chatSent          ChatMessage[]          @relation("ChatSender")
+  chatReceived      ChatMessage[]          @relation("ChatRecipient")
+  projectFolders    UserProjectFolder[]
+  projectPlacements UserProjectPlacement[]
 }
 
 model Team {
@@ -201,46 +203,46 @@ model ProjectMember {
 // ─── Crew Timecards ──────────────────────────────────────────────────────────
 
 model CrewTimecard {
-  id            String    @id @default(uuid())
+  id String @id @default(uuid())
 
   // Relations
-  projectId     String
-  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  crewMemberId  String
-  crewMember    ProjectMember @relation("TimecardCrew", fields: [crewMemberId], references: [id], onDelete: Restrict)
+  crewMemberId String
+  crewMember   ProjectMember @relation("TimecardCrew", fields: [crewMemberId], references: [id], onDelete: Restrict)
 
   // Core data
-  date          DateTime  @db.Date
-  hours         Decimal   @db.Decimal(4, 2)  // e.g., 12.50 = 12h 30m
-  rate          Decimal?  @db.Decimal(8, 2)
-  rateUnit      RateUnit?                    // null = legacy / pending; new rows default 'hour' from app code
-  description   String    @db.Text
+  date        DateTime  @db.Date
+  hours       Decimal   @db.Decimal(4, 2) // e.g., 12.50 = 12h 30m
+  rate        Decimal?  @db.Decimal(8, 2)
+  rateUnit    RateUnit? // null = legacy / pending; new rows default 'hour' from app code
+  description String    @db.Text
 
   // State machine
-  status        TimecardStatus @default(draft)
+  status TimecardStatus @default(draft)
 
   // Lifecycle — submission & approval
-  submittedAt   DateTime?
-  approvedAt    DateTime?
-  approvedBy    String?
-  approver      ProjectMember? @relation("TimecardApprover", fields: [approvedBy], references: [id], onDelete: SetNull)
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  approvedBy  String?
+  approver    ProjectMember? @relation("TimecardApprover", fields: [approvedBy], references: [id], onDelete: SetNull)
 
   // Lifecycle — reopen
-  reopenedAt    DateTime?
-  reopenedBy    String?
-  reopener      ProjectMember? @relation("TimecardReopener", fields: [reopenedBy], references: [id], onDelete: SetNull)
-  reopenReason  String?        @db.Text
+  reopenedAt   DateTime?
+  reopenedBy   String?
+  reopener     ProjectMember? @relation("TimecardReopener", fields: [reopenedBy], references: [id], onDelete: SetNull)
+  reopenReason String?        @db.Text
 
   // Standard audit
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([projectId])
   @@index([crewMemberId])
-  @@index([projectId, date])       // project + date-range queries
-  @@index([crewMemberId, date])    // future cross-project dashboard
-  @@index([status])                // producer approval queue
+  @@index([projectId, date]) // project + date-range queries
+  @@index([crewMemberId, date]) // future cross-project dashboard
+  @@index([status]) // producer approval queue
 }
 
 // ─── Project ─────────────────────────────────────────────────────────────────
@@ -257,7 +259,7 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @default(now()) @updatedAt
 
-  team             Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team             Team                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
   members          ProjectMember[]
   scenes           Scene[]
   entities         Entity[]
@@ -280,6 +282,7 @@ model Project {
   timecards        CrewTimecard[]
   inventoryItems   InventoryItem[]
   shootDays        ShootDay[]
+  placements       UserProjectPlacement[]
 }
 
 // ─── Scenes, Shots, Entities ─────────────────────────────────────────────────
@@ -727,4 +730,44 @@ enum ShootDayType {
   pre
   prod
   post
+}
+
+// ─── Project-selection folders (per-user) ────────────────────────────────────
+// See docs/superpowers/specs/2026-04-26-project-selection-folders-design.md.
+// UserProjectFolder is the folder row. UserProjectPlacement is one row per
+// (user, project) the user has explicitly placed: folderId NULL → top-level
+// at the placement's sortOrder; folderId set → inside that folder. A project
+// the user has never placed is rendered top-level by Project.createdAt.
+
+model UserProjectFolder {
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
+  userId    String
+  name      String   @default("Untitled")
+  color     String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  placements UserProjectPlacement[]
+
+  @@index([userId, sortOrder])
+}
+
+model UserProjectPlacement {
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
+  userId    String
+  projectId String
+  folderId  String?
+  // Per-container sortOrder: top-level slot if folderId IS NULL, else slot within folder.
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder  UserProjectFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, projectId])
+  @@index([userId, folderId, sortOrder])
 }
