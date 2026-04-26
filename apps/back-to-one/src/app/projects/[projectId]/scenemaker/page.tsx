@@ -19,6 +19,7 @@ import { ShotDetailSheet } from './components/ShotDetailSheet'
 import { EntityDrawer } from './components/EntityDrawer'
 import { PdfExport } from './components/PdfExport'
 import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
+import { Toast, type ToastSpec } from '@/components/ui/Toast'
 import {
   DndContext,
   closestCenter,
@@ -1256,6 +1257,10 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const [showExport, setShowExport] = useState(false)
   const [showVersionPanel, setShowVersionPanel] = useState(false)
   const [previewVersion, setPreviewVersion] = useState<{ versionNumber: number; label?: string | null; shots: any; createdAt: string } | null>(null)
+  // Single toast surface — error toasts on persist failure, confirm toasts
+  // on cross-scene drag (PR adds this in step 4). New toast replaces any
+  // existing one; no queue.
+  const [toast, setToast] = useState<ToastSpec | null>(null)
   const scriptRef = useRef<ScriptViewHandle>(null)
   const thumbFileRef = useRef<HTMLInputElement>(null)
   const pendingUploadShotRef = useRef<string | null>(null)
@@ -1346,7 +1351,12 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       sceneId: s.id === shotId ? targetSceneId : s.sceneId,
     }))
 
-    // Optimistic local update
+    // Snapshot the cache before mutating so a persist failure or an Undo
+    // tap can roll back to it.
+    const previousData = qc.getQueryData(['shotsByProject', projectId])
+
+    // Optimistic local update — applied immediately even when we defer the
+    // persist behind a confirmation toast, so the visual change is instant.
     qc.setQueryData(['shotsByProject', projectId], (old: any[] | undefined) => {
       if (!old) return old
       return old.map((scene: any) => ({
@@ -1359,11 +1369,57 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       }))
     })
 
-    // Persist
-    Promise.all(updates.map(u =>
+    const persist = () => Promise.all(updates.map(u =>
       updateShotOrder(u.id, { sortOrder: u.order, ...(u.id === shotId && u.sceneId !== moved.sceneId ? { sceneId: u.sceneId } : {}) })
-    )).catch(err => console.error('Failed to persist reorder:', err))
-  }, [allShots, projectId, qc])
+    )).catch(err => {
+      console.error('Failed to persist reorder:', err)
+      qc.setQueryData(['shotsByProject', projectId], previousData)
+      setToast({
+        kind: 'error',
+        message: "Couldn't save reorder — try again.",
+        autoMs: 4000,
+        onDismiss: () => setToast(null),
+      })
+    })
+
+    const isCrossScene = targetSceneId !== moved.sceneId
+    if (isCrossScene) {
+      // Defer the DB write behind a confirmation toast. The optimistic UI
+      // change is already applied; Undo rolls it back, Move (or auto-commit
+      // after 4s) fires the persist.
+      const targetScene = allScenes.find(s => s.id === targetSceneId)
+      const sceneLabel = targetScene ? `Scene ${targetScene.sceneNumber}` : 'this scene'
+      setToast({
+        kind: 'confirm',
+        message: `Move shot ${moved.shotNumber} to ${sceneLabel}?`,
+        actions: [
+          {
+            label: 'Undo',
+            variant: 'ghost',
+            onPress: () => {
+              qc.setQueryData(['shotsByProject', projectId], previousData)
+              setToast(null)
+            },
+          },
+          {
+            label: 'Move',
+            variant: 'accent',
+            onPress: () => {
+              persist()
+              setToast(null)
+            },
+          },
+        ],
+        autoMs: 4000,
+        onAutoTimeout: () => persist(),
+        onDismiss: () => setToast(null),
+      })
+      return
+    }
+
+    // Same-scene reorder — persist immediately, no confirmation
+    persist()
+  }, [allShots, allScenes, projectId, qc])
 
   // ── REORDER TO SCENE HANDLER (drop onto scene header) ──
   const handleReorderToScene = useCallback((shotId: string, targetSceneId: string) => {
@@ -1392,6 +1448,8 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       sceneId: s.id === shotId ? targetSceneId : s.sceneId,
     }))
 
+    const previousData = qc.getQueryData(['shotsByProject', projectId])
+
     // Optimistic local update
     qc.setQueryData(['shotsByProject', projectId], (old: any[] | undefined) => {
       if (!old) return old
@@ -1405,10 +1463,55 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       }))
     })
 
-    // Persist
-    Promise.all(updates.map(u =>
+    const persist = () => Promise.all(updates.map(u =>
       updateShotOrder(u.id, { sortOrder: u.order, ...(u.id === shotId ? { sceneId: targetSceneId } : {}) })
-    )).catch(err => console.error('Failed to persist reorder to scene:', err))
+    )).catch(err => {
+      console.error('Failed to persist reorder to scene:', err)
+      qc.setQueryData(['shotsByProject', projectId], previousData)
+      setToast({
+        kind: 'error',
+        message: "Couldn't save reorder — try again.",
+        autoMs: 4000,
+        onDismiss: () => setToast(null),
+      })
+    })
+
+    const isCrossScene = targetSceneId !== moved.sceneId
+    if (isCrossScene) {
+      // Same Move/Undo flow as handleReorder — see notes there.
+      const targetScene = allScenes.find(s => s.id === targetSceneId)
+      const sceneLabel = targetScene ? `Scene ${targetScene.sceneNumber}` : 'this scene'
+      setToast({
+        kind: 'confirm',
+        message: `Move shot ${moved.shotNumber} to ${sceneLabel}?`,
+        actions: [
+          {
+            label: 'Undo',
+            variant: 'ghost',
+            onPress: () => {
+              qc.setQueryData(['shotsByProject', projectId], previousData)
+              setToast(null)
+            },
+          },
+          {
+            label: 'Move',
+            variant: 'accent',
+            onPress: () => {
+              persist()
+              setToast(null)
+            },
+          },
+        ],
+        autoMs: 4000,
+        onAutoTimeout: () => persist(),
+        onDismiss: () => setToast(null),
+      })
+      return
+    }
+
+    // Drop on the shot's own scene header — move to top of current scene,
+    // no confirmation needed.
+    persist()
   }, [allShots, allScenes, projectId, qc])
 
   // ── SHOOT ORDER REORDER HANDLER ────────────────────────────
@@ -1427,6 +1530,8 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
     // Assign shootOrder to all shots in their new positions
     const updates = without.map((s, i) => ({ id: s.id, shootOrder: i }))
 
+    const previousData = qc.getQueryData(['shotsByProject', projectId])
+
     // Optimistic local update
     qc.setQueryData(['shotsByProject', projectId], (old: any[] | undefined) => {
       if (!old) return old
@@ -1440,8 +1545,18 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       }))
     })
 
-    // Persist — only updates shootOrder, never touches sortOrder or sceneId
-    updateShootOrder(updates).catch(err => console.error('Failed to persist shoot reorder:', err))
+    // Persist — only updates shootOrder, never touches sortOrder or sceneId.
+    // On failure restore the snapshot and surface a toast.
+    updateShootOrder(updates).catch(err => {
+      console.error('Failed to persist shoot reorder:', err)
+      qc.setQueryData(['shotsByProject', projectId], previousData)
+      setToast({
+        kind: 'error',
+        message: "Couldn't save reorder — try again.",
+        autoMs: 4000,
+        onDismiss: () => setToast(null),
+      })
+    })
   }, [allShots, projectId, qc])
 
   // ── AUTO-INITIALIZE SHOOT ORDER ──────────────────────────
@@ -1881,6 +1996,8 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           />
         )}
       </AnimatePresence>
+
+      {toast && <Toast {...toast} />}
     </div>
   )
 }
