@@ -408,3 +408,122 @@ export type PhaseColor = {
   border: string
   dot: string
 }
+
+// ── BUDGET ─────────────────────────────────────────────────
+//
+// Mirrors the Zod schemas in @origin-one/schema/src/{budget,expense}.ts.
+// back-to-one consumes types locally rather than importing from
+// @origin-one/schema (existing convention; see PR 2 / Schedule). Decimal
+// columns are strings (Prisma serialization); convert with Number(...) at
+// the math site.
+
+export type BudgetVersionKind    = 'estimate' | 'working' | 'committed' | 'other'
+export type BudgetVersionState   = 'draft' | 'locked'
+export type BudgetAccountSection = 'ATL' | 'BTL'
+export type BudgetUnit           = 'DAY' | 'WEEK' | 'HOUR' | 'FLAT' | 'UNIT'
+export type MarkupTarget         = 'grandTotal' | 'accountSubtotal'
+export type ExpenseSource        = 'timecard' | 'manual'
+
+export interface Budget {
+  id: string
+  projectId: string
+  currency: string
+  rateSourceVersionId: string | null
+  varianceThreshold: string                  // Decimal(5,4)
+  clonedFromProjectId: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BudgetVersion {
+  id: string
+  budgetId: string
+  name: string
+  kind: BudgetVersionKind
+  sortOrder: number
+  state: BudgetVersionState
+  lockedAt: string | null
+  lockedBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BudgetAccount {
+  id: string
+  budgetId: string
+  parentId: string | null
+  section: BudgetAccountSection
+  code: string
+  name: string
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BudgetLine {
+  id: string
+  budgetId: string
+  accountId: string
+  description: string
+  unit: BudgetUnit
+  fringeRate: string                          // Decimal(5,4)
+  tags: string[]
+  actualsRate: string | null                  // Decimal(12,2)
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BudgetLineAmount {
+  id: string
+  lineId: string
+  versionId: string
+  qty: string                                 // formula or numeric literal
+  rate: string                                // Decimal(12,2)
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BudgetVariable {
+  id: string
+  budgetId: string
+  versionId: string | null                    // null = budget-level
+  name: string
+  value: string                               // formula or numeric literal
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BudgetMarkup {
+  id: string
+  budgetId: string
+  versionId: string | null                    // null = applies to all versions
+  name: string
+  percent: string                             // Decimal(5,4)
+  appliesTo: MarkupTarget
+  accountId: string | null                    // required when appliesTo = accountSubtotal
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Expense {
+  id: string
+  budgetId: string
+  lineId: string
+  source: ExpenseSource
+  amount: string                              // Decimal(12,2)
+  date: string                                // ISO 'YYYY-MM-DD'
+  units: string | null                        // Decimal(8,2)
+  unitRate: string | null                     // Decimal(12,2)
+  unit: BudgetUnit | null
+  vendor: string | null
+  notes: string | null
+  receiptUrl: string | null
+  timecardId: string | null                   // @unique — one expense per timecard
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}

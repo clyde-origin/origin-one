@@ -17,3 +17,13 @@ export { ShootDay, ShootDayType } from "./shoot-day";
 export { RateUnit } from "./rate-unit";
 export * from "./user-project-folder";
 export * from "./user-project-placement";
+export {
+  Budget,
+  BudgetVersion, BudgetVersionKind, BudgetVersionState,
+  BudgetAccount, BudgetAccountSection,
+  BudgetLine, BudgetUnit,
+  BudgetLineAmount,
+  BudgetVariable,
+  BudgetMarkup, MarkupTarget,
+} from "./budget";
+export { Expense, ExpenseSource } from "./expense";

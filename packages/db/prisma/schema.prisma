@@ -197,7 +197,13 @@ model ProjectMember {
   reopenedTimecards      CrewTimecard[]  @relation("TimecardReopener")
   inventoryItemsAssigned InventoryItem[]
 
+  // Budget arc — pre-filled line for crew timecard → expense conversion (Q2 hybrid).
+  // Approver can override per-timecard via CrewTimecard.lineItemId.
+  defaultLineItemId String?
+  defaultLine       BudgetLine? @relation("DefaultLineItem", fields: [defaultLineItemId], references: [id], onDelete: SetNull)
+
   @@unique([projectId, userId, role])
+  @@index([defaultLineItemId])
 }
 
 // ─── Crew Timecards ──────────────────────────────────────────────────────────
@@ -234,6 +240,14 @@ model CrewTimecard {
   reopener     ProjectMember? @relation("TimecardReopener", fields: [reopenedBy], references: [id], onDelete: SetNull)
   reopenReason String?        @db.Text
 
+  // Budget arc — optional per-timecard override of the crew's defaultLine.
+  // Q2 hybrid: ProjectMember.defaultLineItemId pre-fills, this overrides per row.
+  lineItemId String?
+  line       BudgetLine? @relation("TimecardLine", fields: [lineItemId], references: [id], onDelete: SetNull)
+
+  // Back-relation — one expense per approved timecard (enforced by Expense.timecardId @unique).
+  expense Expense?
+
   // Standard audit
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -243,6 +257,7 @@ model CrewTimecard {
   @@index([projectId, date]) // project + date-range queries
   @@index([crewMemberId, date]) // future cross-project dashboard
   @@index([status]) // producer approval queue
+  @@index([lineItemId]) // budget rollups
 }
 
 // ─── Project ─────────────────────────────────────────────────────────────────
@@ -283,6 +298,7 @@ model Project {
   inventoryItems   InventoryItem[]
   shootDays        ShootDay[]
   placements       UserProjectPlacement[]
+  budget           Budget?
 }
 
 // ─── Scenes, Shots, Entities ─────────────────────────────────────────────────
@@ -770,4 +786,248 @@ model UserProjectPlacement {
 
   @@unique([userId, projectId])
   @@index([userId, folderId, sortOrder])
+}
+// ─── Budget ──────────────────────────────────────────────────────────────────
+//
+// Eight models + six enums. Spec §3.1 / plan PR 4. Lines + accounts are shared
+// across versions (no row duplication); per-version qty/rate lives in
+// BudgetLineAmount. Actuals are NOT versioned — single Expense set rolls up
+// against any selected version. Schedule globals (prepDays/shootDays/postDays)
+// are derived at evaluation time from count(ShootDay where type=…), not stored.
+
+model Budget {
+  id                  String  @id @default(uuid())
+  projectId           String  @unique
+  currency            String  @default("USD") // ISO 4217. Single-currency v1.
+  // The version whose rates drive actuals when no per-line override exists.
+  // Default order on creation: committed > working > estimate.
+  rateSourceVersionId String?
+  // Budget-level threshold for variance flagging (default 10%).
+  varianceThreshold   Decimal @default(0.10) @db.Decimal(5, 4)
+  // Traceability when this budget was deep-copied from another project (PR 7).
+  clonedFromProjectId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versions  BudgetVersion[]
+  accounts  BudgetAccount[]
+  lines     BudgetLine[]
+  variables BudgetVariable[]
+  markups   BudgetMarkup[]
+  expenses  Expense[]
+
+  @@index([projectId])
+}
+
+model BudgetVersion {
+  id        String             @id @default(uuid())
+  budgetId  String
+  name      String // "Estimate", "Working", "Committed", "Final Cost", …
+  kind      BudgetVersionKind // estimate | working | committed | other
+  sortOrder Int
+  state     BudgetVersionState @default(draft) // draft | locked
+  lockedAt  DateTime?
+  lockedBy  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budget    Budget             @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  amounts   BudgetLineAmount[]
+  variables BudgetVariable[]
+  markups   BudgetMarkup[]
+
+  // No @@unique on (budgetId, kind) — uniqueness for estimate/working/committed
+  // is enforced in app code (creation guard). 'other' kind allowed multiple times.
+  @@index([budgetId])
+  @@index([budgetId, kind])
+}
+
+enum BudgetVersionKind {
+  estimate
+  working
+  committed
+  other
+}
+
+enum BudgetVersionState {
+  draft
+  locked
+}
+
+model BudgetAccount {
+  id        String               @id @default(uuid())
+  budgetId  String
+  parentId  String?
+  section   BudgetAccountSection @default(BTL)
+  code      String // "A", "AA", "A.10", "A.10.05" — AICP-style codes
+  name      String // "Pre-Production Wages"
+  sortOrder Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budget   Budget          @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  parent   BudgetAccount?  @relation("Tree", fields: [parentId], references: [id], onDelete: Cascade)
+  children BudgetAccount[] @relation("Tree")
+  lines    BudgetLine[]
+  markups  BudgetMarkup[]
+
+  @@unique([budgetId, code])
+  @@index([budgetId])
+  @@index([parentId])
+}
+
+enum BudgetAccountSection {
+  ATL
+  BTL
+}
+
+model BudgetLine {
+  id          String     @id @default(uuid())
+  budgetId    String
+  accountId   String
+  description String
+  unit        BudgetUnit // DAY | WEEK | HOUR | FLAT | UNIT
+  fringeRate  Decimal    @default(0) @db.Decimal(5, 4) // 0.0000 - 1.0000
+  // Tag-on-array — e.g. "dept:art", "location:vineyard", "shootDay:3".
+  // GIN index for fast contains-any queries (plan §6 reminder).
+  tags        String[]   @default([])
+  // Optional rate override for actuals. When null, falls back to
+  // Budget.rateSourceVersionId's BudgetLineAmount.rate.
+  actualsRate Decimal?   @db.Decimal(12, 2)
+  sortOrder   Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budget    Budget             @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  account   BudgetAccount      @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  amounts   BudgetLineAmount[]
+  expenses  Expense[]
+  members   ProjectMember[]    @relation("DefaultLineItem")
+  timecards CrewTimecard[]     @relation("TimecardLine")
+
+  @@index([budgetId])
+  @@index([accountId])
+  @@index([tags], type: Gin)
+}
+
+enum BudgetUnit {
+  DAY
+  WEEK
+  HOUR
+  FLAT
+  UNIT
+}
+
+model BudgetLineAmount {
+  id        String  @id @default(uuid())
+  lineId    String
+  versionId String
+  // Formula string OR numeric literal — evaluated by the parser in
+  // apps/back-to-one/src/lib/budget/eval.ts (PR 6).
+  qty       String  @default("0")
+  rate      Decimal @default(0) @db.Decimal(12, 2)
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  line    BudgetLine    @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  version BudgetVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([lineId, versionId])
+  @@index([versionId])
+}
+
+model BudgetVariable {
+  id        String  @id @default(uuid())
+  budgetId  String
+  // null = budget-level (applies to all versions); non-null = version override.
+  versionId String?
+  name      String // identifier — alphanumeric + underscore
+  value     String // formula or numeric literal, same evaluator as line qty
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budget  Budget         @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  version BudgetVersion? @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([budgetId, versionId, name])
+  @@index([budgetId])
+}
+
+model BudgetMarkup {
+  id        String       @id @default(uuid())
+  budgetId  String
+  // null = applies to all versions; non-null = this version only.
+  versionId String?
+  name      String // "Contingency", "Agency Fee"
+  percent   Decimal      @db.Decimal(5, 4) // 0.10 = 10%
+  appliesTo MarkupTarget // grandTotal | accountSubtotal
+  // Required when appliesTo = accountSubtotal.
+  accountId String?
+  sortOrder Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budget  Budget         @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  version BudgetVersion? @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  account BudgetAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([budgetId])
+}
+
+enum MarkupTarget {
+  grandTotal
+  accountSubtotal
+}
+
+model Expense {
+  id       String        @id @default(uuid())
+  budgetId String
+  lineId   String
+  source   ExpenseSource // timecard | manual
+  amount   Decimal       @db.Decimal(12, 2) // computed = units * unitRate, OR manual entry
+  date     DateTime      @db.Date
+
+  // Snapshot fields — immutable once recorded; past actuals don't shift if rates change.
+  units    Decimal?    @db.Decimal(8, 2) // hours, days
+  unitRate Decimal?    @db.Decimal(12, 2)
+  unit     BudgetUnit?
+
+  // Manual-only fields
+  vendor     String?
+  notes      String?
+  receiptUrl String? // receipts bucket; auth-check RLS
+
+  // Timecard-only field — uniqueness ensures one expense per approved timecard.
+  // The PR 8 timecard-to-expense upsert/delete pattern depends on this.
+  timecardId String? @unique
+
+  // Audit
+  createdBy String // ProjectMember.id pre-Auth, User.id post-Auth
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budget   Budget        @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  line     BudgetLine    @relation(fields: [lineId], references: [id], onDelete: Restrict)
+  timecard CrewTimecard? @relation(fields: [timecardId], references: [id], onDelete: SetNull)
+
+  @@index([budgetId])
+  @@index([lineId])
+  @@index([date])
+  @@index([source])
+}
+
+enum ExpenseSource {
+  timecard
+  manual
 }
