@@ -9,15 +9,20 @@ import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor } from '@/lib/utils/phase'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 
-// ── Visual tokens (locked to reference HTML) ─────────────
+// ── Visual tokens ─────────────────────────────────────────
 //
-// All buttons share one glass style. Sizes: + 52, satellites/back/resources
-// 36. Cluster gap 10. Bar bottom inset 18. Z-index 65 (above SubPageOverlay
-// at 50, above all current detail sheets which span 43-61).
+// Sizes: + 52, satellites/back/resources 36. Cluster gap 10. Bar bottom
+// inset 18. Z-index 65 (above SubPageOverlay at 50, above all current
+// detail sheets which span 43-61).
 //
 // PR 2a: ActionBar is fixed at z65 even when a detail sheet is open. + stays
 // visible (registers to the underlying page's action). Sheet-aware behavior
 // lands in PR 2b.
+//
+// PR 2a.1: Buttons render with strong glass + project-accent glow + drop
+// shadow. Glow color tracks the active project's accent (every project
+// tints the bar). Active variant is used for chat/threads/resources when
+// pathname matches their route; back and + never get the active variant.
 
 const Z_INDEX = 65
 const BAR_BOTTOM_INSET = 18
@@ -25,36 +30,67 @@ const SIZE_PRIMARY = 52
 const SIZE_SATELLITE = 36
 const CLUSTER_GAP = 10
 
-const GLASS_BG = 'rgba(8,8,14,0.6)'
-const GLASS_BORDER = 'rgba(255,255,255,0.14)'
-const ICON_COLOR = 'rgba(255,255,255,0.9)'
+type ButtonVariant = 'satellite' | 'primary' | 'active'
+
+function buttonStyle(variant: ButtonVariant, accent: string): React.CSSProperties {
+  const base: React.CSSProperties = {
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+  }
+  if (variant === 'primary') {
+    return {
+      ...base,
+      background: 'rgba(8,8,14,0.85)',
+      border: `0.5px solid ${accent}b3`,
+      color: 'rgba(255,255,255,1)',
+      boxShadow: `0 6px 24px rgba(0,0,0,0.45), 0 0 22px ${accent}66`,
+    }
+  }
+  if (variant === 'active') {
+    return {
+      ...base,
+      background: `${accent}38`,
+      border: `0.5px solid ${accent}d9`,
+      color: 'rgba(255,255,255,1)',
+      boxShadow: `0 4px 18px rgba(0,0,0,0.4), 0 0 22px ${accent}8c`,
+    }
+  }
+  // satellite (default)
+  return {
+    ...base,
+    background: 'rgba(8,8,14,0.85)',
+    border: `0.5px solid ${accent}45`,
+    color: 'rgba(255,255,255,0.95)',
+    boxShadow: `0 4px 18px rgba(0,0,0,0.4), 0 0 14px ${accent}38`,
+  }
+}
 
 // ── Icons (verbatim from reference HTML actionbar-states.html) ───
 
 function BackIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
       <path d="M15 18l-6-6 6-6" />
     </svg>
   )
 }
 function ChatIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   )
 }
 function PlusIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
       <path d="M12 5v14M5 12h14" />
     </svg>
   )
 }
 function ThreadsIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
       <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
     </svg>
@@ -62,7 +98,7 @@ function ThreadsIcon() {
 }
 function ResourcesIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
       <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
     </svg>
@@ -72,13 +108,14 @@ function ResourcesIcon() {
 // ── Button primitive ─────────────────────────────────────
 
 function ActionBarButton({
-  size, onClick, ariaLabel, children, style,
+  size, variant, accent, onClick, ariaLabel, children,
 }: {
   size: typeof SIZE_PRIMARY | typeof SIZE_SATELLITE
+  variant: ButtonVariant
+  accent: string
   onClick: () => void
   ariaLabel: string
   children: React.ReactNode
-  style?: React.CSSProperties
 }) {
   return (
     <button
@@ -87,13 +124,8 @@ function ActionBarButton({
       className="flex items-center justify-center cursor-pointer active:scale-[0.94] transition-transform"
       style={{
         width: size, height: size, borderRadius: '50%',
-        background: GLASS_BG,
-        border: `0.5px solid ${GLASS_BORDER}`,
-        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-        color: ICON_COLOR,
-        boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
         padding: 0,
-        ...style,
+        ...buttonStyle(variant, accent),
       }}
     >
       {children}
@@ -128,6 +160,27 @@ export function ActionBar() {
   const hasBranches = !!action?.branches && action.branches.length > 0
   const plusVisible = hasOnPress || hasBranches
 
+  // Toggle-to-close: tapping chat/threads/resources when already on that
+  // route closes it (router.back() with Hub fallback for direct entries).
+  // Only these three get the active variant; back is navigation-only and
+  // + is per-page.
+  const chatRoute = projectId ? `/projects/${projectId}/chat` : ''
+  const threadsRoute = projectId ? `/projects/${projectId}/threads` : ''
+  const resourcesRoute = projectId ? `/projects/${projectId}/resources` : ''
+  const chatActive = !!chatRoute && pathname === chatRoute
+  const threadsActive = !!threadsRoute && pathname === threadsRoute
+  const resourcesActive = !!resourcesRoute && pathname === resourcesRoute
+
+  function toggleRoute(target: string) {
+    if (!target) return
+    if (pathname === target) {
+      if (typeof window !== 'undefined' && window.history.length > 1) router.back()
+      else router.push(`/projects/${projectId}`)
+    } else {
+      router.push(target)
+    }
+  }
+
   function handleBack() {
     haptic('light')
     if (fabOpen) { setFabOpen(false); return }
@@ -137,17 +190,17 @@ export function ActionBar() {
   function handleChat() {
     haptic('light')
     setFabOpen(false)
-    if (projectId) router.push(`/projects/${projectId}/chat`)
+    toggleRoute(chatRoute)
   }
   function handleThreads() {
     haptic('light')
     setFabOpen(false)
-    if (projectId) router.push(`/projects/${projectId}/threads`)
+    toggleRoute(threadsRoute)
   }
   function handleResources() {
     haptic('light')
     setFabOpen(false)
-    if (projectId) router.push(`/projects/${projectId}/resources`)
+    toggleRoute(resourcesRoute)
   }
   function handlePlus() {
     haptic('light')
@@ -201,9 +254,9 @@ export function ActionBar() {
           zIndex: Z_INDEX,
         }}
       >
-        {/* Back — left */}
+        {/* Back — left. Never gets the active variant (always navigation-only). */}
         <div className="pointer-events-auto" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }}>
-          <ActionBarButton size={SIZE_SATELLITE} onClick={handleBack} ariaLabel="Back">
+          <ActionBarButton size={SIZE_SATELLITE} variant="satellite" accent={accent} onClick={handleBack} ariaLabel="Back">
             <BackIcon />
           </ActionBarButton>
         </div>
@@ -218,12 +271,13 @@ export function ActionBar() {
             display: 'flex', alignItems: 'center', gap: CLUSTER_GAP,
           }}
         >
-          <ActionBarButton size={SIZE_SATELLITE} onClick={handleChat} ariaLabel="Chat">
+          <ActionBarButton size={SIZE_SATELLITE} variant={chatActive ? 'active' : 'satellite'} accent={accent} onClick={handleChat} ariaLabel={chatActive ? 'Close chat' : 'Chat'}>
             <ChatIcon />
           </ActionBarButton>
 
           {/* + slot — visibility:hidden placeholder when no action registered.
-              Cluster width stays uniform across states. */}
+              Cluster width stays uniform across states. + never gets the active
+              variant (its meaning is per-page, not route-bound). */}
           {plusVisible ? (
             <motion.div
               animate={{ rotate: fabOpen ? 45 : 0 }}
@@ -231,13 +285,10 @@ export function ActionBar() {
             >
               <ActionBarButton
                 size={SIZE_PRIMARY}
+                variant="primary"
+                accent={accent}
                 onClick={handlePlus}
                 ariaLabel={action?.label ?? 'Create'}
-                style={{
-                  background: `${accent}26`,
-                  border: `1.5px solid ${accent}73`,
-                  boxShadow: `0 4px 24px ${accent}40, 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)`,
-                }}
               >
                 <PlusIcon />
               </ActionBarButton>
@@ -249,14 +300,14 @@ export function ActionBar() {
             />
           )}
 
-          <ActionBarButton size={SIZE_SATELLITE} onClick={handleThreads} ariaLabel="Threads">
+          <ActionBarButton size={SIZE_SATELLITE} variant={threadsActive ? 'active' : 'satellite'} accent={accent} onClick={handleThreads} ariaLabel={threadsActive ? 'Close threads' : 'Threads'}>
             <ThreadsIcon />
           </ActionBarButton>
         </div>
 
         {/* Resources — right */}
         <div className="pointer-events-auto" style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)' }}>
-          <ActionBarButton size={SIZE_SATELLITE} onClick={handleResources} ariaLabel="Resources">
+          <ActionBarButton size={SIZE_SATELLITE} variant={resourcesActive ? 'active' : 'satellite'} accent={accent} onClick={handleResources} ariaLabel={resourcesActive ? 'Close resources' : 'Resources'}>
             <ResourcesIcon />
           </ActionBarButton>
         </div>
