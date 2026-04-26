@@ -687,6 +687,83 @@ export async function getAllMilestones() {
   return data
 }
 
+/**
+ * Cross-project chat conversations for the current user. Pulls the most
+ * recent messages app-wide (capped) and collapses them into one entry per
+ * conversation: one per (projectId, channelId) for channel chats, one per
+ * (projectId, partnerId) for DMs involving meId.
+ *
+ * Sorted by recency. Pre-Auth: meId comes from useMeId()'s placeholder
+ * (first ProjectMember row); DMs without meId involvement are skipped.
+ */
+export async function getAllChats(meId: string | null = null) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ChatMessage')
+    .select(`
+      *,
+      sender:User!ChatMessage_senderId_fkey(id,name,avatarUrl),
+      recipient:User!ChatMessage_recipientId_fkey(id,name,avatarUrl),
+      project:Project(id,name,color),
+      channel:ChatChannel(id,name)
+    `)
+    .order('createdAt', { ascending: false })
+    .limit(500)
+  if (error) { console.error('getAllChats failed:', error); throw error }
+
+  const messages = data ?? []
+  const conversations = new Map<string, any>()
+
+  for (const m of messages) {
+    if (m.channelId) {
+      const key = `c:${m.channelId}`
+      if (conversations.has(key)) continue
+      conversations.set(key, {
+        id: key,
+        type: 'channel',
+        projectId: m.projectId,
+        projectName: (m as any).project?.name ?? 'Project',
+        projectColor: (m as any).project?.color ?? null,
+        channelId: m.channelId,
+        channelName: (m as any).channel?.name ?? 'channel',
+        title: `# ${(m as any).channel?.name ?? 'channel'}`,
+        lastMessage: m.content,
+        lastMessageAt: m.createdAt,
+        lastSenderId: m.senderId,
+        lastSenderName: (m as any).sender?.name ?? 'Unknown',
+        lastSenderAvatar: (m as any).sender?.avatarUrl ?? null,
+      })
+    } else if (m.recipientId) {
+      // DM — only show if meId is involved
+      if (!meId || (m.senderId !== meId && m.recipientId !== meId)) continue
+      const partnerId = m.senderId === meId ? m.recipientId : m.senderId
+      const partner = m.senderId === meId ? (m as any).recipient : (m as any).sender
+      const key = `d:${m.projectId}:${partnerId}`
+      if (conversations.has(key)) continue
+      conversations.set(key, {
+        id: key,
+        type: 'dm',
+        projectId: m.projectId,
+        projectName: (m as any).project?.name ?? 'Project',
+        projectColor: (m as any).project?.color ?? null,
+        partnerId,
+        partnerName: partner?.name ?? 'Unknown',
+        partnerAvatar: partner?.avatarUrl ?? null,
+        title: partner?.name ?? 'Unknown',
+        lastMessage: m.content,
+        lastMessageAt: m.createdAt,
+        lastSenderId: m.senderId,
+        lastSenderName: (m as any).sender?.name ?? 'Unknown',
+        lastSenderAvatar: (m as any).sender?.avatarUrl ?? null,
+      })
+    }
+  }
+
+  return Array.from(conversations.values()).sort((a, b) =>
+    new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+  )
+}
+
 export async function getAllThreads(meId: string | null = null) {
   const db = createClient()
   const { data, error } = await db

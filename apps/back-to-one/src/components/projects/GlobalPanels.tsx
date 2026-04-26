@@ -626,9 +626,9 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
             style={{
               position: 'fixed',
               top: 156,
-              bottom: 'calc(68px + 52px + 16px)',
+              bottom: 'calc(68px + 52px + 64px)',
               left: 14, right: 14,
-              zIndex: 5,
+              zIndex: 10,
               background: 'rgba(10,10,18,0.78)',
               backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)',
               border: '1px solid rgba(255,255,255,0.08)',

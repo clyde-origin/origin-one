@@ -13,6 +13,7 @@ export const keys = {
   allActionItems:     () => ['allActionItems'] as const,
   allMilestones:      () => ['allMilestones'] as const,
   allThreads:         (meId: string | null) => ['allThreads', meId ?? ''] as const,
+  allChats:           (meId: string | null) => ['allChats', meId ?? ''] as const,
   shotlistVersions: (projectId: string) => ['shotlistVersions', projectId] as const,
   scenes:         (projectId: string) => ['scenes', projectId] as const,
   shots:          (sceneId: string) => ['shots', sceneId] as const,
@@ -843,6 +844,14 @@ export function useAllThreads() {
   return useQuery({
     queryKey: keys.allThreads(meId),
     queryFn: () => db.getAllThreads(meId),
+  })
+}
+
+export function useAllChats() {
+  const meId = useMeId()
+  return useQuery({
+    queryKey: keys.allChats(meId),
+    queryFn: () => db.getAllChats(meId),
   })
 }
 
