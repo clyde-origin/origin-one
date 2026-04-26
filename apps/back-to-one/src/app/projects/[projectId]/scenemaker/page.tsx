@@ -19,6 +19,25 @@ import { ShotDetailSheet } from './components/ShotDetailSheet'
 import { EntityDrawer } from './components/EntityDrawer'
 import { PdfExport } from './components/PdfExport'
 import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
+import {
+  DndContext,
+  type DragStartEvent,
+  type DragOverEvent,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type { Scene, Shot, SceneMakerMode } from '@/types'
 
 type StoryboardScale = 'feed' | '3up' | '2up' | 'all'
@@ -98,7 +117,12 @@ function NewShotSheet({ autoId, accent, onSave, onClose }: {
   )
 }
 
-// ── SHOTLIST VIEW ─────────────────────────────────────────
+// ── SHOTLIST VIEW (drag via @dnd-kit) ────────────────────
+
+// Scene-header droppable IDs are namespaced so they don't collide with
+// shot IDs in the same DndContext. The prefix is stripped when resolving
+// a drop target back to its scene id.
+const SCENE_HEADER_DROPPABLE = 'scene-header-'
 
 function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotId, onTapShot, onTapThumbnail, onInsert, onReorder, onReorderToScene, onRenameScene, onDeleteScene, onUpdateShot, onShootReorder }: {
   scenes: Scene[]; shots: Shot[]; accent: string
@@ -121,218 +145,17 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [editingDescShotId, setEditingDescShotId] = useState<string | null>(null)
   const [editingDescValue, setEditingDescValue] = useState('')
-
-
-  // ── Shot number blink after reorder ──
   const [blinkIds, setBlinkIds] = useState<Set<string>>(new Set())
-  const prevDisplayNumbers = useRef<Map<string, string>>(new Map())
 
-  // ── Drag state (wiggle mode only) ──
-  const [dragShotId, setDragShotId] = useState<string | null>(null)
-  const dragShotIdRef = useRef<string | null>(null)
-  const [dragTargetIdx, setDragTargetIdx] = useState(-1)
-  const dragTargetIdxRef = useRef(-1)
-  const [dragOverSceneId, setDragOverSceneId] = useState<string | null>(null)
-  const dragOverSceneIdRef = useRef<string | null>(null)
-  const dragElRef = useRef<HTMLDivElement | null>(null)
-  const dragOriginY = useRef(0)
-  const flatShotOrder = useRef<string[]>([])
-  const shotRectsRef = useRef<Map<string, DOMRect>>(new Map())
+  // dnd-kit drag state. Exposed to render so the live shot-number projection
+  // can recompute "where would this shot land if released right now".
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [overId, setOverId] = useState<string | null>(null)
+
+  // Long-press to enter wiggle mode (existing UX). Drag activation itself is
+  // handled by dnd-kit's PointerSensor once wiggle is on — no manual drag
+  // start path required anymore.
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Auto-renumber shots within each scene (e.g. 1A, 1B, 1C)
-  const getShotDisplayNumber = useCallback((shot: Shot) => {
-    const scene = scenes.find(s => s.id === shot.sceneId)
-    const prefix = scene?.sceneNumber ?? '1'
-    const sceneShots = shots.filter(s => s.sceneId === shot.sceneId).sort((a, b) => a.sortOrder - b.sortOrder)
-    const idx = sceneShots.findIndex(s => s.id === shot.id)
-    const letter = String.fromCharCode(65 + Math.max(0, idx)) // A, B, C...
-    return `${prefix}${letter}`
-  }, [scenes, shots])
-
-  // Projected display number during drag — reflects where shot *would* land
-  const getProjectedDisplayNumber = useCallback((shot: Shot, sceneId: string) => {
-    if (!dragShotId || dragTargetIdx < 0) return getShotDisplayNumber(shot)
-    const order = flatShotOrder.current
-    const fromIdx = order.indexOf(dragShotId)
-    if (fromIdx < 0) return getShotDisplayNumber(shot)
-    // Build virtual order: remove dragged, then insert at correct position
-    const virtual = order.filter(id => id !== dragShotId)
-    // dragTargetIdx is relative to original order; adjust for the removal
-    const insertIdx = dragTargetIdx > fromIdx ? dragTargetIdx - 1 : dragTargetIdx
-    virtual.splice(Math.min(insertIdx, virtual.length), 0, dragShotId)
-    // Count only shots in this scene, in virtual order
-    // The dragged shot inherits the scene of its nearest neighbor at landing
-    let letterIdx = 0
-    for (const id of virtual) {
-      let sid: string
-      if (id === dragShotId) {
-        // Dragged shot takes the scene of its neighbor at target position
-        const ni = virtual.indexOf(id)
-        const neighborId = virtual[ni === 0 ? 1 : ni - 1]
-        const neighbor = shots.find(s => s.id === neighborId)
-        sid = neighbor?.sceneId ?? shot.sceneId
-      } else {
-        const s = shots.find(s => s.id === id)
-        sid = s?.sceneId ?? ''
-      }
-      if (sid !== sceneId) continue
-      if (id === shot.id) {
-        const scene = scenes.find(s => s.id === sceneId)
-        const prefix = scene?.sceneNumber ?? '1'
-        return `${prefix}${String.fromCharCode(65 + letterIdx)}`
-      }
-      letterIdx++
-    }
-    // Fallback — shot not found in this scene during drag
-    return getShotDisplayNumber(shot)
-  }, [dragShotId, dragTargetIdx, shots, scenes, getShotDisplayNumber])
-
-  const sceneHeaderRectsRef = useRef<Map<string, DOMRect>>(new Map())
-
-  const snapshotRects = useCallback(() => {
-    const map = new Map<string, DOMRect>()
-    flatShotOrder.current.forEach(id => {
-      const el = document.querySelector(`[data-shot-id="${id}"]`) as HTMLElement | null
-      if (el) map.set(id, el.getBoundingClientRect())
-    })
-    shotRectsRef.current = map
-    // Also snapshot scene header rects
-    const sceneMap = new Map<string, DOMRect>()
-    scenes.forEach(s => {
-      const el = document.querySelector(`[data-scene-header="${s.id}"]`) as HTMLElement | null
-      if (el) sceneMap.set(s.id, el.getBoundingClientRect())
-    })
-    sceneHeaderRectsRef.current = sceneMap
-  }, [scenes])
-
-  const handleDragStart = useCallback((shotId: string, touchY: number, el: HTMLDivElement) => {
-    const allFlat = [...shots].sort((a, b) => a.sortOrder - b.sortOrder).map(s => s.id)
-    flatShotOrder.current = allFlat
-    dragElRef.current = el
-    dragOriginY.current = touchY
-    dragShotIdRef.current = shotId
-    setDragShotId(shotId)
-    dragTargetIdxRef.current = allFlat.indexOf(shotId)
-    setDragTargetIdx(dragTargetIdxRef.current)
-    haptic('medium')
-    requestAnimationFrame(snapshotRects)
-  }, [shots, snapshotRects])
-
-  const handleDragMove = useCallback((touchY: number) => {
-    if (!dragShotIdRef.current || !dragElRef.current) return
-    const dy = touchY - dragOriginY.current
-    dragElRef.current.style.transform = `translateY(${dy}px)`
-    dragElRef.current.style.transition = 'none'
-
-    // Check if touch is over a scene header (drop zone)
-    let overScene: string | null = null
-    sceneHeaderRectsRef.current.forEach((rect, sceneId) => {
-      if (touchY >= rect.top && touchY <= rect.bottom + 20) {
-        // Check that we're not also closer to a shot card
-        overScene = sceneId
-      }
-    })
-
-    const order = flatShotOrder.current
-    let targetIdx = dragTargetIdxRef.current
-    let closest = { dist: Infinity, idx: targetIdx }
-    shotRectsRef.current.forEach((rect, id) => {
-      if (id === dragShotIdRef.current) return
-      const mid = rect.top + rect.height / 2
-      const dist = Math.abs(touchY - mid)
-      const idx = order.indexOf(id)
-      if (dist < closest.dist) closest = { dist, idx }
-    })
-
-    // If closest shot is nearer than scene header, prefer the shot
-    const closestShotRect = closest.idx >= 0 ? shotRectsRef.current.get(order[closest.idx]) : null
-    const closestShotDist = closestShotRect ? Math.abs(touchY - (closestShotRect.top + closestShotRect.height / 2)) : Infinity
-    if (overScene && closestShotDist < 30) overScene = null
-
-    dragOverSceneIdRef.current = overScene
-    setDragOverSceneId(overScene)
-
-    if (!overScene) {
-      const closestRect = shotRectsRef.current.get(order[closest.idx])
-      if (closestRect) {
-        const mid = closestRect.top + closestRect.height / 2
-        const fromIdx = order.indexOf(dragShotIdRef.current!)
-        if (touchY < mid && closest.idx < fromIdx) targetIdx = closest.idx
-        if (touchY > mid && closest.idx > fromIdx) targetIdx = closest.idx
-      }
-      const firstRect = shotRectsRef.current.get(order[0])
-      if (firstRect && touchY < firstRect.top + firstRect.height / 2) targetIdx = 0
-    }
-    dragTargetIdxRef.current = targetIdx
-    setDragTargetIdx(targetIdx)
-  }, [])
-
-  const handleDragEnd = useCallback(() => {
-    if (dragElRef.current) {
-      dragElRef.current.style.transform = ''
-      dragElRef.current.style.transition = ''
-    }
-    const shotId = dragShotIdRef.current
-    const targetIdx = dragTargetIdxRef.current
-    const overSceneId = dragOverSceneIdRef.current
-    if (shotId && overSceneId) {
-      // Dropped onto a scene header — move shot to top of that scene
-      onReorderToScene(shotId, overSceneId)
-      // Blink the dragged shot
-      setBlinkIds(new Set([shotId]))
-      setTimeout(() => setBlinkIds(new Set()), 700)
-    } else if (shotId && targetIdx >= 0) {
-      // Snapshot display numbers before reorder
-      const before = new Map<string, string>()
-      shots.forEach(s => before.set(s.id, getShotDisplayNumber(s)))
-      onReorder(shotId, targetIdx)
-      // After state updates, compare and blink changed numbers (stays in wiggle mode)
-      requestAnimationFrame(() => {
-        const changed = new Set<string>()
-        shots.forEach(s => {
-          const oldNum = before.get(s.id)
-          const newNum = getShotDisplayNumber(s)
-          if (oldNum && newNum !== oldNum) changed.add(s.id)
-        })
-        // Also blink the dragged shot itself
-        changed.add(shotId)
-        if (changed.size > 0) {
-          setBlinkIds(changed)
-          setTimeout(() => setBlinkIds(new Set()), 700)
-        }
-      })
-    }
-    dragShotIdRef.current = null
-    setDragShotId(null)
-    dragTargetIdxRef.current = -1
-    setDragTargetIdx(-1)
-    dragOverSceneIdRef.current = null
-    setDragOverSceneId(null)
-    dragElRef.current = null
-  }, [onReorder, onReorderToScene, shots, getShotDisplayNumber])
-
-  const getDragState = useCallback((shotId: string): 'idle' | 'dragging' | 'displaced-down' | 'displaced-up' => {
-    if (!dragShotId) return 'idle'
-    if (shotId === dragShotId) return 'dragging'
-    const order = flatShotOrder.current
-    const fromIdx = order.indexOf(dragShotId)
-    const myIdx = order.indexOf(shotId)
-    if (fromIdx < 0 || myIdx < 0) return 'idle'
-    if (dragTargetIdx > fromIdx && myIdx > fromIdx && myIdx <= dragTargetIdx) return 'displaced-up'
-    if (dragTargetIdx < fromIdx && myIdx >= dragTargetIdx && myIdx < fromIdx) return 'displaced-down'
-    return 'idle'
-  }, [dragShotId, dragTargetIdx])
-
-  const toggleScene = (sceneId: string) => {
-    setCollapsedScenes(prev => {
-      const next = new Set(prev)
-      if (next.has(sceneId)) next.delete(sceneId); else next.add(sceneId)
-      return next
-    })
-  }
-
-  // Long press to enter wiggle mode
   const startLongPress = useCallback(() => {
     longPressTimer.current = setTimeout(() => {
       haptic('medium')
@@ -342,6 +165,143 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
   const cancelLongPress = useCallback(() => {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
   }, [])
+
+  // Flat list of shots in the current display order. This is the source of
+  // truth for dnd-kit's SortableContext items.
+  const flatShots = useMemo(() => {
+    if (sortMode === 'shooting') {
+      const scheduled = shots.filter(s => s.shootOrder != null).sort((a, b) => a.shootOrder! - b.shootOrder!)
+      const unscheduled = shots.filter(s => s.shootOrder == null).sort((a, b) => a.shotNumber.localeCompare(b.shotNumber, undefined, { numeric: true }))
+      return [...scheduled, ...unscheduled]
+    }
+    return [...shots].sort((a, b) => a.sortOrder - b.sortOrder)
+  }, [shots, sortMode])
+  const flatIds = useMemo(() => flatShots.map(s => s.id), [flatShots])
+
+  // Auto-numbered display string per scene (1A, 1B, 1C, …). Pure projection
+  // off (sceneId, sortOrder) — never touches the persisted shot.shotNumber.
+  const getShotDisplayNumber = useCallback((shot: Shot) => {
+    const scene = scenes.find(s => s.id === shot.sceneId)
+    const prefix = scene?.sceneNumber ?? '1'
+    const sceneShots = shots.filter(s => s.sceneId === shot.sceneId).sort((a, b) => a.sortOrder - b.sortOrder)
+    const idx = sceneShots.findIndex(s => s.id === shot.id)
+    const letter = String.fromCharCode(65 + Math.max(0, idx))
+    return `${prefix}${letter}`
+  }, [scenes, shots])
+
+  // Live projected display number during drag — driven by dnd-kit's active/over
+  // ids. Replaces the old hand-rolled rect-based recomputation.
+  const getProjectedDisplayNumber = useCallback((shot: Shot, sceneId: string) => {
+    if (!activeId || !overId || activeId === overId) return getShotDisplayNumber(shot)
+
+    const overSceneTarget = overId.startsWith(SCENE_HEADER_DROPPABLE) ? overId.slice(SCENE_HEADER_DROPPABLE.length) : null
+    let virtual: string[]
+    let activeSceneId: string
+
+    if (overSceneTarget) {
+      // Drop on scene header → active shot lands at top of that scene
+      const sceneFirst = flatShots.find(s => s.sceneId === overSceneTarget && s.id !== activeId)
+      virtual = flatIds.filter(id => id !== activeId)
+      const insertAt = sceneFirst ? virtual.indexOf(sceneFirst.id) : virtual.length
+      virtual.splice(insertAt < 0 ? virtual.length : insertAt, 0, activeId)
+      activeSceneId = overSceneTarget
+    } else {
+      const oldIdx = flatIds.indexOf(activeId)
+      const newIdx = flatIds.indexOf(overId)
+      if (oldIdx < 0 || newIdx < 0) return getShotDisplayNumber(shot)
+      virtual = arrayMove(flatIds, oldIdx, newIdx)
+      // Active shot inherits sceneId from its neighbor at landing position
+      const ni = virtual.indexOf(activeId)
+      const neighborId = virtual[ni === 0 ? 1 : ni - 1]
+      const neighbor = shots.find(x => x.id === neighborId)
+      activeSceneId = neighbor?.sceneId ?? shot.sceneId
+    }
+
+    let letterIdx = 0
+    for (const id of virtual) {
+      const sid = id === activeId ? activeSceneId : (shots.find(x => x.id === id)?.sceneId ?? '')
+      if (sid !== sceneId) continue
+      if (id === shot.id) {
+        const scene = scenes.find(s => s.id === sceneId)
+        const prefix = scene?.sceneNumber ?? '1'
+        return `${prefix}${String.fromCharCode(65 + letterIdx)}`
+      }
+      letterIdx++
+    }
+    return getShotDisplayNumber(shot)
+  }, [activeId, overId, flatIds, flatShots, shots, scenes, getShotDisplayNumber])
+
+  // Scene header that's currently being dragged over (visual cue)
+  const dragOverSceneId = useMemo<string | null>(
+    () => overId && overId.startsWith(SCENE_HEADER_DROPPABLE) ? overId.slice(SCENE_HEADER_DROPPABLE.length) : null,
+    [overId],
+  )
+
+  // Sensors: pointer-distance for desktop+touch, keyboard for accessibility.
+  // No TouchSensor delay — wiggle mode is the explicit "I want to drag" signal,
+  // so once it's on, drag activates on any 5px movement.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(String(event.active.id))
+    haptic('medium')
+  }
+  function handleDragOver(event: DragOverEvent) {
+    setOverId(event.over ? String(event.over.id) : null)
+  }
+  function handleDragEnd(event: DragEndEvent) {
+    const aId = String(event.active.id)
+    const oId = event.over ? String(event.over.id) : null
+    setActiveId(null)
+    setOverId(null)
+    if (!oId || aId === oId) return
+
+    if (sortMode === 'shooting') {
+      if (!onShootReorder) return
+      const newIndex = flatIds.indexOf(oId)
+      if (newIndex >= 0) onShootReorder(aId, newIndex)
+      return
+    }
+
+    // Story mode — scene header drop OR drop onto another shot
+    const sceneTarget = oId.startsWith(SCENE_HEADER_DROPPABLE) ? oId.slice(SCENE_HEADER_DROPPABLE.length) : null
+    if (sceneTarget) {
+      onReorderToScene(aId, sceneTarget)
+      setBlinkIds(new Set([aId]))
+      setTimeout(() => setBlinkIds(new Set()), 700)
+      return
+    }
+    const newIndex = flatIds.indexOf(oId)
+    if (newIndex < 0) return
+    // Snapshot display numbers before reorder so we can blink the changed ones
+    const before = new Map<string, string>()
+    shots.forEach(s => before.set(s.id, getShotDisplayNumber(s)))
+    onReorder(aId, newIndex)
+    requestAnimationFrame(() => {
+      const changed = new Set<string>()
+      shots.forEach(s => {
+        const oldNum = before.get(s.id)
+        const newNum = getShotDisplayNumber(s)
+        if (oldNum && newNum !== oldNum) changed.add(s.id)
+      })
+      changed.add(aId)
+      if (changed.size > 0) {
+        setBlinkIds(changed)
+        setTimeout(() => setBlinkIds(new Set()), 700)
+      }
+    })
+  }
+
+  const toggleScene = (sceneId: string) => {
+    setCollapsedScenes(prev => {
+      const next = new Set(prev)
+      if (next.has(sceneId)) next.delete(sceneId); else next.add(sceneId)
+      return next
+    })
+  }
 
   if (shots.length === 0) return (
     <div className="flex flex-col items-center justify-center" style={{ minHeight: '60vh', gap: 10 }}>
@@ -364,494 +324,422 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
     </div>
   )
 
-  // ── SHOOTING ORDER: sorted by shootOrder, with long-press reorder ──
-  // Drag state for shoot mode reordering
-  const [shootDragId, setShootDragId] = useState<string | null>(null)
-  const shootDragIdRef = useRef<string | null>(null)
-  const [shootDragTargetIdx, setShootDragTargetIdx] = useState(-1)
-  const shootDragTargetIdxRef = useRef(-1)
-  const shootDragElRef = useRef<HTMLDivElement | null>(null)
-  const shootDragOriginY = useRef(0)
-  const shootFlatOrder = useRef<string[]>([])
-  const shootRectsRef = useRef<Map<string, DOMRect>>(new Map())
-  const shootLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [shootWiggle, setShootWiggle] = useState(false)
-
-  const snapshotShootRects = useCallback(() => {
-    const map = new Map<string, DOMRect>()
-    shootFlatOrder.current.forEach(id => {
-      const el = document.querySelector(`[data-shoot-id="${id}"]`) as HTMLElement | null
-      if (el) map.set(id, el.getBoundingClientRect())
-    })
-    shootRectsRef.current = map
-  }, [])
-
-  const handleShootDragStart = useCallback((shotId: string, touchY: number, el: HTMLDivElement) => {
-    shootFlatOrder.current = shootFlatOrder.current // already set in render
-    shootDragElRef.current = el
-    shootDragOriginY.current = touchY
-    shootDragIdRef.current = shotId
-    setShootDragId(shotId)
-    shootDragTargetIdxRef.current = shootFlatOrder.current.indexOf(shotId)
-    setShootDragTargetIdx(shootDragTargetIdxRef.current)
-    haptic('medium')
-    requestAnimationFrame(snapshotShootRects)
-  }, [snapshotShootRects])
-
-  const handleShootDragMove = useCallback((touchY: number) => {
-    if (!shootDragIdRef.current || !shootDragElRef.current) return
-    const dy = touchY - shootDragOriginY.current
-    shootDragElRef.current.style.transform = `translateY(${dy}px)`
-    shootDragElRef.current.style.transition = 'none'
-
-    const order = shootFlatOrder.current
-    let targetIdx = shootDragTargetIdxRef.current
-    let closest = { dist: Infinity, idx: targetIdx }
-    shootRectsRef.current.forEach((rect, id) => {
-      if (id === shootDragIdRef.current) return
-      const mid = rect.top + rect.height / 2
-      const dist = Math.abs(touchY - mid)
-      const idx = order.indexOf(id)
-      if (dist < closest.dist) closest = { dist, idx }
-    })
-    const closestRect = shootRectsRef.current.get(order[closest.idx])
-    if (closestRect) {
-      const mid = closestRect.top + closestRect.height / 2
-      const fromIdx = order.indexOf(shootDragIdRef.current!)
-      if (touchY < mid && closest.idx < fromIdx) targetIdx = closest.idx
-      if (touchY > mid && closest.idx > fromIdx) targetIdx = closest.idx
-    }
-    const firstRect = shootRectsRef.current.get(order[0])
-    if (firstRect && touchY < firstRect.top + firstRect.height / 2) targetIdx = 0
-    shootDragTargetIdxRef.current = targetIdx
-    setShootDragTargetIdx(targetIdx)
-  }, [])
-
-  const handleShootDragEnd = useCallback(() => {
-    if (shootDragElRef.current) {
-      shootDragElRef.current.style.transform = ''
-      shootDragElRef.current.style.transition = ''
-    }
-    const shotId = shootDragIdRef.current
-    const targetIdx = shootDragTargetIdxRef.current
-    if (shotId && targetIdx >= 0 && onShootReorder) {
-      onShootReorder(shotId, targetIdx)
-    }
-    shootDragIdRef.current = null
-    setShootDragId(null)
-    shootDragTargetIdxRef.current = -1
-    setShootDragTargetIdx(-1)
-    shootDragElRef.current = null
-  }, [onShootReorder])
-
-  const getShootDragState = useCallback((shotId: string): 'idle' | 'dragging' | 'displaced-down' | 'displaced-up' => {
-    if (!shootDragId) return 'idle'
-    if (shotId === shootDragId) return 'dragging'
-    const order = shootFlatOrder.current
-    const fromIdx = order.indexOf(shootDragId)
-    const myIdx = order.indexOf(shotId)
-    if (fromIdx < 0 || myIdx < 0) return 'idle'
-    if (shootDragTargetIdx > fromIdx && myIdx > fromIdx && myIdx <= shootDragTargetIdx) return 'displaced-up'
-    if (shootDragTargetIdx < fromIdx && myIdx >= shootDragTargetIdx && myIdx < fromIdx) return 'displaced-down'
-    return 'idle'
-  }, [shootDragId, shootDragTargetIdx])
-
-  if (sortMode === 'shooting') {
-    // Split into scheduled (shootOrder != null) and unscheduled (null)
-    const scheduled = shots.filter(s => s.shootOrder != null).sort((a, b) => a.shootOrder! - b.shootOrder!)
-    const unscheduled = shots.filter(s => s.shootOrder == null).sort((a, b) => a.shotNumber.localeCompare(b.shotNumber, undefined, { numeric: true }))
-    const allOrdered = [...scheduled, ...unscheduled]
-
-    // Keep flat order ref in sync for drag calculations
-    shootFlatOrder.current = allOrdered.map(s => s.id)
-
-    const renderShootCard = (shot: Shot) => {
-      const scene = scenes.find(s => s.id === shot.sceneId)
-      const sceneColor = scene ? getSceneColor(parseInt(scene.sceneNumber), totalScenes) : '#c45adc'
-      const ds = getShootDragState(shot.id)
-      const cardH = 70
-      const transform = ds === 'displaced-down' ? `translateY(${cardH}px)` : ds === 'displaced-up' ? `translateY(-${cardH}px)` : 'translateY(0)'
-
-      return (
-        <div key={shot.id} data-shoot-id={shot.id}
-          className={shootWiggle && ds !== 'dragging' ? 'wiggle' : ''}
-          style={{
-            padding: '0 14px 3px', position: 'relative',
-            ...(ds === 'dragging' ? { zIndex: 50 } : { transform, transition: 'transform 0.2s cubic-bezier(0.25,0.1,0.25,1)', zIndex: 1 }),
-          }}>
-          <div className="flex items-center select-none"
-            style={{
-              gap: 9,
-              background: ds === 'dragging' ? 'rgba(10,10,18,0.85)' : 'rgba(10,10,18,0.42)',
-              backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-              border: ds === 'dragging' ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.07)',
-              borderRadius: 8, padding: '9px 10px',
-              boxShadow: ds === 'dragging' ? '0 8px 32px rgba(0,0,0,0.6)' : 'none',
-            }}
-            onTouchStart={e => {
-              if (shootWiggle) {
-                e.stopPropagation()
-                const el = e.currentTarget as HTMLDivElement
-                const startY = e.touches[0].clientY
-                handleShootDragStart(shot.id, startY, el)
-                const onMove = (ev: TouchEvent) => { ev.preventDefault(); handleShootDragMove(ev.touches[0].clientY) }
-                const onEnd = () => { handleShootDragEnd(); window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onEnd) }
-                window.addEventListener('touchmove', onMove, { passive: false })
-                window.addEventListener('touchend', onEnd)
-              } else {
-                shootLongPressTimer.current = setTimeout(() => {
-                  haptic('medium')
-                  setShootWiggle(true)
-                }, 500)
-              }
-            }}
-            onTouchMove={() => {
-              if (shootLongPressTimer.current) { clearTimeout(shootLongPressTimer.current); shootLongPressTimer.current = null }
-            }}
-            onTouchEnd={() => {
-              if (shootLongPressTimer.current) { clearTimeout(shootLongPressTimer.current); shootLongPressTimer.current = null }
-            }}
-            onClick={e => { if (shootWiggle) e.stopPropagation() }}>
-
-            {/* Drag handle — visible in wiggle mode */}
-            {shootWiggle && (
-              <div className="flex flex-col items-center justify-center flex-shrink-0"
-                style={{ gap: 2.5, opacity: 0.4, minHeight: 44, width: 20 }}>
-                <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
-                <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
-                <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
-              </div>
-            )}
-
-            {/* Shot number — permanent identifier, never changes */}
-            <span className="flex-shrink-0 cursor-pointer" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
-              onClick={() => !shootWiggle && onTapShot(shot)}>
-              {shot.shotNumber}
-            </span>
-            {/* Size pill */}
-            {shot.size && (
-              <span className="font-mono uppercase flex-shrink-0 cursor-pointer" style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}
-                onClick={() => !shootWiggle && onTapShot(shot)}>
-                {SIZE_ABBREV[shot.size] ?? shot.size}
-              </span>
-            )}
-            {/* Description */}
-            <span className="flex-1 min-w-0 truncate cursor-pointer" style={{ fontSize: '0.58rem', fontWeight: 500, color: '#a0a0b8', lineHeight: 1.35 }}
-              onClick={() => !shootWiggle && onTapShot(shot)}>
-              {shot.description || '—'}
-            </span>
-            {/* Thumbnail */}
-            {!shootWiggle && (
-              <div className="flex-shrink-0 overflow-hidden cursor-pointer" style={{ width: 72, height: 44, borderRadius: 6, marginLeft: 'auto' }}
-                onClick={() => onTapThumbnail(shot)}>
-                {shot.imageUrl ? (
-                  <img src={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${sceneColor}18, ${sceneColor}08)` }}>
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <rect x="2" y="3" width="10" height="8" rx="1.5" stroke={sceneColor} strokeWidth="1" opacity="0.35" />
-                      <path d="M7 5.5v3M5.5 7h3" stroke={sceneColor} strokeWidth="1" strokeLinecap="round" opacity="0.35" />
-                    </svg>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )
-    }
-
+  const renderShootCard = (shot: Shot) => {
+    const scene = scenes.find(s => s.id === shot.sceneId)
+    const sceneColor = scene ? getSceneColor(parseInt(scene.sceneNumber), totalScenes) : '#c45adc'
     return (
-      <div onClick={shootWiggle && !shootDragId ? () => setShootWiggle(false) : undefined}>
-        {/* Wiggle mode Done button */}
-        {shootWiggle && (
-          <div className="flex justify-center" style={{ padding: '8px 14px 4px' }}>
-            <button className="font-mono uppercase cursor-pointer"
-              style={{ fontSize: '0.44rem', letterSpacing: '0.06em', padding: '5px 16px', borderRadius: 14, background: `${accent}1f`, border: `1px solid ${accent}40`, color: accent }}
-              onClick={(e) => { e.stopPropagation(); haptic('light'); setShootWiggle(false) }}>Done</button>
-          </div>
-        )}
-
-        {/* Scheduled shots header */}
-        <div className="flex items-center" style={{ gap: 8, padding: '11px 14px 7px' }}>
-          <span style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: '#a0a0b8', opacity: 0.7 }}>
-            Shoot Order
-          </span>
-          <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', color: '#62627a', opacity: 0.55 }}>
-            {scheduled.length}
-          </span>
-        </div>
-        <div style={{ height: 1, margin: '0 14px 4px', background: '#a0a0b8', opacity: 0.15 }} />
-
-        {scheduled.length === 0 && unscheduled.length > 0 && (
-          <div className="flex items-center justify-center" style={{ padding: '16px 14px 8px' }}>
-            <span className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a' }}>No shoot order set yet</span>
-          </div>
-        )}
-        {scheduled.map(renderShootCard)}
-
-        {/* Unscheduled shots section */}
-        {unscheduled.length > 0 && (
-          <>
-            <div className="flex items-center" style={{ gap: 8, padding: '16px 14px 7px' }}>
-              <span style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: '#62627a', opacity: 0.7 }}>
-                Unscheduled
-              </span>
-              <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', color: '#62627a', opacity: 0.4 }}>
-                {unscheduled.length}
-              </span>
-            </div>
-            <div style={{ height: 1, margin: '0 14px 4px', background: '#62627a', opacity: 0.15 }} />
-            {unscheduled.map(renderShootCard)}
-          </>
-        )}
-      </div>
+      <SortableShotRow
+        key={shot.id}
+        shot={shot}
+        sceneColor={sceneColor}
+        displayNum={shot.shotNumber}
+        blinking={false}
+        wiggleMode={wiggleMode}
+        showThumbnail={!wiggleMode}
+        descBehavior="tap-opens-detail"
+        onTap={() => onTapShot(shot)}
+        onTapThumbnail={() => onTapThumbnail(shot)}
+        onLongPressStart={startLongPress}
+        onLongPressCancel={cancelLongPress}
+        threadEntry={threadByShotId?.get(shot.id)}
+      />
     )
   }
 
-  return (
-    <div onClick={wiggleMode && !dragShotId ? () => setWiggleMode(false) : undefined}>
-      {/* Wiggle mode Done button */}
-      {wiggleMode && (
-        <div className="flex justify-center" style={{ padding: '8px 14px 4px' }}>
-          <button className="font-mono uppercase cursor-pointer"
-            style={{ fontSize: '0.44rem', letterSpacing: '0.06em', padding: '5px 16px', borderRadius: 14, background: `${accent}1f`, border: `1px solid ${accent}40`, color: accent }}
-            onClick={(e) => { e.stopPropagation(); haptic('light'); setWiggleMode(false) }}>Done</button>
-        </div>
-      )}
+  // ── SHOOTING ORDER RENDER ──
+  if (sortMode === 'shooting') {
+    const scheduled = flatShots.filter(s => s.shootOrder != null)
+    const unscheduled = flatShots.filter(s => s.shootOrder == null)
 
-      {scenes.map(scene => {
-        const sceneShots = shots.filter(s => s.sceneId === scene.id).sort((a, b) => a.sortOrder - b.sortOrder)
-        const sceneColor = getSceneColor(parseInt(scene.sceneNumber), totalScenes)
-        const isOpen = !collapsedScenes.has(scene.id)
-
-        return (
-          <div key={scene.id}>
-            {/* Scene divider header */}
-            <div className="flex items-center select-none"
-              data-scene-header={scene.id}
-              style={{
-                gap: 8, padding: '11px 14px 7px',
-                ...(dragOverSceneId === scene.id ? { background: `${sceneColor}12`, borderRadius: 6, margin: '0 4px' } : {}),
-                transition: 'background 0.15s, margin 0.15s',
-              }}>
-              <span className="flex-shrink-0 cursor-pointer" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', color: sceneColor, minWidth: 20 }}
-                onClick={() => !wiggleMode && toggleScene(scene.id)}>
-                {scene.sceneNumber}
-              </span>
-              {editingSceneId === scene.id ? (
-                <input
-                  autoFocus
-                  value={editingTitle}
-                  onChange={e => setEditingTitle(e.target.value)}
-                  onBlur={() => {
-                    const trimmed = editingTitle.trim()
-                    if (trimmed !== (scene.title ?? '')) onRenameScene(scene.id, trimmed)
-                    setEditingSceneId(null)
-                  }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
-                    if (e.key === 'Escape') setEditingSceneId(null)
-                  }}
-                  className="flex-1 min-w-0 outline-none"
-                  style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: accent, background: 'rgba(255,255,255,0.06)', border: `1px solid ${accent}40`, borderRadius: 4, padding: '2px 6px' }}
-                />
-              ) : (
-                <span className="flex-1 truncate cursor-pointer" style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: accent, opacity: 0.7 }}
-                  onClick={() => {
-                    if (wiggleMode) return
-                    toggleScene(scene.id)
-                  }}
-                  onDoubleClick={() => {
-                    setEditingTitle(scene.title ?? '')
-                    setEditingSceneId(scene.id)
-                  }}>
-                  {scene.title || 'Untitled'}
-                </span>
-              )}
-              <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', color: '#62627a', opacity: 0.55 }}>
-                {sceneShots.length}
-              </span>
-              {wiggleMode && (
-                <button className="flex-shrink-0 cursor-pointer flex items-center justify-center"
-                  style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(232,86,74,0.1)', border: '1px solid rgba(232,86,74,0.25)' }}
-                  onClick={(e) => { e.stopPropagation(); haptic('warning'); setConfirmDeleteId(scene.id) }}>
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 2l6 6M8 2l-6 6" stroke="#e8564a" strokeWidth="1.3" strokeLinecap="round" /></svg>
-                </button>
-              )}
-              {!wiggleMode && editingSceneId !== scene.id && (
-                <svg width="5" height="9" viewBox="0 0 5 9" fill="none" className="flex-shrink-0 cursor-pointer"
-                  style={{ opacity: 0.5, transition: 'transform 0.2s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
-                  onClick={() => toggleScene(scene.id)}>
-                  <path d="M1 1L4 4.5L1 8" stroke={sceneColor} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-            </div>
-            {/* Delete confirmation */}
-            {confirmDeleteId === scene.id && (
-              <div style={{ padding: '6px 14px 8px', display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(232,86,74,0.06)', borderRadius: 6, margin: '0 14px 4px' }}>
-                <span style={{ fontSize: '0.56rem', color: '#e8564a', flex: 1 }}>Delete scene {scene.sceneNumber} and {sceneShots.length} shot{sceneShots.length !== 1 ? 's' : ''}?</span>
+    return (
+      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+        <SortableContext items={flatIds} strategy={verticalListSortingStrategy}>
+          <div onClick={wiggleMode && !activeId ? () => setWiggleMode(false) : undefined}>
+            {wiggleMode && (
+              <div className="flex justify-center" style={{ padding: '8px 14px 4px' }}>
                 <button className="font-mono uppercase cursor-pointer"
-                  style={{ fontSize: '0.4rem', letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 10, background: 'rgba(232,86,74,0.15)', border: '1px solid rgba(232,86,74,0.3)', color: '#e8564a' }}
-                  onClick={(e) => { e.stopPropagation(); onDeleteScene(scene.id); setConfirmDeleteId(null) }}>Delete</button>
-                <button className="font-mono uppercase cursor-pointer"
-                  style={{ fontSize: '0.4rem', letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#a0a0b8' }}
-                  onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null) }}>Cancel</button>
+                  style={{ fontSize: '0.44rem', letterSpacing: '0.06em', padding: '5px 16px', borderRadius: 14, background: `${accent}1f`, border: `1px solid ${accent}40`, color: accent }}
+                  onClick={(e) => { e.stopPropagation(); haptic('light'); setWiggleMode(false) }}>Done</button>
               </div>
             )}
-            <div style={{ height: 1, margin: '0 14px 4px', background: sceneColor, opacity: 0.5 }} />
 
-            {(isOpen || wiggleMode) && (
+            <div className="flex items-center" style={{ gap: 8, padding: '11px 14px 7px' }}>
+              <span style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: '#a0a0b8', opacity: 0.7 }}>
+                Shoot Order
+              </span>
+              <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', color: '#62627a', opacity: 0.55 }}>
+                {scheduled.length}
+              </span>
+            </div>
+            <div style={{ height: 1, margin: '0 14px 4px', background: '#a0a0b8', opacity: 0.15 }} />
+
+            {scheduled.length === 0 && unscheduled.length > 0 && (
+              <div className="flex items-center justify-center" style={{ padding: '16px 14px 8px' }}>
+                <span className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a' }}>No shoot order set yet</span>
+              </div>
+            )}
+            {scheduled.map(renderShootCard)}
+
+            {unscheduled.length > 0 && (
               <>
-                {/* Empty scene drop zone in wiggle mode */}
-                {wiggleMode && sceneShots.length === 0 && (
-                  <div data-scene-dropzone={scene.id}
-                    style={{
-                      margin: '0 14px 8px', padding: '16px 0',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      borderRadius: 8,
-                      border: dragOverSceneId === scene.id ? `1.5px dashed ${sceneColor}60` : '1.5px dashed rgba(255,255,255,0.08)',
-                      background: dragOverSceneId === scene.id ? `${sceneColor}08` : 'transparent',
-                      transition: 'all 0.15s',
-                    }}>
-                    <span className="font-mono uppercase" style={{ fontSize: '0.36rem', color: '#62627a', letterSpacing: '0.06em' }}>
-                      Drop shot here
-                    </span>
-                  </div>
-                )}
-                {sceneShots.map((shot, i) => {
-                  const displayNum = dragShotId ? getProjectedDisplayNumber(shot, scene.id) : getShotDisplayNumber(shot)
-                  const ds = getDragState(shot.id)
-                  // Displaced cards shift by the height of one card row (~70px) to open a gap
-                  const cardH = 70
-                  const transform = ds === 'displaced-down' ? `translateY(${cardH}px)` : ds === 'displaced-up' ? `translateY(-${cardH}px)` : 'translateY(0)'
-                  return (
-                    <div key={shot.id}>
-                      {!wiggleMode && <InsertRow index={i} sceneId={scene.id} />}
-                      <div data-shot-id={shot.id}
-                        className={wiggleMode && ds !== 'dragging' ? 'wiggle' : ''}
-                        style={{
-                          padding: wiggleMode ? '0 14px 10px' : '0 14px 3px', position: 'relative',
-                          transition: wiggleMode ? 'padding 0.2s ease' : undefined,
-                          ...(ds === 'dragging' ? { zIndex: 50 } : { transform, transition: 'transform 0.2s cubic-bezier(0.25,0.1,0.25,1)', zIndex: 1 }),
-                        }}>
-                        <div ref={ds === 'dragging' ? undefined : undefined}
-                          className="flex items-center select-none relative"
-                          style={{
-                            gap: 9,
-                            background: ds === 'dragging' ? 'rgba(10,10,18,0.85)' : 'rgba(10,10,18,0.42)',
-                            backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-                            border: ds === 'dragging' ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.07)',
-                            borderRadius: 8, padding: '9px 10px',
-                            boxShadow: ds === 'dragging' ? '0 8px 32px rgba(0,0,0,0.6)' : 'none',
-                          }}
-                          onTouchStart={e => {
-                            if (wiggleMode) {
-                              // In wiggle mode, start drag immediately
-                              e.stopPropagation()
-                              const el = e.currentTarget as HTMLDivElement
-                              const startY = e.touches[0].clientY
-                              handleDragStart(shot.id, startY, el)
-                              const onMove = (ev: TouchEvent) => { ev.preventDefault(); handleDragMove(ev.touches[0].clientY) }
-                              const onEnd = () => { handleDragEnd(); window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onEnd) }
-                              window.addEventListener('touchmove', onMove, { passive: false })
-                              window.addEventListener('touchend', onEnd)
-                            } else {
-                              // Normal mode — long press enters wiggle
-                              startLongPress()
-                            }
-                          }}
-                          onTouchMove={() => cancelLongPress()}
-                          onTouchEnd={() => cancelLongPress()}
-                          onClick={e => {
-                            if (wiggleMode) { e.stopPropagation() }
-                          }}>
-
-                          {/* Drag handle — visible in wiggle mode */}
-                          {wiggleMode && (
-                            <div className="flex flex-col items-center justify-center flex-shrink-0"
-                              style={{ gap: 2.5, opacity: 0.4, minHeight: 44, width: 20 }}>
-                              <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
-                              <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
-                              <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
-                            </div>
-                          )}
-
-                          {/* Shot number */}
-                          <span className={`flex-shrink-0 cursor-pointer${blinkIds.has(shot.id) ? ' number-blink' : ''}`} style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
-                            onClick={() => !wiggleMode && onTapShot(shot)}>
-                            {displayNum}
-                          </span>
-
-                          {/* Size pill */}
-                          {shot.size && (
-                            <span className="font-mono uppercase flex-shrink-0 cursor-pointer" style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}
-                              onClick={() => !wiggleMode && onTapShot(shot)}>
-                              {SIZE_ABBREV[shot.size] ?? shot.size}
-                            </span>
-                          )}
-
-                          {/* Description — inline editable */}
-                          {editingDescShotId === shot.id ? (
-                            <input
-                              autoFocus
-                              value={editingDescValue}
-                              onChange={e => setEditingDescValue(e.target.value)}
-                              onBlur={() => {
-                                const trimmed = editingDescValue.trim()
-                                if (trimmed !== (shot.description ?? '')) onUpdateShot(shot.id, { description: trimmed })
-                                setEditingDescShotId(null)
-                              }}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
-                                if (e.key === 'Escape') setEditingDescShotId(null)
-                              }}
-                              className="flex-1 min-w-0 outline-none"
-                              style={{ fontSize: '0.58rem', fontWeight: 500, color: '#dddde8', lineHeight: 1.35, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, padding: '2px 6px' }}
-                              onClick={e => e.stopPropagation()}
-                            />
-                          ) : (
-                            <span className="flex-1 min-w-0 truncate cursor-text" style={{ fontSize: '0.58rem', fontWeight: 500, color: '#a0a0b8', lineHeight: 1.35 }}
-                              onClick={(e) => {
-                                if (wiggleMode) return
-                                e.stopPropagation()
-                                setEditingDescValue(shot.description ?? '')
-                                setEditingDescShotId(shot.id)
-                              }}>
-                              {shot.description || '—'}
-                            </span>
-                          )}
-
-                          {/* Thumbnail */}
-                          {!wiggleMode && (
-                            <div className="flex-shrink-0 overflow-hidden cursor-pointer" style={{ width: 72, height: 44, borderRadius: 6, marginLeft: 'auto' }}
-                              onClick={() => onTapThumbnail(shot)}>
-                              {shot.imageUrl ? (
-                                <img src={shot.imageUrl} alt={displayNum} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${sceneColor}18, ${sceneColor}08)` }}>
-                                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                    <rect x="2" y="3" width="10" height="8" rx="1.5" stroke={sceneColor} strokeWidth="1" opacity="0.35" />
-                                    <path d="M7 5.5v3M5.5 7h3" stroke={sceneColor} strokeWidth="1" strokeLinecap="round" opacity="0.35" />
-                                  </svg>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Thread dot badge — shared component */}
-                          <ThreadRowBadge entry={threadByShotId?.get(shot.id)} />
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-                {!wiggleMode && <InsertRow index={sceneShots.length} sceneId={scene.id} />}
+                <div className="flex items-center" style={{ gap: 8, padding: '16px 14px 7px' }}>
+                  <span style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: '#62627a', opacity: 0.7 }}>
+                    Unscheduled
+                  </span>
+                  <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', color: '#62627a', opacity: 0.4 }}>
+                    {unscheduled.length}
+                  </span>
+                </div>
+                <div style={{ height: 1, margin: '0 14px 4px', background: '#62627a', opacity: 0.15 }} />
+                {unscheduled.map(renderShootCard)}
               </>
             )}
           </div>
-        )
-      })}
+        </SortableContext>
+      </DndContext>
+    )
+  }
+
+  // ── STORY ORDER RENDER ──
+  return (
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+      <SortableContext items={flatIds} strategy={verticalListSortingStrategy}>
+        <div onClick={wiggleMode && !activeId ? () => setWiggleMode(false) : undefined}>
+          {wiggleMode && (
+            <div className="flex justify-center" style={{ padding: '8px 14px 4px' }}>
+              <button className="font-mono uppercase cursor-pointer"
+                style={{ fontSize: '0.44rem', letterSpacing: '0.06em', padding: '5px 16px', borderRadius: 14, background: `${accent}1f`, border: `1px solid ${accent}40`, color: accent }}
+                onClick={(e) => { e.stopPropagation(); haptic('light'); setWiggleMode(false) }}>Done</button>
+            </div>
+          )}
+
+          {scenes.map(scene => {
+            const sceneShots = shots.filter(s => s.sceneId === scene.id).sort((a, b) => a.sortOrder - b.sortOrder)
+            const sceneColor = getSceneColor(parseInt(scene.sceneNumber), totalScenes)
+            const isOpen = !collapsedScenes.has(scene.id)
+
+            return (
+              <div key={scene.id}>
+                <SceneHeaderDroppable
+                  scene={scene}
+                  sceneColor={sceneColor}
+                  highlighted={dragOverSceneId === scene.id}
+                  isEditing={editingSceneId === scene.id}
+                  editingTitle={editingTitle}
+                  setEditingTitle={setEditingTitle}
+                  setEditingSceneId={setEditingSceneId}
+                  onRenameScene={onRenameScene}
+                  toggleScene={toggleScene}
+                  wiggleMode={wiggleMode}
+                  isOpen={isOpen}
+                  accent={accent}
+                  shotCount={sceneShots.length}
+                  onConfirmDelete={() => { haptic('warning'); setConfirmDeleteId(scene.id) }}
+                />
+
+                {confirmDeleteId === scene.id && (
+                  <div style={{ padding: '6px 14px 8px', display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(232,86,74,0.06)', borderRadius: 6, margin: '0 14px 4px' }}>
+                    <span style={{ fontSize: '0.56rem', color: '#e8564a', flex: 1 }}>Delete scene {scene.sceneNumber} and {sceneShots.length} shot{sceneShots.length !== 1 ? 's' : ''}?</span>
+                    <button className="font-mono uppercase cursor-pointer"
+                      style={{ fontSize: '0.4rem', letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 10, background: 'rgba(232,86,74,0.15)', border: '1px solid rgba(232,86,74,0.3)', color: '#e8564a' }}
+                      onClick={(e) => { e.stopPropagation(); onDeleteScene(scene.id); setConfirmDeleteId(null) }}>Delete</button>
+                    <button className="font-mono uppercase cursor-pointer"
+                      style={{ fontSize: '0.4rem', letterSpacing: '0.06em', padding: '4px 10px', borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#a0a0b8' }}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null) }}>Cancel</button>
+                  </div>
+                )}
+
+                <div style={{ height: 1, margin: '0 14px 4px', background: sceneColor, opacity: 0.5 }} />
+
+                {(isOpen || wiggleMode) && (
+                  <>
+                    {wiggleMode && sceneShots.length === 0 && (
+                      <EmptySceneDropZone sceneColor={sceneColor} highlighted={dragOverSceneId === scene.id} />
+                    )}
+                    {sceneShots.map((shot, i) => {
+                      const displayNum = activeId ? getProjectedDisplayNumber(shot, scene.id) : getShotDisplayNumber(shot)
+                      return (
+                        <div key={shot.id}>
+                          {!wiggleMode && <InsertRow index={i} sceneId={scene.id} />}
+                          <SortableShotRow
+                            shot={shot}
+                            sceneColor={sceneColor}
+                            displayNum={displayNum}
+                            blinking={blinkIds.has(shot.id)}
+                            wiggleMode={wiggleMode}
+                            showThumbnail={!wiggleMode}
+                            descBehavior="tap-edits-inline"
+                            onTap={() => onTapShot(shot)}
+                            onTapThumbnail={() => onTapThumbnail(shot)}
+                            onLongPressStart={startLongPress}
+                            onLongPressCancel={cancelLongPress}
+                            threadEntry={threadByShotId?.get(shot.id)}
+                            isEditingDesc={editingDescShotId === shot.id}
+                            editingDescValue={editingDescValue}
+                            setEditingDescValue={setEditingDescValue}
+                            setEditingDescShotId={setEditingDescShotId}
+                            onUpdateDesc={(v) => onUpdateShot(shot.id, { description: v })}
+                          />
+                        </div>
+                      )
+                    })}
+                    {!wiggleMode && <InsertRow index={sceneShots.length} sceneId={scene.id} />}
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </SortableContext>
+    </DndContext>
+  )
+}
+
+// ── SortableShotRow ─ used in both story and shoot modes ──
+
+type DescBehavior = 'tap-opens-detail' | 'tap-edits-inline'
+
+function SortableShotRow({
+  shot, sceneColor, displayNum, blinking, wiggleMode, showThumbnail, descBehavior,
+  onTap, onTapThumbnail, onLongPressStart, onLongPressCancel, threadEntry,
+  isEditingDesc, editingDescValue, setEditingDescValue, setEditingDescShotId, onUpdateDesc,
+}: {
+  shot: Shot
+  sceneColor: string
+  displayNum: string
+  blinking: boolean
+  wiggleMode: boolean
+  showThumbnail: boolean
+  descBehavior: DescBehavior
+  onTap: () => void
+  onTapThumbnail: () => void
+  onLongPressStart: () => void
+  onLongPressCancel: () => void
+  threadEntry?: { count: number; unread: boolean }
+  isEditingDesc?: boolean
+  editingDescValue?: string
+  setEditingDescValue?: (v: string) => void
+  setEditingDescShotId?: (id: string | null) => void
+  onUpdateDesc?: (description: string) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: shot.id })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 1,
+    opacity: isDragging ? 0.85 : 1,
+    padding: wiggleMode ? '0 14px 10px' : '0 14px 3px',
+    position: 'relative',
+  }
+
+  // Drag listeners attach only in wiggle mode. In normal mode the row's
+  // pointer/click events flow to the inline tap handlers (open detail,
+  // edit description, etc.).
+  const dragListeners = wiggleMode ? listeners : undefined
+  const dragAttrs = wiggleMode ? attributes : undefined
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <div
+        className={`flex items-center select-none relative${wiggleMode && !isDragging ? ' wiggle' : ''}`}
+        style={{
+          gap: 9,
+          background: isDragging ? 'rgba(10,10,18,0.85)' : 'rgba(10,10,18,0.42)',
+          backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+          border: isDragging ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.07)',
+          borderRadius: 8, padding: '9px 10px',
+          boxShadow: isDragging ? '0 8px 32px rgba(0,0,0,0.6)' : 'none',
+        }}
+        {...dragListeners}
+        {...dragAttrs}
+        onTouchStart={!wiggleMode ? onLongPressStart : undefined}
+        onTouchMove={!wiggleMode ? onLongPressCancel : undefined}
+        onTouchEnd={!wiggleMode ? onLongPressCancel : undefined}
+        onClick={(e) => { if (wiggleMode) e.stopPropagation() }}
+      >
+        {wiggleMode && (
+          <div className="flex flex-col items-center justify-center flex-shrink-0"
+            style={{ gap: 2.5, opacity: 0.4, minHeight: 44, width: 20 }}>
+            <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
+            <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
+            <div style={{ width: 10, height: 1.5, background: 'white', borderRadius: 1 }} />
+          </div>
+        )}
+
+        <span className={`flex-shrink-0 cursor-pointer${blinking ? ' number-blink' : ''}`}
+          style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
+          onClick={() => !wiggleMode && onTap()}>
+          {displayNum}
+        </span>
+
+        {shot.size && (
+          <span className="font-mono uppercase flex-shrink-0 cursor-pointer"
+            style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}
+            onClick={() => !wiggleMode && onTap()}>
+            {SIZE_ABBREV[shot.size] ?? shot.size}
+          </span>
+        )}
+
+        {descBehavior === 'tap-edits-inline' && isEditingDesc && setEditingDescValue && setEditingDescShotId && onUpdateDesc ? (
+          <input
+            autoFocus
+            value={editingDescValue ?? ''}
+            onChange={e => setEditingDescValue(e.target.value)}
+            onBlur={() => {
+              const trimmed = (editingDescValue ?? '').trim()
+              if (trimmed !== (shot.description ?? '')) onUpdateDesc(trimmed)
+              setEditingDescShotId(null)
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
+              if (e.key === 'Escape') setEditingDescShotId(null)
+            }}
+            className="flex-1 min-w-0 outline-none"
+            style={{ fontSize: '0.58rem', fontWeight: 500, color: '#dddde8', lineHeight: 1.35, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, padding: '2px 6px' }}
+            onClick={e => e.stopPropagation()}
+          />
+        ) : (
+          <span className="flex-1 min-w-0 truncate cursor-text"
+            style={{ fontSize: '0.58rem', fontWeight: 500, color: '#a0a0b8', lineHeight: 1.35 }}
+            onClick={(e) => {
+              if (wiggleMode) return
+              if (descBehavior === 'tap-edits-inline' && setEditingDescValue && setEditingDescShotId) {
+                e.stopPropagation()
+                setEditingDescValue(shot.description ?? '')
+                setEditingDescShotId(shot.id)
+              } else {
+                onTap()
+              }
+            }}>
+            {shot.description || '—'}
+          </span>
+        )}
+
+        {showThumbnail && (
+          <div className="flex-shrink-0 overflow-hidden cursor-pointer"
+            style={{ width: 72, height: 44, borderRadius: 6, marginLeft: 'auto' }}
+            onClick={onTapThumbnail}>
+            {shot.imageUrl ? (
+              <img src={shot.imageUrl} alt={displayNum} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${sceneColor}18, ${sceneColor}08)` }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <rect x="2" y="3" width="10" height="8" rx="1.5" stroke={sceneColor} strokeWidth="1" opacity="0.35" />
+                  <path d="M7 5.5v3M5.5 7h3" stroke={sceneColor} strokeWidth="1" strokeLinecap="round" opacity="0.35" />
+                </svg>
+              </div>
+            )}
+          </div>
+        )}
+
+        <ThreadRowBadge entry={threadEntry} />
+      </div>
+    </div>
+  )
+}
+
+// ── SceneHeaderDroppable ─ scene header that doubles as a drop target ──
+
+function SceneHeaderDroppable({
+  scene, sceneColor, highlighted, isEditing, editingTitle, setEditingTitle, setEditingSceneId,
+  onRenameScene, toggleScene, wiggleMode, isOpen, accent, shotCount, onConfirmDelete,
+}: {
+  scene: Scene
+  sceneColor: string
+  highlighted: boolean
+  isEditing: boolean
+  editingTitle: string
+  setEditingTitle: (t: string) => void
+  setEditingSceneId: (id: string | null) => void
+  onRenameScene: (sceneId: string, title: string) => void
+  toggleScene: (sceneId: string) => void
+  wiggleMode: boolean
+  isOpen: boolean
+  accent: string
+  shotCount: number
+  onConfirmDelete: () => void
+}) {
+  const { setNodeRef } = useDroppable({ id: `${SCENE_HEADER_DROPPABLE}${scene.id}` })
+
+  return (
+    <div ref={setNodeRef} className="flex items-center select-none"
+      style={{
+        gap: 8, padding: '11px 14px 7px',
+        ...(highlighted ? { background: `${sceneColor}12`, borderRadius: 6, margin: '0 4px' } : {}),
+        transition: 'background 0.15s, margin 0.15s',
+      }}>
+      <span className="flex-shrink-0 cursor-pointer"
+        style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', color: sceneColor, minWidth: 20 }}
+        onClick={() => !wiggleMode && toggleScene(scene.id)}>
+        {scene.sceneNumber}
+      </span>
+      {isEditing ? (
+        <input
+          autoFocus
+          value={editingTitle}
+          onChange={e => setEditingTitle(e.target.value)}
+          onBlur={() => {
+            const trimmed = editingTitle.trim()
+            if (trimmed !== (scene.title ?? '')) onRenameScene(scene.id, trimmed)
+            setEditingSceneId(null)
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() }
+            if (e.key === 'Escape') setEditingSceneId(null)
+          }}
+          className="flex-1 min-w-0 outline-none"
+          style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: accent, background: 'rgba(255,255,255,0.06)', border: `1px solid ${accent}40`, borderRadius: 4, padding: '2px 6px' }}
+        />
+      ) : (
+        <span className="flex-1 truncate cursor-pointer"
+          style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: accent, opacity: 0.7 }}
+          onClick={() => { if (!wiggleMode) toggleScene(scene.id) }}
+          onDoubleClick={() => {
+            setEditingTitle(scene.title ?? '')
+            setEditingSceneId(scene.id)
+          }}>
+          {scene.title || 'Untitled'}
+        </span>
+      )}
+      <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', color: '#62627a', opacity: 0.55 }}>
+        {shotCount}
+      </span>
+      {wiggleMode && (
+        <button className="flex-shrink-0 cursor-pointer flex items-center justify-center"
+          style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(232,86,74,0.1)', border: '1px solid rgba(232,86,74,0.25)' }}
+          onClick={(e) => { e.stopPropagation(); onConfirmDelete() }}>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 2l6 6M8 2l-6 6" stroke="#e8564a" strokeWidth="1.3" strokeLinecap="round" /></svg>
+        </button>
+      )}
+      {!wiggleMode && !isEditing && (
+        <svg width="5" height="9" viewBox="0 0 5 9" fill="none" className="flex-shrink-0 cursor-pointer"
+          style={{ opacity: 0.5, transition: 'transform 0.2s', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+          onClick={() => toggleScene(scene.id)}>
+          <path d="M1 1L4 4.5L1 8" stroke={sceneColor} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </div>
+  )
+}
+
+// ── EmptySceneDropZone ─ visual cue for an empty scene during wiggle drag ──
+
+function EmptySceneDropZone({ sceneColor, highlighted }: { sceneColor: string; highlighted: boolean }) {
+  // Drop is captured by the SceneHeaderDroppable above; this is a pure
+  // visual hint so an empty scene reads as a valid target.
+  return (
+    <div style={{
+      margin: '0 14px 8px', padding: '16px 0',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      borderRadius: 8,
+      border: highlighted ? `1.5px dashed ${sceneColor}60` : '1.5px dashed rgba(255,255,255,0.08)',
+      background: highlighted ? `${sceneColor}08` : 'transparent',
+      transition: 'all 0.15s',
+    }}>
+      <span className="font-mono uppercase" style={{ fontSize: '0.36rem', color: '#62627a', letterSpacing: '0.06em' }}>
+        Drop shot here
+      </span>
     </div>
   )
 }
