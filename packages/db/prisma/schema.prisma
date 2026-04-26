@@ -156,6 +156,7 @@ model User {
   chatReceived      ChatMessage[]          @relation("ChatRecipient")
   projectFolders    UserProjectFolder[]
   projectPlacements UserProjectPlacement[]
+  entityAttachments EntityAttachment[]
 }
 
 model Team {
@@ -274,31 +275,32 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @default(now()) @updatedAt
 
-  team             Team                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  members          ProjectMember[]
-  scenes           Scene[]
-  entities         Entity[]
-  documents        Document[]
-  milestones       Milestone[]
-  actionItems      ActionItem[]
-  threads          Thread[]
-  locations        Location[]
-  folders          Folder[]
-  resources        Resource[]
-  moodboardTabs    MoodboardTab[]
-  moodboardRefs    MoodboardRef[]
-  talents          Talent[]
-  workflowNodes    WorkflowNode[]
-  workflowEdges    WorkflowEdge[]
-  deliverables     Deliverable[]
-  chatChannels     ChatChannel[]
-  chatMessages     ChatMessage[]
-  shotlistVersions ShotlistVersion[]
-  timecards        CrewTimecard[]
-  inventoryItems   InventoryItem[]
-  shootDays        ShootDay[]
-  placements       UserProjectPlacement[]
-  budget           Budget?
+  team              Team                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  members           ProjectMember[]
+  scenes            Scene[]
+  entities          Entity[]
+  documents         Document[]
+  milestones        Milestone[]
+  actionItems       ActionItem[]
+  threads           Thread[]
+  locations         Location[]
+  folders           Folder[]
+  resources         Resource[]
+  moodboardTabs     MoodboardTab[]
+  moodboardRefs     MoodboardRef[]
+  talents           Talent[]
+  workflowNodes     WorkflowNode[]
+  workflowEdges     WorkflowEdge[]
+  deliverables      Deliverable[]
+  chatChannels      ChatChannel[]
+  chatMessages      ChatMessage[]
+  shotlistVersions  ShotlistVersion[]
+  timecards         CrewTimecard[]
+  inventoryItems    InventoryItem[]
+  shootDays         ShootDay[]
+  placements        UserProjectPlacement[]
+  budget            Budget?
+  entityAttachments EntityAttachment[]
 }
 
 // ─── Scenes, Shots, Entities ─────────────────────────────────────────────────
@@ -473,6 +475,44 @@ model ThreadRead {
   @@index([userId, lastReadAt])
 }
 
+// ─── Entity Attachments ──────────────────────────────────────────────────────
+// Polymorphic image gallery — one table for every gallery-style attachment
+// surface (locations, props, wardrobe, hmu, moodboard refs, cast reference
+// photos). Reference: apps/back-to-one/reference/back-to-one-entity-attachments.html
+//
+// attachedToType conventions:
+//   • Production records: 'location' | 'prop' | 'wardrobe' | 'hmu' | 'cast'
+//   • Narrative records:  'narrativeLocation' | 'narrativeProp' | …
+//     (narrative variants added per surface as the corresponding production
+//      record ships — locations is first; props/wardrobe follow with PropSourced
+//      and WardrobeSourced.)
+//   • 'moodboardRef' covered when/if MoodboardRef migrates into this table.
+// Avatars do NOT use this pattern — see User.avatarUrl + the separate `avatars`
+// bucket per Crew Profile v2 (BUILD_STATUS #21).
+model EntityAttachment {
+  id             String   @id @default(dbgenerated("gen_random_uuid()"))
+  projectId      String
+  attachedToType String // string union enforced in app code, mirrors Thread.attachedToType
+  attachedToId   String
+  storagePath    String // entity-attachments/{attachedToType}/{attachedToId}/{rand}.{ext}
+  caption        String?
+  uploadedById   String? // FK to User.id; nullable until Auth ships (DECISIONS Apr 26 2026)
+  uploadedAt     DateTime @default(now())
+  width          Int?
+  height         Int?
+  mimeType       String?
+  sizeBytes      Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy User?   @relation(fields: [uploadedById], references: [id])
+
+  @@index([projectId])
+  @@index([attachedToType, attachedToId])
+  @@index([uploadedById])
+}
+
 // ─── Moodboard ───────────────────────────────────────────────────────────────
 
 model MoodboardTab {
@@ -518,7 +558,6 @@ model Location {
   // before booking, or booked under pressure without approval.
   approved    Boolean        @default(false)
   notes       String?
-  imageUrl    String?
   sceneTab    String?
   sortOrder   Int            @default(0)
   createdAt   DateTime       @default(now())
@@ -787,6 +826,7 @@ model UserProjectPlacement {
   @@unique([userId, projectId])
   @@index([userId, folderId, sortOrder])
 }
+
 // ─── Budget ──────────────────────────────────────────────────────────────────
 //
 // Eight models + six enums. Spec §3.1 / plan PR 4. Lines + accounts are shared

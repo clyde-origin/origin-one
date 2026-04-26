@@ -52,6 +52,7 @@ Key reference files:
 - `tone-moodboard.html` — Tone/moodboard module
 - `timeline-full.html` — Timeline module
 - `inventory-page.html` — Inventory page (upcoming build)
+- `back-to-one-entity-attachments.html` — Polymorphic image-gallery pattern (locations, props, wardrobe, hmu, moodboard refs, future cast reference photos)
 
 ## One Arc — embedded in Back to One
 

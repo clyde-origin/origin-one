@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Back to One — Entity Attachments Pattern</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-page: #0c0c12;
+    --bg-phone: #04040a;
+    --bg-sheet: #0a0a12;
+    --border: rgba(255,255,255,0.08);
+    --border-strong: rgba(255,255,255,0.14);
+    --text: rgba(255,255,255,0.92);
+    --text-secondary: rgba(255,255,255,0.58);
+    --text-muted: rgba(255,255,255,0.38);
+    --text-faint: rgba(255,255,255,0.32);
+    --glass-bg: rgba(8,8,14,0.6);
+    --accent-locations: #3cbe6a;
+    --accent-error: #e84848;
+    --accent-pre: #e8a020;
+    --accent-prod: #6470f3;
+    --accent-post: #00b894;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg-page);
+    color: var(--text);
+    font-family: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  .doc { max-width: 1200px; margin: 0 auto; padding: 56px 32px 96px; }
+
+  .doc-head { display: flex; flex-direction: column; gap: 4px; margin: 0 0 40px; }
+  .doc-eyebrow {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 11px; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--text-muted); font-weight: 500; margin: 0;
+  }
+  .doc-title { font-size: 32px; font-weight: 500; margin: 6px 0 0; letter-spacing: -0.01em; }
+  .doc-meta { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: var(--text-secondary); margin-top: 10px; }
+
+  .section { margin: 48px 0 0; }
+  .section-eyebrow {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--text-secondary); font-weight: 500;
+    margin: 0 0 14px; padding-bottom: 12px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .section-title { font-size: 22px; font-weight: 500; margin: 0 0 6px; letter-spacing: -0.005em; }
+  .section-sub { font-size: 14px; color: var(--text-secondary); margin: 0 0 20px; line-height: 1.6; }
+
+  .prose { font-size: 14px; color: var(--text-secondary); line-height: 1.65; max-width: 760px; }
+  .prose p { margin: 0 0 14px; }
+  .prose p:last-child { margin: 0; }
+  .prose b { color: var(--text); font-weight: 500; }
+  .prose code {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 12.5px;
+    background: rgba(255,255,255,0.05);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--text);
+  }
+  .prose ul { margin: 0 0 14px; padding-left: 22px; }
+  .prose ul li { margin: 4px 0; }
+
+  .schema-block {
+    background: rgba(255,255,255,0.025);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin: 14px 0;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--text);
+    line-height: 1.7;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .schema-block .k { color: #f08030; }
+  .schema-block .t { color: #4ab8e8; }
+  .schema-block .a { color: #b890f0; }
+  .schema-block .c { color: var(--text-muted); font-style: italic; }
+  .schema-block .s { color: #a8d428; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: start; }
+
+  .stage {
+    background: var(--bg-phone);
+    border-radius: 16px;
+    padding: 18px 14px 22px;
+    border: 0.5px solid var(--border);
+  }
+  .stage-label {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--text-muted); margin: 0 0 12px;
+  }
+
+  .row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 12px;
+    background: rgba(255,255,255,0.025);
+    border: 0.5px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+  }
+  .row + .row { margin-top: 8px; }
+  .row-main { flex: 1; min-width: 0; }
+  .row-title { font-size: 14px; color: var(--text); margin: 0 0 2px; }
+  .row-meta {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 11px; color: var(--text-muted); margin: 0;
+  }
+  .thumb {
+    width: 44px; height: 44px;
+    border-radius: 8px; flex-shrink: 0;
+    background-size: cover; background-position: center;
+  }
+  .thumb-empty {
+    background: rgba(255,255,255,0.04);
+    border: 0.5px dashed rgba(255,255,255,0.18);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-faint);
+  }
+  .thumb-uploading {
+    background: rgba(255,255,255,0.04);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .thumb-stack { position: relative; width: 44px; height: 44px; flex-shrink: 0; }
+  .thumb-stack .s {
+    position: absolute; width: 36px; height: 36px;
+    border-radius: 7px; background-size: cover; background-position: center;
+    border: 0.5px solid rgba(0,0,0,0.4);
+  }
+  .thumb-stack .s1 { top: 0; left: 0; }
+  .thumb-stack .s2 { top: 4px; left: 4px; }
+  .thumb-stack .s3 { bottom: 0; right: 0; box-shadow: 0 0 0 1.5px var(--bg-phone); }
+  .thumb-count {
+    position: absolute; bottom: -2px; right: -2px;
+    background: var(--bg-phone);
+    color: rgba(255,255,255,0.85);
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 8px;
+    border: 0.5px solid rgba(255,255,255,0.18);
+  }
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(255,255,255,0.15);
+    border-top-color: rgba(255,255,255,0.6);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .sheet {
+    background: var(--bg-sheet);
+    border: 0.5px solid var(--border-strong);
+    border-radius: 14px;
+    padding: 18px 16px;
+  }
+  .sheet-handle {
+    width: 36px; height: 4px;
+    background: rgba(255,255,255,0.18);
+    border-radius: 2px;
+    margin: 0 auto 14px;
+  }
+  .sheet-eyebrow {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--text-muted); margin: 0 0 4px;
+  }
+  .sheet-title {
+    font-size: 17px; font-weight: 500; margin: 0 0 16px;
+    color: rgba(255,255,255,0.95);
+  }
+  .sec-label {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase;
+    color: rgba(255,255,255,0.42);
+    margin: 14px 0 8px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .sec-count { color: var(--text-faint); }
+
+  .empty {
+    border: 0.5px dashed rgba(255,255,255,0.18);
+    border-radius: 12px;
+    padding: 22px 16px;
+    text-align: center;
+    background: rgba(255,255,255,0.02);
+  }
+  .empty-title { font-size: 13px; color: rgba(255,255,255,0.7); margin: 0 0 4px; }
+  .empty-sub {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 11px; color: var(--text-muted); margin: 0 0 12px;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px;
+    background: rgba(255,255,255,0.06);
+    border: 0.5px solid rgba(255,255,255,0.16);
+    border-radius: 8px;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 11px;
+    color: rgba(255,255,255,0.82);
+    cursor: pointer;
+  }
+
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .tile {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.04);
+  }
+  .tile-img {
+    width: 100%; height: 100%;
+    background-size: cover; background-position: center;
+  }
+  .tile-cap-dot {
+    position: absolute; top: 6px; right: 6px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.7);
+  }
+  .tile-uploading {
+    background: rgba(255,255,255,0.04);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tile-add {
+    display: flex; align-items: center; justify-content: center;
+    border: 0.5px dashed rgba(255,255,255,0.18);
+    border-radius: 10px;
+    aspect-ratio: 1 / 1;
+    color: var(--text-muted);
+    font-size: 22px; font-weight: 300;
+    cursor: pointer;
+  }
+
+  .drop {
+    border: 1px dashed rgba(60,190,106,0.65);
+    background: rgba(60,190,106,0.06);
+    border-radius: 12px;
+    padding: 28px 16px;
+    text-align: center;
+  }
+  .drop-title { font-size: 14px; color: rgba(255,255,255,0.9); margin: 0 0 4px; }
+  .drop-sub {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 11px; color: var(--text-secondary); margin: 0;
+  }
+
+  .lightbox {
+    background: var(--bg-phone);
+    border-radius: 14px;
+    padding: 18px 16px 20px;
+    border: 0.5px solid var(--border-strong);
+  }
+  .lb-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 14px;
+  }
+  .lb-eyebrow {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--text-secondary); margin: 0;
+  }
+  .lb-counter {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 11px; color: var(--text-secondary);
+  }
+  .lb-image {
+    aspect-ratio: 4 / 3;
+    border-radius: 10px;
+    background-size: cover; background-position: center;
+    margin-bottom: 14px;
+    position: relative;
+  }
+  .lb-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.55);
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.9);
+    border: 0.5px solid rgba(255,255,255,0.18);
+    cursor: pointer;
+  }
+  .lb-nav.prev { left: 8px; }
+  .lb-nav.next { right: 8px; }
+  .lb-cap-row { display: flex; gap: 8px; align-items: flex-start; }
+  .lb-cap {
+    flex: 1;
+    padding: 10px 12px;
+    background: rgba(255,255,255,0.04);
+    border: 0.5px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.88);
+    line-height: 1.5;
+    min-height: 38px;
+  }
+  .lb-cap-empty { color: var(--text-muted); font-style: italic; }
+  .lb-cap-saved {
+    position: absolute;
+    margin-top: 4px;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 10px;
+    color: var(--accent-locations);
+    letter-spacing: 0.4px;
+  }
+  .lb-actions { display: flex; gap: 6px; }
+  .lb-act-btn {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 0.5px solid rgba(255,255,255,0.12);
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.7);
+    cursor: pointer;
+  }
+  .lb-act-btn.danger {
+    color: rgba(232,72,72,0.85);
+    border-color: rgba(232,72,72,0.25);
+    background: rgba(232,72,72,0.05);
+  }
+  .lb-meta {
+    display: flex; gap: 12px; align-items: center;
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    background: rgba(255,255,255,0.025);
+    border-radius: 10px;
+  }
+  .lb-meta-label {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--text-muted); margin: 0;
+  }
+  .lb-meta-val {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 11px; color: rgba(255,255,255,0.78);
+    margin: 2px 0 0;
+  }
+
+  .img-1 { background: linear-gradient(135deg, #5d4a3a, #8a6f4f); }
+  .img-2 { background: linear-gradient(135deg, #3a4a5d, #4f6f8a); }
+  .img-3 { background: linear-gradient(135deg, #4a5d3a, #6f8a4f); }
+  .img-4 { background: linear-gradient(135deg, #5d3a4a, #8a4f6f); }
+  .img-5 { background: linear-gradient(135deg, #3a5d5d, #4f8a8a); }
+
+  .future-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .future-card {
+    padding: 12px 14px;
+    background: rgba(255,255,255,0.025);
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+  }
+  .future-card-name {
+    font-size: 13px; font-weight: 500;
+    color: var(--text); margin: 0 0 2px;
+  }
+  .future-card-id {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 11px; color: var(--text-muted); margin: 0;
+  }
+
+  .pill {
+    display: inline-flex; align-items: center;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: 0.4px;
+    background: rgba(60,190,106,0.12);
+    color: var(--accent-locations);
+    border: 0.5px solid rgba(60,190,106,0.25);
+  }
+  .pill-warn {
+    background: rgba(232,160,32,0.12);
+    color: var(--accent-pre);
+    border-color: rgba(232,160,32,0.25);
+  }
+
+  @media (max-width: 760px) {
+    .doc { padding: 32px 16px 64px; }
+    .doc-title { font-size: 24px; }
+    .grid-2 { grid-template-columns: 1fr; }
+    .grid-4 { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<main class="doc">
+
+  <header class="doc-head">
+    <p class="doc-eyebrow">Back to One — Reference</p>
+    <h1 class="doc-title">Entity Attachments — image pattern</h1>
+    <p class="doc-meta">Last updated April 26, 2026 · Spec for PR #11 · Locations first, pattern reused across props, wardrobe, hmu, moodboard refs, cast reference photos</p>
+  </header>
+
+  <!-- ─────────────────────────────────────────────────────────────── -->
+  <section class="section">
+    <p class="section-eyebrow">Why this pattern exists</p>
+    <h2 class="section-title">One component, every entity surface</h2>
+    <p class="section-sub">Same component, same storage discipline, same UI shape — different entity type. Locations is the first surface; the pattern is built to extend.</p>
+
+    <div class="prose">
+      <p>Six+ surfaces in Back to One need image attachments — locations, props, wardrobe, hmu refs, moodboard refs, cast reference photos. Building one-off image upload UIs per surface gives us six divergent components, six bucket conventions, and six places where bugs live in parallel. This pattern is one component (<code>EntityAttachmentGallery</code>) wired to one polymorphic table (<code>EntityAttachment</code>), backed by one shared bucket (<code>entity-attachments</code>) with structured paths.</p>
+      <p><b>Avatars are explicitly excluded.</b> Crew/cast avatars are 1:1 and live as <code>User.avatarUrl</code> (or equivalent). They use a separate bucket and do not go through this pattern. The conceptual difference matters: an avatar <i>is</i> a person's identity surface; an attachment is documentation about an entity. Different things.</p>
+    </div>
+
+    <div class="future-list">
+      <div class="future-card"><p class="future-card-name">Locations <span class="pill" style="margin-left:6px;">v1 surface</span></p><p class="future-card-id">attachedToType: 'location' · 'entity-location'</p></div>
+      <div class="future-card"><p class="future-card-name">Props</p><p class="future-card-id">attachedToType: 'prop'</p></div>
+      <div class="future-card"><p class="future-card-name">Wardrobe</p><p class="future-card-id">attachedToType: 'wardrobe'</p></div>
+      <div class="future-card"><p class="future-card-name">HMU</p><p class="future-card-id">attachedToType: 'hmu'</p></div>
+      <div class="future-card"><p class="future-card-name">Moodboard refs</p><p class="future-card-id">attachedToType: 'moodboardRef'</p></div>
+      <div class="future-card"><p class="future-card-name">Cast reference photos</p><p class="future-card-id">attachedToType: 'cast'</p></div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────── -->
+  <section class="section">
+    <p class="section-eyebrow">Schema</p>
+    <h2 class="section-title"><code style="font-size:20px;">EntityAttachment</code> — polymorphic, single table</h2>
+    <p class="section-sub">Mirrors the threads polymorphic pattern. <code>attachedToType</code> + <code>attachedToId</code> identify what the image is attached to.</p>
+
+    <div class="schema-block"><span class="k">model</span> <span class="t">EntityAttachment</span> {
+  <span class="a">id</span>             <span class="t">String</span>   <span class="a">@id @default</span>(<span class="s">cuid</span>())
+  <span class="a">attachedToType</span> <span class="t">String</span>   <span class="c">// 'location' | 'entity-location' | 'prop' | 'wardrobe' | 'hmu' | 'moodboardRef' | 'cast'</span>
+  <span class="a">attachedToId</span>   <span class="t">String</span>
+  <span class="a">storagePath</span>    <span class="t">String</span>   <span class="c">// entity-attachments/{entityType}/{entityId}/{cuid}.{ext}</span>
+  <span class="a">caption</span>        <span class="t">String?</span>
+  <span class="a">uploadedById</span>   <span class="t">String?</span>  <span class="c">// FK to User (nullable until auth lands)</span>
+  <span class="a">uploadedAt</span>     <span class="t">DateTime</span> <span class="a">@default</span>(<span class="s">now</span>())
+  <span class="a">width</span>          <span class="t">Int?</span>
+  <span class="a">height</span>         <span class="t">Int?</span>
+  <span class="a">mimeType</span>       <span class="t">String?</span>
+  <span class="a">sizeBytes</span>      <span class="t">Int?</span>
+
+  <span class="a">@@index</span>([attachedToType, attachedToId])
+  <span class="a">@@index</span>([uploadedById])
+}</div>
+
+    <div class="prose" style="margin-top: 14px;">
+      <p><b>Notes for the schema PR conversation:</b></p>
+      <ul>
+        <li><code>attachedToType</code> is a string union enforced in application code, not a Postgres enum. This matches the threads polymorphic table; both can convert to enum together later if it pays off.</li>
+        <li>No <code>displayOrder</code> field in v1. Hero/cover image = most recently uploaded. If reorder becomes a real production need, add it as a dedicated PR.</li>
+        <li>No FK constraint on <code>attachedToId</code> — same reasoning as threads. Application code enforces the polymorphic relationship; batched loaders prevent N+1.</li>
+        <li><code>uploadedById</code> nullable until auth lands. Backfill is not necessary for v1 internal users.</li>
+        <li>Width/height/mimeType/sizeBytes captured at upload time, not lazy-loaded. Avoids per-render image probing.</li>
+        <li>No soft delete in v1. Tap delete → row + Storage object both removed. If recovery becomes a need, add <code>deletedAt</code> as a dedicated PR.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────── -->
+  <section class="section">
+    <p class="section-eyebrow">Storage</p>
+    <h2 class="section-title">One shared bucket, structured paths</h2>
+    <p class="section-sub">Bucket: <code>entity-attachments</code>. Path convention: <code>{entityType}/{entityId}/{randomId}.{ext}</code>. Unsigned public URLs, no expiration. Random filenames mitigate enumeration.</p>
+
+    <div class="prose">
+      <p><b>Why shared bucket:</b> 6+ surfaces would otherwise mean 6+ buckets, 6+ RLS policy sets, 6+ migration files. Shared bucket means one administrative surface. Storage paths give the same logical separation. This aligns with the polymorphic threads pattern — same architectural reasoning.</p>
+      <p><b>v1 sharing model:</b> Public URLs, no expiration. Random filenames make URLs unguessable but anyone with the link can view forever. <span class="pill pill-warn">Revisit before external client beta.</span> A leaked link to a confidential location scout is permanently leaked under v1.</p>
+      <p><b>Path examples:</b></p>
+      <ul>
+        <li><code>entity-attachments/location/clxxx7a2.../f7a2b9c1.jpg</code> — production-side Location row</li>
+        <li><code>entity-attachments/entity-location/clyyy8b3.../d4e5f6g7.jpg</code> — script-side Entity(type='location') row</li>
+        <li><code>entity-attachments/prop/clzzz9c4.../a1b2c3d4.png</code> — future Props surface</li>
+      </ul>
+      <p><b>File constraints (v1):</b> jpg, png, webp. Up to 10mb each. No video, no documents — those are future patterns and will get their own conversations.</p>
+      <p><b>Avatars do not use this bucket.</b> Avatars live in a separate <code>avatars</code> bucket (path <code>{userId}/{cuid}.{ext}</code>) and resolve to <code>User.avatarUrl</code>. Same random-filename discipline applies.</p>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────── -->
+  <section class="section">
+    <p class="section-eyebrow">A · Row preview</p>
+    <h2 class="section-title">Stacked thumb pattern</h2>
+    <p class="section-sub">Locked: stacked preview with <code>+N</code> count badge. Same shape on Locations page rows and EntityDrawer locations tab. <code>+N</code> shown when count &gt; 1; single image renders as one 44×44 thumb without stack.</p>
+
+    <div class="grid-4">
+      <div class="stage">
+        <p class="stage-label">Empty</p>
+        <div class="row">
+          <div class="thumb thumb-empty">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+          </div>
+          <div class="row-main">
+            <p class="row-title">Malibu Point</p>
+            <p class="row-meta">Day 1 · scout pending</p>
+          </div>
+        </div>
+      </div>
+      <div class="stage">
+        <p class="stage-label">Single</p>
+        <div class="row">
+          <div class="thumb img-1"></div>
+          <div class="row-main">
+            <p class="row-title">Venice Beach Skatepark</p>
+            <p class="row-meta">Day 1 · 1 photo · approved</p>
+          </div>
+        </div>
+      </div>
+      <div class="stage">
+        <p class="stage-label">Multiple</p>
+        <div class="row">
+          <div class="thumb-stack">
+            <div class="s s1 img-2"></div>
+            <div class="s s2 img-3"></div>
+            <div class="s s3 img-1"></div>
+            <span class="thumb-count">+5</span>
+          </div>
+          <div class="row-main">
+            <p class="row-title">Joshua Tree Ridge</p>
+            <p class="row-meta">Day 2 · 7 photos</p>
+          </div>
+        </div>
+      </div>
+      <div class="stage">
+        <p class="stage-label">Uploading</p>
+        <div class="row">
+          <div class="thumb thumb-uploading"><div class="spinner"></div></div>
+          <div class="row-main">
+            <p class="row-title">Silver Lake</p>
+            <p class="row-meta">uploading · 2 of 3</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────── -->
+  <section class="section">
+    <p class="section-eyebrow">B · Detail sheet — resting states</p>
+    <h2 class="section-title">Empty: button. Populated: <code style="font-size:20px;">+</code> tile inline.</h2>
+    <p class="section-sub">Empty state surfaces an "Add photos" button. Populated state shows a 3-col gallery with an inline <code>+</code> tile. Caption indicator dot in tile top-right when caption exists. Tap any tile → opens lightbox.</p>
+
+    <div class="grid-2">
+      <div>
+        <p class="stage-label">Empty — button affordance</p>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <p class="sheet-eyebrow">Location</p>
+          <p class="sheet-title">Malibu Point</p>
+          <div class="sec-label"><span>Photos</span><span class="sec-count">0</span></div>
+          <div class="empty">
+            <p class="empty-title">No photos yet</p>
+            <p class="empty-sub">Drag images here or tap to upload</p>
+            <span class="btn">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Add photos
+            </span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <p class="stage-label">Populated — gallery + + tile</p>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <p class="sheet-eyebrow">Location</p>
+          <p class="sheet-title">Joshua Tree Ridge</p>
+          <div class="sec-label"><span>Photos</span><span class="sec-count">7</span></div>
+          <div class="gallery">
+            <div class="tile"><div class="tile-img img-3"></div><span class="tile-cap-dot"></span></div>
+            <div class="tile"><div class="tile-img img-2"></div><span class="tile-cap-dot"></span></div>
+            <div class="tile"><div class="tile-img img-5"></div></div>
+            <div class="tile"><div class="tile-img img-1"></div><span class="tile-cap-dot"></span></div>
+            <div class="tile"><div class="tile-img img-4"></div></div>
+            <div class="tile-add">+</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────── -->
+  <section class="section">
+    <p class="section-eyebrow">C · Drag-active state</p>
+    <h2 class="section-title">Drop zone replaces gallery during drag</h2>
+    <p class="section-sub">User drags image(s) over the sheet → photos section transforms into a drop zone. File-type and size constraints surfaced inline so users know what's accepted before they drop.</p>
+
+    <div class="grid-2">
+      <div>
+        <p class="stage-label">Drag-active — empty</p>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <p class="sheet-eyebrow">Location</p>
+          <p class="sheet-title">Malibu Point</p>
+          <div class="sec-label"><span>Photos</span><span class="sec-count">drop to upload</span></div>
+          <div class="drop">
+            <p class="drop-title">Drop images</p>
+            <p class="drop-sub">jpg · png · webp · up to 10mb each</p>
+          </div>
+        </div>
+      </div>
+      <div>
+        <p class="stage-label">Drag-active — populated</p>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <p class="sheet-eyebrow">Location</p>
+          <p class="sheet-title">Joshua Tree Ridge</p>
+          <div class="sec-label"><span>Photos</span><span class="sec-count">drop to add</span></div>
+          <div class="drop" style="padding: 18px 16px;">
+            <p class="drop-title">Drop to add more</p>
+            <p class="drop-sub">existing 7 photos preserved</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────── -->
+  <section class="section">
+    <p class="section-eyebrow">D · Lightbox — full image &amp; caption</p>
+    <h2 class="section-title">Tap tile → opens lightbox</h2>
+    <p class="section-sub">Caption editable inline (tap to focus, blur to save, "saved" flash on commit). Prev/next navigation. Action row: share (copies public URL to clipboard), download, delete. Uploaded-by + uploaded-when meta below.</p>
+
+    <div class="grid-2">
+      <div>
+        <p class="stage-label">Lightbox — with caption (saved flash)</p>
+        <div class="lightbox">
+          <div class="lb-head">
+            <p class="lb-eyebrow">Joshua Tree Ridge</p>
+            <span class="lb-counter">2 / 7</span>
+          </div>
+          <div class="lb-image img-3">
+            <div class="lb-nav prev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+            <div class="lb-nav next"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></div>
+          </div>
+          <div class="lb-cap-row">
+            <div style="flex:1;">
+              <div class="lb-cap">Wide shot at golden hour — principal angle for opening sequence.</div>
+              <span class="lb-cap-saved">✓ Saved</span>
+            </div>
+            <div class="lb-actions">
+              <div class="lb-act-btn" title="Share / copy link">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              </div>
+              <div class="lb-act-btn" title="Download">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </div>
+              <div class="lb-act-btn danger" title="Delete">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1.5 14a2 2 0 0 1-2 2H8.5a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="lb-meta">
+            <div>
+              <p class="lb-meta-label">Uploaded</p>
+              <p class="lb-meta-val">Apr 24 · by Tyler</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <p class="stage-label">Lightbox — no caption yet</p>
+        <div class="lightbox">
+          <div class="lb-head">
+            <p class="lb-eyebrow">Joshua Tree Ridge</p>
+            <span class="lb-counter">5 / 7</span>
+          </div>
+          <div class="lb-image img-4">
+            <div class="lb-nav prev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+            <div class="lb-nav next"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></div>
+          </div>
+          <div class="lb-cap-row">
+            <div class="lb-cap lb-cap-empty" style="flex:1;">Add caption…</div>
+            <div class="lb-actions">
+              <div class="lb-act-btn" title="Share / copy link">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              </div>
+              <div class="lb-act-btn" title="Download">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </div>
+              <div class="lb-act-btn danger" title="Delete">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1.5 14a2 2 0 0 1-2 2H8.5a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────── -->
+  <section class="section">
+    <p class="section-eyebrow">Component contract</p>
+    <h2 class="section-title">Props the gallery component takes</h2>
+    <p class="section-sub">Everything it needs to render any entity surface. The same component renders on the Locations page row preview, the Locations detail sheet, and the EntityDrawer locations tab — only the type/id pair changes.</p>
+
+    <div class="schema-block"><span class="k">type</span> <span class="t">EntityAttachmentGalleryProps</span> = {
+  <span class="a">attachedToType</span>: <span class="t">'location'</span> | <span class="t">'entity-location'</span> | <span class="t">'prop'</span> | <span class="t">'wardrobe'</span> | <span class="t">'hmu'</span> | <span class="t">'moodboardRef'</span> | <span class="t">'cast'</span>;
+  <span class="a">attachedToId</span>: <span class="t">string</span>;
+  <span class="a">variant</span>: <span class="t">'row'</span> | <span class="t">'sheet'</span> | <span class="t">'lightbox'</span>;
+  <span class="a">readOnly</span>?: <span class="t">boolean</span>;        <span class="c">// Partner role view, future</span>
+  <span class="a">maxFiles</span>?: <span class="t">number</span>;          <span class="c">// soft cap, default unbounded for v1</span>
+  <span class="a">onCountChange</span>?: (<span class="a">n</span>: <span class="t">number</span>) => <span class="t">void</span>; <span class="c">// for parent badge updates</span>
+};</div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────── -->
+  <section class="section">
+    <p class="section-eyebrow">Out of scope for v1</p>
+    <h2 class="section-title">Parked decisions</h2>
+    <p class="section-sub">Documented here so future-you knows these were considered and deliberately deferred — not forgotten.</p>
+
+    <div class="prose">
+      <ul>
+        <li><b>Reorder.</b> No drag-to-reorder. Hero = most recently uploaded. Add when a real production needs it.</li>
+        <li><b>Tagging</b> ('scout', 'reference', 'final', etc.). Captions cover the v1 use case. Revisit if free-text captions don't scale.</li>
+        <li><b>Image processing.</b> No server-side thumbnails, compression, or face crop. Browser handles display sizing. Add when storage costs or load times demand it.</li>
+        <li><b>Soft delete / undo.</b> Hard delete only. Add if a deletion mistake happens on a real production.</li>
+        <li><b>Permissions.</b> No RLS in v1 — pre-auth. Wire when auth lands per #20/#21/auth cluster.</li>
+        <li><b>Signed/expiring URLs.</b> v1 is unsigned public URLs. Revisit before external client beta. <span class="pill pill-warn">Documented in DECISIONS.md</span></li>
+        <li><b>Error states</b> (upload fail, network, file too big, wrong type, image fails to load). Standard handling — toast + retry. Not drafted as a separate UI surface.</li>
+        <li><b>Avatars.</b> Explicitly not this pattern. <code>User.avatarUrl</code> column + separate <code>avatars</code> bucket. See #20/#21.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────────────────────── -->
+  <section class="section">
+    <p class="section-eyebrow">PR plan</p>
+    <h2 class="section-title">#11 — combined schema + UI</h2>
+    <p class="section-sub">One PR. PR description must explicitly section out schema additions so they don't ride along quietly in a feature PR. Schema-PR-rule discipline applied via the description, not via a separate PR.</p>
+
+    <div class="prose">
+      <p><b>What ships in #11:</b></p>
+      <ul>
+        <li>Prisma migration adding <code>EntityAttachment</code> table + indices</li>
+        <li>Storage migration creating <code>entity-attachments</code> bucket with policies</li>
+        <li><code>uploadEntityAttachment</code> helper (random filename, mime/size capture, returns row)</li>
+        <li><code>EntityAttachmentGallery</code> component (3 variants: row, sheet, lightbox)</li>
+        <li>Wire-up on Locations page (row preview + detail sheet)</li>
+        <li>Wire-up on EntityDrawer locations tab (sheet variant)</li>
+        <li>Seed: 2-3 example attachments per project on existing locations to verify rendering</li>
+      </ul>
+      <p><b>Out of scope for #11 (separate PRs):</b> Props, wardrobe, hmu, moodboard, cast surfaces. Each lands its own UI PR using this component without schema changes — that's the payoff.</p>
+    </div>
+  </section>
+
+</main>
+</body>
+</html>
