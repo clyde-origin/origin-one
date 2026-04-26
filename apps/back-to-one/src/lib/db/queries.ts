@@ -1146,9 +1146,9 @@ export async function deleteInventoryItem(id: string): Promise<void> {
   if (error) { console.error('deleteInventoryItem failed:', error); throw error }
 }
 
-// ── ENTITIES (characters, props) ─────────────────────────
+// ── ENTITIES (characters, locations, props) ──────────────
 
-export async function getEntities(projectId: string, type?: 'character' | 'prop') {
+export async function getEntities(projectId: string, type?: 'character' | 'location' | 'prop') {
   const db = createClient()
   let q = db.from('Entity').select('*').eq('projectId', projectId).order('createdAt', { ascending: true })
   if (type) q = q.eq('type', type)
@@ -1158,7 +1158,7 @@ export async function getEntities(projectId: string, type?: 'character' | 'prop'
 }
 
 export async function createEntity(entity: {
-  projectId: string; type: 'character' | 'prop'; name: string; description?: string; metadata?: Record<string, any>
+  projectId: string; type: 'character' | 'location' | 'prop'; name: string; description?: string; metadata?: Record<string, any>
 }) {
   const db = createClient()
   const { data, error } = await db

@@ -975,10 +975,16 @@ CUT TO BLACK.`,
     { projectId: p2.id, title: 'Confirm music license direction with Vanta',     assignedTo: kellyPratt.id,     dueDate: new Date('2026-04-14'), status: 'open' },
   ]})
 
-  // P2 — Locations (3)
+  // P2 — Locations (3) — paired to script entities by Day 1/2/3 shoot order.
+  // Names diverge between script and booking; pairing reflects the production
+  // pivot within the same shoot day (e.g. Day 1 surf script → Day 1 skate booking).
+  const p2EntMalibu   = await prisma.entity.findFirst({ where: { projectId: p2.id, type: 'location', name: 'Malibu Point' } })
+  const p2EntGriffith = await prisma.entity.findFirst({ where: { projectId: p2.id, type: 'location', name: 'Griffith Park Ridge' } })
+  const p2EntDTLA     = await prisma.entity.findFirst({ where: { projectId: p2.id, type: 'location', name: 'DTLA Memorial Skatepark' } })
   await prisma.location.createMany({ data: [
     {
       projectId: p2.id,
+      entityId: p2EntMalibu?.id ?? null,
       name: 'Venice Beach Skatepark',
       description: 'Iconic concrete bowl and street course. High-energy skate segment — wide-angle hero shots and tracking coverage.',
       address: '1800 Ocean Front Walk, Venice, CA 90291',
@@ -991,6 +997,7 @@ CUT TO BLACK.`,
     },
     {
       projectId: p2.id,
+      entityId: p2EntGriffith?.id ?? null,
       name: 'Turnbull Canyon Trail',
       description: 'Rugged single-track through coastal sage scrub. Mountain bike downhill segment — chase car rig and drone.',
       address: 'Turnbull Canyon Rd, Whittier, CA 90601',
@@ -1003,6 +1010,7 @@ CUT TO BLACK.`,
     },
     {
       projectId: p2.id,
+      entityId: p2EntDTLA?.id ?? null,
       name: 'DTLA Rooftop Court',
       description: 'Private rooftop basketball court with downtown skyline backdrop. Final segment — golden hour, wide establishing and tight action cuts.',
       address: '888 S Hope St, Los Angeles, CA 90017 (roof level)',
@@ -1011,7 +1019,6 @@ CUT TO BLACK.`,
       status: 'scouting',
       approved: false,
       notes: 'Scouted Apr 8. Access via freight elevator. Weight limit 3,000 lbs for gear. Backup: Grand Park courts.',
-      // Note: no matching Entity(type=location) in seed — names differ from script locations
       sortOrder: 2,
     },
   ]})
@@ -1514,10 +1521,16 @@ END EPISODE 1.`,
     { projectId: p4.id, title: 'Series template locked after Ep 1 review',        assignedTo: kellyPratt.id,     dueDate: new Date('2026-04-28'), status: 'open' },
   ]})
 
-  // P4 — Locations (3)
+  // P4 — Locations (3) — paired interior-to-interior, exterior-to-exterior.
+  // Silver Lake intentionally unpaired: production-only location with no
+  // scripted counterpart (legitimate "production added something not in the
+  // script" case).
+  const p4EntCyc        = await prisma.entity.findFirst({ where: { projectId: p4.id, type: 'location', name: 'Cyc Studio, Downtown LA' } })
+  const p4EntWillRogers = await prisma.entity.findFirst({ where: { projectId: p4.id, type: 'location', name: 'Will Rogers State Park' } })
   await prisma.location.createMany({ data: [
     {
       projectId: p4.id,
+      entityId: p4EntCyc?.id ?? null,
       name: 'The Stillpoint — Private Studio',
       description: 'Kaia\'s personal yoga studio. Clean white walls, polished concrete floor, north-facing windows. Primary teaching location for all six episodes.',
       address: '4521 York Blvd, Suite 200, Los Angeles, CA 90042',
@@ -1530,6 +1543,7 @@ END EPISODE 1.`,
     },
     {
       projectId: p4.id,
+      entityId: p4EntWillRogers?.id ?? null,
       name: 'Point Dume Blufftop',
       description: 'Coastal cliffside with panoramic ocean views. Outdoor practice sequence — sunrise shoot. Wind-protected clearing above the cove.',
       address: 'Point Dume State Beach, Malibu, CA 90265',
