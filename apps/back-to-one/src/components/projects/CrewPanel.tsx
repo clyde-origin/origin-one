@@ -9,14 +9,19 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { getAllCrew } from '@/lib/db/queries'
+import { haptic } from '@/lib/utils/haptics'
 import type { Project } from '@/types'
 
-interface CrewRow {
+export interface CrewPanelSelected {
   userId: string
   name: string
+  email?: string
   avatarUrl: string | null
   projectIds: string[]
+  memberships: { projectId: string; role: string; department: string | null }[]
 }
+
+interface CrewRow extends CrewPanelSelected {}
 
 const AVATAR_COLORS = [
   { bg: 'rgba(100,112,243,0.2)', text: '#6470f3' },
@@ -45,26 +50,37 @@ function ProjPill({ name }: { name: string }) {
   )
 }
 
-export function CrewPanel({ projects }: { projects: Project[] }) {
+export function CrewPanel({ projects, onSelect }: { projects: Project[]; onSelect: (row: CrewPanelSelected) => void }) {
   const { data: rows } = useQuery({
     queryKey: ['allCrew'],
     queryFn: getAllCrew,
   })
 
-  // Dedupe by userId; collect every project the human is on.
-  // The ProjectMember row carries projectId + role + the joined User payload.
+  // Dedupe by userId; collect every project + role + department the human is
+  // on. The ProjectMember row carries projectId + role + department + the
+  // joined User payload (name + email + avatarUrl).
+  type RawRow = {
+    userId: string
+    projectId: string
+    role: string
+    department: string | null
+    User: { name: string; email?: string; avatarUrl: string | null } | null
+  }
   const byUser = new Map<string, CrewRow>()
-  for (const r of (rows ?? []) as Array<{ userId: string; projectId: string; User: { name: string; avatarUrl: string | null } | null }>) {
+  for (const r of (rows ?? []) as RawRow[]) {
     if (!r.User) continue
     const existing = byUser.get(r.userId)
     if (existing) {
       if (!existing.projectIds.includes(r.projectId)) existing.projectIds.push(r.projectId)
+      existing.memberships.push({ projectId: r.projectId, role: r.role, department: r.department })
     } else {
       byUser.set(r.userId, {
         userId: r.userId,
         name: r.User.name,
+        email: r.User.email,
         avatarUrl: r.User.avatarUrl ?? null,
         projectIds: [r.projectId],
+        memberships: [{ projectId: r.projectId, role: r.role, department: r.department }],
       })
     }
   }
@@ -89,11 +105,17 @@ export function CrewPanel({ projects }: { projects: Project[] }) {
       {crew.map((c, i) => {
         const ac = AVATAR_COLORS[i % AVATAR_COLORS.length]
         return (
-          <div key={c.userId} style={{
-            padding: '9px 0',
-            borderBottom: '1px solid rgba(255,255,255,0.04)',
-            display: 'flex', alignItems: 'flex-start', gap: 10,
-          }}>
+          <div
+            key={c.userId}
+            onClick={() => { haptic('light'); onSelect(c) }}
+            className="active:opacity-70 transition-opacity"
+            style={{
+              padding: '9px 0',
+              borderBottom: '1px solid rgba(255,255,255,0.04)',
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+              cursor: 'pointer',
+            }}
+          >
             {c.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={c.avatarUrl} alt="" style={{
