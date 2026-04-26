@@ -128,8 +128,8 @@ function SlateCard({ project, color, dimmed, editMode, isGhost, isDragging, wigg
 
   return (
     <div
-      onClick={editMode ? undefined : onClick}
-      {...(editMode ? {} : longPressHandlers)}
+      onClick={onClick}
+      {...longPressHandlers}
       data-project-id={project.id}
       style={{
         borderRadius: 14, overflow: 'hidden', position: 'relative', cursor: 'pointer',
@@ -512,7 +512,16 @@ export default function ProjectsPage() {
         </div>
 
         {/* Slates grid */}
-        <div ref={gridRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, padding: '0 14px' }}>
+        <div
+          ref={gridRef}
+          onClick={(e) => {
+            if (editMode && e.target === e.currentTarget) {
+              haptic('light')
+              setEditMode(false)
+            }
+          }}
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, padding: '0 14px' }}
+        >
           {isLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="animate-pulse" style={{ aspectRatio: '16/9', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.04)' }}>
@@ -554,11 +563,17 @@ export default function ProjectsPage() {
                         dimmed={(!!actionProject && actionProject.id !== it.id) || (!!dragProjectId)}
                         wiggleDelay={i * 0.08}
                         onLongPress={() => {
-                          haptic('light')
-                          if (editMode) return
-                          setEditMode(true)
+                          haptic('medium')
+                          if (!editMode) setEditMode(true)
                         }}
-                        onClick={() => { haptic('light'); setOpenFolderId(it.id) }}
+                        onClick={() => {
+                          haptic('light')
+                          if (editMode) {
+                            setActionFolder({ id: it.folder.id, name: it.folder.name, color: it.folder.color })
+                            return
+                          }
+                          setOpenFolderId(it.id)
+                        }}
                       />
                     </div>
                   )
@@ -578,35 +593,32 @@ export default function ProjectsPage() {
                       editMode={editMode} isGhost={isDragging} isDragging={false}
                       wiggleDelay={i * 0.08}
                       onLongPress={() => {
-                        haptic('light')
-                        if (editMode) return
-                        setActionProject({ id: p.id, name: p.name, client: p.client ?? '', type: p.type ?? '', aspectRatio: p.aspectRatio ?? '', projectColor: getColor(p.id) })
+                        haptic('medium')
+                        if (!editMode) setEditMode(true)
                       }}
-                      onClick={() => router.push(`/projects/${p.id}`)}
+                      onClick={() => {
+                        if (editMode) {
+                          setActionProject({ id: p.id, name: p.name, client: p.client ?? '', type: p.type ?? '', aspectRatio: p.aspectRatio ?? '', projectColor: getColor(p.id) })
+                          return
+                        }
+                        router.push(`/projects/${p.id}`)
+                      }}
                     />
                   </div>
                 )
               })}
 
-              {/* Add / reorder buttons */}
-              <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'center', gap: 8, padding: '4px 2px 2px' }}>
-                {!editMode && (
+              {/* Add button */}
+              {!editMode && (
+                <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'center', padding: '4px 2px 2px' }}>
                   <Link href="/projects/new" className="block active:opacity-70 transition-opacity">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 20, border: '1px dashed rgba(196,90,220,0.2)', background: 'rgba(196,90,220,0.03)', cursor: 'pointer' }}>
                       <span style={{ color: 'rgba(196,90,220,0.4)', fontSize: 13 }}>+</span>
                       <span className="font-mono uppercase" style={{ fontSize: 10, color: 'rgba(196,90,220,0.4)', letterSpacing: '0.08em' }}>New Project</span>
                     </div>
                   </Link>
-                )}
-                <div onClick={() => { haptic('light'); setEditMode(prev => !prev); if (editMode) { setDragProjectId(null) } }} style={{
-                  display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 20,
-                  border: `1px dashed rgba(196,90,220,${editMode ? '0.4' : '0.2'})`,
-                  background: `rgba(196,90,220,${editMode ? '0.1' : '0.03'})`, cursor: 'pointer',
-                }} className="active:opacity-70 transition-opacity">
-                  <span style={{ color: `rgba(196,90,220,${editMode ? '0.8' : '0.4'})`, fontSize: 13 }}>⇅</span>
-                  <span className="font-mono uppercase" style={{ fontSize: 10, color: `rgba(196,90,220,${editMode ? '0.8' : '0.4'})`, letterSpacing: '0.08em' }}>{editMode ? 'Done' : 'Reorder'}</span>
                 </div>
-              </div>
+              )}
             </>
           )}
         </div>
