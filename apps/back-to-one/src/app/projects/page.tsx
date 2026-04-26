@@ -224,6 +224,8 @@ export default function ProjectsPage() {
   // Refs to avoid stale closures in touch handlers
   const dragProjectIdRef = useRef<string | null>(null)
   const dragTargetIdxRef = useRef<number>(-1)
+  const dragTargetIdRef = useRef<string | null>(null)
+  const [dragTargetId, setDragTargetIdState] = useState<string | null>(null)
   const dragStartRef = useRef<{ x: number; y: number; elX: number; elY: number; w: number } | null>(null)
   const dragElRef = useRef<HTMLDivElement>(null)
   const lastSlotIdxRef = useRef<number>(-1)
@@ -346,6 +348,28 @@ export default function ProjectsPage() {
     }
     dragTargetIdxRef.current = closest
     setDragTargetIdx(closest)
+
+    // Drop-target detection (folder create / add to folder).
+    // Scans both project slates and folder cards; picks closest within snap radius.
+    const allTargets = document.querySelectorAll<HTMLElement>('[data-project-id], [data-folder-id]')
+    let snapClosestId: string | null = null
+    let snapClosestDist = Infinity
+    allTargets.forEach(el => {
+      const id = el.dataset.projectId ?? el.dataset.folderId
+      if (!id || id === dragProjectIdRef.current) return
+      const r = el.getBoundingClientRect()
+      const cx = r.left + r.width / 2
+      const cy = r.top + r.height / 2
+      const dist = Math.hypot(cardCx - cx, cardCy - cy)
+      if (dist < snapClosestDist) { snapClosestDist = dist; snapClosestId = id }
+    })
+    const SNAP_RADIUS = 30
+    const newTarget = snapClosestDist <= SNAP_RADIUS ? snapClosestId : null
+    if (newTarget !== dragTargetIdRef.current) {
+      dragTargetIdRef.current = newTarget
+      setDragTargetIdState(newTarget)
+      if (newTarget) haptic('light')
+    }
   }, [])
 
   const handleTouchEnd = useCallback(() => {
@@ -372,10 +396,12 @@ export default function ProjectsPage() {
     // Reset
     dragProjectIdRef.current = null
     dragTargetIdxRef.current = -1
+    dragTargetIdRef.current = null
     dragStartRef.current = null
     lastSlotIdxRef.current = -1
     setDragProjectId(null)
     setDragTargetIdx(-1)
+    setDragTargetIdState(null)
   }, [allProjects, sortedProjects, updateMutation])
 
   // Global touch listeners for drag
@@ -558,8 +584,7 @@ export default function ProjectsPage() {
                         editMode={editMode}
                         isGhost={false}
                         isDragging={false}
-                        // Task 16 wires this to dragTargetId — false for now.
-                        isDropTarget={false}
+                        isDropTarget={dragTargetId === it.id}
                         dimmed={(!!actionProject && actionProject.id !== it.id) || (!!dragProjectId)}
                         wiggleDelay={i * 0.08}
                         onLongPress={() => {
@@ -604,6 +629,16 @@ export default function ProjectsPage() {
                         router.push(`/projects/${p.id}`)
                       }}
                     />
+                    {dragTargetId === p.id && (
+                      <div style={{
+                        position: 'absolute', inset: 0, pointerEvents: 'none',
+                        borderRadius: 14,
+                        boxShadow: '0 0 0 2px rgba(196,90,220,0.7), 0 0 30px rgba(196,90,220,0.5), inset 0 0 18px rgba(196,90,220,0.2)',
+                        transform: 'scale(1.04)',
+                        transition: 'all 0.18s ease',
+                        zIndex: 5,
+                      }} />
+                    )}
                   </div>
                 )
               })}
