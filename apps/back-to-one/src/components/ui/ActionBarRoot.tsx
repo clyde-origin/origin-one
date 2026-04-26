@@ -37,20 +37,38 @@ interface RootFabContextValue {
   fanOpen: boolean
   toggleFan: () => void
   closeFan: () => void
+  threadsOpen: boolean
+  toggleThreads: () => void
+  closeThreads: () => void
+  chatOpen: boolean
+  toggleChat: () => void
+  closeChat: () => void
 }
 
 const RootFabContext = createContext<RootFabContextValue | null>(null)
 
 /**
  * Wrap projects-root children. Owns the fan-open boolean shared between
- * ActionBarRoot's + button and projects/page.tsx's 5-arc fan render.
+ * ActionBarRoot's + button and projects/page.tsx's 5-arc fan render, plus
+ * the threads-sheet and chat-sheet booleans shared with the corresponding
+ * sheet components rendered on projects/page.tsx.
  */
 export function RootFabProvider({ children }: { children: ReactNode }) {
   const [fanOpen, setFanOpen] = useState(false)
+  const [threadsOpen, setThreadsOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
   const toggleFan = useCallback(() => setFanOpen(o => !o), [])
   const closeFan = useCallback(() => setFanOpen(false), [])
+  const toggleThreads = useCallback(() => setThreadsOpen(o => !o), [])
+  const closeThreads = useCallback(() => setThreadsOpen(false), [])
+  const toggleChat = useCallback(() => setChatOpen(o => !o), [])
+  const closeChat = useCallback(() => setChatOpen(false), [])
   return (
-    <RootFabContext.Provider value={{ fanOpen, toggleFan, closeFan }}>
+    <RootFabContext.Provider value={{
+      fanOpen, toggleFan, closeFan,
+      threadsOpen, toggleThreads, closeThreads,
+      chatOpen, toggleChat, closeChat,
+    }}>
       {children}
     </RootFabContext.Provider>
   )
@@ -63,7 +81,11 @@ export function RootFabProvider({ children }: { children: ReactNode }) {
 export function useRootFab(): RootFabContextValue {
   const ctx = useContext(RootFabContext)
   if (!ctx) {
-    return { fanOpen: false, toggleFan: () => {}, closeFan: () => {} }
+    return {
+      fanOpen: false, toggleFan: () => {}, closeFan: () => {},
+      threadsOpen: false, toggleThreads: () => {}, closeThreads: () => {},
+      chatOpen: false, toggleChat: () => {}, closeChat: () => {},
+    }
   }
   return ctx
 }
@@ -181,35 +203,47 @@ function ActionBarButton({
 export function ActionBarRoot() {
   const router = useRouter()
   const pathname = usePathname() ?? ''
-  const { fanOpen, toggleFan, closeFan } = useRootFab()
+  const {
+    fanOpen, toggleFan, closeFan,
+    threadsOpen, toggleThreads, closeThreads,
+    chatOpen, toggleChat, closeChat,
+  } = useRootFab()
 
   const accent = ACCENT
-  const threadsActive = pathname === '/projects/threads'
-  const threadsRoute = '/projects/threads'
+  const onThreadsRoute = pathname === '/projects/threads'
+  const threadsActive = onThreadsRoute || threadsOpen
 
   function handlePlus() {
     haptic('medium')
+    closeThreads()
+    closeChat()
     toggleFan()
   }
 
   function handleThreads() {
     haptic('light')
     closeFan()
-    if (threadsActive) {
+    closeChat()
+    // Direct URL access of /projects/threads keeps its back-nav toggle.
+    // From /projects (the project-selection page), the bar toggles a
+    // slide-up sheet rendered by projects/page.tsx instead of navigating.
+    if (onThreadsRoute) {
       if (typeof window !== 'undefined' && window.history.length > 1) router.back()
       else router.push('/projects')
     } else {
-      router.push(threadsRoute)
+      toggleThreads()
     }
   }
 
-  // Chat and resources are present for visual symmetry with the project-
-  // scoped bar but their destinations don't exist yet. No haptic, no
-  // navigation — just a developer hint and a no-op. Reduced opacity on
-  // the wrapper signals the disabled affordance.
   function handleChat() {
-    console.log('[ActionBarRoot] company chat coming with Auth')
+    haptic('light')
+    closeFan()
+    closeThreads()
+    toggleChat()
   }
+
+  // Resources stays disabled: company-level resources is V2 schema work
+  // (nullable Resource.projectId). Visual-symmetry slot until then.
   function handleResources() {
     console.log('[ActionBarRoot] company resources coming with V2')
   }
@@ -225,10 +259,10 @@ export function ActionBarRoot() {
         zIndex: Z_INDEX,
       }}
     >
-      {/* Cluster — [chat / + / threads], centered. Chat is present at
-          DISABLED_OPACITY for visual symmetry with the project-scoped bar
-          but tap is a no-op (company chat is gated on Auth). + and threads
-          render at full opacity. */}
+      {/* Cluster — [chat / + / threads], centered. Chat opens a slide-up
+          sheet showing the user's chat conversations across all projects;
+          + toggles the 5-arc fan; threads opens the cross-project threads
+          sheet. All three render at full opacity. */}
       <div
         className="pointer-events-auto"
         style={{
@@ -238,17 +272,15 @@ export function ActionBarRoot() {
           display: 'flex', alignItems: 'center', gap: CLUSTER_GAP,
         }}
       >
-        <div style={{ opacity: DISABLED_OPACITY }}>
-          <ActionBarButton
-            size={SIZE_SATELLITE}
-            variant="satellite"
-            accent={accent}
-            onClick={handleChat}
-            ariaLabel="Chat (coming with Auth)"
-          >
-            <ChatIcon />
-          </ActionBarButton>
-        </div>
+        <ActionBarButton
+          size={SIZE_SATELLITE}
+          variant={chatOpen ? 'active' : 'satellite'}
+          accent={accent}
+          onClick={handleChat}
+          ariaLabel={chatOpen ? 'Close chat' : 'Chat'}
+        >
+          <ChatIcon />
+        </ActionBarButton>
 
         <motion.div
           animate={{ rotate: fanOpen ? 45 : 0 }}

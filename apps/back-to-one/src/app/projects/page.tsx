@@ -14,6 +14,8 @@ import { haptic } from '@/lib/utils/haptics'
 import { useLongPress } from '@/lib/hooks/useLongPress'
 import { ProjectActionSheet } from '@/components/projects/ProjectActionSheet'
 import { GlobalPanels, type PanelId } from '@/components/projects/GlobalPanels'
+import { ThreadsSheet } from '@/components/projects/ThreadsSheet'
+import { ChatSheet } from '@/components/projects/ChatSheet'
 import { clearStoredViewer } from '@/lib/utils/viewerIdentity'
 import type { Project } from '@/types'
 
@@ -382,7 +384,12 @@ export default function ProjectsPage() {
 
   // Fan-open state lifted to RootFabContext (provided by projects/layout.tsx).
   // ActionBarRoot's + button toggles it; this page reads it to drive arc render.
-  const { fanOpen: selFabOpen, closeFan } = useRootFab()
+  // The same context owns threadsOpen and chatOpen, toggled by their bar buttons.
+  const {
+    fanOpen: selFabOpen, closeFan,
+    threadsOpen, closeThreads,
+    chatOpen, closeChat,
+  } = useRootFab()
   const [activePanel, setActivePanel] = useState<PanelId | null>(null)
 
   // Mirror the original "tap + closes both fan and panel" behavior: any
@@ -391,6 +398,14 @@ export default function ProjectsPage() {
   useEffect(() => {
     if (!selFabOpen) setActivePanel(null)
   }, [selFabOpen])
+
+  // Mutual exclusion: opening either side sheet closes any active fan-arc
+  // panel so the glass surfaces never overlap. The fan itself is closed by
+  // ActionBarRoot's handlers before each toggle, so only the panel-clear
+  // needs to be mirrored here.
+  useEffect(() => {
+    if (threadsOpen || chatOpen) setActivePanel(null)
+  }, [threadsOpen, chatOpen])
   const isLoading = loadingProjects
 
   return (
@@ -407,9 +422,9 @@ export default function ProjectsPage() {
         position: 'relative', zIndex: 1, maxWidth: 390, margin: '0 auto',
         minHeight: '100vh', display: 'flex', flexDirection: 'column',
         justifyContent: 'center', paddingTop: '4vh', paddingBottom: '24vh',
-        filter: activePanel ? 'blur(1.5px)' : 'none',
+        filter: (activePanel || threadsOpen || chatOpen) ? 'blur(1.5px)' : 'none',
         transition: 'filter 0.25s',
-        pointerEvents: activePanel ? 'none' : 'auto',
+        pointerEvents: (activePanel || threadsOpen || chatOpen) ? 'none' : 'auto',
       }}>
         {/* Header */}
         <div style={{ position: 'relative', padding: '0 20px 18px' }}>
@@ -525,9 +540,9 @@ export default function ProjectsPage() {
 
       {/* ══ SINGLE OVERLAY — dims grid, always below panel (z3) ══ */}
       <AnimatePresence>
-        {(activePanel || selFabOpen) && (
+        {(activePanel || selFabOpen || threadsOpen || chatOpen) && (
           <motion.div key="dim-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-            onClick={() => { closeFan(); setActivePanel(null) }}
+            onClick={() => { closeFan(); setActivePanel(null); closeThreads(); closeChat() }}
             style={{
               position: 'fixed', inset: 0, zIndex: 3,
               background: selFabOpen ? 'rgba(4,4,10,0.75)' : 'rgba(4,4,10,0.65)',
@@ -547,20 +562,19 @@ export default function ProjectsPage() {
             variant. Glow tracks each arc's panel color (no project context
             at root). */}
         {([
-          // Tasks/Activity (the bottom-outer arcs) sit at ty=-58 rather than
-          // -39 so their bottoms clear the + button's top edge by ~8px instead
-          // of overlapping it. Pre-fix the outer arcs read tucked under the +;
-          // -58 fans them out cleanly. Mid (Milestones/Crew at -67) and top
-          // (Schedule at -78) already had comfortable clearance, unchanged.
-          { panel: 'tasks' as PanelId, label: 'Tasks', tx: -99, ty: -58, delay: 0, color: '#e8a020', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round"/><path d="M12 9v4M10 11h4" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round"/></svg> },
-          { panel: 'milestones' as PanelId, label: 'Milestones', tx: -57, ty: -67, delay: 0.04, color: '#6470f3', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2L10.5 6.5H13.5L11 9.5L12 13.5L8 11L4 13.5L5 9.5L2.5 6.5H5.5L8 2Z" stroke="#6470f3" strokeWidth="1.2" strokeLinejoin="round"/></svg> },
-          { panel: 'schedule' as PanelId, label: 'Schedule', tx: 0, ty: -78, delay: 0.08, color: '#00b894', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="#00b894" strokeWidth="1.2"/><path d="M5 2v2M11 2v2" stroke="#00b894" strokeWidth="1.2" strokeLinecap="round"/><path d="M2 7h12" stroke="#00b894" strokeWidth="1"/><rect x="5" y="9" width="2" height="2" rx="0.5" fill="#00b894" opacity="0.7"/><rect x="9" y="9" width="2" height="2" rx="0.5" fill="#00b894" opacity="0.7"/></svg> },
+          // Arcs lifted +52 from prior values (-58 / -67 / -78) so labels
+          // clear the bar's top edge with comfortable padding and the arcs
+          // sit higher in the open space between bar and panel. Original
+          // shape preserved (9 / 11 deltas between outer / mid / top).
+          { panel: 'tasks' as PanelId, label: 'Tasks', tx: -99, ty: -110, delay: 0, color: '#e8a020', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round"/><path d="M12 9v4M10 11h4" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round"/></svg> },
+          { panel: 'milestones' as PanelId, label: 'Milestones', tx: -57, ty: -119, delay: 0.04, color: '#6470f3', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2L10.5 6.5H13.5L11 9.5L12 13.5L8 11L4 13.5L5 9.5L2.5 6.5H5.5L8 2Z" stroke="#6470f3" strokeWidth="1.2" strokeLinejoin="round"/></svg> },
+          { panel: 'schedule' as PanelId, label: 'Schedule', tx: 0, ty: -130, delay: 0.08, color: '#00b894', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="#00b894" strokeWidth="1.2"/><path d="M5 2v2M11 2v2" stroke="#00b894" strokeWidth="1.2" strokeLinecap="round"/><path d="M2 7h12" stroke="#00b894" strokeWidth="1"/><rect x="5" y="9" width="2" height="2" rx="0.5" fill="#00b894" opacity="0.7"/><rect x="9" y="9" width="2" height="2" rx="0.5" fill="#00b894" opacity="0.7"/></svg> },
           // Crew (sky) replaces Threads at this slot — Threads is being promoted
           // to a route (/projects/threads) in step 2 of this PR; the sky color
           // and slot position carry over to Crew, which has no canonical color
           // in the design system and reads cleanly against amber/indigo/teal/gold.
-          { panel: 'crew' as PanelId, label: 'Crew', tx: 57, ty: -67, delay: 0.12, color: '#4ab8e8', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="6" r="2" stroke="#4ab8e8" strokeWidth="1.3"/><circle cx="11" cy="6.5" r="1.6" stroke="#4ab8e8" strokeWidth="1.1"/><path d="M2 13c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="#4ab8e8" strokeWidth="1.3" strokeLinecap="round"/><path d="M10.5 13c.4-1.2 1.5-2.2 3-2.5" stroke="#4ab8e8" strokeWidth="1.1" strokeLinecap="round"/></svg> },
-          { panel: 'activity' as PanelId, label: 'Activity', tx: 99, ty: -58, delay: 0.16, color: '#e8c44a', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M9 2L4 9h4l-1 5L14 7h-4l-1-5z" stroke="#e8c44a" strokeWidth="1.3" strokeLinejoin="round"/></svg> },
+          { panel: 'crew' as PanelId, label: 'Crew', tx: 57, ty: -119, delay: 0.12, color: '#4ab8e8', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="6" r="2" stroke="#4ab8e8" strokeWidth="1.3"/><circle cx="11" cy="6.5" r="1.6" stroke="#4ab8e8" strokeWidth="1.1"/><path d="M2 13c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="#4ab8e8" strokeWidth="1.3" strokeLinecap="round"/><path d="M10.5 13c.4-1.2 1.5-2.2 3-2.5" stroke="#4ab8e8" strokeWidth="1.1" strokeLinecap="round"/></svg> },
+          { panel: 'activity' as PanelId, label: 'Activity', tx: 99, ty: -110, delay: 0.16, color: '#e8c44a', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M9 2L4 9h4l-1 5L14 7h-4l-1-5z" stroke="#e8c44a" strokeWidth="1.3" strokeLinejoin="round"/></svg> },
         ]).map((b) => {
           const isInactive = activePanel !== null && activePanel !== b.panel
           return (
@@ -630,6 +644,12 @@ export default function ProjectsPage() {
         onClose={() => setActivePanel(null)}
         onNavigate={(panel) => setActivePanel(panel)}
       />
+
+      {/* Threads sheet — slide-up from bottom, toggled by ActionBarRoot */}
+      <ThreadsSheet open={threadsOpen} />
+
+      {/* Chat sheet — cross-project conversations, toggled by ActionBarRoot */}
+      <ChatSheet open={chatOpen} onClose={closeChat} />
 
       {/* Action sheet */}
       <ProjectActionSheet
