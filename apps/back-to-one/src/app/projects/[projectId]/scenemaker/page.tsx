@@ -550,6 +550,10 @@ function SortableShotRow({
           border: isDragging ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.07)',
           borderRadius: 8, padding: '9px 10px',
           boxShadow: isDragging ? '0 8px 32px rgba(0,0,0,0.6)' : 'none',
+          // Suppress native touch-scroll on the row while in wiggle mode so
+          // the gesture goes to dnd-kit instead of the page scroller. Outside
+          // wiggle mode, the row scrolls with the list normally.
+          touchAction: wiggleMode ? 'none' : 'auto',
         }}
         {...dragListeners}
         {...dragAttrs}
