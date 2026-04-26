@@ -146,7 +146,7 @@ function TaskDetailBody({ item, projects, onClose }: { item: ActionItem; project
   const isDone = item.status === 'done'
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 18px', display: 'flex', flexDirection: 'column', gap: 14, overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
       <div style={{
         fontWeight: 700, fontSize: 18, color: isDone ? '#62627a' : '#dddde8',
         letterSpacing: '-0.01em', lineHeight: 1.25,
@@ -200,7 +200,7 @@ function MilestoneDetailBody({ item, projects, onClose }: { item: Milestone; pro
   const countdown = days === 0 ? 'Today' : days < 0 ? `${Math.abs(days)} day${Math.abs(days) !== 1 ? 's' : ''} ago` : `In ${days} day${days !== 1 ? 's' : ''}`
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 18px', display: 'flex', flexDirection: 'column', gap: 14, overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
       <div style={{ fontWeight: 700, fontSize: 18, color: '#dddde8', letterSpacing: '-0.01em', lineHeight: 1.25 }}>
         {item.title}
       </div>
@@ -237,7 +237,7 @@ function CrewDetailBody({ row, projects, onClose }: { row: CrewDetailRow; projec
   const primaryDept = Array.from(deptCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 18px', display: 'flex', flexDirection: 'column', gap: 14, overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         {row.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element

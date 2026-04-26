@@ -10,6 +10,7 @@ import { GhostCircle, GhostRect, GhostPill } from '@/components/ui/EmptyState'
 import { haptic } from '@/lib/utils/haptics'
 import { CrewPanel } from '@/components/projects/CrewPanel'
 import { PanelDetailSheet, type PanelDetail, type CrewDetailRow } from '@/components/projects/PanelDetailSheet'
+import { useRootFab } from '@/components/ui/ActionBarRoot'
 import type { ActionItem, Milestone, Project } from '@/types'
 
 // ── TYPES ────────────────────────────────────────────────────
@@ -466,7 +467,11 @@ function SchedulePanel({ milestones, projects, onSelectMilestone }: { milestones
       </div>
 
       {/* Scrolling event list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 18px 16px', WebkitOverflowScrolling: 'touch' }}
+      <div style={{
+          flex: 1, overflowY: 'auto', padding: '8px 18px 16px',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
+        }}
         className="no-scrollbar">
         <Sec label={displayLabel} />
         {displayEvents.length === 0 ? (
@@ -590,10 +595,10 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
   const allItems = actionItems ?? []
   const allMilestones = milestones ?? []
 
-  // Selected detail row — slides up over the current panel body when set.
-  // Reset on panel switch (swipe between panels) or panel close so opening a
-  // different panel doesn't surface a detail belonging to the previous one.
-  const [detail, setDetail] = useState<PanelDetail | null>(null)
+  // Selected detail row — lifted to RootFabContext so the bar's Back button
+  // can pop it. Reset-on-panel-switch effect below still applies; the
+  // closePanelDetail call goes through context.
+  const { panelDetail: detail, setPanelDetail: setDetail, closePanelDetail } = useRootFab()
 
   const [prevPanel, setPrevPanel] = useState<PanelId | null>(null)
   const activeIdx = activePanel ? PANEL_ORDER.indexOf(activePanel) : -1
@@ -607,8 +612,8 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
 
   // Close any open detail when the panel itself closes or switches.
   useEffect(() => {
-    setDetail(null)
-  }, [activePanel])
+    closePanelDetail()
+  }, [activePanel, closePanelDetail])
 
   // Swipe handling
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
@@ -668,7 +673,11 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
             style={{
               position: 'fixed',
               top: 156,
-              bottom: 'calc(68px + 52px + 64px)',
+              // Include safe-area-inset-bottom so the panel clears the bar and
+              // the highest fan-arc top on devices with a home indicator. Bar
+              // bottom uses the same env(); panel bottom must mirror it or
+              // the fan arcs overlap the last rows on phones.
+              bottom: 'calc(68px + 52px + 64px + env(safe-area-inset-bottom, 0px))',
               left: 14, right: 14,
               zIndex: 10,
               background: 'rgba(10,10,18,0.78)',
@@ -720,7 +729,11 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
                     onSelectMilestone={(m) => setDetail({ type: 'milestone', item: m })}
                   />
                 ) : (
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 16px', WebkitOverflowScrolling: 'touch' }}
+                  <div style={{
+                      flex: 1, overflowY: 'auto', padding: '0 18px 16px',
+                      WebkitOverflowScrolling: 'touch',
+                      overscrollBehavior: 'contain',
+                    }}
                     className="no-scrollbar">
                     {activePanel === 'tasks' && (
                       <ActionItemsPanel

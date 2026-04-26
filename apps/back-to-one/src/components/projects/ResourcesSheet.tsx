@@ -253,7 +253,7 @@ export function ResourcesSheet({ open }: ResourcesSheetProps) {
           style={{
             position: 'fixed',
             top: 156,
-            bottom: 'calc(68px + 52px + 64px)',
+            bottom: 'calc(68px + 52px + 64px + env(safe-area-inset-bottom, 0px))',
             left: 14, right: 14,
             zIndex: 10,
             background: 'rgba(10,10,18,0.78)',
@@ -286,7 +286,7 @@ export function ResourcesSheet({ open }: ResourcesSheetProps) {
           </div>
 
           {/* List */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '4px 18px 18px' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '4px 18px 18px', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
             {!isLoading && allResources.length === 0 ? (
               <div style={{ padding: '60px 20px', textAlign: 'center', fontSize: 12, color: '#62627a' }}>
                 No company resources yet
