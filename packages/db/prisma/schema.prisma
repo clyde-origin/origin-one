@@ -536,9 +536,14 @@ model Folder {
   resources Resource[]
 }
 
+// Resource is project-scoped OR company-scoped:
+//   projectId set     → existing per-project resource (page on /projects/<id>/resources)
+//   projectId IS NULL → company resource visible to producers across all projects
+// Folder.projectId remains required; v1 company resources are flat-listed.
+// Adding company folders is a follow-up if a real producer surfaces the need.
 model Resource {
   id        String       @id @default(dbgenerated("gen_random_uuid()"))
-  projectId String
+  projectId String?
   folderId  String?
   title     String
   url       String
@@ -546,9 +551,9 @@ model Resource {
   createdBy String
   createdAt DateTime     @default(now())
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  folder  Folder? @relation(fields: [folderId], references: [id])
-  author  User    @relation(fields: [createdBy], references: [id])
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folder  Folder?  @relation(fields: [folderId], references: [id])
+  author  User     @relation(fields: [createdBy], references: [id])
 }
 
 // ─── Talent ──────────────────────────────────────────────────────────────────
