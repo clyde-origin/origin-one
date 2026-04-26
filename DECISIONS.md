@@ -136,6 +136,8 @@ Last updated: April 26, 2026
 
 ### Shot numbers are permanent identifiers
 
+> **Superseded by [Shot numbers — mutable in pre-production, locked at production start](#shot-numbers--mutable-in-pre-production-locked-at-production-start) (April 26, 2026).** The "permanent identifiers" rule still describes the post-lockoff regime; the new entry adds the pre-production phase where reorder renumbers shots.
+
 **Decision:** Shot numbers (e.g. 12A) are permanent identifiers. They do not change when shots are reordered.  
 **Date:** April 2026  
 **Rationale:** Shot numbers are referenced across call sheets, reports, and crew communication. Reordering should never silently rename a shot.  
@@ -392,3 +394,16 @@ The `thread-context.ts` file now contains six explicit-enumeration sites for eac
 **Rationale:** Squash-merge produces different commit hashes, so `git branch --no-merged` cannot detect superseded branches. Persisting them creates a ghost backlog. The PR record is the historical artifact, not the local branch. Verified by branch audit on Apr 26 — five branches discovered to be fully superseded by main via different commit paths.  
 **Tradeoffs:** Loss of branch-level metadata for re-applied work. PR descriptions must carry that context instead.  
 **Revisit trigger:** Never.
+
+---
+
+### Shot numbers — mutable in pre-production, locked at production start
+
+**Decision:** Shot numbers (e.g. 12A) are MUTABLE during pre-production planning — drag-reorder in Story Order mode renumbers shots according to their `sortOrder`. Once production begins, shot numbers freeze and become permanent identifiers. After lockoff, drag-reorder operates on Shoot Order only and does not touch shot numbers.  
+**Date:** April 26, 2026  
+**Rationale:** The original "shot numbers are permanent identifiers" decision protects against silent renaming during active production — call sheets reference Shot 12A and that reference cannot drift. But during pre-production, the writer / director / AD are still figuring out the story; renumbering is desired and expected. Permanent shot numbers in early drafts would create confusing 12A-between-1-and-2 states that are worse than the renumbering problem.  
+
+**The lock mechanism (manual / phase-based / version-based) is intentionally deferred** to a separate future PR. Current behavior: numbers track `sortOrder` always. Production-lock is a future feature.  
+
+**Tradeoffs:** A user who reorders shots in pre-production sees their shot numbers update. Until the lock mechanism ships, there is no protection against late-pre-production renumbering. Mitigation is producer discipline — don't reorder shots in story-order mode after the call sheet goes out.  
+**Revisit trigger:** Lock mechanism design conversation (separate PR).

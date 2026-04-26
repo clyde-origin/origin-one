@@ -48,7 +48,7 @@ Each row is a complete PR (schema or UI). Strict order — next row doesn't star
 
 | # | Feature | Status | Notes |
 |---|---|---|---|
-| 6 | Script drag-reorder | ⬜ | Shot numbers are permanent identifiers per DECISIONS.md — reorder changes Story Order only |
+| 6 | Script drag-reorder | ✅ | Shotlist mode reorder shipped via PRs #30 (dnd-kit mechanics) + #36 (toast / rollback / cross-scene confirm). Script-mode drag not added — separate feature if needed. Shot-number mutability locked in DECISIONS.md (Apr 26). |
 | 7 | FAB safe-area-inset rollout | ⬜ | Cross-cutting; FAB used throughout app |
 | — | **Phase 1A milestone marker** | — | Hit when #6 and #7 land |
 
@@ -116,7 +116,7 @@ Closes milestone.
 | Feature | Status | Notes |
 |---|---|---|
 | Crew Timecards | ✅ Done | PRs #5, #6, #7 (Apr 23) |
-| Script drag-reorder | ⬜ | Sequence #6 |
+| Script drag-reorder | ✅ Done | Shotlist mode. PRs #30 + #36 (Apr 26) |
 | FAB safe-area-inset rollout | ⬜ | Sequence #7 |
 
 ---
@@ -205,6 +205,7 @@ Organized by severity. Non-blocking unless noted.
 | **CrewPanel.tsx extraction** | File grew to 1335 lines during Timecards UI build. Extract timecards sub-components to `components/hub/timecards/` (ProducerOverview, IndividualWeekView, shared WeekNavBar/StatusPill/week math). Pure refactor, no behavior change. Cleanup bundle (#4). |
 | BRAND_TOKENS.md full migration to Tailwind config | Currently tokens are documented but not wired into Tailwind config. Every new component uses inline hex. When this migrates, the inline-hex pattern becomes a find-and-replace. |
 | **HubContent assignee lookup id-vs-userId mismatch** | `apps/back-to-one/src/components/hub/HubContent.tsx:488,868` — assignee resolution compares `ProjectMember.id` to `User.id` (should compare `ProjectMember.userId` to `User.id`, or otherwise reconcile the two id spaces). Latent — surfaces when a User holds multiple ProjectMember rows on one project under distinct roles. Audit-flagged in the multi-role ProjectMember work (now landed on main); deferred to its own follow-up PR. |
+| **`scenemaker/page.tsx` file size** | 2002 lines after PRs #30 + #36 — owns ShotlistView, StoryboardView, BoardCard, VersionHistoryPanel, the page component, and all reorder + persist + toast wiring. Mirror the CrewPanel.tsx extraction pattern: split into `apps/back-to-one/src/app/projects/[projectId]/scenemaker/components/` (ShotlistView, StoryboardView, SortableShotRow, SceneHeaderDroppable, EmptySceneDropZone — ScriptView already lives there). Pure refactor, no behavior change. Queue alongside the CrewPanel extraction. |
 
 ### Demo and testing
 
