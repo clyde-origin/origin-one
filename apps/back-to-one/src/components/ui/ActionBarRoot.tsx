@@ -21,8 +21,9 @@
 
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/utils/haptics'
+import type { PanelDetail } from '@/components/projects/PanelDetailSheet'
 
 // ── RootFabContext ────────────────────────────────────────
 //
@@ -45,6 +46,11 @@ interface RootFabContextValue {
   resourcesOpen: boolean
   toggleResources: () => void
   closeResources: () => void
+  // Panel item detail (slide-up over a fan-arc panel). Lifted from
+  // GlobalPanels to the bar-context so the back button can pop it.
+  panelDetail: PanelDetail | null
+  setPanelDetail: (d: PanelDetail | null) => void
+  closePanelDetail: () => void
 }
 
 const RootFabContext = createContext<RootFabContextValue | null>(null)
@@ -60,6 +66,7 @@ export function RootFabProvider({ children }: { children: ReactNode }) {
   const [threadsOpen, setThreadsOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [resourcesOpen, setResourcesOpen] = useState(false)
+  const [panelDetail, setPanelDetailState] = useState<PanelDetail | null>(null)
   const toggleFan = useCallback(() => setFanOpen(o => !o), [])
   const closeFan = useCallback(() => setFanOpen(false), [])
   const toggleThreads = useCallback(() => setThreadsOpen(o => !o), [])
@@ -68,12 +75,15 @@ export function RootFabProvider({ children }: { children: ReactNode }) {
   const closeChat = useCallback(() => setChatOpen(false), [])
   const toggleResources = useCallback(() => setResourcesOpen(o => !o), [])
   const closeResources = useCallback(() => setResourcesOpen(false), [])
+  const setPanelDetail = useCallback((d: PanelDetail | null) => setPanelDetailState(d), [])
+  const closePanelDetail = useCallback(() => setPanelDetailState(null), [])
   return (
     <RootFabContext.Provider value={{
       fanOpen, toggleFan, closeFan,
       threadsOpen, toggleThreads, closeThreads,
       chatOpen, toggleChat, closeChat,
       resourcesOpen, toggleResources, closeResources,
+      panelDetail, setPanelDetail, closePanelDetail,
     }}>
       {children}
     </RootFabContext.Provider>
@@ -92,6 +102,7 @@ export function useRootFab(): RootFabContextValue {
       threadsOpen: false, toggleThreads: () => {}, closeThreads: () => {},
       chatOpen: false, toggleChat: () => {}, closeChat: () => {},
       resourcesOpen: false, toggleResources: () => {}, closeResources: () => {},
+      panelDetail: null, setPanelDetail: () => {}, closePanelDetail: () => {},
     }
   }
   return ctx
@@ -144,6 +155,14 @@ function buttonStyle(variant: ButtonVariant, accent: string): React.CSSPropertie
 // Icons mirror ActionBar.tsx's verbatim — same paths, same stroke widths,
 // same viewBoxes — so chat/threads/resources read identical across the two
 // bars.
+
+function BackIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+  )
+}
 
 function ChatIcon() {
   return (
@@ -213,17 +232,23 @@ export function ActionBarRoot() {
     threadsOpen, toggleThreads, closeThreads,
     chatOpen, toggleChat, closeChat,
     resourcesOpen, toggleResources, closeResources,
+    panelDetail, closePanelDetail,
   } = useRootFab()
 
   const accent = ACCENT
   const onThreadsRoute = pathname === '/projects/threads'
   const threadsActive = onThreadsRoute || threadsOpen
 
+  // Anything that, when present, the back button can pop. Order is the
+  // close priority — top of the stack first.
+  const hasOpenLayer = !!panelDetail || fanOpen || threadsOpen || chatOpen || resourcesOpen
+
   function handlePlus() {
     haptic('medium')
     closeThreads()
     closeChat()
     closeResources()
+    closePanelDetail()
     toggleFan()
   }
 
@@ -232,6 +257,7 @@ export function ActionBarRoot() {
     closeFan()
     closeChat()
     closeResources()
+    closePanelDetail()
     // Direct URL access of /projects/threads keeps its back-nav toggle.
     // From /projects (the project-selection page), the bar toggles a
     // slide-up sheet rendered by projects/page.tsx instead of navigating.
@@ -248,6 +274,7 @@ export function ActionBarRoot() {
     closeFan()
     closeThreads()
     closeResources()
+    closePanelDetail()
     toggleChat()
   }
 
@@ -256,7 +283,27 @@ export function ActionBarRoot() {
     closeFan()
     closeThreads()
     closeChat()
+    closePanelDetail()
     toggleResources()
+  }
+
+  // Layered pop. /projects has nowhere to navigate "back" to in the route
+  // sense, so back acts on UI state in priority order:
+  //   detail → fan-arc panel → side sheet → fan
+  // When nothing is expanded the tap is intentionally a no-op (matches the
+  // bar's project-scoped Back, which router.back()s into Hub fallback only
+  // when there's history to pop).
+  function handleBack() {
+    if (!hasOpenLayer) return
+    haptic('light')
+    if (panelDetail) { closePanelDetail(); return }
+    // The fan is what owns the "active panel" inside it (cleared via
+    // projects/page.tsx's effect when fan closes), so closing the fan also
+    // closes any panel rendered through it.
+    if (fanOpen) { closeFan(); return }
+    if (threadsOpen) { closeThreads(); return }
+    if (chatOpen) { closeChat(); return }
+    if (resourcesOpen) { closeResources(); return }
   }
 
   return (
@@ -270,6 +317,34 @@ export function ActionBarRoot() {
         zIndex: Z_INDEX,
       }}
     >
+      {/* Back — left edge. Fades in only when there is something to pop
+          (panel detail, fan-arc panel, side sheet, or fan). When nothing
+          is expanded, the slot becomes inert (pointer-events: none) so a
+          tap on the empty corner doesn't accidentally trigger anything. */}
+      <AnimatePresence>
+        {hasOpenLayer && (
+          <motion.div
+            key="root-back"
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.92 }}
+            transition={{ duration: 0.18, ease: [0.32, 0.72, 0, 1] }}
+            className="pointer-events-auto"
+            style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)' }}
+          >
+            <ActionBarButton
+              size={SIZE_SATELLITE}
+              variant="satellite"
+              accent={accent}
+              onClick={handleBack}
+              ariaLabel="Back"
+            >
+              <BackIcon />
+            </ActionBarButton>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Cluster — [chat / + / threads], centered. Chat opens a slide-up
           sheet showing the user's chat conversations across all projects;
           + toggles the 5-arc fan; threads opens the cross-project threads
