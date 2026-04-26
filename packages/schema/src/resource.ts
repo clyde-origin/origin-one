@@ -12,7 +12,8 @@ export type ResourceType = z.infer<typeof ResourceType>;
 
 export const Resource = z.object({
   id: z.string().uuid(),
-  projectId: z.string().uuid(),
+  // null → company-scoped (cross-project) resource; uuid → per-project.
+  projectId: z.string().uuid().nullable(),
   folderId: z.string().uuid().nullable(),
   title: z.string().min(1),
   url: z.string(),
