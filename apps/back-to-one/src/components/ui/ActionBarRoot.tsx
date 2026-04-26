@@ -19,7 +19,7 @@
 //             RootFabContext.resourcesOpen. Producer role gate lands with
 //             Auth — pre-Auth the slot is visible to everyone.
 
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/utils/haptics'
@@ -77,6 +77,43 @@ export function RootFabProvider({ children }: { children: ReactNode }) {
   const closeResources = useCallback(() => setResourcesOpen(false), [])
   const setPanelDetail = useCallback((d: PanelDetail | null) => setPanelDetailState(d), [])
   const closePanelDetail = useCallback(() => setPanelDetailState(null), [])
+
+  // Lock the document body's scroll while any overlay is open. iOS Safari
+  // standalone PWA treats the document as the primary scroller and
+  // overscroll-behavior on inner elements isn't sufficient to stop the
+  // background from rubber-banding underneath. The position-fixed-with-
+  // saved-scrollY trick is the standard iOS-safe body-lock; restoring
+  // window.scrollTo on close avoids any visible jump.
+  useEffect(() => {
+    const anyOpen = !!(fanOpen || threadsOpen || chatOpen || resourcesOpen || panelDetail)
+    if (!anyOpen) return
+    const scrollY = window.scrollY
+    const body = document.body
+    const prev = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    }
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY}px`
+    body.style.left = '0'
+    body.style.right = '0'
+    body.style.width = '100%'
+    body.style.overflow = 'hidden'
+    return () => {
+      body.style.position = prev.position
+      body.style.top = prev.top
+      body.style.left = prev.left
+      body.style.right = prev.right
+      body.style.width = prev.width
+      body.style.overflow = prev.overflow
+      window.scrollTo(0, scrollY)
+    }
+  }, [fanOpen, threadsOpen, chatOpen, resourcesOpen, panelDetail])
+
   return (
     <RootFabContext.Provider value={{
       fanOpen, toggleFan, closeFan,
