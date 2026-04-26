@@ -119,8 +119,8 @@ Supabase Storage state (see root `CLAUDE.md` for the discipline — bucket setup
 
 | Bucket | Setup location | RLS | App code |
 |---|---|---|---|
-| `moodboard` | `scripts/setup-storage.sql` (to be migrated into Prisma) | Permissive (anon) — tightens on Auth day | `uploadMoodboardImage`, `deleteMoodboardRef` in `queries.ts` |
-| `storyboard` | Not committed — exists in Supabase project from manual setup | Unknown — audit on Storage discipline PR | `uploadStoryboardImage` in `queries.ts` |
+| `moodboard` | Prisma migration `20260426170000_storage_discipline_moodboard_storyboard` | Permissive (anon) — tightens on Auth day | `uploadMoodboardImage`, `deleteMoodboardRef` in `queries.ts` |
+| `storyboard` | Prisma migration `20260426170000_storage_discipline_moodboard_storyboard` | Permissive (anon) — tightens on Auth day | `uploadStoryboardImage` in `queries.ts` |
 | `locations` | Upcoming — ships with Location images feature | Auth-check from day one | Upcoming — `uploadLocationImage` |
 | `avatars` | Upcoming — ships with Crew Profile v2 avatar feature | Auth-check from day one | Upcoming — avatar upload helper |
 
