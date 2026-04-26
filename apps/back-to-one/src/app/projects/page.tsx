@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   useProjects, useCrew, useArchiveProject, useDeleteProject, useUpdateProject,
 } from '@/lib/hooks/useOriginOne'
-import { SkeletonLine, CrewAvatar, ThreadsIcon } from '@/components/ui'
+import { SkeletonLine, CrewAvatar } from '@/components/ui'
 import { getProjectColor, statusHex, STATUS_LABELS_SHORT } from '@/lib/utils/phase'
 import { haptic } from '@/lib/utils/haptics'
 import { useLongPress } from '@/lib/hooks/useLongPress'
@@ -537,11 +537,15 @@ export default function ProjectsPage() {
             variant. Glow tracks each arc's panel color (no project context
             at root). */}
         {([
-          { panel: 'tasks' as PanelId, tx: -99, ty: -39, delay: 0, color: '#e8a020', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round"/><path d="M12 9v4M10 11h4" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round"/></svg> },
-          { panel: 'milestones' as PanelId, tx: -57, ty: -67, delay: 0.04, color: '#6470f3', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2L10.5 6.5H13.5L11 9.5L12 13.5L8 11L4 13.5L5 9.5L2.5 6.5H5.5L8 2Z" stroke="#6470f3" strokeWidth="1.2" strokeLinejoin="round"/></svg> },
-          { panel: 'schedule' as PanelId, tx: 0, ty: -78, delay: 0.08, color: '#00b894', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="#00b894" strokeWidth="1.2"/><path d="M5 2v2M11 2v2" stroke="#00b894" strokeWidth="1.2" strokeLinecap="round"/><path d="M2 7h12" stroke="#00b894" strokeWidth="1"/><rect x="5" y="9" width="2" height="2" rx="0.5" fill="#00b894" opacity="0.7"/><rect x="9" y="9" width="2" height="2" rx="0.5" fill="#00b894" opacity="0.7"/></svg> },
-          { panel: 'threads' as PanelId, tx: 57, ty: -67, delay: 0.12, color: '#4ab8e8', icon: <ThreadsIcon size={18} color="#4ab8e8" /> },
-          { panel: 'activity' as PanelId, tx: 99, ty: -39, delay: 0.16, color: '#e8c44a', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M9 2L4 9h4l-1 5L14 7h-4l-1-5z" stroke="#e8c44a" strokeWidth="1.3" strokeLinejoin="round"/></svg> },
+          { panel: 'tasks' as PanelId, label: 'Tasks', tx: -99, ty: -39, delay: 0, color: '#e8a020', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M2 5h12M2 8h8M2 11h5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round"/><path d="M12 9v4M10 11h4" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round"/></svg> },
+          { panel: 'milestones' as PanelId, label: 'Milestones', tx: -57, ty: -67, delay: 0.04, color: '#6470f3', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M8 2L10.5 6.5H13.5L11 9.5L12 13.5L8 11L4 13.5L5 9.5L2.5 6.5H5.5L8 2Z" stroke="#6470f3" strokeWidth="1.2" strokeLinejoin="round"/></svg> },
+          { panel: 'schedule' as PanelId, label: 'Schedule', tx: 0, ty: -78, delay: 0.08, color: '#00b894', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="#00b894" strokeWidth="1.2"/><path d="M5 2v2M11 2v2" stroke="#00b894" strokeWidth="1.2" strokeLinecap="round"/><path d="M2 7h12" stroke="#00b894" strokeWidth="1"/><rect x="5" y="9" width="2" height="2" rx="0.5" fill="#00b894" opacity="0.7"/><rect x="9" y="9" width="2" height="2" rx="0.5" fill="#00b894" opacity="0.7"/></svg> },
+          // Crew (sky) replaces Threads at this slot — Threads is being promoted
+          // to a route (/projects/threads) in step 2 of this PR; the sky color
+          // and slot position carry over to Crew, which has no canonical color
+          // in the design system and reads cleanly against amber/indigo/teal/gold.
+          { panel: 'crew' as PanelId, label: 'Crew', tx: 57, ty: -67, delay: 0.12, color: '#4ab8e8', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="6" r="2" stroke="#4ab8e8" strokeWidth="1.3"/><circle cx="11" cy="6.5" r="1.6" stroke="#4ab8e8" strokeWidth="1.1"/><path d="M2 13c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="#4ab8e8" strokeWidth="1.3" strokeLinecap="round"/><path d="M10.5 13c.4-1.2 1.5-2.2 3-2.5" stroke="#4ab8e8" strokeWidth="1.1" strokeLinecap="round"/></svg> },
+          { panel: 'activity' as PanelId, label: 'Activity', tx: 99, ty: -39, delay: 0.16, color: '#e8c44a', icon: <svg width="18" height="18" viewBox="0 0 16 16" fill="none"><path d="M9 2L4 9h4l-1 5L14 7h-4l-1-5z" stroke="#e8c44a" strokeWidth="1.3" strokeLinejoin="round"/></svg> },
         ]).map((b) => {
           const isInactive = activePanel !== null && activePanel !== b.panel
           return (
@@ -572,6 +576,28 @@ export default function ProjectsPage() {
             >
               {b.icon}
             </button>
+            {/* Label — fades in 60ms after each arc starts, fades out
+                immediately on close. Absolute-positioned beneath the
+                button so it never reflows the arc. pointerEvents: none
+                so taps still hit the button. */}
+            <motion.div
+              initial={false}
+              animate={{ opacity: selFabOpen ? 1 : 0 }}
+              transition={{ duration: 0.18, delay: selFabOpen ? b.delay + 0.06 : 0 }}
+              style={{
+                position: 'absolute',
+                top: 54,
+                left: 24,
+                transform: 'translateX(-50%)',
+                whiteSpace: 'nowrap',
+                fontSize: 11, fontWeight: 500,
+                color: 'rgba(255,255,255,0.85)',
+                textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+                pointerEvents: 'none',
+              }}
+            >
+              {b.label}
+            </motion.div>
           </motion.div>
           )
         })}

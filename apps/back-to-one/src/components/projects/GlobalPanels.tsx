@@ -8,18 +8,21 @@ import {
 import { getProjectColor, MILESTONE_STATUS_HEX, STATUS_HEX } from '@/lib/utils/phase'
 import { GhostCircle, GhostRect, GhostPill } from '@/components/ui/EmptyState'
 import { haptic } from '@/lib/utils/haptics'
+import { CrewPanel } from '@/components/projects/CrewPanel'
 import type { ActionItem, Milestone, Thread, Project } from '@/types'
 
 // ── TYPES ────────────────────────────────────────────────────
 
-export type PanelId = 'tasks' | 'milestones' | 'schedule' | 'threads' | 'activity'
+// Threads moved to its own route (/projects/threads) in PR 2c. The 4th slot
+// in the panel switcher is now Crew (cross-project roster, deduped by userId).
+export type PanelId = 'tasks' | 'milestones' | 'schedule' | 'crew' | 'activity'
 
-const PANEL_ORDER: PanelId[] = ['tasks', 'milestones', 'schedule', 'threads', 'activity']
+const PANEL_ORDER: PanelId[] = ['tasks', 'milestones', 'schedule', 'crew', 'activity']
 const PANEL_TITLES: Record<PanelId, string> = {
   tasks: 'Action Items',
   milestones: 'Milestones',
   schedule: 'Schedule',
-  threads: 'Threads',
+  crew: 'Crew',
   activity: 'Activity',
 }
 
@@ -696,9 +699,7 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
         const now = new Date()
         return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
       }
-      case 'threads': {
-        return `${allThreads.length} thread${allThreads.length !== 1 ? 's' : ''} · all projects`
-      }
+      case 'crew': return 'across all projects'
       case 'activity': return 'all projects · today'
     }
   }, [activePanel, allItems, allMilestones, allThreads])
@@ -772,7 +773,7 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
                     className="no-scrollbar">
                     {activePanel === 'tasks' && <ActionItemsPanel items={allItems} projects={allProjects} />}
                     {activePanel === 'milestones' && <MilestonesPanel milestones={allMilestones} projects={allProjects} />}
-                    {activePanel === 'threads' && <ThreadsPanel threads={allThreads} projects={allProjects} />}
+                    {activePanel === 'crew' && <CrewPanel projects={allProjects} />}
                     {activePanel === 'activity' && <ActivityPanel projects={allProjects} />}
                   </div>
                 )}
