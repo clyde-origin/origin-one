@@ -51,6 +51,9 @@ interface RootFabContextValue {
   panelDetail: PanelDetail | null
   setPanelDetail: (d: PanelDetail | null) => void
   closePanelDetail: () => void
+  openFolderId: string | null
+  setOpenFolderId: (id: string | null) => void
+  closeOpenFolder: () => void
 }
 
 const RootFabContext = createContext<RootFabContextValue | null>(null)
@@ -67,6 +70,7 @@ export function RootFabProvider({ children }: { children: ReactNode }) {
   const [chatOpen, setChatOpen] = useState(false)
   const [resourcesOpen, setResourcesOpen] = useState(false)
   const [panelDetail, setPanelDetailState] = useState<PanelDetail | null>(null)
+  const [openFolderId, setOpenFolderIdState] = useState<string | null>(null)
   const toggleFan = useCallback(() => setFanOpen(o => !o), [])
   const closeFan = useCallback(() => setFanOpen(false), [])
   const toggleThreads = useCallback(() => setThreadsOpen(o => !o), [])
@@ -77,6 +81,8 @@ export function RootFabProvider({ children }: { children: ReactNode }) {
   const closeResources = useCallback(() => setResourcesOpen(false), [])
   const setPanelDetail = useCallback((d: PanelDetail | null) => setPanelDetailState(d), [])
   const closePanelDetail = useCallback(() => setPanelDetailState(null), [])
+  const setOpenFolderId = useCallback((id: string | null) => setOpenFolderIdState(id), [])
+  const closeOpenFolder = useCallback(() => setOpenFolderIdState(null), [])
 
   // Lock the document body's scroll while any overlay is open. iOS Safari
   // standalone PWA treats the document as the primary scroller and
@@ -85,7 +91,7 @@ export function RootFabProvider({ children }: { children: ReactNode }) {
   // saved-scrollY trick is the standard iOS-safe body-lock; restoring
   // window.scrollTo on close avoids any visible jump.
   useEffect(() => {
-    const anyOpen = !!(fanOpen || threadsOpen || chatOpen || resourcesOpen || panelDetail)
+    const anyOpen = !!(fanOpen || threadsOpen || chatOpen || resourcesOpen || panelDetail || openFolderId)
     if (!anyOpen) return
     const scrollY = window.scrollY
     const body = document.body
@@ -112,7 +118,7 @@ export function RootFabProvider({ children }: { children: ReactNode }) {
       body.style.overflow = prev.overflow
       window.scrollTo(0, scrollY)
     }
-  }, [fanOpen, threadsOpen, chatOpen, resourcesOpen, panelDetail])
+  }, [fanOpen, threadsOpen, chatOpen, resourcesOpen, panelDetail, openFolderId])
 
   return (
     <RootFabContext.Provider value={{
@@ -121,6 +127,7 @@ export function RootFabProvider({ children }: { children: ReactNode }) {
       chatOpen, toggleChat, closeChat,
       resourcesOpen, toggleResources, closeResources,
       panelDetail, setPanelDetail, closePanelDetail,
+      openFolderId, setOpenFolderId, closeOpenFolder,
     }}>
       {children}
     </RootFabContext.Provider>
@@ -140,6 +147,7 @@ export function useRootFab(): RootFabContextValue {
       chatOpen: false, toggleChat: () => {}, closeChat: () => {},
       resourcesOpen: false, toggleResources: () => {}, closeResources: () => {},
       panelDetail: null, setPanelDetail: () => {}, closePanelDetail: () => {},
+      openFolderId: null, setOpenFolderId: () => {}, closeOpenFolder: () => {},
     }
   }
   return ctx
@@ -270,6 +278,7 @@ export function ActionBarRoot() {
     chatOpen, toggleChat, closeChat,
     resourcesOpen, toggleResources, closeResources,
     panelDetail, closePanelDetail,
+    openFolderId, closeOpenFolder,
   } = useRootFab()
 
   const accent = ACCENT
@@ -278,7 +287,7 @@ export function ActionBarRoot() {
 
   // Anything that, when present, the back button can pop. Order is the
   // close priority — top of the stack first.
-  const hasOpenLayer = !!panelDetail || fanOpen || threadsOpen || chatOpen || resourcesOpen
+  const hasOpenLayer = !!panelDetail || !!openFolderId || fanOpen || threadsOpen || chatOpen || resourcesOpen
 
   function handlePlus() {
     haptic('medium')
@@ -286,6 +295,7 @@ export function ActionBarRoot() {
     closeChat()
     closeResources()
     closePanelDetail()
+    closeOpenFolder()
     toggleFan()
   }
 
@@ -295,6 +305,7 @@ export function ActionBarRoot() {
     closeChat()
     closeResources()
     closePanelDetail()
+    closeOpenFolder()
     // Direct URL access of /projects/threads keeps its back-nav toggle.
     // From /projects (the project-selection page), the bar toggles a
     // slide-up sheet rendered by projects/page.tsx instead of navigating.
@@ -312,6 +323,7 @@ export function ActionBarRoot() {
     closeThreads()
     closeResources()
     closePanelDetail()
+    closeOpenFolder()
     toggleChat()
   }
 
@@ -321,12 +333,13 @@ export function ActionBarRoot() {
     closeThreads()
     closeChat()
     closePanelDetail()
+    closeOpenFolder()
     toggleResources()
   }
 
   // Layered pop. /projects has nowhere to navigate "back" to in the route
   // sense, so back acts on UI state in priority order:
-  //   detail → fan-arc panel → side sheet → fan
+  //   panel detail → open folder → fan-arc panel → side sheet → fan
   // When nothing is expanded the tap is intentionally a no-op (matches the
   // bar's project-scoped Back, which router.back()s into Hub fallback only
   // when there's history to pop).
@@ -334,6 +347,7 @@ export function ActionBarRoot() {
     if (!hasOpenLayer) return
     haptic('light')
     if (panelDetail) { closePanelDetail(); return }
+    if (openFolderId) { closeOpenFolder(); return }
     // The fan is what owns the "active panel" inside it (cleared via
     // projects/page.tsx's effect when fan closes), so closing the fan also
     // closes any panel rendered through it.
