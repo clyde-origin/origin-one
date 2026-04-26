@@ -12,7 +12,7 @@ export async function uploadMoodboardImage(file: File, projectId: string): Promi
   if (error) {
     console.error('uploadMoodboardImage failed:', error)
     if (error.message?.includes('Bucket not found')) {
-      throw new Error('Storage bucket not configured. Run the setup-storage.sql script in the Supabase SQL Editor.')
+      throw new Error('Storage bucket not configured. Run `pnpm --filter @origin-one/db exec prisma migrate deploy`.')
     }
     if (error.message?.includes('mime type')) {
       throw new Error('File type not supported. Use PNG, JPEG, or WebP.')
@@ -888,6 +888,48 @@ export async function uploadStoryboardImage(file: File, projectId: string, shotI
 
   const { data: { publicUrl } } = db.storage.from('storyboard').getPublicUrl(path)
   return publicUrl
+}
+
+// Locations bucket has auth-check RLS — pre-Auth uploads will reject with
+// row-level-security errors. The helper still returns a useful error string
+// in that case so the UI can surface "sign in required" once Auth lands.
+export async function uploadLocationImage(file: File, projectId: string, locationId: string): Promise<string> {
+  const db = createClient()
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const path = `${projectId}/${locationId}.${ext}`
+
+  const { error } = await db.storage.from('locations').upload(path, file, {
+    contentType: file.type || 'image/jpeg',
+    upsert: true,
+  })
+  if (error) {
+    console.error('uploadLocationImage failed:', error)
+    if (error.message?.includes('Bucket not found')) {
+      throw new Error('Locations bucket not configured. Run `pnpm --filter @origin-one/db exec prisma migrate deploy`.')
+    }
+    if (error.message?.toLowerCase().includes('row-level security')) {
+      throw new Error('Sign in required to upload location images.')
+    }
+    if (error.message?.includes('mime type')) {
+      throw new Error('File type not supported. Use PNG, JPEG, or WebP.')
+    }
+    if (error.message?.includes('size')) {
+      throw new Error('File too large. Maximum 10 MB.')
+    }
+    throw new Error(error.message || 'Upload failed. Please try again.')
+  }
+
+  const { data: { publicUrl } } = db.storage.from('locations').getPublicUrl(path)
+  return publicUrl
+}
+
+export async function deleteLocationImage(imageUrl: string): Promise<void> {
+  const db = createClient()
+  // Extract path from public URL: ...storage/v1/object/public/locations/{path}
+  const match = imageUrl.match(/\/locations\/(.+)$/)
+  if (!match) return
+  const { error } = await db.storage.from('locations').remove([match[1]])
+  if (error) console.error('deleteLocationImage failed:', error)
 }
 
 // ── MOODBOARD TABS ────────────────────────────────────────

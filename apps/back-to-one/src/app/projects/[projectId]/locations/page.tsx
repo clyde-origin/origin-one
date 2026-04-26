@@ -18,7 +18,7 @@ import {
   getEntityInitials,
   type EntityItem,
 } from '@/app/projects/[projectId]/scenemaker/components/EntityDrawer'
-import { getEntities, updateEntity as dbUpdateEntity } from '@/lib/db/queries'
+import { getEntities, updateEntity as dbUpdateEntity, uploadLocationImage } from '@/lib/db/queries'
 import type { Location, LocationStatus } from '@/types'
 
 // ── Constants ────────────────────────────────────────────
@@ -299,6 +299,9 @@ function LocationDetailSheet({ loc, accent, projectId, onUpdate, onDelete, onClo
   const [status, setStatus] = useState(loc.status)
   const [approved, setApproved] = useState(loc.approved)
   const [notes, setNotes] = useState(loc.notes ?? '')
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const sc = statusColor(status)
 
@@ -322,6 +325,22 @@ function LocationDetailSheet({ loc, accent, projectId, onUpdate, onDelete, onClo
     onUpdate(fields)
   }
 
+  const handleReplaceImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const imageUrl = await uploadLocationImage(file, projectId, loc.id)
+      onUpdate({ imageUrl })
+    } catch (err: any) {
+      setUploadError(err?.message ?? 'Upload failed')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
   return (
     <div style={{ padding: '0 20px 24px' }}>
       {/* Thread trigger — pinned top-right above the hero */}
@@ -329,10 +348,36 @@ function LocationDetailSheet({ loc, accent, projectId, onUpdate, onDelete, onClo
         {TriggerIcon}
       </div>
 
-      {/* Hero image */}
-      {loc.imageUrl && (
-        <div style={{ width: '100%', height: 160, borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
+      {/* Hero image — tap to upload or replace. Uses the `locations` storage
+          bucket which has auth-check RLS; pre-Auth the upload returns a
+          friendly "sign in required" error from uploadLocationImage. */}
+      <div
+        onClick={() => !uploading && fileRef.current?.click()}
+        style={{
+          width: '100%', height: 160, borderRadius: 10, overflow: 'hidden',
+          marginBottom: uploadError ? 6 : 16, cursor: uploading ? 'wait' : 'pointer',
+          position: 'relative',
+          background: loc.imageUrl ? '#0a0a12' : 'rgba(255,255,255,0.03)',
+          border: loc.imageUrl ? 'none' : '1px dashed rgba(255,255,255,0.10)',
+        }}
+      >
+        {loc.imageUrl ? (
           <img src={loc.imageUrl} alt={loc.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-geist-mono)', fontSize: '0.5rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            {uploading ? 'Uploading…' : 'Tap to add photo'}
+          </div>
+        )}
+        {uploading && loc.imageUrl && (
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: 'var(--font-geist-mono)', fontSize: '0.5rem', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            Uploading…
+          </div>
+        )}
+      </div>
+      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleReplaceImage} style={{ display: 'none' }} />
+      {uploadError && (
+        <div style={{ fontSize: '0.55rem', color: '#e8564a', fontFamily: 'var(--font-geist-mono)', marginBottom: 14, letterSpacing: '0.06em' }}>
+          {uploadError}
         </div>
       )}
 
