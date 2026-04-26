@@ -18,6 +18,7 @@ import {
   type ViewerRole,
 } from '@/lib/utils/viewerIdentity'
 import type { TeamMember, RateUnit } from '@/types'
+import { computeExpenseUnits } from '@origin-one/schema'
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 40 }
 
@@ -407,23 +408,26 @@ function ProducerOverview({
     return map
   }, [timecards, weekStart])
 
-  // Weekly dollar total + rate-coverage stats. Rate comes back from Supabase
-  // as a Decimal-string when present; convert at this boundary. Entries with
-  // null rate contribute 0 to dollar total but still count toward "total
-  // entries" for the coverage denominator.
+  // Weekly dollar total + rate-coverage stats. Rate + rateUnit come back
+  // from Supabase as Decimal-string + enum; convert at this boundary.
+  // Entries with null rate or null rateUnit contribute 0 to dollar total
+  // but still count toward "total entries" for the coverage denominator.
+  // Math goes through computeExpenseUnits (PR 6) — day-unit returns
+  // units=1, hour-unit returns units=hours, then total = units × rate.
   const weekTotals = useMemo(() => {
     let dollarTotal = 0
     let entriesWithRate = 0
     let totalEntries = 0
     for (const t of (timecards ?? [])) {
       totalEntries++
-      const row = t as { hours: string | number; rate: string | number | null }
-      if (row.rate == null) continue
+      const row = t as { hours: string | number; rate: string | number | null; rateUnit: RateUnit | null }
+      if (row.rate == null || row.rateUnit == null) continue
       const rate = typeof row.rate === 'string' ? parseFloat(row.rate) : Number(row.rate)
       if (!Number.isFinite(rate)) continue
       const hours = typeof row.hours === 'string' ? parseFloat(row.hours) : Number(row.hours)
       if (!Number.isFinite(hours)) continue
-      dollarTotal += hours * rate
+      const { units } = computeExpenseUnits(row.rateUnit, hours)
+      dollarTotal += units * rate
       entriesWithRate++
     }
     return { dollarTotal, entriesWithRate, totalEntries }
@@ -1124,7 +1128,7 @@ function EntryCard({
   onEdit, onSubmit, onApprove, onStartReopen, onCancelReopen, onConfirmReopen, pending,
 }: {
   entry: {
-    id: string; hours: number; rate: number | null; description: string; status: string; reopenReason: string | null
+    id: string; hours: number; rate: number | null; rateUnit: RateUnit | null; description: string; status: string; reopenReason: string | null
   }
   accent: string
   isSelfView: boolean
@@ -1153,11 +1157,16 @@ function EntryCard({
   const showLockedHint = isSelfView && status === 'approved'
   const showAwaiting   = !isSelfView && status === 'draft'
 
-  // Rate display: hidden when null. When present, show "$rate/day · $total".
-  // Total = hours × rate. Both already Number-typed at the IndividualWeekView
-  // boundary (Decimal | string from Prisma → Number there).
-  const showRate = entry.rate !== null
-  const dailyTotal = showRate ? entry.hours * (entry.rate as number) : 0
+  // Rate display: hidden when rate or rateUnit is null. When present,
+  // show "$rate/<unit> · $total". Total = units × rate via
+  // computeExpenseUnits (PR 6) — day-unit gives units=1 (one timecard
+  // date = one paid day, hours field informational); hour-unit gives
+  // units=hours. Both Number-typed at the IndividualWeekView boundary.
+  const showRate = entry.rate !== null && entry.rateUnit !== null
+  const dailyTotal = showRate
+    ? computeExpenseUnits(entry.rateUnit as RateUnit, entry.hours).units * (entry.rate as number)
+    : 0
+  const rateUnitLabel = entry.rateUnit === 'hour' ? 'hour' : 'day'
 
   return (
     <div
@@ -1186,7 +1195,7 @@ function EntryCard({
             marginBottom: 8,
           }}
         >
-          {formatUSD(entry.rate)}/day · {formatUSD(dailyTotal)} total
+          {formatUSD(entry.rate)}/{rateUnitLabel} · {formatUSD(dailyTotal)} total
         </div>
       )}
 

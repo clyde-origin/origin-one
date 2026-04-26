@@ -16,6 +16,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^3.6.0",
     "@origin-one/auth": "workspace:*",
+    "@origin-one/schema": "workspace:^",
     "@origin-one/ui": "workspace:*",
     "@supabase/ssr": "^0.3.0",
     "@supabase/supabase-js": "^2.43.1",
