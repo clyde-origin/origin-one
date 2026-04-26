@@ -14,6 +14,7 @@ export const keys = {
   allMilestones:      () => ['allMilestones'] as const,
   allThreads:         (meId: string | null) => ['allThreads', meId ?? ''] as const,
   allChats:           (meId: string | null) => ['allChats', meId ?? ''] as const,
+  allResources:       () => ['allResources'] as const,
   shotlistVersions: (projectId: string) => ['shotlistVersions', projectId] as const,
   scenes:         (projectId: string) => ['scenes', projectId] as const,
   shots:          (sceneId: string) => ['shots', sceneId] as const,
@@ -477,6 +478,23 @@ export function useCreateResource(projectId: string) {
   return useMutation({
     mutationFn: db.createResource,
     onSuccess:  () => qc.invalidateQueries({ queryKey: keys.resources(projectId) }),
+  })
+}
+
+// Cross-project resources — projectId IS NULL, used by the projects-root
+// bar's resources sheet (PR following #32).
+export function useAllResources() {
+  return useQuery({
+    queryKey: keys.allResources(),
+    queryFn:  db.getAllResources,
+  })
+}
+
+export function useCreateGlobalResource() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createGlobalResource,
+    onSuccess:  () => qc.invalidateQueries({ queryKey: keys.allResources() }),
   })
 }
 

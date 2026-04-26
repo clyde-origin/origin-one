@@ -665,6 +665,43 @@ export async function createResource(
   return data
 }
 
+// Cross-project (company-scoped) Resource rows — projectId IS NULL. Made
+// possible by PR #32 dropping NOT NULL from Resource.projectId. Producers
+// see these via the projects-root bar's resources sheet; the role gate
+// becomes real on Auth day.
+
+export async function getAllResources() {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Resource')
+    .select('*')
+    .is('projectId', null)
+    .order('createdAt', { ascending: false })
+  if (error) { console.error('getAllResources failed:', error); throw error }
+  return data ?? []
+}
+
+export async function createGlobalResource(
+  resource: { title: string; url: string; type: string; createdBy: string }
+) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Resource')
+    .insert({
+      id: crypto.randomUUID(),
+      projectId: null,
+      folderId: null,
+      title: resource.title,
+      url: resource.url,
+      type: resource.type,
+      createdBy: resource.createdBy,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createGlobalResource failed:', error); throw error }
+  return data
+}
+
 // ── GLOBAL QUERIES (cross-project) ────────────────────────
 
 export async function getAllActionItems() {

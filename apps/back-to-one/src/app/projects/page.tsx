@@ -16,6 +16,7 @@ import { ProjectActionSheet } from '@/components/projects/ProjectActionSheet'
 import { GlobalPanels, type PanelId } from '@/components/projects/GlobalPanels'
 import { ThreadsSheet } from '@/components/projects/ThreadsSheet'
 import { ChatSheet } from '@/components/projects/ChatSheet'
+import { ResourcesSheet } from '@/components/projects/ResourcesSheet'
 import { clearStoredViewer } from '@/lib/utils/viewerIdentity'
 import type { Project } from '@/types'
 
@@ -384,11 +385,14 @@ export default function ProjectsPage() {
 
   // Fan-open state lifted to RootFabContext (provided by projects/layout.tsx).
   // ActionBarRoot's + button toggles it; this page reads it to drive arc render.
-  // The same context owns threadsOpen and chatOpen, toggled by their bar buttons.
+  // The same context owns threadsOpen, chatOpen, and resourcesOpen — toggled
+  // by the corresponding bar buttons. All three sheets share visual style
+  // and z-stacking, with mutual exclusion against fan/panel below.
   const {
     fanOpen: selFabOpen, closeFan,
     threadsOpen, closeThreads,
     chatOpen, closeChat,
+    resourcesOpen, closeResources,
   } = useRootFab()
   const [activePanel, setActivePanel] = useState<PanelId | null>(null)
 
@@ -404,8 +408,8 @@ export default function ProjectsPage() {
   // ActionBarRoot's handlers before each toggle, so only the panel-clear
   // needs to be mirrored here.
   useEffect(() => {
-    if (threadsOpen || chatOpen) setActivePanel(null)
-  }, [threadsOpen, chatOpen])
+    if (threadsOpen || chatOpen || resourcesOpen) setActivePanel(null)
+  }, [threadsOpen, chatOpen, resourcesOpen])
   const isLoading = loadingProjects
 
   return (
@@ -422,9 +426,9 @@ export default function ProjectsPage() {
         position: 'relative', zIndex: 1, maxWidth: 390, margin: '0 auto',
         minHeight: '100vh', display: 'flex', flexDirection: 'column',
         justifyContent: 'center', paddingTop: '4vh', paddingBottom: '24vh',
-        filter: (activePanel || threadsOpen || chatOpen) ? 'blur(1.5px)' : 'none',
+        filter: (activePanel || threadsOpen || chatOpen || resourcesOpen) ? 'blur(1.5px)' : 'none',
         transition: 'filter 0.25s',
-        pointerEvents: (activePanel || threadsOpen || chatOpen) ? 'none' : 'auto',
+        pointerEvents: (activePanel || threadsOpen || chatOpen || resourcesOpen) ? 'none' : 'auto',
       }}>
         {/* Header */}
         <div style={{ position: 'relative', padding: '0 20px 18px' }}>
@@ -540,9 +544,9 @@ export default function ProjectsPage() {
 
       {/* ══ SINGLE OVERLAY — dims grid, always below panel (z3) ══ */}
       <AnimatePresence>
-        {(activePanel || selFabOpen || threadsOpen || chatOpen) && (
+        {(activePanel || selFabOpen || threadsOpen || chatOpen || resourcesOpen) && (
           <motion.div key="dim-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-            onClick={() => { closeFan(); setActivePanel(null); closeThreads(); closeChat() }}
+            onClick={() => { closeFan(); setActivePanel(null); closeThreads(); closeChat(); closeResources() }}
             style={{
               position: 'fixed', inset: 0, zIndex: 3,
               background: selFabOpen ? 'rgba(4,4,10,0.75)' : 'rgba(4,4,10,0.65)',
@@ -650,6 +654,10 @@ export default function ProjectsPage() {
 
       {/* Chat sheet — cross-project conversations, toggled by ActionBarRoot */}
       <ChatSheet open={chatOpen} onClose={closeChat} />
+
+      {/* Resources sheet — cross-project (company-wide) resources, toggled
+          by ActionBarRoot. Producer-only role gate lands with Auth. */}
+      <ResourcesSheet open={resourcesOpen} />
 
       {/* Action sheet */}
       <ProjectActionSheet

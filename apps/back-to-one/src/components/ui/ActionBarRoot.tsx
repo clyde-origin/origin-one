@@ -7,18 +7,17 @@
 //
 // Slot map: [— / chat / + / Threads / Resources]
 //   back      hidden — root has nowhere to go back to (left:16 stays empty)
-//   chat      visible — reduced opacity, no-op handler. Company-level chat
-//             is gated on Auth; the slot is here for visual symmetry with
-//             the project-scoped bar so the cluster reads identical across
-//             navigation
-//   +         visible — toggles the 5-arc fan in projects/page.tsx via
-//             RootFabContext
-//   threads   visible — routes to /projects/threads; toggle-to-close while
-//             on the route. Active state (accent fill + intensified glow)
-//             when pathname matches
-//   resources visible — reduced opacity, no-op handler. Company-level
-//             resources is V2 schema work (nullable projectId on Resource +
-//             Folder + Storage bucket). Slot is here for visual symmetry
+//   chat      toggles the cross-project ChatSheet (channel + DM aggregate)
+//             via RootFabContext.chatOpen
+//   +         toggles the 5-arc fan in projects/page.tsx via
+//             RootFabContext.fanOpen
+//   threads   on /projects: toggles the cross-project ThreadsSheet via
+//             RootFabContext.threadsOpen
+//             on /projects/threads (direct URL): keeps router.back-style
+//             toggle-to-close behavior
+//   resources toggles the cross-project ResourcesSheet via
+//             RootFabContext.resourcesOpen. Producer role gate lands with
+//             Auth — pre-Auth the slot is visible to everyone.
 
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
@@ -43,6 +42,9 @@ interface RootFabContextValue {
   chatOpen: boolean
   toggleChat: () => void
   closeChat: () => void
+  resourcesOpen: boolean
+  toggleResources: () => void
+  closeResources: () => void
 }
 
 const RootFabContext = createContext<RootFabContextValue | null>(null)
@@ -50,24 +52,28 @@ const RootFabContext = createContext<RootFabContextValue | null>(null)
 /**
  * Wrap projects-root children. Owns the fan-open boolean shared between
  * ActionBarRoot's + button and projects/page.tsx's 5-arc fan render, plus
- * the threads-sheet and chat-sheet booleans shared with the corresponding
- * sheet components rendered on projects/page.tsx.
+ * the threads, chat, and resources sheet booleans shared with the
+ * corresponding sheet components rendered on projects/page.tsx.
  */
 export function RootFabProvider({ children }: { children: ReactNode }) {
   const [fanOpen, setFanOpen] = useState(false)
   const [threadsOpen, setThreadsOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
+  const [resourcesOpen, setResourcesOpen] = useState(false)
   const toggleFan = useCallback(() => setFanOpen(o => !o), [])
   const closeFan = useCallback(() => setFanOpen(false), [])
   const toggleThreads = useCallback(() => setThreadsOpen(o => !o), [])
   const closeThreads = useCallback(() => setThreadsOpen(false), [])
   const toggleChat = useCallback(() => setChatOpen(o => !o), [])
   const closeChat = useCallback(() => setChatOpen(false), [])
+  const toggleResources = useCallback(() => setResourcesOpen(o => !o), [])
+  const closeResources = useCallback(() => setResourcesOpen(false), [])
   return (
     <RootFabContext.Provider value={{
       fanOpen, toggleFan, closeFan,
       threadsOpen, toggleThreads, closeThreads,
       chatOpen, toggleChat, closeChat,
+      resourcesOpen, toggleResources, closeResources,
     }}>
       {children}
     </RootFabContext.Provider>
@@ -85,6 +91,7 @@ export function useRootFab(): RootFabContextValue {
       fanOpen: false, toggleFan: () => {}, closeFan: () => {},
       threadsOpen: false, toggleThreads: () => {}, closeThreads: () => {},
       chatOpen: false, toggleChat: () => {}, closeChat: () => {},
+      resourcesOpen: false, toggleResources: () => {}, closeResources: () => {},
     }
   }
   return ctx
@@ -172,8 +179,6 @@ function ResourcesIcon() {
   )
 }
 
-const DISABLED_OPACITY = 0.45
-
 function ActionBarButton({
   size, variant, accent, onClick, ariaLabel, children,
 }: {
@@ -207,6 +212,7 @@ export function ActionBarRoot() {
     fanOpen, toggleFan, closeFan,
     threadsOpen, toggleThreads, closeThreads,
     chatOpen, toggleChat, closeChat,
+    resourcesOpen, toggleResources, closeResources,
   } = useRootFab()
 
   const accent = ACCENT
@@ -217,6 +223,7 @@ export function ActionBarRoot() {
     haptic('medium')
     closeThreads()
     closeChat()
+    closeResources()
     toggleFan()
   }
 
@@ -224,6 +231,7 @@ export function ActionBarRoot() {
     haptic('light')
     closeFan()
     closeChat()
+    closeResources()
     // Direct URL access of /projects/threads keeps its back-nav toggle.
     // From /projects (the project-selection page), the bar toggles a
     // slide-up sheet rendered by projects/page.tsx instead of navigating.
@@ -239,13 +247,16 @@ export function ActionBarRoot() {
     haptic('light')
     closeFan()
     closeThreads()
+    closeResources()
     toggleChat()
   }
 
-  // Resources stays disabled: company-level resources is V2 schema work
-  // (nullable Resource.projectId). Visual-symmetry slot until then.
   function handleResources() {
-    console.log('[ActionBarRoot] company resources coming with V2')
+    haptic('light')
+    closeFan()
+    closeThreads()
+    closeChat()
+    toggleResources()
   }
 
   return (
@@ -308,24 +319,25 @@ export function ActionBarRoot() {
         </ActionBarButton>
       </div>
 
-      {/* Resources — right edge. Reduced opacity, no-op handler. Mirrors
-          the project-scoped ActionBar's resources-at-right placement so
-          the two bars read identical across navigation. */}
+      {/* Resources — right edge. Toggles the cross-project ResourcesSheet
+          on /projects (mounted by projects/page.tsx). Mirrors the project-
+          scoped ActionBar's resources-at-right placement so the two bars
+          read identical across navigation. Role-gated visibility (producer-
+          only) lands on Auth day. */}
       <div
         className="pointer-events-auto"
         style={{
           position: 'absolute',
           right: 16, top: '50%',
           transform: 'translateY(-50%)',
-          opacity: DISABLED_OPACITY,
         }}
       >
         <ActionBarButton
           size={SIZE_SATELLITE}
-          variant="satellite"
+          variant={resourcesOpen ? 'active' : 'satellite'}
           accent={accent}
           onClick={handleResources}
-          ariaLabel="Resources (coming with V2)"
+          ariaLabel={resourcesOpen ? 'Close resources' : 'Resources'}
         >
           <ResourcesIcon />
         </ActionBarButton>
