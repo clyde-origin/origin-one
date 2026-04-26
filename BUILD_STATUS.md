@@ -9,9 +9,11 @@ Last updated: April 24, 2026 (post PR #7 merge, start of sequence-to-Auth push)
 
 **Anchor:** The resolve to complete the project effectively and efficiently. No fixed calendar date for Auth or first dogfood. Each feature lands as a complete arc (schema PR → UI PR → merge) before the next begins. Main green at every stop.
 
-**Immediate work:** Cleanup bundle (docs, richer timecard seed, role toggle, CrewPanel extraction, polish) → Script drag-reorder → FAB safe-area → Phase 1A milestone.
+**Phase 1A milestone hit Apr 26, 2026** — Crew Timecards (Apr 23), Script drag-reorder (Apr 26, PRs #30 + #36), and FAB safe-area resolution via ActionBar replacement (Apr 25–26, PRs #26 / #27 / #28 + follow-ups) all landed.
 
-**After 1A, in sequence:** Location cleanup → Location parent/child UI → Storage discipline PR → Location images → Department enum conversion → PropSourced schema → PropSourced UI → WardrobeSourced schema → WardrobeSourced UI → InventoryItem schema → Inventory page → Inventory hub preview → Crew Profile v2 schema → avatars bucket → Crew Profile v2 UI → Auth.
+**Cleanup bundle still open** (does not gate the next track): richer timecard seed (#2), role toggle on login (#3), CrewPanel extraction (#4), polish bundle (#5).
+
+**Next, in sequence:** Location cleanup → Location parent/child UI → Storage discipline PR → Location images → Department enum conversion → PropSourced schema → PropSourced UI → WardrobeSourced schema → WardrobeSourced UI → InventoryItem schema → Inventory page → Inventory hub preview → Crew Profile v2 schema → avatars bucket → Crew Profile v2 UI → Auth.
 
 **Dogfood trigger:** Tyler + Kelly run the app when every surface is honest and the data is real enough to think with.
 
@@ -49,8 +51,8 @@ Each row is a complete PR (schema or UI). Strict order — next row doesn't star
 | # | Feature | Status | Notes |
 |---|---|---|---|
 | 6 | Script drag-reorder | ✅ | Shotlist mode reorder shipped via PRs #30 (dnd-kit mechanics) + #36 (toast / rollback / cross-scene confirm). Script-mode drag not added — separate feature if needed. Shot-number mutability locked in DECISIONS.md (Apr 26). |
-| 7 | FAB safe-area-inset rollout | ⬜ | Cross-cutting; FAB used throughout app |
-| — | **Phase 1A milestone marker** | — | Hit when #6 and #7 land |
+| 7 | FAB safe-area-inset rollout | ✅ | Resolved via ActionBar replacement (PRs #26 / #27 / #28 and follow-ups). Legacy FAB removed; ActionBar handles `env(safe-area-inset-bottom)` on every surface. |
+| — | **Phase 1A milestone marker** | ✅ | **Hit Apr 26, 2026** — both #6 and #7 landed. |
 
 ### Location — narrative→production pattern
 
@@ -117,7 +119,7 @@ Closes milestone.
 |---|---|---|
 | Crew Timecards | ✅ Done | PRs #5, #6, #7 (Apr 23) |
 | Script drag-reorder | ✅ Done | Shotlist mode. PRs #30 + #36 (Apr 26) |
-| FAB safe-area-inset rollout | ⬜ | Sequence #7 |
+| FAB safe-area-inset rollout | ✅ Done | Resolved by ActionBar replacement (PRs #26 / #27 / #28 + follow-ups). Apr 25–26. |
 
 ---
 
@@ -142,7 +144,7 @@ Closes milestone.
 | Timeline | ✅ timeline-full.html | ✅ Done |
 | Inventory | ✅ inventory-page.html | ⬜ Upcoming |
 | Crew Profile v2 | ⬜ needs HTML reference | ⬜ Upcoming (draft HTML first) |
-| FAB | ✅ fab-arc-preview.html | 🟡 Done (safe-area rollout pending) |
+| FAB | ✅ fab-arc-preview.html | ✅ Done (replaced by ActionBar — PRs #26 / #27 / #28 + follow-ups) |
 
 ---
 
