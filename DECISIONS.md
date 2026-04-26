@@ -407,3 +407,13 @@ The `thread-context.ts` file now contains six explicit-enumeration sites for eac
 
 **Tradeoffs:** A user who reorders shots in pre-production sees their shot numbers update. Until the lock mechanism ships, there is no protection against late-pre-production renumbering. Mitigation is producer discipline — don't reorder shots in story-order mode after the call sheet goes out.  
 **Revisit trigger:** Lock mechanism design conversation (separate PR).
+
+---
+
+### EntityAttachment storage — v1 unsigned public URLs, RLS deferred
+
+**Decision:** The `entity-attachments` storage bucket ships with permissive RLS (public SELECT, anon INSERT/UPDATE/DELETE) — the same posture as the existing `moodboard` bucket — NOT the `auth.role() = 'authenticated'` pattern that CLAUDE.md "Storage" lists as the default for new buckets. Public URLs are unsigned, never expire, and rely on random per-file IDs in the storage path for unguessability.  
+**Date:** April 26, 2026  
+**Rationale:** EntityAttachment is foundational for six+ surfaces (locations, props, wardrobe, hmu, moodboard refs, future cast reference photos). Auth-checked RLS would render the entire pattern unusable until Auth (#23) ships, which means the gallery component and helper code sit dormant on main for weeks of internal-only Phase 1A work — exactly the kind of dead-code-on-main the discipline was meant to avoid. The threat model is bounded: internal users only, no external clients, no PII in scout photos. Random filenames mean leaked URLs are unguessable but link-leaks are permanent until the bucket policy tightens.  
+**Tradeoffs:** Anyone with a leaked URL can view forever. The CLAUDE.md "auth-check from day one" rule now has an explicit exception, which weakens the rule unless every future bucket either follows it or earns its own DECISIONS entry. The next bucket (`avatars` for Crew Profile v2) MUST justify its policy choice the same way — no silent precedent.  
+**Revisit trigger:** Auth (#23) ships. Tightened in the same RLS pass that locks down `moodboard` and `storyboard`. Also: external client beta — the "v1 sharing model" must be revisited before any non-employee user touches the system.

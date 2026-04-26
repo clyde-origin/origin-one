@@ -12,7 +12,7 @@ export async function uploadMoodboardImage(file: File, projectId: string): Promi
   if (error) {
     console.error('uploadMoodboardImage failed:', error)
     if (error.message?.includes('Bucket not found')) {
-      throw new Error('Storage bucket not configured. Run the setup-storage.sql script in the Supabase SQL Editor.')
+      throw new Error('Storage bucket not configured. Run `pnpm --filter @origin-one/db exec prisma migrate deploy`.')
     }
     if (error.message?.includes('mime type')) {
       throw new Error('File type not supported. Use PNG, JPEG, or WebP.')
@@ -25,6 +25,189 @@ export async function uploadMoodboardImage(file: File, projectId: string): Promi
 
   const { data } = db.storage.from('moodboard').getPublicUrl(path)
   return data.publicUrl
+}
+
+// ── ENTITY ATTACHMENTS — polymorphic image gallery ──────────────────────────
+// Reference spec: apps/back-to-one/reference/back-to-one-entity-attachments.html
+// DECISIONS: "EntityAttachment storage — v1 unsigned public URLs, RLS deferred."
+
+export type EntityAttachmentType =
+  | 'location'
+  | 'narrativeLocation'
+  | 'prop'
+  | 'narrativeProp'
+  | 'wardrobe'
+  | 'narrativeWardrobe'
+  | 'hmu'
+  | 'cast'
+  | 'moodboardRef'
+
+export interface EntityAttachmentRow {
+  id: string
+  projectId: string
+  attachedToType: EntityAttachmentType
+  attachedToId: string
+  storagePath: string
+  publicUrl: string
+  caption: string | null
+  uploadedById: string | null
+  uploadedAt: string
+  width: number | null
+  height: number | null
+  mimeType: string | null
+  sizeBytes: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+const ENTITY_ATTACHMENTS_BUCKET = 'entity-attachments'
+
+function probeImageDimensions(file: File): Promise<{ width: number | null; height: number | null }> {
+  return new Promise(resolve => {
+    if (!file.type.startsWith('image/')) return resolve({ width: null, height: null })
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const w = img.naturalWidth || null
+      const h = img.naturalHeight || null
+      URL.revokeObjectURL(url)
+      resolve({ width: w, height: h })
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      resolve({ width: null, height: null })
+    }
+    img.src = url
+  })
+}
+
+function attachmentPublicUrl(storagePath: string, db = createClient()): string {
+  // Seed-friendly escape hatch: rows whose storagePath is itself a URL
+  // (Unsplash placeholders, demo CDN, etc.) render that URL directly. The
+  // upload helper never produces such a value — storage paths are always
+  // {type}/{id}/{rand}.{ext}.
+  if (storagePath.startsWith('http://') || storagePath.startsWith('https://')) {
+    return storagePath
+  }
+  return db.storage.from(ENTITY_ATTACHMENTS_BUCKET).getPublicUrl(storagePath).data.publicUrl
+}
+
+export async function uploadEntityAttachment(args: {
+  file: File
+  projectId: string
+  attachedToType: EntityAttachmentType
+  attachedToId: string
+  uploadedById?: string | null
+}): Promise<EntityAttachmentRow> {
+  const { file, projectId, attachedToType, attachedToId, uploadedById = null } = args
+  const db = createClient()
+
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const rand = crypto.randomUUID()
+  const storagePath = `${attachedToType}/${attachedToId}/${rand}.${ext}`
+
+  const { width, height } = await probeImageDimensions(file)
+
+  const { error: uploadErr } = await db.storage.from(ENTITY_ATTACHMENTS_BUCKET).upload(storagePath, file, {
+    contentType: file.type || `image/${ext}`,
+    upsert: false,
+  })
+  if (uploadErr) {
+    console.error('uploadEntityAttachment storage failed:', uploadErr)
+    if (uploadErr.message?.includes('Bucket not found')) {
+      throw new Error('Storage bucket not configured. Run `pnpm --filter @origin-one/db exec prisma migrate deploy`.')
+    }
+    if (uploadErr.message?.includes('mime type')) {
+      throw new Error('File type not supported. Use PNG, JPEG, or WebP.')
+    }
+    if (uploadErr.message?.includes('size')) {
+      throw new Error('File too large. Maximum 10 MB.')
+    }
+    throw new Error(uploadErr.message || 'Upload failed. Please try again.')
+  }
+
+  const row = {
+    id: crypto.randomUUID(),
+    projectId,
+    attachedToType,
+    attachedToId,
+    storagePath,
+    caption: null,
+    uploadedById,
+    uploadedAt: new Date().toISOString(),
+    width,
+    height,
+    mimeType: file.type || null,
+    sizeBytes: file.size,
+    updatedAt: new Date().toISOString(),
+  }
+  const { data, error } = await db.from('EntityAttachment').insert(row).select().single()
+  if (error) {
+    // Best-effort cleanup so we don't leave an orphan storage object on row-insert failure.
+    await db.storage.from(ENTITY_ATTACHMENTS_BUCKET).remove([storagePath]).catch(() => {})
+    console.error('uploadEntityAttachment insert failed:', error)
+    throw new Error(error.message || 'Failed to record attachment.')
+  }
+  return { ...(data as any), publicUrl: attachmentPublicUrl(storagePath, db) }
+}
+
+export async function listEntityAttachments(
+  projectId: string,
+  attachedToType: EntityAttachmentType,
+  attachedToId: string,
+): Promise<EntityAttachmentRow[]> {
+  const db = createClient()
+  const { data, error } = await db
+    .from('EntityAttachment')
+    .select('*')
+    .eq('projectId', projectId)
+    .eq('attachedToType', attachedToType)
+    .eq('attachedToId', attachedToId)
+    .order('createdAt', { ascending: false })
+  if (error) {
+    console.error('listEntityAttachments failed:', error)
+    return []
+  }
+  return (data ?? []).map((r: any) => ({ ...r, publicUrl: attachmentPublicUrl(r.storagePath, db) }))
+}
+
+export async function deleteEntityAttachment(id: string): Promise<void> {
+  const db = createClient()
+  const { data: row, error: readErr } = await db
+    .from('EntityAttachment')
+    .select('storagePath')
+    .eq('id', id)
+    .single()
+  if (readErr) {
+    console.error('deleteEntityAttachment read failed:', readErr)
+    throw new Error(readErr.message)
+  }
+  // Storage delete first; if it fails, leave the row so caller can retry.
+  // Orphan storage objects are worse than orphan rows.
+  if (row?.storagePath) {
+    const { error: storErr } = await db.storage.from(ENTITY_ATTACHMENTS_BUCKET).remove([row.storagePath])
+    if (storErr) {
+      console.error('deleteEntityAttachment storage failed:', storErr)
+      throw new Error(storErr.message)
+    }
+  }
+  const { error: rowErr } = await db.from('EntityAttachment').delete().eq('id', id)
+  if (rowErr) {
+    console.error('deleteEntityAttachment row failed:', rowErr)
+    throw new Error(rowErr.message)
+  }
+}
+
+export async function updateEntityAttachmentCaption(id: string, caption: string | null): Promise<void> {
+  const db = createClient()
+  const { error } = await db
+    .from('EntityAttachment')
+    .update({ caption: caption?.trim() || null, updatedAt: new Date().toISOString() })
+    .eq('id', id)
+  if (error) {
+    console.error('updateEntityAttachmentCaption failed:', error)
+    throw new Error(error.message)
+  }
 }
 
 // ── PROJECTS ───────────────────────────────────────────────
@@ -1032,7 +1215,6 @@ export async function createLocation(
       status: loc.status ?? 'unscouted',
       approved: loc.approved ?? false,
       notes: loc.notes ?? null,
-      imageUrl: loc.imageUrl ?? null,
       sceneTab: loc.sceneTab ?? null,
       sortOrder: loc.sortOrder ?? 0,
     })
@@ -1044,7 +1226,7 @@ export async function createLocation(
 
 export async function updateLocation(
   id: string,
-  fields: { name?: string; description?: string | null; address?: string | null; keyContact?: string | null; webLink?: string | null; shootDates?: string | null; status?: string; approved?: boolean; notes?: string | null; imageUrl?: string | null; sceneTab?: string | null; sortOrder?: number }
+  fields: { name?: string; description?: string | null; address?: string | null; keyContact?: string | null; webLink?: string | null; shootDates?: string | null; status?: string; approved?: boolean; notes?: string | null; sceneTab?: string | null; sortOrder?: number }
 ): Promise<void> {
   const db = createClient()
   const { error } = await db

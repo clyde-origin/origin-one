@@ -19,6 +19,10 @@ import {
   type EntityItem,
 } from '@/app/projects/[projectId]/scenemaker/components/EntityDrawer'
 import { getEntities, updateEntity as dbUpdateEntity } from '@/lib/db/queries'
+import {
+  EntityAttachmentGallery,
+  EntityAttachmentCover,
+} from '@/components/attachments/EntityAttachmentGallery'
 import type { Location, LocationStatus } from '@/types'
 
 // ── Constants ────────────────────────────────────────────
@@ -40,7 +44,7 @@ function statusDisplay(s: string) {
 
 // ── Location Card ────────────────────────────────────────
 
-function LocationCard({ loc, accent, onTap, threadEntry }: { loc: Location; accent: string; onTap: (l: Location) => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
+function LocationCard({ loc, projectId, accent, onTap, threadEntry }: { loc: Location; projectId: string; accent: string; onTap: (l: Location) => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
   const sc = statusColor(loc.status)
   return (
     // Wrapper preserves the card's overflow:hidden (image clipping) while
@@ -58,19 +62,15 @@ function LocationCard({ loc, accent, onTap, threadEntry }: { loc: Location; acce
       }}
       onClick={() => onTap(loc)}
     >
-      {/* Hero image */}
-      <div style={{ width: 96, height: 96, flexShrink: 0, background: '#0a0a12' }}>
-        {loc.imageUrl ? (
-          <img src={loc.imageUrl} alt={loc.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        ) : (
-          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <rect x="2" y="4" width="20" height="16" rx="2" stroke="rgba(255,255,255,0.1)" strokeWidth="1.3" />
-              <circle cx="8" cy="10" r="2" stroke="rgba(255,255,255,0.1)" strokeWidth="1.2" />
-              <path d="M2 16l5-4 3 2 4-5 8 7" stroke="rgba(255,255,255,0.1)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-        )}
+      {/* Hero — most-recent attachment (with +N badge if multiple), or placeholder */}
+      <div style={{ width: 96, height: 96, flexShrink: 0 }}>
+        <EntityAttachmentCover
+          projectId={projectId}
+          attachedToType="location"
+          attachedToId={loc.id}
+          size={96}
+          alt={loc.name}
+        />
       </div>
 
       {/* Info */}
@@ -329,12 +329,15 @@ function LocationDetailSheet({ loc, accent, projectId, onUpdate, onDelete, onClo
         {TriggerIcon}
       </div>
 
-      {/* Hero image */}
-      {loc.imageUrl && (
-        <div style={{ width: '100%', height: 160, borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
-          <img src={loc.imageUrl} alt={loc.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        </div>
-      )}
+      {/* Photo gallery — replaces the legacy single-imageUrl hero. Drag images
+          in or tap "+ Add photos" to upload. Tile tap opens the lightbox.
+          Spec: apps/back-to-one/reference/back-to-one-entity-attachments.html */}
+      <EntityAttachmentGallery
+        projectId={projectId}
+        attachedToType="location"
+        attachedToId={loc.id}
+        variant="sheet"
+      />
 
       {/* Name */}
       <input type="text" value={name} onChange={e => setName(e.target.value)}
@@ -700,7 +703,7 @@ export default function LocationsPage({ params }: { params: { projectId: string 
         ) : (
           <div className="flex flex-col gap-3">
             {filtered.map(loc => (
-              <LocationCard key={loc.id} loc={loc} accent={accent} onTap={setSelected} threadEntry={threadByLocationId.get(loc.id)} />
+              <LocationCard key={loc.id} loc={loc} projectId={projectId} accent={accent} onTap={setSelected} threadEntry={threadByLocationId.get(loc.id)} />
             ))}
           </div>
         )}

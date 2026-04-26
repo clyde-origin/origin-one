@@ -8,6 +8,7 @@ import { haptic } from '@/lib/utils/haptics'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
 import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
+import { EntityAttachmentGallery } from '@/components/attachments/EntityAttachmentGallery'
 
 // ── Entity type colors (from reference spec) ────────────
 export const ENTITY_COLORS = {
@@ -397,8 +398,17 @@ export function EntityDetailSheet({ type, projectId, colors, label, entity, onSa
             />
           </div>
 
-          {/* Reference image upload row (edit mode) */}
-          {isEdit && (
+          {/* Reference photos — wired for narrativeLocation entities (script-side
+              location). Props/wardrobe/hmu/cast surfaces ship in their respective
+              PRs. The placeholder remains for those until then. */}
+          {isEdit && entity && type === 'locations' ? (
+            <EntityAttachmentGallery
+              projectId={projectId}
+              attachedToType="narrativeLocation"
+              attachedToId={entity.id}
+              variant="sheet"
+            />
+          ) : isEdit ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
               <label className="font-mono uppercase" style={{ fontSize: '0.62rem', letterSpacing: '0.13em', color: 'rgba(255,255,255,0.28)' }}>Reference Image</label>
               <div className="flex items-center cursor-pointer" style={{
@@ -409,7 +419,7 @@ export function EntityDetailSheet({ type, projectId, colors, label, entity, onSa
                 <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Add reference photo</span>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
 
         {isEdit && PreviewRow}

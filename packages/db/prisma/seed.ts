@@ -450,6 +450,7 @@ async function main() {
   await prisma.threadRead.deleteMany()
   await prisma.threadMessage.deleteMany()
   await prisma.thread.deleteMany()
+  await prisma.entityAttachment.deleteMany()
   await prisma.crewTimecard.deleteMany()
   await prisma.inventoryItem.deleteMany()
   await prisma.projectMember.deleteMany()
@@ -3415,6 +3416,142 @@ FADE TO BLACK.`,
     `${aicpAccounts.length} accounts, ${lineSpecs.length} lines, ` +
     `${expenseRowsFromTimecards.length} timecard + ${manualExpenses.length} manual expenses)`)
 
+  // ── EntityAttachment seed (location galleries) ───────────────────────────
+  // Two production-side attachments per project on the first 1-2 Locations,
+  // plus a single narrative-side attachment on one script Entity per project.
+  // External Unsplash URLs render via the storagePath escape hatch in
+  // queries.ts (storagePath starting with http(s) is treated as the public URL).
+  // Real uploads via the UI write to bucket paths instead.
+  const locsByProject: Record<string, { id: string; name: string }[]> = {}
+  const allLocs = await prisma.location.findMany({ select: { id: true, projectId: true, name: true }, orderBy: { sortOrder: 'asc' } })
+  for (const l of allLocs) {
+    if (!locsByProject[l.projectId]) locsByProject[l.projectId] = []
+    locsByProject[l.projectId].push({ id: l.id, name: l.name })
+  }
+  const entLocsByProject: Record<string, { id: string; name: string }[]> = {}
+  const allEntLocs = await prisma.entity.findMany({ where: { type: 'location' }, select: { id: true, projectId: true, name: true } })
+  for (const e of allEntLocs) {
+    if (!entLocsByProject[e.projectId]) entLocsByProject[e.projectId] = []
+    entLocsByProject[e.projectId].push({ id: e.id, name: e.name })
+  }
+
+  // Curated Unsplash placeholders by general vibe — six pairs so each project
+  // gets two distinct production-side photos plus one narrative reference.
+  const PLACEHOLDER_PAIRS = [
+    {
+      a: 'https://images.unsplash.com/photo-1494522855154-9297ac14b55f?w=1200&q=80',
+      b: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=1200&q=80',
+      narrative: 'https://images.unsplash.com/photo-1448630360428-65456885c650?w=1200&q=80',
+      capA: 'Wide reference, mid-day',
+      capB: 'Hero angle from scout',
+      capN: 'Script reference — initial board image',
+    },
+    {
+      a: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1200&q=80',
+      b: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1200&q=80',
+      narrative: 'https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=1200&q=80',
+      capA: 'Golden hour pass',
+      capB: 'Backup angle',
+      capN: 'Tone reference',
+    },
+    {
+      a: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=1200&q=80',
+      b: 'https://images.unsplash.com/photo-1493711662062-fa541adb3fc8?w=1200&q=80',
+      narrative: null,
+      capA: 'Interior wide',
+      capB: 'Detail',
+      capN: '',
+    },
+    {
+      a: 'https://images.unsplash.com/photo-1484589065579-248aad0d8b13?w=1200&q=80',
+      b: 'https://images.unsplash.com/photo-1500301119717-d0b8efbb6b13?w=1200&q=80',
+      narrative: 'https://images.unsplash.com/photo-1429277096327-11ee3b35e3d4?w=1200&q=80',
+      capA: 'Alternate option',
+      capB: 'Aerial reference',
+      capN: 'Original location idea',
+    },
+    {
+      a: 'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=1200&q=80',
+      b: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1200&q=80',
+      narrative: 'https://images.unsplash.com/photo-1530908295418-a12e326966ba?w=1200&q=80',
+      capA: 'Coverage one',
+      capB: 'Coverage two',
+      capN: 'Mood reference',
+    },
+    {
+      a: 'https://images.unsplash.com/photo-1497486751825-1233686d5d80?w=1200&q=80',
+      b: 'https://images.unsplash.com/photo-1502425102553-0f64de1b76e2?w=1200&q=80',
+      narrative: 'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=1200&q=80',
+      capA: 'Approved hero',
+      capB: 'Wide establishing',
+      capN: 'Initial reference',
+    },
+  ]
+
+  const attachmentRows: any[] = []
+  const projectIds = [p1.id, p2.id, p3.id, p4.id, p5.id, p6.id]
+  for (let i = 0; i < projectIds.length; i++) {
+    const pid = projectIds[i]
+    const pair = PLACEHOLDER_PAIRS[i] ?? PLACEHOLDER_PAIRS[0]
+    const locs = locsByProject[pid] ?? []
+    const ents = entLocsByProject[pid] ?? []
+    const uploader = clydeBessey.id
+    const baseTime = Date.now() - (i + 1) * 6 * 60 * 60 * 1000 // staggered hours back
+
+    if (locs[0]) {
+      attachmentRows.push({
+        projectId: pid,
+        attachedToType: 'location',
+        attachedToId: locs[0].id,
+        storagePath: pair.a,
+        caption: pair.capA,
+        uploadedById: uploader,
+        uploadedAt: new Date(baseTime),
+        mimeType: 'image/jpeg',
+      })
+    }
+    if (locs[0]) {
+      attachmentRows.push({
+        projectId: pid,
+        attachedToType: 'location',
+        attachedToId: locs[0].id,
+        storagePath: pair.b,
+        caption: pair.capB,
+        uploadedById: uploader,
+        uploadedAt: new Date(baseTime + 60 * 60 * 1000),
+        mimeType: 'image/jpeg',
+      })
+    }
+    if (locs[1]) {
+      attachmentRows.push({
+        projectId: pid,
+        attachedToType: 'location',
+        attachedToId: locs[1].id,
+        storagePath: pair.a,
+        caption: null,
+        uploadedById: uploader,
+        uploadedAt: new Date(baseTime + 2 * 60 * 60 * 1000),
+        mimeType: 'image/jpeg',
+      })
+    }
+    if (pair.narrative && ents[0]) {
+      attachmentRows.push({
+        projectId: pid,
+        attachedToType: 'narrativeLocation',
+        attachedToId: ents[0].id,
+        storagePath: pair.narrative,
+        caption: pair.capN || null,
+        uploadedById: uploader,
+        uploadedAt: new Date(baseTime + 3 * 60 * 60 * 1000),
+        mimeType: 'image/jpeg',
+      })
+    }
+  }
+  if (attachmentRows.length > 0) {
+    await prisma.entityAttachment.createMany({ data: attachmentRows })
+    console.log(`  EntityAttachments: ${attachmentRows.length} (location + narrativeLocation seed)`)
+  }
+
   // ── Final count ───────────────────────────────────────────────────────────
   const counts = {
     projects:          await prisma.project.count(),
@@ -3449,6 +3586,7 @@ FADE TO BLACK.`,
     budgetVariables:   await prisma.budgetVariable.count(),
     budgetMarkups:     await prisma.budgetMarkup.count(),
     expenses:          await prisma.expense.count(),
+    entityAttachments: await prisma.entityAttachment.count(),
   }
 
   console.log('  ─────────────────────────────')
@@ -3484,6 +3622,7 @@ FADE TO BLACK.`,
   console.log(`  BudgetVariables:    ${counts.budgetVariables}`)
   console.log(`  BudgetMarkups:      ${counts.budgetMarkups}`)
   console.log(`  Expenses:           ${counts.expenses}`)
+  console.log(`  EntityAttachments:  ${counts.entityAttachments}`)
   console.log('  ─────────────────────────────')
   console.log('  Done.\n')
 }

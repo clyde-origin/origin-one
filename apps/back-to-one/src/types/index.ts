@@ -255,7 +255,9 @@ export interface Location {
   status: LocationStatus
   approved: boolean
   notes: string | null
-  imageUrl: string | null
+  // imageUrl removed — superseded by EntityAttachment rows attached as
+  // ('location', Location.id). LocationCard renders the most-recent attachment
+  // via <EntityAttachmentCover />.
   sceneTab: string | null
   sortOrder: number
   createdAt: string
