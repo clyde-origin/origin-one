@@ -21,6 +21,7 @@ import { PdfExport } from './components/PdfExport'
 import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
 import {
   DndContext,
+  closestCenter,
   type DragStartEvent,
   type DragOverEvent,
   type DragEndEvent,
@@ -350,7 +351,7 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
     const unscheduled = flatShots.filter(s => s.shootOrder == null)
 
     return (
-      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
         <SortableContext items={flatIds} strategy={verticalListSortingStrategy}>
           <div onClick={wiggleMode && !activeId ? () => setWiggleMode(false) : undefined}>
             {wiggleMode && (
@@ -400,7 +401,7 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
 
   // ── STORY ORDER RENDER ──
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
       <SortableContext items={flatIds} strategy={verticalListSortingStrategy}>
         <div onClick={wiggleMode && !activeId ? () => setWiggleMode(false) : undefined}>
           {wiggleMode && (
