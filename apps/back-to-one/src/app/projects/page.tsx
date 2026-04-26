@@ -372,49 +372,6 @@ export default function ProjectsPage() {
     }
   }, [])
 
-  const handleTouchEnd = useCallback(() => {
-    // Clear pending drag timer
-    if (dragTimerRef.current) {
-      clearTimeout(dragTimerRef.current)
-      dragTimerRef.current = null
-    }
-    pendingDragRef.current = null
-
-    const projectId = dragProjectIdRef.current
-    const targetIdx = dragTargetIdxRef.current
-
-    if (projectId && targetIdx >= 0) {
-      const ordered = [...sortedProjects.filter(p => p.id !== projectId)]
-      const movedProject = allProjects.find(p => p.id === projectId)
-      if (movedProject) {
-        const insertAt = Math.min(targetIdx, ordered.length)
-        ordered.splice(insertAt, 0, movedProject)
-        // Display order no longer stored in DB — drag is visual-only for now
-      }
-    }
-
-    // Reset
-    dragProjectIdRef.current = null
-    dragTargetIdxRef.current = -1
-    dragTargetIdRef.current = null
-    dragStartRef.current = null
-    lastSlotIdxRef.current = -1
-    setDragProjectId(null)
-    setDragTargetIdx(-1)
-    setDragTargetIdState(null)
-  }, [allProjects, sortedProjects, updateMutation])
-
-  // Global touch listeners for drag
-  useEffect(() => {
-    if (!editMode) return
-    window.addEventListener('touchmove', handleTouchMove, { passive: false })
-    window.addEventListener('touchend', handleTouchEnd)
-    return () => {
-      window.removeEventListener('touchmove', handleTouchMove)
-      window.removeEventListener('touchend', handleTouchEnd)
-    }
-  }, [editMode, handleTouchMove, handleTouchEnd])
-
   // Fan-open state lifted to RootFabContext (provided by projects/layout.tsx).
   // ActionBarRoot's + button toggles it; this page reads it to drive arc render.
   // The same context owns threadsOpen, chatOpen, and resourcesOpen — toggled
@@ -485,6 +442,78 @@ export default function ProjectsPage() {
     return result
   }, [allProjects, allFolders, allPlacements])
 
+  const handleTouchEnd = useCallback(() => {
+    // Clear pending drag timer
+    if (dragTimerRef.current) {
+      clearTimeout(dragTimerRef.current)
+      dragTimerRef.current = null
+    }
+    pendingDragRef.current = null
+
+    const projectId = dragProjectIdRef.current
+    const targetId = dragTargetIdRef.current
+    const targetIdx = dragTargetIdxRef.current
+
+    if (projectId && meId) {
+      const targetIsFolder = targetId && allFolders.some(f => f.id === targetId)
+      const targetIsProject = targetId && allProjects.some(p => p.id === targetId)
+
+      if (targetId && targetIsFolder) {
+        // Drop into existing folder
+        haptic('light')
+        const folderProjList = folderProjects.get(targetId) ?? []
+        placementMutation.mutate({
+          userId: meId,
+          projectId,
+          folderId: targetId,
+          sortOrder: folderProjList.length,
+        })
+      } else if (targetId && targetIsProject) {
+        // Drop onto a project → create new folder containing both
+        haptic('medium')
+        const draggedItem = homeItems.find(i => i.kind === 'project' && i.id === projectId)
+        createFolderMutation.mutate(
+          { userId: meId, name: 'Untitled', color: null, sortOrder: draggedItem?.sortOrder ?? 0 },
+          {
+            onSuccess: (folder) => {
+              placementMutation.mutate({ userId: meId, projectId,          folderId: folder.id, sortOrder: 0 })
+              placementMutation.mutate({ userId: meId, projectId: targetId, folderId: folder.id, sortOrder: 1 })
+            },
+          }
+        )
+      } else if (targetIdx >= 0) {
+        // Top-level reorder — persist via placement upsert with folderId: null
+        // Compute new sortOrder by midpoint between neighbors at targetIdx.
+        const reordered = homeItems.filter(i => i.kind !== 'project' || i.id !== projectId)
+        const beforeSO = targetIdx > 0 ? reordered[targetIdx - 1]?.sortOrder ?? 0 : 0
+        const afterSO  = reordered[targetIdx]?.sortOrder ?? beforeSO + 1024
+        const newSO = Math.floor((beforeSO + afterSO) / 2)
+        placementMutation.mutate({ userId: meId, projectId, folderId: null, sortOrder: newSO })
+      }
+    }
+
+    // Reset
+    dragProjectIdRef.current = null
+    dragTargetIdRef.current = null
+    dragTargetIdxRef.current = -1
+    dragStartRef.current = null
+    lastSlotIdxRef.current = -1
+    setDragProjectId(null)
+    setDragTargetIdx(-1)
+    setDragTargetIdState(null)
+  }, [meId, allProjects, allFolders, folderProjects, homeItems, placementMutation, createFolderMutation])
+
+  // Global touch listeners for drag
+  useEffect(() => {
+    if (!editMode) return
+    window.addEventListener('touchmove', handleTouchMove, { passive: false })
+    window.addEventListener('touchend', handleTouchEnd)
+    return () => {
+      window.removeEventListener('touchmove', handleTouchMove)
+      window.removeEventListener('touchend', handleTouchEnd)
+    }
+  }, [editMode, handleTouchMove, handleTouchEnd])
+
   // Mirror the original "tap + closes both fan and panel" behavior: any
   // transition of fan open→closed (from the bar +, the dim overlay, or
   // navigation that calls closeFan) clears any active panel.
@@ -515,9 +544,9 @@ export default function ProjectsPage() {
         position: 'relative', zIndex: 1, maxWidth: 390, margin: '0 auto',
         minHeight: '100vh', display: 'flex', flexDirection: 'column',
         justifyContent: 'center', paddingTop: '4vh', paddingBottom: '24vh',
-        filter: (activePanel || threadsOpen || chatOpen || resourcesOpen) ? 'blur(1.5px)' : 'none',
+        filter: (activePanel || threadsOpen || chatOpen || resourcesOpen || openFolderId) ? 'blur(1.5px)' : 'none',
         transition: 'filter 0.25s',
-        pointerEvents: (activePanel || threadsOpen || chatOpen || resourcesOpen) ? 'none' : 'auto',
+        pointerEvents: (activePanel || threadsOpen || chatOpen || resourcesOpen || openFolderId) ? 'none' : 'auto',
       }}>
         {/* Header */}
         <div style={{ position: 'relative', padding: '0 20px 18px' }}>
@@ -678,9 +707,9 @@ export default function ProjectsPage() {
 
       {/* ══ SINGLE OVERLAY — dims grid, always below panel (z3) ══ */}
       <AnimatePresence>
-        {(activePanel || selFabOpen || threadsOpen || chatOpen || resourcesOpen) && (
+        {(activePanel || selFabOpen || threadsOpen || chatOpen || resourcesOpen || openFolderId) && (
           <motion.div key="dim-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
-            onClick={() => { closeFan(); setActivePanel(null); closeThreads(); closeChat(); closeResources() }}
+            onClick={() => { closeFan(); setActivePanel(null); closeThreads(); closeChat(); closeResources(); closeOpenFolder() }}
             style={{
               position: 'fixed', inset: 0, zIndex: 3,
               background: selFabOpen ? 'rgba(4,4,10,0.75)' : 'rgba(4,4,10,0.65)',
@@ -803,6 +832,21 @@ export default function ProjectsPage() {
         onTypeChange={handleTypeChange}
         onAspectChange={handleAspectChange}
         onClose={() => setActionProject(null)}
+      />
+
+      <FolderActionSheet
+        folder={actionFolder}
+        onClose={() => setActionFolder(null)}
+        onRename={(name) => actionFolder && updateFolderMutation.mutate({ id: actionFolder.id, fields: { name } })}
+        onColorChange={(color) => actionFolder && updateFolderMutation.mutate({ id: actionFolder.id, fields: { color } })}
+        onDelete={() => actionFolder && deleteFolderMutation.mutate(actionFolder.id, { onSuccess: () => setActionFolder(null) })}
+      />
+
+      <OpenFolderSheet
+        open={!!openFolderId}
+        folder={allFolders.find(f => f.id === openFolderId) ?? null}
+        projects={openFolderId ? (folderProjects.get(openFolderId) ?? []) : []}
+        onClose={closeOpenFolder}
       />
     </div>
   )
