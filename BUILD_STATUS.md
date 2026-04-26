@@ -1,7 +1,7 @@
 # Back to One — Build Status
 Update this file at the end of every Claude Code session. This is the single source of truth for where the build actually is.
 
-Last updated: April 24, 2026 (post PR #7 merge, start of sequence-to-Auth push)
+Last updated: April 26, 2026 (post PR #43 merge — Location cleanup #8 closed)
 
 ---
 
@@ -58,7 +58,7 @@ Each row is a complete PR (schema or UI). Strict order — next row doesn't star
 
 | # | Feature | Status | Notes |
 |---|---|---|---|
-| 8 | Location cleanup + drift reconciliation | ⬜ | 5 unpaired `Entity(type='location')` rows in P2+P4, `Location_entityId_idx` drift, `approved` audit, EntityDrawer locations-tab fix |
+| 8 | Location cleanup + drift reconciliation | ✅ | PR #43 (Apr 26). Migration `20260426150000` paired the 5 P2/P4 orphans by shoot-order; EntityDrawer locations-tab rewritten to operate on Entity rows (drops the asymmetry with characters/props); `approved` schema comment cites DECISIONS Apr 20. `Location_entityId_idx` drift was already reconciled by `20260425043233`. |
 | 9 | Location parent/child UI | ⬜ | Mirror Character/Cast pattern |
 | 10 | Storage discipline PR | ⬜ | Pull existing `moodboard` setup into Prisma migrations. Audit `storyboard` bucket. Establishes bucket-migration pattern |
 | 11 | Location images feature | ⬜ | `locations` bucket migration with auth-check RLS + `uploadLocationImage` helper + UI wiring |
@@ -195,9 +195,6 @@ Organized by severity. Non-blocking unless noted.
 
 | Item | Notes |
 |---|---|
-| **`Location_entityId_idx` drift** | Index exists in live DB, not declared in `schema.prisma`. Surfaced via `--create-only` during Timecards schema PR. Folded into Location cleanup PR (sequence #8). |
-| P2 + P4 unpaired `Entity(type='location')` rows | 5 rows without paired Location records. Folded into Location cleanup PR (#8). |
-| `approved` Boolean on Location | Audit for redundancy with LocationStatus enum. Folded into Location cleanup PR (#8). Kept separate today (aesthetic sign-off vs. booking — distinct concerns). |
 | Storyboard bucket setup not committed | App code references `storyboard` bucket but the setup SQL isn't in repo. Folded into Storage discipline PR (#10). |
 
 ### Code structure and quality
