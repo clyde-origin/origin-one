@@ -1465,12 +1465,16 @@ export async function getCrewTimecardsByWeek(
 // Create a new timecard entry in 'draft' state. Server defaults apply for
 // timestamps and status; we supply only the user-entered fields + identity.
 // rate is optional — null/undefined both store NULL.
+// rateUnit: 'day' | 'hour' — defaults to 'hour' when not specified, which
+// matches the form's default-value choice in EntryCard. Math fix that
+// consumes this enum lands in PR 6 of the budget arc.
 export async function createTimecard(input: {
   projectId: string
   crewMemberId: string
   date: string           // YYYY-MM-DD
   hours: number
   rate?: number | null   // nullable per schema; absent = NULL
+  rateUnit?: 'day' | 'hour'   // defaults to 'hour' for new entries
   description: string
 }) {
   const db = createClient()
@@ -1483,6 +1487,7 @@ export async function createTimecard(input: {
       date: input.date,
       hours: input.hours,
       rate: input.rate ?? null,
+      rateUnit: input.rateUnit ?? 'hour',
       description: input.description,
       status: 'draft',
       updatedAt: new Date().toISOString(),
@@ -1493,12 +1498,13 @@ export async function createTimecard(input: {
   return data
 }
 
-// Edit hours/description/rate on an existing entry. Called for draft and
-// reopened entries; the UI enforces the allowed-state rule, server is permissive.
-// Pass rate: null to clear an existing rate, omit to leave unchanged.
+// Edit hours/description/rate/rateUnit on an existing entry. Called for draft
+// and reopened entries; the UI enforces the allowed-state rule, server is
+// permissive. Pass rate: null to clear an existing rate, omit to leave
+// unchanged. Same omit-to-skip semantics for rateUnit.
 export async function updateTimecard(
   id: string,
-  fields: { hours?: number; rate?: number | null; description?: string },
+  fields: { hours?: number; rate?: number | null; rateUnit?: 'day' | 'hour'; description?: string },
 ) {
   const db = createClient()
   const { error } = await db

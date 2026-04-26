@@ -112,6 +112,11 @@ enum TimecardStatus {
   reopened    // producer reopened, back to editable
 }
 
+enum RateUnit {
+  day
+  hour
+}
+
 enum InventoryItemStatus {
   needed
   ordered
@@ -209,6 +214,7 @@ model CrewTimecard {
   date          DateTime  @db.Date
   hours         Decimal   @db.Decimal(4, 2)  // e.g., 12.50 = 12h 30m
   rate          Decimal?  @db.Decimal(8, 2)
+  rateUnit      RateUnit?                    // null = legacy / pending; new rows default 'hour' from app code
   description   String    @db.Text
 
   // State machine

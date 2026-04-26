@@ -17,7 +17,7 @@ import {
   readStoredViewerRole,
   type ViewerRole,
 } from '@/lib/utils/viewerIdentity'
-import type { TeamMember } from '@/types'
+import type { TeamMember, RateUnit } from '@/types'
 
 const spring = { type: 'spring' as const, stiffness: 400, damping: 40 }
 
@@ -646,7 +646,7 @@ function IndividualWeekView({
   // If a day has multiple entries (schema allows it), we render the first only
   // for now — the seed has no split-days. Flagged for follow-up if needed.
   type Entry = {
-    id: string; date: string; hours: number; rate: number | null; description: string; status: string
+    id: string; date: string; hours: number; rate: number | null; rateUnit: RateUnit | null; description: string; status: string
     submittedAt: string | null; approvedAt: string | null; approvedBy: string | null
     reopenedAt: string | null; reopenedBy: string | null; reopenReason: string | null
   }
@@ -671,6 +671,7 @@ function IndividualWeekView({
         date: row.date,
         hours: typeof row.hours === 'string' ? parseFloat(row.hours) : Number(row.hours),
         rate: rate !== null && Number.isFinite(rate) ? rate : null,
+        rateUnit: (row.rateUnit ?? null) as RateUnit | null,
         description: row.description,
         status: row.status,
         submittedAt: row.submittedAt ?? null,
@@ -797,17 +798,18 @@ function IndividualWeekView({
                     key={`add-${dayIdx}`}
                     initialHours={''}
                     initialRate={''}
+                    initialRateUnit={'hour'}
                     initialDescription={''}
                     accent={accent}
                     pending={createTc.isPending}
                     onCancel={() => setAddingForDayIdx(null)}
-                    onSave={(hours, rate, description) => {
+                    onSave={(hours, rate, rateUnit, description) => {
                       // crewMemberId records the role under which this entry
                       // was logged. viewerMember resolves to the row matching
                       // the logged-in role (per viewer-identity shim) — log
                       // in as Producer, act as Producer.
                       createTc.mutate(
-                        { projectId, crewMemberId: member.id, date: label.iso, hours, rate, description },
+                        { projectId, crewMemberId: member.id, date: label.iso, hours, rate, rateUnit, description },
                         { onSuccess: () => setAddingForDayIdx(null) },
                       )
                     }}
@@ -817,13 +819,14 @@ function IndividualWeekView({
                     key={`edit-${entry.id}`}
                     initialHours={entry.hours.toString()}
                     initialRate={entry.rate !== null ? entry.rate.toFixed(2) : ''}
+                    initialRateUnit={(entry.rateUnit ?? 'hour') as RateUnit}
                     initialDescription={entry.description}
                     accent={accent}
                     pending={updateTc.isPending}
                     onCancel={() => setEditingEntryId(null)}
-                    onSave={(hours, rate, description) => {
+                    onSave={(hours, rate, rateUnit, description) => {
                       updateTc.mutate(
-                        { id: entry.id, fields: { hours, rate, description } },
+                        { id: entry.id, fields: { hours, rate, rateUnit, description } },
                         { onSuccess: () => setEditingEntryId(null) },
                       )
                     }}
@@ -891,18 +894,20 @@ function IndividualWeekView({
 const RATE_MAX = 999999.99
 
 function EntryEditor({
-  initialHours, initialRate, initialDescription, accent, pending, onSave, onCancel,
+  initialHours, initialRate, initialRateUnit, initialDescription, accent, pending, onSave, onCancel,
 }: {
   initialHours: string
   initialRate: string         // "" means rate is unset (stores NULL)
+  initialRateUnit?: RateUnit  // defaults to 'hour' for new entries
   initialDescription: string
   accent: string
   pending: boolean
-  onSave: (hours: number, rate: number | null, description: string) => void
+  onSave: (hours: number, rate: number | null, rateUnit: RateUnit, description: string) => void
   onCancel: () => void
 }) {
   const [hoursStr, setHoursStr] = useState(initialHours)
   const [rateStr, setRateStr] = useState(initialRate)
+  const [rateUnit, setRateUnit] = useState<RateUnit>(initialRateUnit ?? 'hour')
   const [description, setDescription] = useState(initialDescription)
   const [rateError, setRateError] = useState<string | null>(null)
 
@@ -980,7 +985,33 @@ function EntryEditor({
         />
       </div>
 
-      {/* Rate (per day) — optional */}
+      {/* Rate unit chips — choose 'day' (whole-day rate, hours informational)
+          or 'hour' (hourly rate). Math fix that consumes this lands in PR 6
+          of the budget arc; column lands here so totals are correct after
+          that PR. */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        {(['hour', 'day'] as const).map(u => {
+          const active = rateUnit === u
+          return (
+            <button
+              key={u}
+              type="button"
+              onClick={() => { haptic('light'); setRateUnit(u) }}
+              className="font-mono uppercase"
+              style={{
+                fontSize: 9, letterSpacing: '0.1em',
+                padding: '4px 10px', borderRadius: 6,
+                background: active ? `${accent}20` : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${active ? `${accent}60` : 'rgba(255,255,255,0.08)'}`,
+                color: active ? accent : '#62627a',
+                cursor: 'pointer',
+              }}
+            >{u}</button>
+          )
+        })}
+      </div>
+
+      {/* Rate (per <unit>) — optional */}
       <div style={{ marginBottom: 8 }}>
         <label
           className="font-mono uppercase block"
@@ -990,7 +1021,7 @@ function EntryEditor({
             color: '#62627a',
             marginBottom: 4,
           }}
-        >Rate (per day)</label>
+        >Rate (per {rateUnit})</label>
         <div style={{ position: 'relative', width: 132 }}>
           <span
             aria-hidden="true"
@@ -1069,7 +1100,7 @@ function EntryEditor({
           }}
         >Cancel</button>
         <button
-          onClick={() => { if (canSave) onSave(hoursNum, rateValue, description.trim()) }}
+          onClick={() => { if (canSave) onSave(hoursNum, rateValue, rateUnit, description.trim()) }}
           disabled={!canSave}
           className="font-mono uppercase"
           style={{
