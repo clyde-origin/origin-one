@@ -13,3 +13,4 @@ export { Thread, ThreadMessage } from "./thread";
 export { Folder } from "./folder";
 export { Resource, ResourceType } from "./resource";
 export { MoodboardRef, MoodCategory } from "./moodboard";
+export { ShootDay, ShootDayType } from "./shoot-day";
