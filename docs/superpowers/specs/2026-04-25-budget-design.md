@@ -25,8 +25,9 @@ A film-industry-grade production budget module embedded in Back to One: nested A
 
 ### Nav placement
 
-- New top-level project nav slot: `/projects/[projectId]/budget`. Same level as Workflow / Art / Casting / Locations / Crew / Schedule.
-- Hub gets a small Budget topsheet card (working version's grand total, % spent bar, variance flag) — single source of truth lives on the dedicated page.
+- **Route:** new page at `/projects/[projectId]/budget`. Implemented as a Next.js App Router route under the project segment.
+- **Discovery:** reached via a **Hub preview block** on the project Hub. BT1 has no top-level project nav strip — every subpage (Workflow, Art, Casting, Locations, Crew, Schedule, Inventory, etc.) is reached from its Hub preview card. Budget gets the same treatment, sized as a peer of Timeline per the Hub placement reference at `apps/back-to-one/reference/explorations/budget-hub-placement.png`. The card shows working total, actuals, % spent bar, and a variance flag if any line trips the threshold; tap routes to `/budget`.
+- **No top-strip entry to add or modify.** PR 2 (Schedule) confirmed this pattern: project layout is `<HubContent> + <SubPageOverlay> + <ActionBar>`, no nav row.
 
 ### Integration map
 
