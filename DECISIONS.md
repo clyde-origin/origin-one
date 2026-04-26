@@ -382,3 +382,13 @@ The `thread-context.ts` file now contains six explicit-enumeration sites for eac
 
 **Tradeoffs:** User opening one surface doesn't see the other surface's thread activity. Solved via cross-surface bridges like the Characters dropdown on Casting (creative context reachable from logistics page) — NOT via thread aggregation.  
 **Revisit trigger:** Production workflow reveals a real pain from the separation that a cross-surface bridge can't solve.
+
+---
+
+### Local branches whose work has landed on main are deleted immediately
+
+**Decision:** Local branches whose work has landed on main via any commit path are deleted immediately, not preserved.  
+**Date:** April 26, 2026  
+**Rationale:** Squash-merge produces different commit hashes, so `git branch --no-merged` cannot detect superseded branches. Persisting them creates a ghost backlog. The PR record is the historical artifact, not the local branch. Verified by branch audit on Apr 26 — five branches discovered to be fully superseded by main via different commit paths.  
+**Tradeoffs:** Loss of branch-level metadata for re-applied work. PR descriptions must carry that context instead.  
+**Revisit trigger:** Never.
