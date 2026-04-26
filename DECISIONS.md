@@ -3,7 +3,7 @@
 Every significant architectural or strategic decision lives here.
 Before relitigating any call, read this file first.
 
-Last updated: April 20, 2026
+Last updated: April 25, 2026
 
 ---
 
@@ -252,6 +252,26 @@ Last updated: April 20, 2026
 **Rationale:** `packages/ui` is currently a pure-TS utility lib with zero React components. Lifting ActionBar there would require pulling React, `next/navigation`, and `framer-motion` into the package, coupling one-arc and one-lore to Next.js prematurely. ActionBar's routes and registered actions are Back-to-One-specific. Every other UI component already lives in `apps/back-to-one/src/components/ui/` — this matches established convention.
 **Tradeoffs:** If a peer ActionBar becomes useful in one-arc or one-lore later, abstraction has to be extracted then.
 **Revisit trigger:** A second app needs a structurally similar persistent nav bar.
+
+---
+
+### ActionBar uses project-accent glow over flat glass
+
+**Decision:** ActionBar buttons render with strong glass background + project-accent glow + drop shadow. Glow color tracks the active project's accent.
+**Date:** April 25, 2026
+**Rationale:** 2a's flat glass tokens (rgba(8,8,14,0.6)) washed out against bright surfaces (moodboard, light detail sheets). Strong glass + accent glow lifts buttons off any background AND reintroduces project context to the persistent nav, which was lost when + went glass.
+**Tradeoffs:** ActionBar is no longer brand-neutral — every project tints the bar. Acceptable: project context is always desirable when inside a project.
+**Revisit trigger:** Project switcher ships and reintroduces project identity elsewhere in the persistent nav.
+
+---
+
+### Chat / threads / resources are toggle-to-close
+
+**Decision:** Tapping chat / threads / resources when already on that route closes it (router.back() with Hub fallback). Active route shows accent fill + intensified glow.
+**Date:** April 25, 2026
+**Rationale:** Treats these surfaces as panels that flip in and out, not destinations users navigate away from. Matches the mental model established by drag-down sheets elsewhere in the app.
+**Tradeoffs:** Users who *want* to navigate to chat from chat (e.g. to refresh) get a back-navigation instead. Acceptable — not a real workflow.
+**Revisit trigger:** Resources becomes a slide-up panel instead of a route. Toggle behavior would need to swap from route-detect to panel-state.
 
 ---
 
