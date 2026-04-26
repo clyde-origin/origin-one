@@ -294,6 +294,17 @@ export interface InventoryItem {
   updatedAt: string
 }
 
+// ── TIMECARD RATE UNIT ─────────────────────────────────────
+
+// Unit of time for a CrewTimecard rate. Schema column added 2026-04-26
+// (#feat/rate-unit-schema). Existing rows backfilled to 'day' (all seed
+// timecards are day rates ≥ $250). New timecards default to 'hour'.
+// Math fix that consumes this enum lands in PR 6 of the budget arc;
+// for now the column is populated but EntryCard / ProducerOverview
+// math is unchanged (still produces the PR #19 known issue on hypothetical
+// hour-unit rows — none exist in seed yet).
+export type RateUnit = 'day' | 'hour'
+
 // ── SHOOT DAY ──────────────────────────────────────────────
 
 export type ShootDayType = 'pre' | 'prod' | 'post'
