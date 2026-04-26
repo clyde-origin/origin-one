@@ -488,6 +488,9 @@ model Location {
   webLink     String?
   shootDates  String?
   status      LocationStatus @default(unscouted)
+  // approved is aesthetic sign-off (EP/director); status tracks booking lifecycle.
+  // Kept distinct per DECISIONS.md (Apr 20 2026) — a location can be approved
+  // before booking, or booked under pressure without approval.
   approved    Boolean        @default(false)
   notes       String?
   imageUrl    String?

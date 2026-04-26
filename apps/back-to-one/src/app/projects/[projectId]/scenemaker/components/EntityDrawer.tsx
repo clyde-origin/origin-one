@@ -3,12 +3,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getEntities, createEntity, updateEntity, getLocations, createLocation, updateLocation } from '@/lib/db/queries'
+import { getEntities, createEntity, updateEntity } from '@/lib/db/queries'
 import { haptic } from '@/lib/utils/haptics'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
 import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
-import type { ThreadAttachmentType } from '@/types'
 
 // ── Entity type colors (from reference spec) ────────────
 export const ENTITY_COLORS = {
@@ -35,6 +34,16 @@ export function getEntityInitials(name: string): string {
 // ── Shared spring transition ────────────────────────────
 const spring = { type: 'spring' as const, damping: 28, stiffness: 280, mass: 0.8 }
 
+// Drawer is a script-side surface — every type keys on Entity.id. Threads posted
+// here travel with the scripted record. Production-side threads (Cast/Location/
+// PropSourced) live on their own pages — see DECISIONS.md "Entity-vs-production-
+// record threading rule".
+const ENTITY_TYPE_FOR: Record<EntityType, 'character' | 'location' | 'prop'> = {
+  characters: 'character',
+  locations:  'location',
+  props:      'prop',
+}
+
 // ── MAIN COMPONENT ──────────────────────────────────────
 
 export function EntityDrawer({ type, projectId, open, onClose }: {
@@ -48,13 +57,8 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
   const [editingEntity, setEditingEntity] = useState<EntityItem | null>(null)
   const [creating, setCreating] = useState(false)
 
-  // Tile-level badges. Keys match the rest of the app:
-  //   characters → Entity.id   (unified w/ Casting character dropdown)
-  //   props      → Entity.id   (unified w/ Art page)
-  //   locations  → Location.id (unified w/ Locations page — production record)
-  const tileThreadType: ThreadAttachmentType =
-    type === 'characters' ? 'character' : type === 'locations' ? 'location' : 'prop'
-  const threadByTileId = useThreadsByEntity(projectId, tileThreadType)
+  const entityType = ENTITY_TYPE_FOR[type]
+  const threadByTileId = useThreadsByEntity(projectId, entityType)
 
   // Close detail sheet when drawer closes
   useEffect(() => {
@@ -62,15 +66,9 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
   }, [open])
 
   // ── Fetch data ────────────────────────────────────────
-  const queryKey = type === 'locations'
-    ? ['locations', projectId]
-    : ['entities', projectId, type]
-
   const { data: rawItems } = useQuery({
-    queryKey,
-    queryFn: () => type === 'locations'
-      ? getLocations(projectId)
-      : getEntities(projectId, type === 'characters' ? 'character' : 'prop'),
+    queryKey: ['entities', projectId, type],
+    queryFn: () => getEntities(projectId, entityType),
     enabled: open,
   })
 
@@ -79,7 +77,7 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
     id: r.id,
     name: r.name,
     description: r.description ?? null,
-    imageUrl: type === 'locations' ? r.imageUrl : (r.metadata?.imageUrl ?? null),
+    imageUrl: r.metadata?.imageUrl ?? null,
   }))
 
   const label = type === 'characters' ? 'Characters' : type === 'locations' ? 'Locations' : 'Props'
@@ -88,28 +86,18 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
   // ── Save handler ──────────────────────────────────────
   const handleSave = useCallback(async (name: string, description: string, entityId?: string) => {
     try {
-      if (type === 'locations') {
-        if (entityId) {
-          await updateLocation(entityId, { name, description })
-        } else {
-          await createLocation({ projectId, name, description })
-        }
-        qc.invalidateQueries({ queryKey: ['locations', projectId] })
+      if (entityId) {
+        await updateEntity(entityId, { name, description })
       } else {
-        const entityType = type === 'characters' ? 'character' as const : 'prop' as const
-        if (entityId) {
-          await updateEntity(entityId, { name, description })
-        } else {
-          await createEntity({ projectId, type: entityType, name, description })
-        }
-        qc.invalidateQueries({ queryKey: ['entities', projectId, type] })
+        await createEntity({ projectId, type: entityType, name, description })
       }
+      qc.invalidateQueries({ queryKey: ['entities', projectId, type] })
     } catch (err) {
       console.error(`Failed to save ${type}:`, err)
     }
     setEditingEntity(null)
     setCreating(false)
-  }, [type, projectId, qc])
+  }, [type, entityType, projectId, qc])
 
   // ── Initials helper ───────────────────────────────────
   const getInitials = (name: string) => {
@@ -246,15 +234,6 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
 
 // ── DETAIL SHEET (create / edit) ────────────────────────
 
-// Maps drawer type → canonical thread attachment type. Using the same type and
-// the Entity / Location id ensures a thread posted here shows up on the same
-// record in Casting / Locations / Art — one record, one conversation.
-const THREAD_TYPE_FOR: Record<EntityType, ThreadAttachmentType> = {
-  characters: 'character',
-  locations: 'location',
-  props: 'prop',
-}
-
 export function EntityDetailSheet({ type, projectId, colors, label, entity, onSave, onClose, getInitials }: {
   type: EntityType
   projectId: string
@@ -272,7 +251,7 @@ export function EntityDetailSheet({ type, projectId, colors, label, entity, onSa
 
   const { TriggerIcon, PreviewRow, MessageZone, StartSheetOverlay } = useDetailSheetThreads({
     projectId,
-    attachedToType: THREAD_TYPE_FOR[type],
+    attachedToType: ENTITY_TYPE_FOR[type],
     attachedToId: entity?.id ?? null,
     subjectLabel: entity?.name ?? '',
   })
