@@ -3,7 +3,7 @@
 Every significant architectural or strategic decision lives here.
 Before relitigating any call, read this file first.
 
-Last updated: April 25, 2026
+Last updated: April 26, 2026
 
 ---
 
@@ -272,6 +272,16 @@ Last updated: April 25, 2026
 **Rationale:** Treats these surfaces as panels that flip in and out, not destinations users navigate away from. Matches the mental model established by drag-down sheets elsewhere in the app.
 **Tradeoffs:** Users who *want* to navigate to chat from chat (e.g. to refresh) get a back-navigation instead. Acceptable — not a real workflow.
 **Revisit trigger:** Resources becomes a slide-up panel instead of a route. Toggle behavior would need to swap from route-detect to panel-state.
+
+---
+
+### Projects-root gets its own ActionBar (root variant)
+
+**Decision:** Projects-root mounts an `ActionBarRoot` variant in a new `apps/back-to-one/src/app/projects/layout.tsx`, gated to `/projects` and `/projects/threads` only (project-scoped routes keep the project-scoped `ActionBar`). Slot map: back hidden, chat at reduced opacity (no-op until Auth), + opens the 5-arc fan with labels, threads routes to `/projects/threads`, resources at reduced opacity (no-op until V2). Crew replaces Threads in the fan. Threads becomes its own route at `/projects/threads`. The bar uses brand indigo glow throughout — no project context exists at root.
+**Date:** April 26, 2026
+**Rationale:** Investigation confirmed company-level Threads already aggregates correctly via `useAllThreads` — promoting it from a fan-arc panel to a discoverable bar button is honest discoverability work. Crew at company level is one client-side dedupe away from working; introducing it as a panel keeps it iterable. Visual symmetry with the project-scoped bar (same anchor, same five slot count) makes navigation between root and project surfaces feel like one continuous bar.
+**Tradeoffs:** Two of five slots (chat, resources) are visual-only for now — chat lights up with Auth, resources with V2 schema work (nullable projectId on Resource + Folder + Storage discipline). Reduced opacity signals the disabled affordance; tap is a no-op with a developer console hint. The asymmetry is honest: routes diverge slightly from project-scoped, ever (no chat or resources at root in the literal "tap → destination" sense until those destinations exist).
+**Revisit trigger:** Auth lands → company chat unlocked → ActionBarRoot's chat slot becomes a real route. Resources V2 (nullable `Resource.projectId`) → resources slot becomes a real route. Crew design locks → promote from panel to `/projects/crew` route.
 
 ---
 
