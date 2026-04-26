@@ -204,6 +204,7 @@ Organized by severity. Non-blocking unless noted.
 |---|---|
 | **CrewPanel.tsx extraction** | File grew to 1335 lines during Timecards UI build. Extract timecards sub-components to `components/hub/timecards/` (ProducerOverview, IndividualWeekView, shared WeekNavBar/StatusPill/week math). Pure refactor, no behavior change. Cleanup bundle (#4). |
 | BRAND_TOKENS.md full migration to Tailwind config | Currently tokens are documented but not wired into Tailwind config. Every new component uses inline hex. When this migrates, the inline-hex pattern becomes a find-and-replace. |
+| **HubContent assignee lookup id-vs-userId mismatch** | `apps/back-to-one/src/components/hub/HubContent.tsx:488,868` — assignee resolution compares `ProjectMember.id` to `User.id` (should compare `ProjectMember.userId` to `User.id`, or otherwise reconcile the two id spaces). Latent — surfaces when a User holds multiple ProjectMember rows on one project under distinct roles. Audit-flagged in the multi-role ProjectMember work (now landed on main); deferred to its own follow-up PR. |
 
 ### Demo and testing
 
