@@ -3,23 +3,26 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  useProjects, useAllActionItems, useAllMilestones, useAllThreads, useToggleActionItem,
+  useProjects, useAllActionItems, useAllMilestones, useToggleActionItem,
 } from '@/lib/hooks/useOriginOne'
 import { getProjectColor, MILESTONE_STATUS_HEX, STATUS_HEX } from '@/lib/utils/phase'
 import { GhostCircle, GhostRect, GhostPill } from '@/components/ui/EmptyState'
 import { haptic } from '@/lib/utils/haptics'
-import type { ActionItem, Milestone, Thread, Project } from '@/types'
+import { CrewPanel } from '@/components/projects/CrewPanel'
+import type { ActionItem, Milestone, Project } from '@/types'
 
 // ── TYPES ────────────────────────────────────────────────────
 
-export type PanelId = 'tasks' | 'milestones' | 'schedule' | 'threads' | 'activity'
+// Threads moved to its own route (/projects/threads) in PR 2c. The 4th slot
+// in the panel switcher is now Crew (cross-project roster, deduped by userId).
+export type PanelId = 'tasks' | 'milestones' | 'schedule' | 'crew' | 'activity'
 
-const PANEL_ORDER: PanelId[] = ['tasks', 'milestones', 'schedule', 'threads', 'activity']
+const PANEL_ORDER: PanelId[] = ['tasks', 'milestones', 'schedule', 'crew', 'activity']
 const PANEL_TITLES: Record<PanelId, string> = {
   tasks: 'Action Items',
   milestones: 'Milestones',
   schedule: 'Schedule',
-  threads: 'Threads',
+  crew: 'Crew',
   activity: 'Activity',
 }
 
@@ -44,27 +47,6 @@ function daysUntil(dateStr: string): number {
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-function genericThreadLabel(attachedToType: string): string {
-  switch (attachedToType) {
-    case 'shot':          return 'Shot'
-    case 'scene':         return 'Scene'
-    case 'location':      return 'Location'
-    case 'character':     return 'Character'
-    case 'cast':          return 'Cast'
-    case 'crew':          return 'Crew'
-    case 'prop':          return 'Prop'
-    case 'wardrobe':      return 'Wardrobe'
-    case 'hmu':           return 'HMU'
-    case 'moodboardRef':  return 'Moodboard'
-    case 'actionItem':    return 'Action'
-    case 'milestone':     return 'Milestone'
-    case 'deliverable':   return 'Deliverable'
-    case 'workflowStage': return 'Workflow'
-    case 'inventoryItem': return 'Inventory'
-    default:              return 'Thread'
-  }
 }
 
 function isToday(dateStr: string): boolean {
@@ -500,78 +482,6 @@ function SchedulePanel({ milestones, projects }: { milestones: Milestone[]; proj
 }
 
 // ══════════════════════════════════════════════════════════════
-// THREADS PANEL
-// ══════════════════════════════════════════════════════════════
-
-function ThreadsPanel({ threads, projects }: { threads: Thread[]; projects: Project[] }) {
-  if (threads.length === 0) return <EmptyPanelRows />
-
-  const avatarColors = [
-    { bg: 'rgba(100,112,243,0.2)', text: '#6470f3' },
-    { bg: 'rgba(74,232,160,0.2)', text: '#4ae8a0' },
-    { bg: 'rgba(232,196,74,0.2)', text: '#e8c44a' },
-    { bg: 'rgba(74,184,232,0.2)', text: '#4ab8e8' },
-    { bg: 'rgba(196,90,220,0.2)', text: '#c45adc' },
-  ]
-
-  const renderThread = (t: Thread, i: number) => {
-    const ac = avatarColors[i % avatarColors.length]
-    const lastMsg = t.messages[t.messages.length - 1]
-    const preview = lastMsg?.content ?? ''
-    const timeAgo = t.updatedAt ? formatDate(t.updatedAt) : ''
-    const label = genericThreadLabel(t.attachedToType)
-    const initials = label.slice(0, 2).toUpperCase()
-
-    return (
-      <div key={t.id} style={{
-        padding: '9px 0',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
-        display: 'flex', alignItems: 'flex-start', gap: 10,
-        position: 'relative', opacity: 0.85,
-      }}>
-        <div style={{
-          width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontWeight: 700, fontSize: 9, flexShrink: 0, marginTop: 1,
-          background: ac.bg, color: ac.text,
-        }}>
-          {initials}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-            <div style={{ fontWeight: 600, fontSize: 12, color: '#dddde8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
-            <span className="font-mono" style={{ fontSize: 9, color: '#62627a', flexShrink: 0 }}>{timeAgo}</span>
-          </div>
-          {preview && (
-            <div style={{
-              fontSize: 11, color: '#a0a0b8', lineHeight: 1.4, marginTop: 2,
-              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-            }}>
-              {preview}
-            </div>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
-            <ProjPill name={projectName(projects, t.projectId)} />
-            {t.messages.length > 0 && (
-              <span className="font-mono" style={{ fontSize: 9, color: '#62627a' }}>{t.messages.length} msg{t.messages.length !== 1 ? 's' : ''}</span>
-            )}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <>
-      <div className="font-mono" style={{ fontSize: 10, color: '#62627a', padding: '0 0 4px' }}>
-        {threads.length} thread{threads.length !== 1 ? 's' : ''} · all projects
-      </div>
-      <Sec label="Recent" />
-      {threads.map((t, i) => renderThread(t, i))}
-    </>
-  )
-}
-
-// ══════════════════════════════════════════════════════════════
 // ACTIVITY PANEL (hardcoded for now)
 // ══════════════════════════════════════════════════════════════
 
@@ -644,11 +554,9 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
   const { data: projects } = useProjects()
   const { data: actionItems } = useAllActionItems()
   const { data: milestones } = useAllMilestones()
-  const { data: threads } = useAllThreads()
   const allProjects = projects ?? []
   const allItems = actionItems ?? []
   const allMilestones = milestones ?? []
-  const allThreads = threads ?? []
 
   const [prevPanel, setPrevPanel] = useState<PanelId | null>(null)
   const activeIdx = activePanel ? PANEL_ORDER.indexOf(activePanel) : -1
@@ -696,12 +604,10 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
         const now = new Date()
         return now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
       }
-      case 'threads': {
-        return `${allThreads.length} thread${allThreads.length !== 1 ? 's' : ''} · all projects`
-      }
+      case 'crew': return 'across all projects'
       case 'activity': return 'all projects · today'
     }
-  }, [activePanel, allItems, allMilestones, allThreads])
+  }, [activePanel, allItems, allMilestones])
 
   return (
     <AnimatePresence>
@@ -772,7 +678,7 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
                     className="no-scrollbar">
                     {activePanel === 'tasks' && <ActionItemsPanel items={allItems} projects={allProjects} />}
                     {activePanel === 'milestones' && <MilestonesPanel milestones={allMilestones} projects={allProjects} />}
-                    {activePanel === 'threads' && <ThreadsPanel threads={allThreads} projects={allProjects} />}
+                    {activePanel === 'crew' && <CrewPanel projects={allProjects} />}
                     {activePanel === 'activity' && <ActivityPanel projects={allProjects} />}
                   </div>
                 )}
