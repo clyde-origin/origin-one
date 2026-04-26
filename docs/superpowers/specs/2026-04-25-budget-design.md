@@ -385,7 +385,7 @@ export type ShootDay = z.infer<typeof ShootDay>;
 | `String?` (nullable) | `.nullable()` on the inner schema | NOT `.optional()` — Prisma emits `null`, not `undefined` |
 | `String[]` (array) | `z.array(z.string()).default([])` | E.g. `BudgetLine.tags` |
 | `DateTime` or `@db.Date` | `z.coerce.date()` | Handles both ISO-string (JSON serialize) and Date (direct query) |
-| `Decimal @db.Decimal(p,s)` | `z.coerce.number()` | All budget money is USD ≤ 2 decimals, precision well within JS Number range. Revisit with a Decimal library only if ever crossing 8+ digits or doing repeated arithmetic on the same value |
+| `Decimal @db.Decimal(p,s)` | `z.string()` | Codebase convention — Prisma Decimal serializes as string on the wire; convert at use site (`Number(x)` or a Decimal lib if precision-critical). See existing comments in `apps/back-to-one/src/components/hub/CrewPanel.tsx` documenting this boundary. |
 | `enum X { ... }` | `z.enum([...])` mirroring the values exactly | |
 | `Int` | `z.number().int()` | E.g. `sortOrder` |
 | `Json` | `z.unknown()` then per-callsite refinement | Budget types have none |
