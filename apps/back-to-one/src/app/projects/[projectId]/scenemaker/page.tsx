@@ -277,6 +277,27 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
     }
     const newIndex = flatIds.indexOf(oId)
     if (newIndex < 0) return
+
+    // Cross-scene drop onto the FIRST shot of the destination scene → treat as
+    // a scene-header drop. Without this, handleReorder's splice (drag-down
+    // lands after over) would put the active shot at SECOND position in the
+    // destination scene; drag-up onto first-of-cross-scene is even worse —
+    // it would leave the active in the previous scene entirely. Either way,
+    // "first of target scene" is the user-intended outcome.
+    const overShot = shots.find(s => s.id === oId)
+    const activeShot = shots.find(s => s.id === aId)
+    if (overShot && activeShot && overShot.sceneId !== activeShot.sceneId) {
+      const sceneShotsSorted = shots
+        .filter(s => s.sceneId === overShot.sceneId)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+      if (sceneShotsSorted[0]?.id === overShot.id) {
+        onReorderToScene(aId, overShot.sceneId)
+        setBlinkIds(new Set([aId]))
+        setTimeout(() => setBlinkIds(new Set()), 700)
+        return
+      }
+    }
+
     // Snapshot display numbers before reorder so we can blink the changed ones
     const before = new Map<string, string>()
     shots.forEach(s => before.set(s.id, getShotDisplayNumber(s)))
