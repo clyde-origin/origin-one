@@ -14,6 +14,8 @@ export const keys = {
   allMilestones:      () => ['allMilestones'] as const,
   allThreads:         (meId: string | null) => ['allThreads', meId ?? ''] as const,
   allChats:           (meId: string | null) => ['allChats', meId ?? ''] as const,
+  userProjectFolders:    (meId: string | null) => ['userProjectFolders', meId ?? ''] as const,
+  userProjectPlacements: (meId: string | null) => ['userProjectPlacements', meId ?? ''] as const,
   allResources:       () => ['allResources'] as const,
   shotlistVersions: (projectId: string) => ['shotlistVersions', projectId] as const,
   scenes:         (projectId: string) => ['scenes', projectId] as const,
@@ -1062,4 +1064,72 @@ export function useChatSubscription(
     )
     return unsub
   }, [filter.projectId, filter.channelId, filter.meId, filter.partnerId, qc])
+}
+
+// ── PROJECT-SELECTION FOLDERS ─────────────────────────────
+
+export function useUserProjectFolders() {
+  const meId = useMeId()
+  return useQuery({
+    queryKey: keys.userProjectFolders(meId),
+    queryFn:  () => db.getUserProjectFolders(meId),
+    enabled:  !!meId,
+  })
+}
+
+export function useUserProjectPlacements() {
+  const meId = useMeId()
+  return useQuery({
+    queryKey: keys.userProjectPlacements(meId),
+    queryFn:  () => db.getUserProjectPlacements(meId),
+    enabled:  !!meId,
+  })
+}
+
+function invalidateFolders(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['userProjectFolders'] })
+  qc.invalidateQueries({ queryKey: ['userProjectPlacements'] })
+}
+
+export function useCreateUserProjectFolder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createUserProjectFolder,
+    onSuccess:  () => invalidateFolders(qc),
+  })
+}
+
+export function useUpdateUserProjectFolder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, fields }: { id: string; fields: { name?: string; color?: string | null; sortOrder?: number } }) =>
+      db.updateUserProjectFolder(id, fields),
+    onSuccess:  () => invalidateFolders(qc),
+  })
+}
+
+export function useDeleteUserProjectFolder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteUserProjectFolder,
+    onSuccess:  () => invalidateFolders(qc),
+  })
+}
+
+export function useUpsertUserProjectPlacement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.upsertUserProjectPlacement,
+    onSuccess:  () => invalidateFolders(qc),
+  })
+}
+
+export function useBulkReorderHomeGrid() {
+  const qc = useQueryClient()
+  const meId = useMeId()
+  return useMutation({
+    mutationFn: (items: { type: 'folder' | 'project'; id: string; sortOrder: number }[]) =>
+      db.bulkReorderHomeGrid(meId!, items),
+    onSuccess:  () => invalidateFolders(qc),
+  })
 }
