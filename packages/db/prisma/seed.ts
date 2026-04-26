@@ -3106,6 +3106,315 @@ FADE TO BLACK.`,
     `${invUnassigned} unassigned)`
   )
 
+  // ── ShootDays — all 6 projects (now-relative) ───────────────────────────
+  // Day counts feed budget formula globals (prepDays/shootDays/postDays) per
+  // spec §5.3: count(ShootDay where projectId=X AND type=Y) at evaluation time.
+  // centerOffset = days from NOW to the first prod day (negative = past).
+
+  type ShootDayProfile = {
+    project: { id: string; name: string }
+    pre: number; prod: number; post: number; centerOffset: number
+  }
+  const shootDayProfiles: ShootDayProfile[] = [
+    { project: p1, pre: 4, prod: 5, post: 3, centerOffset: -10 },
+    { project: p2, pre: 3, prod: 6, post: 4, centerOffset:  -3 },
+    { project: p3, pre: 5, prod: 8, post: 6, centerOffset:  -8 },  // IVV — drives the sample budget
+    { project: p4, pre: 6, prod: 5, post: 3, centerOffset:   2 },
+    { project: p5, pre: 0, prod: 4, post: 1, centerOffset:   5 },
+    { project: p6, pre: 4, prod: 7, post: 5, centerOffset: -15 },
+  ]
+  let shootDayTotal = 0
+  for (const { project, pre, prod, post, centerOffset } of shootDayProfiles) {
+    type DayPlan = { type: 'pre' | 'prod' | 'post'; offset: number }
+    const days: DayPlan[] = []
+    for (let i = 0; i < pre;  i++) days.push({ type: 'pre',  offset: centerOffset - pre + i })
+    for (let i = 0; i < prod; i++) days.push({ type: 'prod', offset: centerOffset + i })
+    for (let i = 0; i < post; i++) days.push({ type: 'post', offset: centerOffset + prod + 1 + i })
+    for (let i = 0; i < days.length; i++) {
+      const d = days[i]
+      await prisma.shootDay.create({ data: {
+        projectId: project.id,
+        date: daysAgo(-d.offset),                 // negative offset → future date
+        type: d.type,
+        sortOrder: i + 1,
+      }})
+    }
+    shootDayTotal += days.length
+  }
+  console.log(`  ShootDays: ${shootDayTotal} across P1-P6 (` +
+    shootDayProfiles.map(p => `${p.pre + p.prod + p.post}`).join('/') + ')')
+
+  // ── Budget — In Vino Veritas (full sample) ──────────────────────────────
+  // Per spec §3 / plan PR 5. Demonstrates the full v1 surface area:
+  //   AICP skeleton (2 ATL + 12 BTL accounts, 30 lines across 9 of them),
+  //   3 versions (Estimate / Working / Committed),
+  //   formula qty (`shootDays`, `crewSize * shootDays`),
+  //   fringe rates (0.18 on labor lines),
+  //   tags (dept:*, location:*),
+  //   2 markups (one accountSubtotal-targeted, one grandTotal),
+  //   2 variables (one budget-level, one version-scoped override),
+  //   ~20 expenses (12 sourced from approved IVV timecards, 8 manual).
+  //
+  // Math fix that consumes rateUnit lands in budget-library (PR 6); seeding
+  // here uses the day-unit pattern inline (units=1, unit='DAY') since all
+  // existing timecards backfilled to 'day' in feat/rate-unit-schema.
+
+  // Resolve Clyde-on-IVV ProjectMember row for Expense.createdBy. Spec says
+  // createdBy is a ProjectMember.id pre-Auth (User.id post-Auth).
+  const clydeOnIvv = await prisma.projectMember.findFirst({
+    where: { projectId: p3.id, userId: clydeBessey.id, role: 'producer' },
+  })
+  if (!clydeOnIvv) throw new Error('Clyde Bessey ProjectMember on IVV not found — expected from earlier seed.')
+
+  const ivvBudget = await prisma.budget.create({
+    data: { projectId: p3.id, currency: 'USD', varianceThreshold: '0.10' },
+  })
+
+  const [estimateV, workingV, committedV] = await Promise.all([
+    prisma.budgetVersion.create({ data: { budgetId: ivvBudget.id, name: 'Estimate',  kind: 'estimate',  sortOrder: 1, state: 'draft' } }),
+    prisma.budgetVersion.create({ data: { budgetId: ivvBudget.id, name: 'Working',   kind: 'working',   sortOrder: 2, state: 'draft' } }),
+    prisma.budgetVersion.create({ data: { budgetId: ivvBudget.id, name: 'Committed', kind: 'committed', sortOrder: 3, state: 'draft' } }),
+  ])
+  await prisma.budget.update({
+    where: { id: ivvBudget.id },
+    data:  { rateSourceVersionId: committedV.id },
+  })
+
+  // 14 AICP accounts — ATL (AA, BB) above, BTL (A–L) below per Q3 refinement.
+  type AccountSpec = { code: string; name: string; section: 'ATL' | 'BTL'; sortOrder: number }
+  const aicpAccounts: AccountSpec[] = [
+    // ATL
+    { code: 'AA', name: 'Director / Creative Fees',             section: 'ATL', sortOrder:   1 },
+    { code: 'BB', name: 'Producer / Production Manager',         section: 'ATL', sortOrder:   2 },
+    // BTL
+    { code: 'A',  name: 'Pre-Production Wages',                  section: 'BTL', sortOrder:  10 },
+    { code: 'B',  name: 'Shooting Crew Labor',                   section: 'BTL', sortOrder:  20 },
+    { code: 'C',  name: 'Production Wrap Wages',                 section: 'BTL', sortOrder:  30 },
+    { code: 'D',  name: 'Locations & Travel',                    section: 'BTL', sortOrder:  40 },
+    { code: 'E',  name: 'Props · Wardrobe · HMU',                section: 'BTL', sortOrder:  50 },
+    { code: 'F',  name: 'Studio Rental & Expenses',              section: 'BTL', sortOrder:  60 },
+    { code: 'G',  name: 'Set Construction',                      section: 'BTL', sortOrder:  70 },
+    { code: 'H',  name: 'Equipment (Camera · Lighting · Grip)',  section: 'BTL', sortOrder:  80 },
+    { code: 'I',  name: 'Media / Data Management',               section: 'BTL', sortOrder:  90 },
+    { code: 'J',  name: 'Talent & Talent Expenses',              section: 'BTL', sortOrder: 100 },
+    { code: 'K',  name: 'Editorial · Post · Music',              section: 'BTL', sortOrder: 110 },
+    { code: 'L',  name: 'Insurance · Misc',                      section: 'BTL', sortOrder: 120 },
+  ]
+  const accountByCode = new Map<string, { id: string }>()
+  for (const a of aicpAccounts) {
+    const created = await prisma.budgetAccount.create({ data: {
+      budgetId: ivvBudget.id, code: a.code, name: a.name, section: a.section, sortOrder: a.sortOrder,
+    } })
+    accountByCode.set(a.code, created)
+  }
+
+  type LineSpec = {
+    code: string
+    description: string
+    unit: 'DAY' | 'WEEK' | 'HOUR' | 'FLAT' | 'UNIT'
+    fringeRate: string                           // Decimal(5,4)
+    tags?: string[]
+    qty:  { estimate: string; working: string; committed: string }
+    rate: { estimate: string; working: string; committed: string }
+  }
+  const lineSpecs: LineSpec[] = [
+    // AA — Director / Creative
+    { code: 'AA', description: 'Director Fee',                              unit: 'FLAT', fringeRate: '0',    tags: ['dept:creative'],
+      qty:  { estimate: '1',                          working: '1',                          committed: '1' },
+      rate: { estimate: '15000.00',                   working: '17500.00',                   committed: '17500.00' } },
+    // BB — Producer
+    { code: 'BB', description: 'Line Producer',                             unit: 'FLAT', fringeRate: '0',    tags: ['dept:production'],
+      qty:  { estimate: '1',                          working: '1',                          committed: '1' },
+      rate: { estimate: '12000.00',                   working: '14000.00',                   committed: '14000.00' } },
+    // A — Pre-Production Wages
+    { code: 'A',  description: 'Production Coordinator',                    unit: 'WEEK', fringeRate: '0.18', tags: ['dept:production'],
+      qty:  { estimate: '2',                          working: '3',                          committed: '3' },
+      rate: { estimate: '2200.00',                    working: '2400.00',                    committed: '2400.00' } },
+    { code: 'A',  description: 'Office Rental (prep)',                      unit: 'FLAT', fringeRate: '0',    tags: [],
+      qty:  { estimate: '1',                          working: '1',                          committed: '1' },
+      rate: { estimate: '1500.00',                    working: '1800.00',                    committed: '1800.00' } },
+    // B — Shooting Crew (formula qty: shootDays — resolves to 8 from ShootDay count above)
+    { code: 'B',  description: 'Director of Photography',                   unit: 'DAY',  fringeRate: '0.18', tags: ['dept:camera'],
+      qty:  { estimate: 'shootDays',                  working: 'shootDays',                  committed: 'shootDays' },
+      rate: { estimate: '1100.00',                    working: '1200.00',                    committed: '1200.00' } },
+    { code: 'B',  description: '1st AC',                                    unit: 'DAY',  fringeRate: '0.18', tags: ['dept:camera'],
+      qty:  { estimate: 'shootDays',                  working: 'shootDays',                  committed: 'shootDays' },
+      rate: { estimate: '650.00',                     working: '700.00',                     committed: '700.00' } },
+    { code: 'B',  description: 'Gaffer',                                    unit: 'DAY',  fringeRate: '0.18', tags: ['dept:lighting'],
+      qty:  { estimate: 'shootDays',                  working: 'shootDays',                  committed: 'shootDays' },
+      rate: { estimate: '750.00',                     working: '800.00',                     committed: '800.00' } },
+    { code: 'B',  description: 'Key Grip',                                  unit: 'DAY',  fringeRate: '0.18', tags: ['dept:grip'],
+      qty:  { estimate: 'shootDays',                  working: 'shootDays',                  committed: 'shootDays' },
+      rate: { estimate: '700.00',                     working: '750.00',                     committed: '750.00' } },
+    { code: 'B',  description: 'Sound Mixer',                               unit: 'DAY',  fringeRate: '0.18', tags: ['dept:sound'],
+      qty:  { estimate: 'shootDays',                  working: 'shootDays',                  committed: 'shootDays' },
+      rate: { estimate: '650.00',                     working: '700.00',                     committed: '700.00' } },
+    { code: 'B',  description: 'Boom Operator',                             unit: 'DAY',  fringeRate: '0.18', tags: ['dept:sound'],
+      qty:  { estimate: 'shootDays',                  working: 'shootDays',                  committed: 'shootDays' },
+      rate: { estimate: '450.00',                     working: '500.00',                     committed: '500.00' } },
+    // C — Wrap Wages (uses postDays = 6)
+    { code: 'C',  description: 'Wrap PA',                                   unit: 'DAY',  fringeRate: '0.18', tags: ['dept:production'],
+      qty:  { estimate: 'postDays',                   working: 'postDays',                   committed: 'postDays' },
+      rate: { estimate: '300.00',                     working: '350.00',                     committed: '350.00' } },
+    // D — Locations & Travel
+    { code: 'D',  description: 'Vineyard Location Fee',                     unit: 'DAY',  fringeRate: '0',    tags: ['location:vineyard'],
+      qty:  { estimate: 'shootDays * 0.5',            working: 'shootDays * 0.5',            committed: 'shootDays * 0.5' },
+      rate: { estimate: '1200.00',                    working: '1200.00',                    committed: '1200.00' } },
+    { code: 'D',  description: 'Crew Travel (flights + ground)',            unit: 'FLAT', fringeRate: '0',    tags: [],
+      qty:  { estimate: '1',                          working: '1',                          committed: '1' },
+      rate: { estimate: '4500.00',                    working: '5200.00',                    committed: '5200.00' } },
+    { code: 'D',  description: 'Per Diem',                                  unit: 'DAY',  fringeRate: '0',    tags: [],
+      qty:  { estimate: 'crewSize * shootDays',       working: 'crewSize * shootDays',       committed: 'crewSize * shootDays' },
+      rate: { estimate: '60.00',                      working: '70.00',                      committed: '70.00' } },
+    // E — Props/Wardrobe/HMU
+    { code: 'E',  description: 'Props Rental & Purchase',                   unit: 'FLAT', fringeRate: '0',    tags: ['dept:art'],
+      qty:  { estimate: '1',                          working: '1',                          committed: '1' },
+      rate: { estimate: '2200.00',                    working: '2800.00',                    committed: '2800.00' } },
+    { code: 'E',  description: 'HMU Kit',                                   unit: 'FLAT', fringeRate: '0',    tags: ['dept:hmu'],
+      qty:  { estimate: '1',                          working: '1',                          committed: '1' },
+      rate: { estimate: '600.00',                     working: '750.00',                     committed: '750.00' } },
+    // H — Equipment
+    { code: 'H',  description: 'Camera Package (Sony FX9 + lenses)',        unit: 'DAY',  fringeRate: '0',    tags: ['dept:camera'],
+      qty:  { estimate: 'shootDays',                  working: 'shootDays',                  committed: 'shootDays' },
+      rate: { estimate: '850.00',                     working: '950.00',                     committed: '950.00' } },
+    { code: 'H',  description: 'Lighting Package',                          unit: 'DAY',  fringeRate: '0',    tags: ['dept:lighting'],
+      qty:  { estimate: 'shootDays',                  working: 'shootDays',                  committed: 'shootDays' },
+      rate: { estimate: '600.00',                     working: '700.00',                     committed: '700.00' } },
+    { code: 'H',  description: 'Grip Package',                              unit: 'DAY',  fringeRate: '0',    tags: ['dept:grip'],
+      qty:  { estimate: 'shootDays',                  working: 'shootDays',                  committed: 'shootDays' },
+      rate: { estimate: '500.00',                     working: '550.00',                     committed: '550.00' } },
+    { code: 'H',  description: 'Specialty Lenses (anamorphic adapter)',     unit: 'FLAT', fringeRate: '0',    tags: ['dept:camera'],
+      qty:  { estimate: '1',                          working: '1',                          committed: '1' },
+      rate: { estimate: '900.00',                     working: '1100.00',                    committed: '1100.00' } },
+    // I — Media / Data Management
+    { code: 'I',  description: 'DIT (Digital Imaging Technician)',          unit: 'DAY',  fringeRate: '0.18', tags: ['dept:camera'],
+      qty:  { estimate: 'shootDays',                  working: 'shootDays',                  committed: 'shootDays' },
+      rate: { estimate: '700.00',                     working: '750.00',                     committed: '750.00' } },
+    { code: 'I',  description: 'Hard Drives + Backup Media',                unit: 'FLAT', fringeRate: '0',    tags: [],
+      qty:  { estimate: '1',                          working: '1',                          committed: '1' },
+      rate: { estimate: '900.00',                     working: '1200.00',                    committed: '1200.00' } },
+    // J — Talent
+    { code: 'J',  description: 'Lead Talent (winemaker)',                   unit: 'DAY',  fringeRate: '0',    tags: [],
+      qty:  { estimate: 'shootDays',                  working: 'shootDays',                  committed: 'shootDays' },
+      rate: { estimate: '800.00',                     working: '1000.00',                    committed: '1000.00' } },
+    { code: 'J',  description: 'Supporting Talent (vineyard hands)',        unit: 'DAY',  fringeRate: '0',    tags: [],
+      qty:  { estimate: 'shootDays * 2',              working: 'shootDays * 2',              committed: 'shootDays * 2' },
+      rate: { estimate: '350.00',                     working: '400.00',                     committed: '400.00' } },
+    // K — Editorial
+    { code: 'K',  description: 'Editor',                                    unit: 'WEEK', fringeRate: '0',    tags: ['dept:post'],
+      qty:  { estimate: '4',                          working: '6',                          committed: '6' },
+      rate: { estimate: '2800.00',                    working: '3000.00',                    committed: '3000.00' } },
+    { code: 'K',  description: 'Color Grade',                               unit: 'FLAT', fringeRate: '0',    tags: ['dept:post'],
+      qty:  { estimate: '1',                          working: '1',                          committed: '1' },
+      rate: { estimate: '4500.00',                    working: '5500.00',                    committed: '5500.00' } },
+    { code: 'K',  description: 'Sound Mix',                                 unit: 'FLAT', fringeRate: '0',    tags: ['dept:post'],
+      qty:  { estimate: '1',                          working: '1',                          committed: '1' },
+      rate: { estimate: '2500.00',                    working: '3000.00',                    committed: '3000.00' } },
+    { code: 'K',  description: 'Music License',                             unit: 'FLAT', fringeRate: '0',    tags: ['dept:post'],
+      qty:  { estimate: '1',                          working: '1',                          committed: '1' },
+      rate: { estimate: '1500.00',                    working: '2500.00',                    committed: '2500.00' } },
+    // L — Insurance / Misc
+    { code: 'L',  description: 'Production Insurance',                      unit: 'FLAT', fringeRate: '0',    tags: [],
+      qty:  { estimate: '1',                          working: '1',                          committed: '1' },
+      rate: { estimate: '2800.00',                    working: '3200.00',                    committed: '3200.00' } },
+    { code: 'L',  description: 'Petty Cash + Misc',                         unit: 'FLAT', fringeRate: '0',    tags: [],
+      qty:  { estimate: '1',                          working: '1',                          committed: '1' },
+      rate: { estimate: '500.00',                     working: '750.00',                     committed: '750.00' } },
+  ]
+
+  let lineSortOrder = 1
+  const linesByDescription = new Map<string, { id: string }>()
+  for (const spec of lineSpecs) {
+    const account = accountByCode.get(spec.code)
+    if (!account) throw new Error(`Budget seed: account ${spec.code} not found`)
+    const created = await prisma.budgetLine.create({ data: {
+      budgetId: ivvBudget.id, accountId: account.id,
+      description: spec.description, unit: spec.unit, fringeRate: spec.fringeRate,
+      tags: spec.tags ?? [], sortOrder: lineSortOrder++,
+    } })
+    linesByDescription.set(spec.description, created)
+    await prisma.budgetLineAmount.createMany({ data: [
+      { lineId: created.id, versionId: estimateV.id,  qty: spec.qty.estimate,  rate: spec.rate.estimate },
+      { lineId: created.id, versionId: workingV.id,   qty: spec.qty.working,   rate: spec.rate.working },
+      { lineId: created.id, versionId: committedV.id, qty: spec.qty.committed, rate: spec.rate.committed },
+    ] })
+  }
+
+  // Variables — `crewSize` budget-level + version-scoped override on Working.
+  await prisma.budgetVariable.createMany({ data: [
+    { budgetId: ivvBudget.id, versionId: null,        name: 'crewSize', value: '12', notes: '12 crew on the hero shoot days' },
+    { budgetId: ivvBudget.id, versionId: workingV.id, name: 'crewSize', value: '14', notes: 'override — bigger crew on Working version' },
+  ] })
+
+  // Markups — one accountSubtotal-targeted, one grandTotal.
+  const insuranceAccount = accountByCode.get('L')
+  if (!insuranceAccount) throw new Error('Budget seed: account L not found for Contingency markup')
+  await prisma.budgetMarkup.createMany({ data: [
+    { budgetId: ivvBudget.id, versionId: null, name: 'Contingency',
+      percent: '0.10', appliesTo: 'accountSubtotal', accountId: insuranceAccount.id, sortOrder: 1 },
+    { budgetId: ivvBudget.id, versionId: null, name: 'Agency Fee',
+      percent: '0.05', appliesTo: 'grandTotal', accountId: null, sortOrder: 2 },
+  ] })
+
+  // Expenses — 12 from approved IVV timecards (mapped round-robin to crew labor lines).
+  // computeExpenseUnits not yet available (lands PR 6); inline equivalent for day-unit
+  // is units=1, unit='DAY', amount=unitRate. Safe because all backfilled timecards
+  // are 'day' rateUnit per feat/rate-unit-schema (#47).
+  const ivvCrewLines = [
+    'Director of Photography', '1st AC', 'Gaffer', 'Key Grip', 'Sound Mixer', 'Boom Operator',
+  ].map(d => linesByDescription.get(d)!).filter(Boolean)
+
+  const approvedIvvTimecards = await prisma.crewTimecard.findMany({
+    where: { projectId: p3.id, status: 'approved', rate: { not: null } },
+    select: { id: true, date: true, rate: true, crewMemberId: true, approvedBy: true },
+    orderBy: { date: 'asc' },
+    take: 12,
+  })
+  const expenseRowsFromTimecards = approvedIvvTimecards.map((t, i) => {
+    const line = ivvCrewLines[i % ivvCrewLines.length]
+    const rate = Number(t.rate)
+    return {
+      budgetId: ivvBudget.id, lineId: line.id, source: 'timecard' as const,
+      amount: rate.toFixed(2), date: t.date,
+      units: '1.00', unitRate: rate.toFixed(2), unit: 'DAY' as const,
+      timecardId: t.id, createdBy: t.approvedBy ?? clydeOnIvv.id,
+    }
+  })
+  if (expenseRowsFromTimecards.length > 0) {
+    await prisma.expense.createMany({ data: expenseRowsFromTimecards })
+  }
+
+  // Manual expenses — receipts-style entries across 5 lines.
+  const propsLine     = linesByDescription.get('Props Rental & Purchase')!
+  const hmuLine       = linesByDescription.get('HMU Kit')!
+  const travelLine    = linesByDescription.get('Crew Travel (flights + ground)')!
+  const perDiemLine   = linesByDescription.get('Per Diem')!
+  const driveLine     = linesByDescription.get('Hard Drives + Backup Media')!
+  const insuranceLine = linesByDescription.get('Production Insurance')!
+  const pettyCashLine = linesByDescription.get('Petty Cash + Misc')!
+
+  const manualExpenses = [
+    { line: propsLine,     amount:  '420.00', date: daysAgo(7),  vendor: 'Napa Antique Co.', notes: 'Vintage decanters for cellar scene' },
+    { line: hmuLine,       amount:   '85.00', date: daysAgo(6),  vendor: 'Sephora',           notes: 'Replenish HMU kit — winemaker dust look' },
+    { line: travelLine,    amount: '1240.00', date: daysAgo(12), vendor: 'United',            notes: 'DP flight SFO → BOI roundtrip' },
+    { line: perDiemLine,   amount:  '420.00', date: daysAgo(5),  vendor: 'Cash advance',      notes: 'Day 3 per diem (12 crew × $35)' },
+    { line: driveLine,     amount:  '380.00', date: daysAgo(10), vendor: 'B&H',               notes: '4× LaCie 4TB SSDs for camera ingest' },
+    { line: insuranceLine, amount: '3200.00', date: daysAgo(20), vendor: 'Hub Intl',          notes: 'Production insurance — full shoot window' },
+    { line: pettyCashLine, amount:   '64.00', date: daysAgo(4),  vendor: 'Walgreens',         notes: 'Sunscreen + first aid resupply' },
+    { line: pettyCashLine, amount:   '38.00', date: daysAgo(3),  vendor: 'Vineyard Cafe',     notes: 'Crew coffee runs' },
+  ]
+  await prisma.expense.createMany({ data: manualExpenses.map(e => ({
+    budgetId: ivvBudget.id, lineId: e.line.id, source: 'manual' as const,
+    amount: e.amount, date: e.date,
+    units: null, unitRate: null, unit: null,
+    vendor: e.vendor, notes: e.notes, receiptUrl: null,
+    timecardId: null, createdBy: clydeOnIvv.id,
+  })) })
+
+  console.log(`  Budgets:    1 (In Vino Veritas — ` +
+    `${aicpAccounts.length} accounts, ${lineSpecs.length} lines, ` +
+    `${expenseRowsFromTimecards.length} timecard + ${manualExpenses.length} manual expenses)`)
+
   // ── Final count ───────────────────────────────────────────────────────────
   const counts = {
     projects:          await prisma.project.count(),
@@ -3131,6 +3440,15 @@ FADE TO BLACK.`,
     threadMessages:    await prisma.threadMessage.count(),
     threadReads:       await prisma.threadRead.count(),
     resolvedThreads:   await prisma.thread.count({ where: { resolvedAt: { not: null } } }),
+    shootDays:         await prisma.shootDay.count(),
+    budgets:           await prisma.budget.count(),
+    budgetVersions:    await prisma.budgetVersion.count(),
+    budgetAccounts:    await prisma.budgetAccount.count(),
+    budgetLines:       await prisma.budgetLine.count(),
+    budgetLineAmounts: await prisma.budgetLineAmount.count(),
+    budgetVariables:   await prisma.budgetVariable.count(),
+    budgetMarkups:     await prisma.budgetMarkup.count(),
+    expenses:          await prisma.expense.count(),
   }
 
   console.log('  ─────────────────────────────')
@@ -3157,6 +3475,15 @@ FADE TO BLACK.`,
   console.log(`  ThreadMessages:     ${counts.threadMessages}`)
   console.log(`  ThreadReads:        ${counts.threadReads}`)
   console.log(`  ResolvedThreads:    ${counts.resolvedThreads}`)
+  console.log(`  ShootDays:          ${counts.shootDays}`)
+  console.log(`  Budgets:            ${counts.budgets}`)
+  console.log(`  BudgetVersions:     ${counts.budgetVersions}`)
+  console.log(`  BudgetAccounts:     ${counts.budgetAccounts}`)
+  console.log(`  BudgetLines:        ${counts.budgetLines}`)
+  console.log(`  BudgetLineAmounts:  ${counts.budgetLineAmounts}`)
+  console.log(`  BudgetVariables:    ${counts.budgetVariables}`)
+  console.log(`  BudgetMarkups:      ${counts.budgetMarkups}`)
+  console.log(`  Expenses:           ${counts.expenses}`)
   console.log('  ─────────────────────────────')
   console.log('  Done.\n')
 }
