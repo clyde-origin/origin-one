@@ -1,7 +1,7 @@
 # Back to One — Build Status
 Update this file at the end of every Claude Code session. This is the single source of truth for where the build actually is.
 
-Last updated: April 26, 2026 (post PR #43 merge — Location cleanup #8 closed)
+Last updated: April 26, 2026 (post PR #44 merge — Location parent/child UI #9 closed)
 
 ---
 
@@ -59,7 +59,7 @@ Each row is a complete PR (schema or UI). Strict order — next row doesn't star
 | # | Feature | Status | Notes |
 |---|---|---|---|
 | 8 | Location cleanup + drift reconciliation | ✅ | PR #43 (Apr 26). Migration `20260426150000` paired the 5 P2/P4 orphans by shoot-order; EntityDrawer locations-tab rewritten to operate on Entity rows (drops the asymmetry with characters/props); `approved` schema comment cites DECISIONS Apr 20. `Location_entityId_idx` drift was already reconciled by `20260425043233`. |
-| 9 | Location parent/child UI | ⬜ | Mirror Character/Cast pattern |
+| 9 | Location parent/child UI | ✅ | PR #44 (Apr 26). Literal mirror of Casting's Characters dropdown — `Scripted ▾` pill on Locations page opens a list of `Entity(type='location')` rows with creative-side thread badges; taps open the shared `EntityDetailSheet`. Single thread bucket (`'location'` type) serves both production-side (Location.id) and creative-side (Entity.id) — ids never collide. |
 | 10 | Storage discipline PR | ⬜ | Pull existing `moodboard` setup into Prisma migrations. Audit `storyboard` bucket. Establishes bucket-migration pattern |
 | 11 | Location images feature | ⬜ | `locations` bucket migration with auth-check RLS + `uploadLocationImage` helper + UI wiring |
 
