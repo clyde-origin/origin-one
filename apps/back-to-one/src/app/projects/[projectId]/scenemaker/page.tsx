@@ -153,19 +153,12 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
   const [activeId, setActiveId] = useState<string | null>(null)
   const [overId, setOverId] = useState<string | null>(null)
 
-  // Long-press to enter wiggle mode (existing UX). Drag activation itself is
-  // handled by dnd-kit's PointerSensor once wiggle is on — no manual drag
-  // start path required anymore.
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const startLongPress = useCallback(() => {
-    longPressTimer.current = setTimeout(() => {
-      haptic('medium')
-      setWiggleMode(true)
-    }, 500)
-  }, [])
-  const cancelLongPress = useCallback(() => {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
-  }, [])
+  // Wiggle entry: dnd-kit's TouchSensor with a 250 ms delay handles the
+  // press-and-hold gesture. When drag activates, handleDragStart flips
+  // wiggleMode on so the visual state (handles, hidden thumbnails, no
+  // scene-collapse on tap) appears at the same instant the row picks up.
+  // The mode persists after the drag ends so subsequent reorders are
+  // immediate; tap "Done" or tap outside to exit.
 
   // Flat list of shots in the current display order. This is the source of
   // truth for dnd-kit's SortableContext items.
@@ -238,19 +231,22 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
     [overId],
   )
 
-  // Sensors are split by input type because TouchSensor uses non-passive event
-  // listeners and can preventDefault on touchmove to suppress native page
-  // scroll — PointerSensor can't (its listeners are passive on iOS Safari).
-  // Both activate on 5px movement; wiggle mode is the explicit "I want to
-  // drag" gate, so no activation delay is needed.
+  // Sensors split by input type — TouchSensor uses non-passive listeners and
+  // can preventDefault on touchmove (PointerSensor can't on iOS Safari, where
+  // its listeners are passive). MouseSensor activates on 5 px movement;
+  // TouchSensor activates after a 250 ms press-and-hold (≤5 px movement
+  // during the hold, otherwise it's a scroll). The same continuous gesture
+  // (press → hold → slide) flips wiggle visual on AND starts the drag in
+  // handleDragStart below — no separate "enter wiggle, then drag" sequence.
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
   function handleDragStart(event: DragStartEvent) {
     setActiveId(String(event.active.id))
+    setWiggleMode(true)
     haptic('medium')
   }
   function handleDragOver(event: DragOverEvent) {
@@ -343,8 +339,6 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
         descBehavior="tap-opens-detail"
         onTap={() => onTapShot(shot)}
         onTapThumbnail={() => onTapThumbnail(shot)}
-        onLongPressStart={startLongPress}
-        onLongPressCancel={cancelLongPress}
         threadEntry={threadByShotId?.get(shot.id)}
       />
     )
@@ -475,8 +469,6 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
                             descBehavior="tap-edits-inline"
                             onTap={() => onTapShot(shot)}
                             onTapThumbnail={() => onTapThumbnail(shot)}
-                            onLongPressStart={startLongPress}
-                            onLongPressCancel={cancelLongPress}
                             threadEntry={threadByShotId?.get(shot.id)}
                             isEditingDesc={editingDescShotId === shot.id}
                             editingDescValue={editingDescValue}
@@ -505,7 +497,7 @@ type DescBehavior = 'tap-opens-detail' | 'tap-edits-inline'
 
 function SortableShotRow({
   shot, sceneColor, displayNum, blinking, wiggleMode, showThumbnail, descBehavior,
-  onTap, onTapThumbnail, onLongPressStart, onLongPressCancel, threadEntry,
+  onTap, onTapThumbnail, threadEntry,
   isEditingDesc, editingDescValue, setEditingDescValue, setEditingDescShotId, onUpdateDesc,
 }: {
   shot: Shot
@@ -517,8 +509,6 @@ function SortableShotRow({
   descBehavior: DescBehavior
   onTap: () => void
   onTapThumbnail: () => void
-  onLongPressStart: () => void
-  onLongPressCancel: () => void
   threadEntry?: { count: number; unread: boolean }
   isEditingDesc?: boolean
   editingDescValue?: string
@@ -537,14 +527,14 @@ function SortableShotRow({
     position: 'relative',
   }
 
-  // Drag listeners attach only in wiggle mode. In normal mode the row's
-  // pointer/click events flow to the inline tap handlers (open detail,
-  // edit description, etc.).
-  const dragListeners = wiggleMode ? listeners : undefined
-  const dragAttrs = wiggleMode ? attributes : undefined
-
+  // Listeners + attributes are always attached. TouchSensor's 250 ms delay
+  // handles the tap-vs-drag disambiguation: a quick tap doesn't activate
+  // drag (preventDefault is never called), so onClick still flows to the
+  // inline handlers (open detail, edit description). A press-and-hold
+  // activates drag — and handleDragStart on the page flips wiggleMode on
+  // at the same instant, so the visual state syncs with the gesture.
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} {...attributes}>
       <div
         className={`flex items-center select-none relative${wiggleMode && !isDragging ? ' wiggle' : ''}`}
         style={{
@@ -554,16 +544,8 @@ function SortableShotRow({
           border: isDragging ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.07)',
           borderRadius: 8, padding: '9px 10px',
           boxShadow: isDragging ? '0 8px 32px rgba(0,0,0,0.6)' : 'none',
-          // Suppress native touch-scroll on the row while in wiggle mode so
-          // the gesture goes to dnd-kit instead of the page scroller. Outside
-          // wiggle mode, the row scrolls with the list normally.
-          touchAction: wiggleMode ? 'none' : 'auto',
         }}
-        {...dragListeners}
-        {...dragAttrs}
-        onTouchStart={!wiggleMode ? onLongPressStart : undefined}
-        onTouchMove={!wiggleMode ? onLongPressCancel : undefined}
-        onTouchEnd={!wiggleMode ? onLongPressCancel : undefined}
+        {...listeners}
         onClick={(e) => { if (wiggleMode) e.stopPropagation() }}
       >
         {wiggleMode && (
