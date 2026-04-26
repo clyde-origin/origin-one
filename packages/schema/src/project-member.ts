@@ -6,6 +6,8 @@ export const ProjectMember = z.object({
   projectId: z.string().uuid(),
   userId: z.string().uuid(),
   role: RoleEnum,
+  // Budget arc — pre-filled line for crew timecard → expense conversion (Q2 hybrid).
+  defaultLineItemId: z.string().uuid().nullable(),
   createdAt: z.coerce.date(),
 });
 
