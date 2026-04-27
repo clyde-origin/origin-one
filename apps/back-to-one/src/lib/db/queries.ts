@@ -233,6 +233,31 @@ export async function archiveProject(projectId: string): Promise<void> {
   if (error) { console.error('archiveProject failed:', error); throw error }
 }
 
+export async function getArchivedProjects() {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Project')
+    .select('*')
+    .eq('status', 'archived')
+    .order('updatedAt', { ascending: false })
+  if (error) { console.error('getArchivedProjects failed:', error); throw error }
+  return data ?? []
+}
+
+/**
+ * Restore an archived project. We don't track the pre-archive status, so
+ * default to 'post_production' as the heuristic — most archived projects
+ * came from there. The user can adjust status from inside the project.
+ */
+export async function restoreProject(projectId: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db
+    .from('Project')
+    .update({ status: 'post_production' })
+    .eq('id', projectId)
+  if (error) { console.error('restoreProject failed:', error); throw error }
+}
+
 export async function deleteProject(projectId: string): Promise<void> {
   const db = createClient()
   const { error } = await db
@@ -2291,6 +2316,10 @@ export async function createUserProjectFolder(input: {
   userId: string; name?: string; color?: string | null; sortOrder?: number
 }) {
   const db = createClient()
+  // Pass updatedAt explicitly — Prisma's @updatedAt is client-side only,
+  // so direct PostgREST inserts must supply a value. createdAt has a DB
+  // default but supplying it keeps the two timestamps coherent.
+  const now = new Date().toISOString()
   const { data, error } = await db
     .from('UserProjectFolder')
     .insert({
@@ -2298,6 +2327,8 @@ export async function createUserProjectFolder(input: {
       name: input.name ?? 'Untitled',
       color: input.color ?? null,
       sortOrder: input.sortOrder ?? 0,
+      createdAt: now,
+      updatedAt: now,
     })
     .select()
     .single()
@@ -2331,6 +2362,7 @@ export async function upsertUserProjectPlacement(input: {
   userId: string; projectId: string; folderId?: string | null; sortOrder?: number
 }) {
   const db = createClient()
+  const now = new Date().toISOString()
   const { data, error } = await db
     .from('UserProjectPlacement')
     .upsert({
@@ -2338,6 +2370,8 @@ export async function upsertUserProjectPlacement(input: {
       projectId: input.projectId,
       folderId: input.folderId ?? null,
       sortOrder: input.sortOrder ?? 0,
+      createdAt: now,
+      updatedAt: now,
     }, { onConflict: 'userId,projectId' })
     .select()
     .single()
@@ -2358,10 +2392,11 @@ export async function bulkReorderHomeGrid(
   // values in one call). PostgREST returns { error } per row instead of
   // throwing — collect responses and surface the first error so a partial
   // failure doesn't silently masquerade as success.
+  const now = new Date().toISOString()
   if (folders.length > 0) {
     const results = await Promise.all(folders.map(f =>
       db.from('UserProjectFolder')
-        .update({ sortOrder: f.sortOrder })
+        .update({ sortOrder: f.sortOrder, updatedAt: now })
         .eq('id', f.id)
         .eq('userId', meId)
     ))
@@ -2375,6 +2410,8 @@ export async function bulkReorderHomeGrid(
         projectId: p.id,
         folderId: null,
         sortOrder: p.sortOrder,
+        createdAt: now,
+        updatedAt: now,
       }, { onConflict: 'userId,projectId' })
     ))
     const err = results.find(r => r.error)?.error

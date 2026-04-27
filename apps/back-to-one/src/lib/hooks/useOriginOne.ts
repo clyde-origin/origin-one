@@ -72,7 +72,28 @@ export function useArchiveProject() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: db.archiveProject,
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.projects() }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.projects() })
+      qc.invalidateQueries({ queryKey: ['archivedProjects'] })
+    },
+  })
+}
+
+export function useArchivedProjects() {
+  return useQuery({
+    queryKey: ['archivedProjects'] as const,
+    queryFn:  db.getArchivedProjects,
+  })
+}
+
+export function useRestoreProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.restoreProject,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.projects() })
+      qc.invalidateQueries({ queryKey: ['archivedProjects'] })
+    },
   })
 }
 

@@ -44,7 +44,8 @@ function bodyGradient(hex: string): string {
 }
 
 function tileLayout(count: number): { cols: number; rows: number; visible: number; overflow: boolean } {
-  if (count <= 1) return { cols: 1, rows: 1, visible: 1, overflow: false }
+  if (count <= 0) return { cols: 2, rows: 2, visible: 0, overflow: false } // empty: 4 placeholder cells
+  if (count === 1) return { cols: 1, rows: 1, visible: 1, overflow: false }
   if (count === 2) return { cols: 2, rows: 1, visible: 2, overflow: false }
   if (count <= 4)  return { cols: 2, rows: 2, visible: count, overflow: false }
   if (count <= 9)  return { cols: 3, rows: 3, visible: count, overflow: false }

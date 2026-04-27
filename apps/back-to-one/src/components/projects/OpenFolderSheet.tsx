@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { getProjectColor } from '@/lib/utils/phase'
 import { haptic } from '@/lib/utils/haptics'
+import { useLongPress } from '@/lib/hooks/useLongPress'
 import type { Project } from '@/types'
 
 interface OpenFolderSheetProps {
@@ -18,6 +19,55 @@ interface OpenFolderSheetProps {
   folder: { id: string; name: string; color: string | null } | null
   projects: Project[]
   onClose: () => void
+  // Optional kicker label override (default "Folder"; "Archive" for the
+  // synthetic archive folder).
+  kicker?: string
+  // Optional empty-state copy override.
+  emptyMessage?: string
+  // Optional click-handler override per project. Default: route to project page.
+  onProjectClick?: (project: Project) => void
+  // Optional long-press handler per project. Used by the Archive variant to
+  // open the restore prompt without hijacking the tap-to-route default.
+  onProjectLongPress?: (project: Project) => void
+}
+
+// Per-project button — extracted so each instance can register its own
+// useLongPress hook without violating rules-of-hooks.
+function ProjectTile({
+  project, onClick, onLongPress,
+}: { project: Project; onClick: () => void; onLongPress?: () => void }) {
+  const longPressHandlers = useLongPress(onLongPress ?? (() => {}), 500)
+  const color = project.color || getProjectColor(project.id)
+  return (
+    <button
+      onClick={onClick}
+      {...(onLongPress ? longPressHandlers : {})}
+      className="active:scale-[0.96] active:brightness-[0.85]"
+      style={{
+        aspectRatio: '4 / 3',
+        borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
+        border: '1px solid rgba(255,255,255,0.06)',
+        background: 'rgba(10,10,18,0.6)',
+        padding: 0, textAlign: 'left',
+        userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+      }}
+    >
+      <div style={{
+        height: 18,
+        backgroundColor: color,
+        backgroundImage:
+          `linear-gradient(rgba(255,255,255,0.28), rgba(255,255,255,0.28)) 0 1px / 100% 1px no-repeat,
+           linear-gradient(rgba(255,255,255,0.15), rgba(255,255,255,0.15)) 0 4px / 100% 1px no-repeat,
+           linear-gradient(rgba(255,255,255,0.07), rgba(255,255,255,0.07)) 0 7px / 100% 1px no-repeat`,
+      }} />
+      <div style={{ padding: '9px 10px 11px' }}>
+        <div style={{ fontWeight: 800, fontSize: 13, color: '#dddde8', letterSpacing: '-0.02em' }}>{project.name}</div>
+        <div className="font-mono" style={{ fontSize: 9, color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>
+          {project.client || ''}
+        </div>
+      </div>
+    </button>
+  )
 }
 
 function hexToRgba(hex: string, a: number) {
@@ -27,9 +77,11 @@ function hexToRgba(hex: string, a: number) {
   return `rgba(${r},${g},${b},${a})`
 }
 
-export function OpenFolderSheet({ open, folder, projects, onClose }: OpenFolderSheetProps) {
+export function OpenFolderSheet({ open, folder, projects, onClose, kicker, emptyMessage, onProjectClick, onProjectLongPress }: OpenFolderSheetProps) {
   const router = useRouter()
   const accent = folder?.color ?? '#6470f3'
+  const defaultProjectClick = (p: Project) => { haptic('light'); onClose(); router.push(`/projects/${p.id}`) }
+  const handleClick = onProjectClick ?? defaultProjectClick
 
   return (
     <AnimatePresence>
@@ -62,7 +114,7 @@ export function OpenFolderSheet({ open, folder, projects, onClose }: OpenFolderS
 
           {/* Header */}
           <div style={{ padding: '14px 18px 12px', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <div className="font-mono" style={{ fontSize: 9, color: hexToRgba(accent, 0.6), textTransform: 'uppercase', letterSpacing: '0.12em' }}>Folder</div>
+            <div className="font-mono" style={{ fontSize: 9, color: hexToRgba(accent, 0.6), textTransform: 'uppercase', letterSpacing: '0.12em' }}>{kicker ?? 'Folder'}</div>
             <div style={{ fontWeight: 800, fontSize: 18, color: '#dddde8', letterSpacing: '-0.02em', marginTop: 2 }}>{folder.name}</div>
             <div className="font-mono" style={{ fontSize: 10, color: '#62627a', marginTop: 4 }}>
               {projects.length} project{projects.length !== 1 ? 's' : ''}
@@ -77,42 +129,18 @@ export function OpenFolderSheet({ open, folder, projects, onClose }: OpenFolderS
           }}>
             {projects.length === 0 ? (
               <div style={{ padding: '60px 20px', textAlign: 'center', fontSize: 12, color: '#62627a' }}>
-                No projects yet — drop one in from the home grid
+                {emptyMessage ?? 'No projects yet — drop one in from the home grid'}
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-                {projects.map(p => {
-                  const color = p.color || getProjectColor(p.id)
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => { haptic('light'); onClose(); router.push(`/projects/${p.id}`) }}
-                      className="active:scale-[0.96] active:brightness-[0.85]"
-                      style={{
-                        aspectRatio: '4 / 3',
-                        borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        background: 'rgba(10,10,18,0.6)',
-                        padding: 0, textAlign: 'left',
-                      }}
-                    >
-                      <div style={{
-                        height: 18,
-                        backgroundColor: color,
-                        backgroundImage:
-                          `linear-gradient(rgba(255,255,255,0.28), rgba(255,255,255,0.28)) 0 1px / 100% 1px no-repeat,
-                           linear-gradient(rgba(255,255,255,0.15), rgba(255,255,255,0.15)) 0 4px / 100% 1px no-repeat,
-                           linear-gradient(rgba(255,255,255,0.07), rgba(255,255,255,0.07)) 0 7px / 100% 1px no-repeat`,
-                      }} />
-                      <div style={{ padding: '9px 10px 11px' }}>
-                        <div style={{ fontWeight: 800, fontSize: 13, color: '#dddde8', letterSpacing: '-0.02em' }}>{p.name}</div>
-                        <div className="font-mono" style={{ fontSize: 9, color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>
-                          {p.client || ''}
-                        </div>
-                      </div>
-                    </button>
-                  )
-                })}
+                {projects.map(p => (
+                  <ProjectTile
+                    key={p.id}
+                    project={p}
+                    onClick={() => handleClick(p)}
+                    onLongPress={onProjectLongPress ? () => onProjectLongPress(p) : undefined}
+                  />
+                ))}
               </div>
             )}
           </div>

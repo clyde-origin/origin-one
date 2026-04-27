@@ -8,7 +8,7 @@ import {
   useProjects, useCrew, useArchiveProject, useDeleteProject, useUpdateProject,
   useMeId, useUserProjectFolders, useUserProjectPlacements,
   useCreateUserProjectFolder, useUpdateUserProjectFolder, useDeleteUserProjectFolder,
-  useUpsertUserProjectPlacement,
+  useUpsertUserProjectPlacement, useArchivedProjects, useRestoreProject,
 } from '@/lib/hooks/useOriginOne'
 import { SkeletonLine, CrewAvatar } from '@/components/ui'
 import { useRootFab } from '@/components/ui/ActionBarRoot'
@@ -19,6 +19,7 @@ import { ProjectActionSheet } from '@/components/projects/ProjectActionSheet'
 import { FolderCard } from '@/components/projects/FolderCard'
 import { OpenFolderSheet } from '@/components/projects/OpenFolderSheet'
 import { FolderActionSheet } from '@/components/projects/FolderActionSheet'
+import { NewFolderSheet } from '@/components/projects/NewFolderSheet'
 import { GlobalPanels, type PanelId } from '@/components/projects/GlobalPanels'
 import { ThreadsSheet } from '@/components/projects/ThreadsSheet'
 import { ChatSheet } from '@/components/projects/ChatSheet'
@@ -226,6 +227,10 @@ export default function ProjectsPage() {
   const dragTargetIdxRef = useRef<number>(-1)
   const dragTargetIdRef = useRef<string | null>(null)
   const [dragTargetId, setDragTargetIdState] = useState<string | null>(null)
+  // Track whether the current drag is a project or a folder. Folders can be
+  // reordered or dropped onto the Archive icon; they cannot drop onto other
+  // cards (no nesting, no folder-creation-from-folder).
+  const dragKindRef = useRef<'project' | 'folder'>('project')
   const dragStartRef = useRef<{ x: number; y: number; elX: number; elY: number; w: number } | null>(null)
   const dragElRef = useRef<HTMLDivElement>(null)
   const lastSlotIdxRef = useRef<number>(-1)
@@ -281,34 +286,37 @@ export default function ProjectsPage() {
     haptic('medium')
   }, [])
 
-  const handleTouchStart = useCallback((e: React.TouchEvent, projectId: string) => {
+  const handleTouchStart = useCallback((e: React.TouchEvent, id: string, kind: 'project' | 'folder' = 'project') => {
     if (!editMode) return
     const touch = e.touches[0]
     const el = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const elX = touch.clientX - el.left
     const elY = touch.clientY - el.top
-    pendingDragRef.current = { projectId, x: touch.clientX, y: touch.clientY, elX, elY, w: el.width }
-    // 300ms hold to enter drag
-    dragTimerRef.current = setTimeout(() => {
-      const pd = pendingDragRef.current
-      if (pd) activateDrag(pd.projectId, pd.x, pd.y, pd.elX, pd.elY, pd.w)
-      dragTimerRef.current = null
-    }, 300)
-  }, [editMode, activateDrag])
+    pendingDragRef.current = { projectId: id, x: touch.clientX, y: touch.clientY, elX, elY, w: el.width }
+    dragKindRef.current = kind
+    // No hold timer in wiggle mode — drag activates on the first movement
+    // > MOVE_THRESHOLD (handled in handleTouchMove). A pure tap (no move)
+    // falls through to the inner card's onClick → opens the action sheet.
+  }, [editMode])
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     const touch = e.touches[0]
 
-    // Cancel pending drag if finger moves too far before 300ms hold
-    if (dragTimerRef.current && pendingDragRef.current) {
-      const dx = touch.clientX - pendingDragRef.current.x
-      const dy = touch.clientY - pendingDragRef.current.y
-      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
-        clearTimeout(dragTimerRef.current)
-        dragTimerRef.current = null
+    // Promote pending → active drag once movement crosses MOVE_THRESHOLD.
+    // Below the threshold, the touch is treated as a tap (so onClick on
+    // the inner card still fires for action-sheet opens).
+    const MOVE_THRESHOLD = 5
+    if (pendingDragRef.current && !dragProjectIdRef.current) {
+      const pd = pendingDragRef.current
+      const dx = touch.clientX - pd.x
+      const dy = touch.clientY - pd.y
+      if (Math.hypot(dx, dy) > MOVE_THRESHOLD) {
+        activateDrag(pd.projectId, pd.x, pd.y, pd.elX, pd.elY, pd.w)
         pendingDragRef.current = null
+        // fall through to the active-drag handling below
+      } else {
+        return
       }
-      return
     }
 
     if (!dragProjectIdRef.current || !dragStartRef.current) return
@@ -324,15 +332,17 @@ export default function ProjectsPage() {
     const cardCx = touch.clientX - dragStartRef.current.elX + dragStartRef.current.w / 2
     const cardCy = touch.clientY - dragStartRef.current.elY + 54 // approx half card height
 
-    // Snapshot slot rects live on every move (grid shifts as items displace)
-    const slotEls = document.querySelectorAll<HTMLElement>('[data-project-id]')
+    // Snapshot slot rects live on every move (grid shifts as items displace).
+    // Include both project and folder cards so reorder works for either kind.
+    const slotEls = document.querySelectorAll<HTMLElement>('[data-project-id], [data-folder-id]')
     let closest = -1
     let closestDist = Infinity
     const slots: { id: string; cx: number; cy: number }[] = []
     slotEls.forEach(el => {
-      if (el.dataset.projectId === dragProjectIdRef.current) return // skip self
+      const id = el.dataset.projectId ?? el.dataset.folderId
+      if (!id || id === dragProjectIdRef.current) return // skip self
       const rect = el.getBoundingClientRect()
-      slots.push({ id: el.dataset.projectId!, cx: rect.left + rect.width / 2, cy: rect.top + rect.height / 2 })
+      slots.push({ id, cx: rect.left + rect.width / 2, cy: rect.top + rect.height / 2 })
     })
     // Find closest slot by distance from dragged card center
     slots.forEach((slot, i) => {
@@ -349,22 +359,30 @@ export default function ProjectsPage() {
     dragTargetIdxRef.current = closest
     setDragTargetIdx(closest)
 
-    // Drop-target detection (folder create / add to folder).
-    // Scans both project slates and folder cards; picks closest within snap radius.
-    const allTargets = document.querySelectorAll<HTMLElement>('[data-project-id], [data-folder-id]')
+    // Drop-target detection (folder create / add to folder / archive).
+    // - Project drag: project + folder cards + Archive icon are valid targets.
+    // - Folder drag:  Archive icon only (no folder nesting, no project→folder
+    //                 from a folder). Reorder still works on empty slots.
+    const draggingFolder = dragKindRef.current === 'folder'
+    const cardSelector = draggingFolder
+      ? '[data-archive-target]'
+      : '[data-project-id], [data-folder-id], [data-archive-target]'
+    const allTargets = document.querySelectorAll<HTMLElement>(cardSelector)
     let snapClosestId: string | null = null
     let snapClosestDist = Infinity
     allTargets.forEach(el => {
-      const id = el.dataset.projectId ?? el.dataset.folderId
+      const id = el.dataset.projectId ?? el.dataset.folderId ?? el.dataset.archiveTarget
       if (!id || id === dragProjectIdRef.current) return
       const r = el.getBoundingClientRect()
       const cx = r.left + r.width / 2
       const cy = r.top + r.height / 2
       const dist = Math.hypot(cardCx - cx, cardCy - cy)
-      if (dist < snapClosestDist) { snapClosestDist = dist; snapClosestId = id }
+      // Archive icon is smaller than a card — give it a more generous radius.
+      const isArchive = id === ARCHIVE_FOLDER_ID
+      const radius = isArchive ? 60 : 30
+      if (dist < snapClosestDist && dist <= radius) { snapClosestDist = dist; snapClosestId = id }
     })
-    const SNAP_RADIUS = 30
-    const newTarget = snapClosestDist <= SNAP_RADIUS ? snapClosestId : null
+    const newTarget: string | null = snapClosestId
     if (newTarget !== dragTargetIdRef.current) {
       dragTargetIdRef.current = newTarget
       setDragTargetIdState(newTarget)
@@ -389,6 +407,17 @@ export default function ProjectsPage() {
   const placementMutation = useUpsertUserProjectPlacement()
 
   const [actionFolder, setActionFolder] = useState<{ id: string; name: string; color: string | null } | null>(null)
+  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [restoreProject, setRestoreProject] = useState<Project | null>(null)
+
+  const { data: archivedProjects } = useArchivedProjects()
+  const allArchivedProjects = archivedProjects ?? []
+  const restoreMutation = useRestoreProject()
+
+  // Synthetic Archive folder — not a real DB row. Sentinel id never collides
+  // with a UUID. Pinned at the very end of the home grid (sortOrder = MAX).
+  const ARCHIVE_FOLDER_ID = '__archive__'
+  const archiveFolder = { id: ARCHIVE_FOLDER_ID, name: 'Archive', color: '#62627a' }
 
   const {
     fanOpen: selFabOpen, closeFan,
@@ -414,12 +443,17 @@ export default function ProjectsPage() {
       kind: 'folder', id: f.id, sortOrder: f.sortOrder, folder: f,
     }))
 
+    // Fallback sortOrder for unplaced projects: needs to fit in Postgres
+    // INTEGER (Int4, max ~2.1B). Newer createdAt should produce a smaller
+    // value so newer projects appear first.
+    const fallbackSO = (createdAt: string | Date) =>
+      2_000_000_000 - Math.floor(new Date(createdAt).getTime() / 1000)
+
     const projectItems: HomeItem[] = allProjects
       .filter(p => !inFolder.has(p.id))
       .map(p => {
         const pl = placementById.get(p.id)
-        const so = pl && pl.folderId === null ? pl.sortOrder
-                 : Number.MAX_SAFE_INTEGER - new Date(p.createdAt).getTime()
+        const so = pl && pl.folderId === null ? pl.sortOrder : fallbackSO(p.createdAt)
         return { kind: 'project', id: p.id, sortOrder: so, project: p }
       })
 
@@ -439,8 +473,10 @@ export default function ProjectsPage() {
       const list = result.get(pl.folderId!)
       if (project && list) list.push(project)
     }
+    // Synthetic Archive folder content
+    result.set(ARCHIVE_FOLDER_ID, allArchivedProjects)
     return result
-  }, [allProjects, allFolders, allPlacements])
+  }, [allProjects, allFolders, allPlacements, allArchivedProjects])
 
   const handleTouchEnd = useCallback(() => {
     // Clear pending drag timer
@@ -450,45 +486,64 @@ export default function ProjectsPage() {
     }
     pendingDragRef.current = null
 
-    const projectId = dragProjectIdRef.current
+    const draggedId = dragProjectIdRef.current
     const targetId = dragTargetIdRef.current
     const targetIdx = dragTargetIdxRef.current
+    const kind = dragKindRef.current
 
-    if (projectId && meId) {
+    if (draggedId && meId) {
+      const targetIsArchive = targetId === ARCHIVE_FOLDER_ID
       const targetIsFolder = targetId && allFolders.some(f => f.id === targetId)
       const targetIsProject = targetId && allProjects.some(p => p.id === targetId)
 
-      if (targetId && targetIsFolder) {
-        // Drop into existing folder
+      if (targetIsArchive) {
+        // Drop onto Archive icon → archive everything in scope.
+        haptic('medium')
+        if (kind === 'project') {
+          archiveMutation.mutate(draggedId)
+        } else {
+          // Archive every project inside the dragged folder, then delete
+          // the now-empty folder. Placement.folderId cascades to NULL on
+          // folder delete, which doesn't matter since these projects are
+          // moving to status='archived' (filtered out by getProjects).
+          const projects = folderProjects.get(draggedId) ?? []
+          for (const p of projects) archiveMutation.mutate(p.id)
+          deleteFolderMutation.mutate(draggedId)
+        }
+      } else if (kind === 'project' && targetId && targetIsFolder) {
+        // Drop project into existing folder
         haptic('light')
         const folderProjList = folderProjects.get(targetId) ?? []
         placementMutation.mutate({
           userId: meId,
-          projectId,
+          projectId: draggedId,
           folderId: targetId,
           sortOrder: folderProjList.length,
         })
-      } else if (targetId && targetIsProject) {
-        // Drop onto a project → create new folder containing both
+      } else if (kind === 'project' && targetId && targetIsProject) {
+        // Drop project onto a project → create new folder containing both
         haptic('medium')
-        const draggedItem = homeItems.find(i => i.kind === 'project' && i.id === projectId)
+        const draggedItem = homeItems.find(i => i.kind === 'project' && i.id === draggedId)
         createFolderMutation.mutate(
           { userId: meId, name: 'Untitled', color: null, sortOrder: draggedItem?.sortOrder ?? 0 },
           {
             onSuccess: (folder) => {
-              placementMutation.mutate({ userId: meId, projectId,          folderId: folder.id, sortOrder: 0 })
-              placementMutation.mutate({ userId: meId, projectId: targetId, folderId: folder.id, sortOrder: 1 })
+              placementMutation.mutate({ userId: meId, projectId: draggedId, folderId: folder.id, sortOrder: 0 })
+              placementMutation.mutate({ userId: meId, projectId: targetId,  folderId: folder.id, sortOrder: 1 })
             },
           }
         )
       } else if (targetIdx >= 0) {
-        // Top-level reorder — persist via placement upsert with folderId: null
-        // Compute new sortOrder by midpoint between neighbors at targetIdx.
-        const reordered = homeItems.filter(i => i.kind !== 'project' || i.id !== projectId)
+        // Top-level reorder — works for both project and folder drags.
+        const reordered = homeItems.filter(i => i.id !== draggedId)
         const beforeSO = targetIdx > 0 ? reordered[targetIdx - 1]?.sortOrder ?? 0 : 0
         const afterSO  = reordered[targetIdx]?.sortOrder ?? beforeSO + 1024
         const newSO = Math.floor((beforeSO + afterSO) / 2)
-        placementMutation.mutate({ userId: meId, projectId, folderId: null, sortOrder: newSO })
+        if (kind === 'project') {
+          placementMutation.mutate({ userId: meId, projectId: draggedId, folderId: null, sortOrder: newSO })
+        } else {
+          updateFolderMutation.mutate({ id: draggedId, fields: { sortOrder: newSO } })
+        }
       }
     }
 
@@ -501,7 +556,7 @@ export default function ProjectsPage() {
     setDragProjectId(null)
     setDragTargetIdx(-1)
     setDragTargetIdState(null)
-  }, [meId, allProjects, allFolders, folderProjects, homeItems, placementMutation, createFolderMutation])
+  }, [meId, allProjects, allFolders, folderProjects, homeItems, placementMutation, createFolderMutation, archiveMutation, deleteFolderMutation, updateFolderMutation])
 
   // Global touch listeners for drag
   useEffect(() => {
@@ -513,6 +568,38 @@ export default function ProjectsPage() {
       window.removeEventListener('touchend', handleTouchEnd)
     }
   }, [editMode, handleTouchMove, handleTouchEnd])
+
+  // Body-scroll lock during edit mode so iOS doesn't try to rubber-band the
+  // page while the user is dragging a card. Same position-fixed-with-saved-
+  // scrollY trick used by the bar's overlay surfaces.
+  useEffect(() => {
+    if (!editMode) return
+    const scrollY = window.scrollY
+    const body = document.body
+    const prev = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    }
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY}px`
+    body.style.left = '0'
+    body.style.right = '0'
+    body.style.width = '100%'
+    body.style.overflow = 'hidden'
+    return () => {
+      body.style.position = prev.position
+      body.style.top = prev.top
+      body.style.left = prev.left
+      body.style.right = prev.right
+      body.style.width = prev.width
+      body.style.overflow = prev.overflow
+      window.scrollTo(0, scrollY)
+    }
+  }, [editMode])
 
   // Mirror the original "tap + closes both fan and panel" behavior: any
   // transition of fan open→closed (from the bar +, the dim overlay, or
@@ -605,15 +692,40 @@ export default function ProjectsPage() {
               {/* Unified home grid — folders + top-level projects sorted by sortOrder */}
               {homeItems.map((it, i) => {
                 if (it.kind === 'folder') {
+                  const isArchive = it.id === ARCHIVE_FOLDER_ID
+                  const isFolderDragging = dragKindRef.current === 'folder' && dragProjectId === it.id
+                  const showInsertLine = !!dragProjectId && dragProjectId !== it.id && dragTargetIdx === i
                   return (
-                    <div key={`folder-${it.id}`}>
+                    <motion.div
+                      key={`folder-${it.id}`}
+                      layout
+                      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                      onTouchStart={isArchive ? undefined : (e => handleTouchStart(e, it.id, 'folder'))}
+                      style={{
+                        position: 'relative',
+                        touchAction: editMode ? 'none' : 'auto',
+                        userSelect: 'none',
+                        WebkitUserSelect: 'none',
+                        WebkitTouchCallout: 'none',
+                      }}
+                    >
+                      {showInsertLine && (
+                        <div style={{
+                          position: 'absolute', left: -5, top: 0, bottom: 0, width: 3,
+                          background: '#c45adc', borderRadius: 2,
+                          boxShadow: '0 0 12px rgba(196,90,220,0.7)',
+                          zIndex: 6, pointerEvents: 'none',
+                        }} />
+                      )}
                       <FolderCard
                         folder={it.folder}
                         projects={folderProjects.get(it.id) ?? []}
                         editMode={editMode}
-                        isGhost={false}
+                        isGhost={isFolderDragging}
                         isDragging={false}
-                        isDropTarget={dragTargetId === it.id}
+                        // Archive folder is never a drop target — projects must be archived
+                        // via the project action sheet, not by dragging.
+                        isDropTarget={!isArchive && dragTargetId === it.id}
                         dimmed={(!!actionProject && actionProject.id !== it.id) || (!!dragProjectId)}
                         wiggleDelay={i * 0.08}
                         onLongPress={() => {
@@ -622,25 +734,44 @@ export default function ProjectsPage() {
                         }}
                         onClick={() => {
                           haptic('light')
-                          if (editMode) {
+                          // Archive folder skips the FolderActionSheet — it can't be
+                          // renamed/recolored/deleted (it's synthetic).
+                          if (editMode && !isArchive) {
                             setActionFolder({ id: it.folder.id, name: it.folder.name, color: it.folder.color })
                             return
                           }
                           setOpenFolderId(it.id)
                         }}
                       />
-                    </div>
+                    </motion.div>
                   )
                 }
                 // project slate render — same pattern as existing
                 const p = it.project
                 const isDragging = dragProjectId === p.id
+                const showInsertLine = !!dragProjectId && dragProjectId !== p.id && dragTargetIdx === i
                 return (
-                  <div
+                  <motion.div
                     key={`project-${p.id}`}
+                    layout
+                    transition={{ type: 'spring', stiffness: 380, damping: 32 }}
                     onTouchStart={e => handleTouchStart(e, p.id)}
-                    style={{ position: 'relative' }}
+                    style={{
+                      position: 'relative',
+                      touchAction: editMode ? 'none' : 'auto',
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none',
+                      WebkitTouchCallout: 'none',
+                    }}
                   >
+                    {showInsertLine && (
+                      <div style={{
+                        position: 'absolute', left: -5, top: 0, bottom: 0, width: 3,
+                        background: '#c45adc', borderRadius: 2,
+                        boxShadow: '0 0 12px rgba(196,90,220,0.7)',
+                        zIndex: 6, pointerEvents: 'none',
+                      }} />
+                    )}
                     <SlateCard
                       project={p} color={getColor(p.id)}
                       dimmed={(!!actionProject && actionProject.id !== p.id) || (!!dragProjectId && !isDragging)}
@@ -668,38 +799,105 @@ export default function ProjectsPage() {
                         zIndex: 5,
                       }} />
                     )}
-                  </div>
+                  </motion.div>
                 )
               })}
 
-              {/* Add button */}
+              {/* Add buttons — New Project + New Folder */}
               {!editMode && (
-                <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'center', padding: '4px 2px 2px' }}>
+                <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'center', gap: 8, padding: '4px 2px 2px' }}>
                   <Link href="/projects/new" className="block active:opacity-70 transition-opacity">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 20, border: '1px dashed rgba(196,90,220,0.2)', background: 'rgba(196,90,220,0.03)', cursor: 'pointer' }}>
                       <span style={{ color: 'rgba(196,90,220,0.4)', fontSize: 13 }}>+</span>
                       <span className="font-mono uppercase" style={{ fontSize: 10, color: 'rgba(196,90,220,0.4)', letterSpacing: '0.08em' }}>New Project</span>
                     </div>
                   </Link>
+                  <button
+                    onClick={() => { haptic('light'); setCreatingFolder(true) }}
+                    className="active:opacity-70 transition-opacity"
+                    style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 20, border: '1px dashed rgba(100,112,243,0.25)', background: 'rgba(100,112,243,0.04)', cursor: 'pointer' }}
+                  >
+                    <span style={{ color: 'rgba(100,112,243,0.5)', fontSize: 13 }}>+</span>
+                    <span className="font-mono uppercase" style={{ fontSize: 10, color: 'rgba(100,112,243,0.5)', letterSpacing: '0.08em' }}>New Folder</span>
+                  </button>
                 </div>
               )}
+
+              {/* Archive icon — sits below the New Project / New Folder pills.
+                  Tappable (opens the archive sheet) AND a drop target for
+                  drag-to-archive (project or folder). The dashed glow
+                  intensifies when something is being dragged onto it. */}
+              <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'center', padding: '6px 2px 2px' }}>
+                <button
+                  data-archive-target={ARCHIVE_FOLDER_ID}
+                  onClick={() => { haptic('light'); setOpenFolderId(ARCHIVE_FOLDER_ID) }}
+                  className="active:opacity-80 transition-all"
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    padding: '10px 14px',
+                    borderRadius: 14,
+                    border: dragTargetId === ARCHIVE_FOLDER_ID
+                      ? '1.5px solid rgba(232,86,74,0.7)'
+                      : '1px dashed rgba(98,98,122,0.3)',
+                    background: dragTargetId === ARCHIVE_FOLDER_ID
+                      ? 'rgba(232,86,74,0.12)'
+                      : 'rgba(98,98,122,0.04)',
+                    boxShadow: dragTargetId === ARCHIVE_FOLDER_ID
+                      ? '0 0 30px rgba(232,86,74,0.45), inset 0 0 18px rgba(232,86,74,0.15)'
+                      : 'none',
+                    transform: dragTargetId === ARCHIVE_FOLDER_ID ? 'scale(1.06)' : 'scale(1)',
+                    transition: 'all 0.18s ease',
+                    cursor: 'pointer',
+                    color: dragTargetId === ARCHIVE_FOLDER_ID ? '#e8564a' : '#62627a',
+                  }}
+                >
+                  {/* Folder-tab icon (manila/file folder shape) */}
+                  <svg width="22" height="18" viewBox="0 0 22 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                      d="M2 4.5C2 3.4 2.9 2.5 4 2.5H8.5L10.5 4.5H18C19.1 4.5 20 5.4 20 6.5V14.5C20 15.6 19.1 16.5 18 16.5H4C2.9 16.5 2 15.6 2 14.5V4.5Z"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinejoin="round"
+                      fill="none"
+                    />
+                  </svg>
+                  <span className="font-mono uppercase" style={{ fontSize: 9, letterSpacing: '0.1em' }}>
+                    Archive{allArchivedProjects.length > 0 ? ` · ${allArchivedProjects.length}` : ''}
+                  </span>
+                </button>
+              </div>
             </>
           )}
         </div>
       </div>
 
-      {/* Floating dragged card — positioned via ref for zero-lag */}
+      {/* Floating dragged card — positioned via ref for zero-lag.
+          Renders a SlateCard or FolderCard depending on the drag kind. */}
       {dragProjectId && (() => {
-        const project = allProjects.find(p => p.id === dragProjectId)
-        if (!project) return null
         const startX = dragStartRef.current ? dragStartRef.current.x - dragStartRef.current.elX : 0
         const startY = dragStartRef.current ? dragStartRef.current.y - dragStartRef.current.elY : 0
+        const w = dragStartRef.current?.w ?? 172
+        const wrapperStyle: React.CSSProperties = {
+          position: 'fixed', left: startX, top: startY, width: w, zIndex: 50, pointerEvents: 'none',
+        }
+        if (dragKindRef.current === 'folder') {
+          const folder = allFolders.find(f => f.id === dragProjectId)
+          if (!folder) return null
+          return (
+            <div ref={dragElRef} style={wrapperStyle}>
+              <FolderCard
+                folder={folder}
+                projects={folderProjects.get(folder.id) ?? []}
+                editMode={false} isGhost={false} isDragging={true} isDropTarget={false} dimmed={false}
+                onLongPress={() => {}} onClick={() => {}}
+              />
+            </div>
+          )
+        }
+        const project = allProjects.find(p => p.id === dragProjectId)
+        if (!project) return null
         return (
-          <div ref={dragElRef} style={{
-            position: 'fixed',
-            left: startX, top: startY,
-            width: dragStartRef.current?.w ?? 172, zIndex: 50, pointerEvents: 'none',
-          }}>
+          <div ref={dragElRef} style={wrapperStyle}>
             <SlateCard project={project} color={getColor(project.id)} dimmed={false} editMode={false} isGhost={false} isDragging={true} onLongPress={() => {}} onClick={() => {}} />
           </div>
         )
@@ -844,9 +1042,89 @@ export default function ProjectsPage() {
 
       <OpenFolderSheet
         open={!!openFolderId}
-        folder={allFolders.find(f => f.id === openFolderId) ?? null}
+        folder={
+          openFolderId === ARCHIVE_FOLDER_ID
+            ? archiveFolder
+            : (allFolders.find(f => f.id === openFolderId) ?? null)
+        }
         projects={openFolderId ? (folderProjects.get(openFolderId) ?? []) : []}
+        kicker={openFolderId === ARCHIVE_FOLDER_ID ? 'Archive' : 'Folder'}
+        emptyMessage={
+          openFolderId === ARCHIVE_FOLDER_ID
+            ? 'Nothing archived yet'
+            : undefined
+        }
+        onProjectLongPress={
+          openFolderId === ARCHIVE_FOLDER_ID
+            ? (p) => { haptic('medium'); setRestoreProject(p) }
+            : undefined
+        }
         onClose={closeOpenFolder}
+      />
+
+      {/* Restore confirm — appears when tapping a project inside the Archive folder */}
+      {restoreProject && (
+        <div
+          onClick={() => setRestoreProject(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 30,
+            background: 'rgba(4,4,10,0.78)',
+            backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'flex-end',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', padding: '20px 18px calc(28px + env(safe-area-inset-bottom, 0px))',
+              background: 'rgba(10,10,18,0.95)',
+              borderTop: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '20px 20px 0 0',
+              display: 'flex', flexDirection: 'column', gap: 14,
+              boxShadow: '0 -32px 80px rgba(0,0,0,0.5)',
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: 16, color: '#dddde8', letterSpacing: '-0.01em' }}>
+              Restore <span style={{ color: getColor(restoreProject.id) }}>{restoreProject.name}</span>?
+            </div>
+            <div style={{ fontSize: 12, color: '#8a8a9a', lineHeight: 1.5 }}>
+              The project will return to the home grid with its status set to Post-Production. You can change the status from inside the project.
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setRestoreProject(null)}
+                style={{
+                  flex: 1, padding: '12px 14px', borderRadius: 10,
+                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                  color: '#dddde8', fontSize: 13,
+                }}
+              >Cancel</button>
+              <button
+                onClick={() => {
+                  haptic('medium')
+                  const id = restoreProject.id
+                  setRestoreProject(null)
+                  closeOpenFolder()
+                  restoreMutation.mutate(id)
+                }}
+                style={{
+                  flex: 1, padding: '12px 14px', borderRadius: 10,
+                  background: '#00b894', border: '1px solid rgba(0,184,148,0.6)',
+                  color: 'white', fontSize: 13, fontWeight: 600,
+                }}
+              >Restore</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <NewFolderSheet
+        open={creatingFolder}
+        onClose={() => setCreatingFolder(false)}
+        onCreate={({ name, color }) => {
+          if (!meId) return
+          createFolderMutation.mutate({ userId: meId, name, color, sortOrder: 0 })
+        }}
       />
     </div>
   )
