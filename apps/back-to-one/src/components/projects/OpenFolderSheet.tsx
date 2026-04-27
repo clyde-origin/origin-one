@@ -14,9 +14,12 @@ import { haptic } from '@/lib/utils/haptics'
 import { useLongPress } from '@/lib/hooks/useLongPress'
 import type { Project } from '@/types'
 
+type FolderRef = { id: string; name: string; color: string | null }
+type FolderWithCount = FolderRef & { count: number }
+
 interface OpenFolderSheetProps {
   open: boolean
-  folder: { id: string; name: string; color: string | null } | null
+  folder: FolderRef | null
   projects: Project[]
   onClose: () => void
   // Optional kicker label override (default "Folder"; "Archive" for the
@@ -29,6 +32,12 @@ interface OpenFolderSheetProps {
   // Optional long-press handler per project. Used by the Archive variant to
   // open the restore prompt without hijacking the tap-to-route default.
   onProjectLongPress?: (project: Project) => void
+  // Optional folder cards rendered before the project tiles. Used by the
+  // Archive variant to show archived folders inline so the user can drill
+  // into them or long-press to restore.
+  folders?: FolderWithCount[]
+  onFolderClick?: (folder: FolderRef) => void
+  onFolderLongPress?: (folder: FolderRef) => void
 }
 
 // Per-project button — extracted so each instance can register its own
@@ -70,6 +79,51 @@ function ProjectTile({
   )
 }
 
+// Compact folder tile — visual cue (folder icon + count) in the same 4:3 slot
+// as a project tile. Sized for the Archive variant where archived folders
+// live alongside loose archived projects.
+function FolderTile({
+  folder, onClick, onLongPress,
+}: { folder: FolderWithCount; onClick: () => void; onLongPress?: () => void }) {
+  const longPressHandlers = useLongPress(onLongPress ?? (() => {}), 500)
+  const accent = folder.color ?? '#6470f3'
+  return (
+    <button
+      onClick={onClick}
+      {...(onLongPress ? longPressHandlers : {})}
+      className="active:scale-[0.96] active:brightness-[0.85]"
+      style={{
+        aspectRatio: '4 / 3',
+        borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
+        border: `1px solid ${hexToRgba(accent, 0.32)}`,
+        background: 'rgba(8,8,14,0.7)',
+        padding: '12px 12px 10px', textAlign: 'left',
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
+      }}
+    >
+      <div style={{
+        width: 28, height: 22, borderRadius: 4,
+        background: hexToRgba(accent, 0.18),
+        border: `1px solid ${hexToRgba(accent, 0.5)}`,
+        position: 'relative',
+      }}>
+        <div style={{
+          position: 'absolute', top: -4, left: 2, width: 14, height: 5,
+          borderRadius: '2px 2px 0 0',
+          background: hexToRgba(accent, 0.5),
+        }} />
+      </div>
+      <div>
+        <div style={{ fontWeight: 800, fontSize: 13, color: '#dddde8', letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folder.name}</div>
+        <div className="font-mono" style={{ fontSize: 9, color: hexToRgba(accent, 0.7), letterSpacing: '0.08em', marginTop: 2 }}>
+          {folder.count} project{folder.count !== 1 ? 's' : ''}
+        </div>
+      </div>
+    </button>
+  )
+}
+
 function hexToRgba(hex: string, a: number) {
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)
@@ -77,11 +131,18 @@ function hexToRgba(hex: string, a: number) {
   return `rgba(${r},${g},${b},${a})`
 }
 
-export function OpenFolderSheet({ open, folder, projects, onClose, kicker, emptyMessage, onProjectClick, onProjectLongPress }: OpenFolderSheetProps) {
+export function OpenFolderSheet({
+  open, folder, projects, onClose, kicker, emptyMessage,
+  onProjectClick, onProjectLongPress,
+  folders, onFolderClick, onFolderLongPress,
+}: OpenFolderSheetProps) {
   const router = useRouter()
   const accent = folder?.color ?? '#6470f3'
   const defaultProjectClick = (p: Project) => { haptic('light'); onClose(); router.push(`/projects/${p.id}`) }
   const handleClick = onProjectClick ?? defaultProjectClick
+  const folderList = folders ?? []
+  const isEmpty = projects.length === 0 && folderList.length === 0
+  const totalCount = projects.length + folderList.length
 
   return (
     <AnimatePresence>
@@ -117,7 +178,7 @@ export function OpenFolderSheet({ open, folder, projects, onClose, kicker, empty
             <div className="font-mono" style={{ fontSize: 9, color: hexToRgba(accent, 0.6), textTransform: 'uppercase', letterSpacing: '0.12em' }}>{kicker ?? 'Folder'}</div>
             <div style={{ fontWeight: 800, fontSize: 18, color: '#dddde8', letterSpacing: '-0.02em', marginTop: 2 }}>{folder.name}</div>
             <div className="font-mono" style={{ fontSize: 10, color: '#62627a', marginTop: 4 }}>
-              {projects.length} project{projects.length !== 1 ? 's' : ''}
+              {totalCount} item{totalCount !== 1 ? 's' : ''}
             </div>
           </div>
 
@@ -127,12 +188,20 @@ export function OpenFolderSheet({ open, folder, projects, onClose, kicker, empty
             WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain',
             padding: '12px 14px 18px',
           }}>
-            {projects.length === 0 ? (
+            {isEmpty ? (
               <div style={{ padding: '60px 20px', textAlign: 'center', fontSize: 12, color: '#62627a' }}>
                 {emptyMessage ?? 'No projects yet — drop one in from the home grid'}
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                {folderList.map(f => (
+                  <FolderTile
+                    key={f.id}
+                    folder={f}
+                    onClick={() => onFolderClick?.(f)}
+                    onLongPress={onFolderLongPress ? () => onFolderLongPress(f) : undefined}
+                  />
+                ))}
                 {projects.map(p => (
                   <ProjectTile
                     key={p.id}

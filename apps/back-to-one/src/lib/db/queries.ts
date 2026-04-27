@@ -2296,9 +2296,74 @@ export async function getUserProjectFolders(meId: string | null) {
     .from('UserProjectFolder')
     .select('*')
     .eq('userId', meId)
+    .eq('archived', false)
     .order('sortOrder', { ascending: true })
   if (error) { console.error('getUserProjectFolders failed:', error); throw error }
   return data ?? []
+}
+
+export async function getArchivedUserProjectFolders(meId: string | null) {
+  if (!meId) return []
+  const db = createClient()
+  const { data, error } = await db
+    .from('UserProjectFolder')
+    .select('*')
+    .eq('userId', meId)
+    .eq('archived', true)
+    .order('sortOrder', { ascending: true })
+  if (error) { console.error('getArchivedUserProjectFolders failed:', error); throw error }
+  return data ?? []
+}
+
+// Archives a folder (marks archived=true) AND archives every project whose
+// placement points at it. The folder row + its placements stay intact so the
+// archive view can render the folder with its projects inside.
+export async function archiveUserProjectFolder(meId: string, folderId: string) {
+  const db = createClient()
+  const { data: placements, error: pErr } = await db
+    .from('UserProjectPlacement')
+    .select('projectId')
+    .eq('userId', meId)
+    .eq('folderId', folderId)
+  if (pErr) { console.error('archiveUserProjectFolder placements failed:', pErr); throw pErr }
+  const projectIds = (placements ?? []).map(p => p.projectId)
+  if (projectIds.length > 0) {
+    const { error: aErr } = await db
+      .from('Project')
+      .update({ status: 'archived' })
+      .in('id', projectIds)
+    if (aErr) { console.error('archiveUserProjectFolder cascade failed:', aErr); throw aErr }
+  }
+  const { error: fErr } = await db
+    .from('UserProjectFolder')
+    .update({ archived: true, updatedAt: new Date().toISOString() })
+    .eq('id', folderId)
+  if (fErr) { console.error('archiveUserProjectFolder folder failed:', fErr); throw fErr }
+}
+
+// Restores a folder back to the home grid AND restores every archived project
+// whose placement points at it. Mirrors archiveUserProjectFolder.
+export async function restoreUserProjectFolder(meId: string, folderId: string) {
+  const db = createClient()
+  const { data: placements, error: pErr } = await db
+    .from('UserProjectPlacement')
+    .select('projectId')
+    .eq('userId', meId)
+    .eq('folderId', folderId)
+  if (pErr) { console.error('restoreUserProjectFolder placements failed:', pErr); throw pErr }
+  const projectIds = (placements ?? []).map(p => p.projectId)
+  if (projectIds.length > 0) {
+    const { error: rErr } = await db
+      .from('Project')
+      .update({ status: 'post_production' })
+      .in('id', projectIds)
+    if (rErr) { console.error('restoreUserProjectFolder cascade failed:', rErr); throw rErr }
+  }
+  const { error: fErr } = await db
+    .from('UserProjectFolder')
+    .update({ archived: false, updatedAt: new Date().toISOString() })
+    .eq('id', folderId)
+  if (fErr) { console.error('restoreUserProjectFolder folder failed:', fErr); throw fErr }
 }
 
 export async function getUserProjectPlacements(meId: string | null) {
