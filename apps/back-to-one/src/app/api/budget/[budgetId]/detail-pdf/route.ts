@@ -1,8 +1,10 @@
 // Detail PDF — internal review document. Multi-page; one block per
 // account with all line items underneath. See spec §8.
 //
-// pre-Auth: route is implicitly producer-only via UI gating; server-side
-// auth seals on Auth day. See BUILD_STATUS.md "Budget export API routes".
+// Uses SUPABASE_SERVICE_ROLE_KEY (server-only, bypasses RLS) because
+// anon has no public-schema grants. Producer-only access is enforced
+// at the UI layer until Auth day's session-aware middleware lands.
+// See BUILD_STATUS.md "Budget export API routes".
 
 import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer'
 import { createElement, type ReactElement } from 'react'

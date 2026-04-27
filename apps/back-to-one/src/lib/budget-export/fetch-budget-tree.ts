@@ -1,6 +1,8 @@
 // Server-side fetch + rollup for the budget export routes (CSV, Topsheet
-// PDF, Detail PDF). Uses the same Supabase anon client as the rest of
-// the app — pre-Auth, no JWT/session validation. See BUILD_STATUS.md
+// PDF, Detail PDF). Uses the SUPABASE_SERVICE_ROLE_KEY — anon has no
+// grants on public schema, so anon-key reads fail with 42501. Service
+// role bypasses RLS; producer-only access is enforced at the UI layer
+// until Auth day's session-aware middleware lands. See BUILD_STATUS.md
 // "Budget export API routes — pre-Auth gating gap".
 
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
@@ -47,9 +49,19 @@ export interface BudgetExportData {
 }
 
 function serverClient(): SupabaseClient {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceKey) {
+    throw new Error(
+      'SUPABASE_SERVICE_ROLE_KEY missing — required for budget export routes. ' +
+      'Add it to apps/back-to-one/.env.local (server-only; do NOT use NEXT_PUBLIC_ prefix).',
+    )
+  }
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serviceKey,
+    // Disable session persistence — these clients are short-lived
+    // server-side, never tied to a user.
+    { auth: { persistSession: false, autoRefreshToken: false } },
   )
 }
 
