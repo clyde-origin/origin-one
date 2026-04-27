@@ -14,8 +14,9 @@ export const keys = {
   allMilestones:      () => ['allMilestones'] as const,
   allThreads:         (meId: string | null) => ['allThreads', meId ?? ''] as const,
   allChats:           (meId: string | null) => ['allChats', meId ?? ''] as const,
-  userProjectFolders:    (meId: string | null) => ['userProjectFolders', meId ?? ''] as const,
-  userProjectPlacements: (meId: string | null) => ['userProjectPlacements', meId ?? ''] as const,
+  userProjectFolders:         (meId: string | null) => ['userProjectFolders', meId ?? ''] as const,
+  archivedUserProjectFolders: (meId: string | null) => ['archivedUserProjectFolders', meId ?? ''] as const,
+  userProjectPlacements:      (meId: string | null) => ['userProjectPlacements', meId ?? ''] as const,
   allResources:       () => ['allResources'] as const,
   shotlistVersions: (projectId: string) => ['shotlistVersions', projectId] as const,
   scenes:         (projectId: string) => ['scenes', projectId] as const,
@@ -1107,9 +1108,45 @@ export function useUserProjectPlacements() {
   })
 }
 
+export function useArchivedUserProjectFolders() {
+  const meId = useMeId()
+  return useQuery({
+    queryKey: keys.archivedUserProjectFolders(meId),
+    queryFn:  () => db.getArchivedUserProjectFolders(meId),
+    enabled:  !!meId,
+  })
+}
+
 function invalidateFolders(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['userProjectFolders'] })
+  qc.invalidateQueries({ queryKey: ['archivedUserProjectFolders'] })
   qc.invalidateQueries({ queryKey: ['userProjectPlacements'] })
+}
+
+export function useArchiveUserProjectFolder() {
+  const qc = useQueryClient()
+  const meId = useMeId()
+  return useMutation({
+    mutationFn: (folderId: string) => db.archiveUserProjectFolder(meId!, folderId),
+    onSuccess: () => {
+      invalidateFolders(qc)
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      qc.invalidateQueries({ queryKey: ['archivedProjects'] })
+    },
+  })
+}
+
+export function useRestoreUserProjectFolder() {
+  const qc = useQueryClient()
+  const meId = useMeId()
+  return useMutation({
+    mutationFn: (folderId: string) => db.restoreUserProjectFolder(meId!, folderId),
+    onSuccess: () => {
+      invalidateFolders(qc)
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      qc.invalidateQueries({ queryKey: ['archivedProjects'] })
+    },
+  })
 }
 
 export function useCreateUserProjectFolder() {

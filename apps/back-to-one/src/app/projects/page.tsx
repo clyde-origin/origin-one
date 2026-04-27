@@ -9,6 +9,7 @@ import {
   useMeId, useUserProjectFolders, useUserProjectPlacements,
   useCreateUserProjectFolder, useUpdateUserProjectFolder, useDeleteUserProjectFolder,
   useUpsertUserProjectPlacement, useArchivedProjects, useRestoreProject,
+  useArchivedUserProjectFolders, useArchiveUserProjectFolder, useRestoreUserProjectFolder,
 } from '@/lib/hooks/useOriginOne'
 import { SkeletonLine, CrewAvatar } from '@/components/ui'
 import { useRootFab } from '@/components/ui/ActionBarRoot'
@@ -409,10 +410,16 @@ export default function ProjectsPage() {
   const [actionFolder, setActionFolder] = useState<{ id: string; name: string; color: string | null } | null>(null)
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [restoreProject, setRestoreProject] = useState<Project | null>(null)
+  const [restoreFolder, setRestoreFolder] = useState<{ id: string; name: string; color: string | null; count: number } | null>(null)
 
   const { data: archivedProjects } = useArchivedProjects()
   const allArchivedProjects = archivedProjects ?? []
   const restoreMutation = useRestoreProject()
+
+  const { data: archivedFolders } = useArchivedUserProjectFolders()
+  const allArchivedFolders = archivedFolders ?? []
+  const archiveFolderMutation = useArchiveUserProjectFolder()
+  const restoreFolderMutation = useRestoreUserProjectFolder()
 
   // Synthetic Archive folder — not a real DB row. Sentinel id never collides
   // with a UUID. Pinned at the very end of the home grid (sortOrder = MAX).
@@ -460,23 +467,47 @@ export default function ProjectsPage() {
     return [...folderItems, ...projectItems].sort((a, b) => a.sortOrder - b.sortOrder)
   }, [allProjects, allFolders, allPlacements])
 
+  // Loose archived projects = archived projects whose placement isn't inside
+  // an archived folder. The synthetic Archive folder shows these directly;
+  // archived projects inside an archived folder live one level deeper.
+  const archivedFolderIds = useMemo(
+    () => new Set(allArchivedFolders.map(f => f.id)),
+    [allArchivedFolders]
+  )
+  const looseArchivedProjects = useMemo(() => {
+    const placementByProjectId = new Map(allPlacements.map(p => [p.projectId, p]))
+    return allArchivedProjects.filter(p => {
+      const pl = placementByProjectId.get(p.id)
+      return !pl?.folderId || !archivedFolderIds.has(pl.folderId)
+    })
+  }, [allArchivedProjects, allPlacements, archivedFolderIds])
+
   const folderProjects = useMemo(() => {
-    // Map folderId → projects (in placement.sortOrder)
+    // Map folderId → projects (in placement.sortOrder).
+    // Active folders pull from allProjects; archived folders pull from
+    // allArchivedProjects (their projects were archived together).
     const result = new Map<string, Project[]>()
     for (const f of allFolders) result.set(f.id, [])
-    const byProjectId = new Map(allProjects.map(p => [p.id, p]))
+    for (const f of allArchivedFolders) result.set(f.id, [])
+    const byActiveProjectId = new Map(allProjects.map(p => [p.id, p]))
+    const byArchivedProjectId = new Map(allArchivedProjects.map(p => [p.id, p]))
     const sorted = [...allPlacements]
       .filter(p => p.folderId !== null)
       .sort((a, b) => a.sortOrder - b.sortOrder)
     for (const pl of sorted) {
-      const project = byProjectId.get(pl.projectId)
       const list = result.get(pl.folderId!)
-      if (project && list) list.push(project)
+      if (!list) continue
+      const isArchivedFolder = archivedFolderIds.has(pl.folderId!)
+      const project = isArchivedFolder
+        ? byArchivedProjectId.get(pl.projectId)
+        : byActiveProjectId.get(pl.projectId)
+      if (project) list.push(project)
     }
-    // Synthetic Archive folder content
-    result.set(ARCHIVE_FOLDER_ID, allArchivedProjects)
+    // Synthetic Archive folder content — the loose archived projects only;
+    // archived folders themselves are passed via OpenFolderSheet.folders.
+    result.set(ARCHIVE_FOLDER_ID, looseArchivedProjects)
     return result
-  }, [allProjects, allFolders, allPlacements, allArchivedProjects])
+  }, [allProjects, allArchivedProjects, allFolders, allArchivedFolders, allPlacements, archivedFolderIds, looseArchivedProjects])
 
   const handleTouchEnd = useCallback(() => {
     // Clear pending drag timer
@@ -502,13 +533,9 @@ export default function ProjectsPage() {
         if (kind === 'project') {
           archiveMutation.mutate(draggedId)
         } else {
-          // Archive every project inside the dragged folder, then delete
-          // the now-empty folder. Placement.folderId cascades to NULL on
-          // folder delete, which doesn't matter since these projects are
-          // moving to status='archived' (filtered out by getProjects).
-          const projects = folderProjects.get(draggedId) ?? []
-          for (const p of projects) archiveMutation.mutate(p.id)
-          deleteFolderMutation.mutate(draggedId)
+          // Mark the folder archived; the mutation cascades to all projects
+          // inside so the folder reappears intact in the archive view.
+          archiveFolderMutation.mutate(draggedId)
         }
       } else if (kind === 'project' && targetId && targetIsFolder) {
         // Drop project into existing folder
@@ -556,7 +583,7 @@ export default function ProjectsPage() {
     setDragProjectId(null)
     setDragTargetIdx(-1)
     setDragTargetIdState(null)
-  }, [meId, allProjects, allFolders, folderProjects, homeItems, placementMutation, createFolderMutation, archiveMutation, deleteFolderMutation, updateFolderMutation])
+  }, [meId, allProjects, allFolders, folderProjects, homeItems, placementMutation, createFolderMutation, archiveMutation, archiveFolderMutation, deleteFolderMutation, updateFolderMutation])
 
   // Global touch listeners for drag
   useEffect(() => {
@@ -1045,18 +1072,52 @@ export default function ProjectsPage() {
         folder={
           openFolderId === ARCHIVE_FOLDER_ID
             ? archiveFolder
-            : (allFolders.find(f => f.id === openFolderId) ?? null)
+            : (allFolders.find(f => f.id === openFolderId)
+              ?? allArchivedFolders.find(f => f.id === openFolderId)
+              ?? null)
         }
         projects={openFolderId ? (folderProjects.get(openFolderId) ?? []) : []}
-        kicker={openFolderId === ARCHIVE_FOLDER_ID ? 'Archive' : 'Folder'}
+        kicker={
+          openFolderId === ARCHIVE_FOLDER_ID
+            ? 'Archive'
+            : (openFolderId && archivedFolderIds.has(openFolderId) ? 'Archived Folder' : 'Folder')
+        }
         emptyMessage={
           openFolderId === ARCHIVE_FOLDER_ID
             ? 'Nothing archived yet'
-            : undefined
+            : (openFolderId && archivedFolderIds.has(openFolderId)
+                ? 'No projects in this archived folder'
+                : undefined)
         }
         onProjectLongPress={
-          openFolderId === ARCHIVE_FOLDER_ID
+          // Long-press → restore prompt for any archived project, whether
+          // it's loose in the synthetic Archive or inside an archived folder.
+          openFolderId === ARCHIVE_FOLDER_ID || (openFolderId && archivedFolderIds.has(openFolderId))
             ? (p) => { haptic('medium'); setRestoreProject(p) }
+            : undefined
+        }
+        folders={
+          openFolderId === ARCHIVE_FOLDER_ID
+            ? allArchivedFolders.map(f => ({
+                id: f.id, name: f.name, color: f.color,
+                count: (folderProjects.get(f.id) ?? []).length,
+              }))
+            : undefined
+        }
+        onFolderClick={
+          openFolderId === ARCHIVE_FOLDER_ID
+            ? (f) => { haptic('light'); setOpenFolderId(f.id) }
+            : undefined
+        }
+        onFolderLongPress={
+          openFolderId === ARCHIVE_FOLDER_ID
+            ? (f) => {
+                haptic('medium')
+                setRestoreFolder({
+                  id: f.id, name: f.name, color: f.color,
+                  count: (folderProjects.get(f.id) ?? []).length,
+                })
+              }
             : undefined
         }
         onClose={closeOpenFolder}
@@ -1106,6 +1167,61 @@ export default function ProjectsPage() {
                   setRestoreProject(null)
                   closeOpenFolder()
                   restoreMutation.mutate(id)
+                }}
+                style={{
+                  flex: 1, padding: '12px 14px', borderRadius: 10,
+                  background: '#00b894', border: '1px solid rgba(0,184,148,0.6)',
+                  color: 'white', fontSize: 13, fontWeight: 600,
+                }}
+              >Restore</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restore-folder confirm — long-press on an archived folder card */}
+      {restoreFolder && (
+        <div
+          onClick={() => setRestoreFolder(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 30,
+            background: 'rgba(4,4,10,0.78)',
+            backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'flex-end',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', padding: '20px 18px calc(28px + env(safe-area-inset-bottom, 0px))',
+              background: 'rgba(10,10,18,0.95)',
+              borderTop: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '20px 20px 0 0',
+              display: 'flex', flexDirection: 'column', gap: 14,
+              boxShadow: '0 -32px 80px rgba(0,0,0,0.5)',
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: 16, color: '#dddde8', letterSpacing: '-0.01em' }}>
+              Restore <span style={{ color: restoreFolder.color ?? '#6470f3' }}>{restoreFolder.name}</span>?
+            </div>
+            <div style={{ fontSize: 12, color: '#8a8a9a', lineHeight: 1.5 }}>
+              The folder returns to the home grid with its {restoreFolder.count} project{restoreFolder.count !== 1 ? 's' : ''} restored to Post-Production. You can re-archive items individually after.
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setRestoreFolder(null)}
+                style={{
+                  flex: 1, padding: '12px 14px', borderRadius: 10,
+                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                  color: '#dddde8', fontSize: 13,
+                }}
+              >Cancel</button>
+              <button
+                onClick={() => {
+                  haptic('medium')
+                  const id = restoreFolder.id
+                  setRestoreFolder(null)
+                  restoreFolderMutation.mutate(id)
                 }}
                 style={{
                   flex: 1, padding: '12px 14px', borderRadius: 10,
