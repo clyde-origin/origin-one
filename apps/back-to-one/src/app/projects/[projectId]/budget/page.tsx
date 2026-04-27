@@ -1,13 +1,21 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useProject, useBudget, useShootDays } from '@/lib/hooks/useOriginOne'
+import {
+  useProject, useBudget, useShootDays, useCrew, useMeId,
+  useCreateBudgetLine, useUpdateBudgetVersion,
+  useDuplicateBudgetVersion, useDeleteBudgetVersion,
+} from '@/lib/hooks/useOriginOne'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { getProjectColor, statusHex, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { readStoredViewerRole, type ViewerRole } from '@/lib/utils/viewerIdentity'
 import { buildEvalContext, rollUpBudget, type ComputedLine, type AccountSubtotal, type BudgetRollup } from '@/lib/budget/compute'
+import { useFabAction } from '@/lib/contexts/FabActionContext'
+import { useLongPress } from '@/lib/hooks/useLongPress'
+import { haptic } from '@/lib/utils/haptics'
+import { LineDetailSheet } from '@/components/budget/LineDetailSheet'
 import type {
   Budget,
   BudgetVersion,
@@ -19,6 +27,7 @@ import type {
   Expense,
   ShootDay,
   ShootDayType,
+  TeamMember,
 } from '@/types'
 
 // ── Tokens (BRAND_TOKENS — phase tints + fixed UI palette) ──────────────
@@ -76,12 +85,13 @@ function formatPercent(n: number): string {
 // ── VersionPills ────────────────────────────────────────────────────────
 
 function VersionPills({
-  versions, activeId, accent, onChange,
+  versions, activeId, accent, onChange, onLongPress,
 }: {
   versions: BudgetVersion[]
   activeId: string | null
   accent: string
   onChange: (id: string) => void
+  onLongPress: (versionId: string) => void
 }) {
   const sorted = [...versions].sort((a, b) => a.sortOrder - b.sortOrder)
   return (
@@ -93,30 +103,286 @@ function VersionPills({
         className="font-mono uppercase"
         style={{ fontSize: 9, letterSpacing: '0.12em', color: '#62627a', marginRight: 4 }}
       >Version</span>
-      {sorted.map(v => {
-        const active = v.id === activeId
-        const locked = v.state === 'locked'
-        return (
-          <button
-            key={v.id}
-            type="button"
-            onClick={() => onChange(v.id)}
-            className="font-mono uppercase"
-            style={{
-              flex: 1,
-              padding: '7px 10px', borderRadius: 999,
-              fontSize: 10, letterSpacing: '0.06em',
-              background: active ? `${accent}24` : 'rgba(255,255,255,0.02)',
-              border: `1px solid ${active ? `${accent}66` : 'rgba(255,255,255,0.08)'}`,
-              color: active ? accent : '#a0a0b8',
-              cursor: 'pointer',
-            }}
-          >
-            {v.name}{locked ? ' ⌃' : ''}
-          </button>
-        )
-      })}
+      {sorted.map(v => (
+        <VersionPill
+          key={v.id}
+          version={v}
+          active={v.id === activeId}
+          accent={accent}
+          onTap={() => onChange(v.id)}
+          onLongPress={() => onLongPress(v.id)}
+        />
+      ))}
     </div>
+  )
+}
+
+function VersionPill({
+  version, active, accent, onTap, onLongPress,
+}: {
+  version: BudgetVersion
+  active: boolean
+  accent: string
+  onTap: () => void
+  onLongPress: () => void
+}) {
+  const longPress = useLongPress(() => { haptic('medium'); onLongPress() }, 500)
+  const locked = version.state === 'locked'
+  return (
+    <button
+      type="button"
+      onClick={onTap}
+      {...longPress}
+      className="font-mono uppercase"
+      style={{
+        flex: 1,
+        padding: '7px 10px', borderRadius: 999,
+        fontSize: 10, letterSpacing: '0.06em',
+        background: active ? `${accent}24` : 'rgba(255,255,255,0.02)',
+        border: `1px solid ${active ? `${accent}66` : 'rgba(255,255,255,0.08)'}`,
+        color: active ? accent : '#a0a0b8',
+        cursor: 'pointer',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        WebkitTouchCallout: 'none',
+      }}
+    >
+      {version.name}{locked ? ' ⌃' : ''}
+    </button>
+  )
+}
+
+// ── VersionPillMenu — opens on long-press of a pill. Inline overlay
+// (NOT a nested modal). Replaces the version pill area with action
+// buttons; tap an action or "Cancel" to dismiss.
+
+function VersionPillMenu({
+  version, allVersions, projectId, accent, currentMemberId, onDismiss,
+}: {
+  version: BudgetVersion
+  allVersions: BudgetVersion[]
+  projectId: string
+  accent: string
+  currentMemberId: string | null
+  onDismiss: () => void
+}) {
+  type Mode = 'menu' | 'rename' | 'duplicate' | 'delete-confirm' | 'lock-confirm'
+  const [mode, setMode] = useState<Mode>('menu')
+  const [renameVal, setRenameVal] = useState(version.name)
+  const [dupName, setDupName] = useState(`${version.name} (copy)`)
+
+  const update = useUpdateBudgetVersion(projectId)
+  const dup = useDuplicateBudgetVersion(projectId)
+  const del = useDeleteBudgetVersion(projectId)
+
+  const isLast = allVersions.length <= 1
+  const locked = version.state === 'locked'
+
+  const close = () => onDismiss()
+
+  if (mode === 'menu') {
+    return (
+      <Overlay accent={accent}>
+        <Lbl>Version: {version.name}</Lbl>
+        <ActionRow accent={accent}>
+          <ActionBtn accent={accent} onClick={() => setMode('rename')}>Rename</ActionBtn>
+          <ActionBtn
+            accent={accent}
+            onClick={() => locked
+              ? update.mutate({ id: version.id, patch: { state: 'draft' } }, { onSuccess: close })
+              : setMode('lock-confirm')
+            }
+          >{locked ? 'Unlock' : 'Lock'}</ActionBtn>
+          <ActionBtn accent={accent} onClick={() => setMode('duplicate')}>Duplicate</ActionBtn>
+          <ActionBtn
+            accent={accent}
+            tone="danger"
+            disabled={isLast}
+            onClick={() => setMode('delete-confirm')}
+          >{isLast ? 'Last — can’t delete' : 'Delete'}</ActionBtn>
+        </ActionRow>
+        <ActionRow accent={accent}>
+          <ActionBtn accent={accent} tone="muted" onClick={close}>Cancel</ActionBtn>
+        </ActionRow>
+      </Overlay>
+    )
+  }
+
+  if (mode === 'rename') {
+    return (
+      <Overlay accent={accent}>
+        <Lbl>Rename version</Lbl>
+        <input
+          type="text"
+          value={renameVal}
+          autoFocus
+          onChange={e => setRenameVal(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Escape') setMode('menu') }}
+          style={{
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            borderRadius: 8, padding: '8px 10px',
+            color: '#fff', fontSize: 13, outline: 'none',
+            fontFamily: 'inherit',
+          }}
+        />
+        <ActionRow accent={accent}>
+          <ActionBtn accent={accent} tone="muted" onClick={() => setMode('menu')}>Back</ActionBtn>
+          <ActionBtn
+            accent={accent}
+            disabled={!renameVal.trim() || renameVal.trim() === version.name}
+            onClick={() => {
+              const t = renameVal.trim()
+              if (!t) return
+              update.mutate({ id: version.id, patch: { name: t } }, { onSuccess: close })
+            }}
+          >Save</ActionBtn>
+        </ActionRow>
+      </Overlay>
+    )
+  }
+
+  if (mode === 'lock-confirm') {
+    return (
+      <Overlay accent={accent}>
+        <Lbl>Lock {version.name}?</Lbl>
+        <p style={{ fontSize: 12, color: '#a0a0b8', lineHeight: 1.5 }}>
+          Locked versions are read-only. You can unlock anytime from this menu.
+        </p>
+        <ActionRow accent={accent}>
+          <ActionBtn accent={accent} tone="muted" onClick={() => setMode('menu')}>Back</ActionBtn>
+          <ActionBtn
+            accent={accent}
+            onClick={() => update.mutate(
+              { id: version.id, patch: { state: 'locked', lockedBy: currentMemberId } },
+              { onSuccess: close },
+            )}
+          >Lock</ActionBtn>
+        </ActionRow>
+      </Overlay>
+    )
+  }
+
+  if (mode === 'duplicate') {
+    return (
+      <Overlay accent={accent}>
+        <Lbl>Duplicate {version.name}</Lbl>
+        <input
+          type="text"
+          value={dupName}
+          autoFocus
+          onChange={e => setDupName(e.target.value)}
+          style={{
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            borderRadius: 8, padding: '8px 10px',
+            color: '#fff', fontSize: 13, outline: 'none',
+            fontFamily: 'inherit',
+          }}
+        />
+        <p style={{ fontSize: 11, color: '#62627a', lineHeight: 1.5 }}>
+          Copies all per-line qty + rate values from {version.name}. Variables and markups stay budget-level.
+        </p>
+        <ActionRow accent={accent}>
+          <ActionBtn accent={accent} tone="muted" onClick={() => setMode('menu')}>Back</ActionBtn>
+          <ActionBtn
+            accent={accent}
+            disabled={!dupName.trim()}
+            onClick={() => {
+              const t = dupName.trim()
+              if (!t) return
+              dup.mutate({ srcVersionId: version.id, name: t }, { onSuccess: close })
+            }}
+          >Duplicate</ActionBtn>
+        </ActionRow>
+      </Overlay>
+    )
+  }
+
+  // delete-confirm
+  return (
+    <Overlay accent={accent}>
+      <Lbl>Delete {version.name}?</Lbl>
+      <p style={{ fontSize: 12, color: '#e8564a', lineHeight: 1.5 }}>
+        This removes all qty + rate values for this version, plus any variables and markups
+        scoped to it. Cannot be undone.
+      </p>
+      <ActionRow accent={accent}>
+        <ActionBtn accent={accent} tone="muted" onClick={() => setMode('menu')}>Back</ActionBtn>
+        <ActionBtn
+          accent={accent}
+          tone="danger"
+          onClick={() => del.mutate(version.id, { onSuccess: close })}
+        >Delete</ActionBtn>
+      </ActionRow>
+    </Overlay>
+  )
+}
+
+function Overlay({ accent, children }: { accent: string; children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        margin: '4px 16px 10px',
+        padding: 12,
+        borderRadius: 14,
+        background: 'rgba(10,10,18,0.92)',
+        border: `1px solid ${accent}40`,
+        display: 'flex', flexDirection: 'column', gap: 10,
+      }}
+    >{children}</div>
+  )
+}
+
+function Lbl({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="font-mono uppercase"
+      style={{ fontSize: 9, letterSpacing: '0.12em', color: '#a0a0b8' }}
+    >{children}</div>
+  )
+}
+
+function ActionRow({ accent, children }: { accent: string; children: React.ReactNode }) {
+  return (
+    <div className="flex" style={{ gap: 6, flexWrap: 'wrap' }}>{children}</div>
+  )
+}
+
+function ActionBtn({
+  accent, tone, disabled, onClick, children,
+}: {
+  accent: string
+  tone?: 'danger' | 'muted'
+  disabled?: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  const bg = tone === 'danger' ? 'rgba(232,86,74,0.10)'
+    : tone === 'muted' ? 'rgba(255,255,255,0.04)'
+    : `${accent}1a`
+  const border = tone === 'danger' ? 'rgba(232,86,74,0.40)'
+    : tone === 'muted' ? 'rgba(255,255,255,0.10)'
+    : `${accent}55`
+  const color = tone === 'danger' ? '#e8564a'
+    : tone === 'muted' ? '#a0a0b8'
+    : accent
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="font-mono uppercase"
+      style={{
+        flex: 1,
+        padding: '8px 12px', borderRadius: 999,
+        fontSize: 9, letterSpacing: '0.08em',
+        background: disabled ? 'rgba(255,255,255,0.02)' : bg,
+        border: `1px solid ${disabled ? 'rgba(255,255,255,0.06)' : border}`,
+        color: disabled ? '#62627a' : color,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+      }}
+    >{children}</button>
   )
 }
 
@@ -177,16 +443,20 @@ function VariablesStrip({
 // ── LineRow ─────────────────────────────────────────────────────────────
 
 function LineRow({
-  line, computed, amount,
+  line, computed, amount, onTap,
 }: {
   line: BudgetLineWithAmounts
   computed: ComputedLine
   amount: BudgetLineAmount | undefined
+  onTap: () => void
 }) {
   const hasFormula = /[a-zA-Z_]/.test(amount?.qty ?? '')
 
   return (
-    <div
+    <button
+      type="button"
+      onClick={() => { haptic('light'); onTap() }}
+      className="text-left"
       style={{
         display: 'grid',
         gridTemplateColumns: '1fr auto',
@@ -195,6 +465,9 @@ function LineRow({
         padding: 10,
         borderRadius: 6,
         borderTop: '1px solid rgba(255,255,255,0.04)',
+        background: 'transparent', border: 'none', borderTopWidth: '1px',
+        cursor: 'pointer',
+        width: '100%', color: 'inherit',
       }}
     >
       <div style={{ fontSize: 13, fontWeight: 500, color: '#fff', gridColumn: 1, gridRow: 1 }}>
@@ -293,14 +566,14 @@ function LineRow({
           >ERR</span>
         )}
       </div>
-    </div>
+    </button>
   )
 }
 
 // ── AccountCard ─────────────────────────────────────────────────────────
 
 function AccountCard({
-  account, lines, amountsByLine, computedByLine, subtotal, expanded, onToggle,
+  account, lines, amountsByLine, computedByLine, subtotal, expanded, onToggle, onLineTap,
 }: {
   account: BudgetAccount
   lines: BudgetLineWithAmounts[]
@@ -309,6 +582,7 @@ function AccountCard({
   subtotal: AccountSubtotal | undefined
   expanded: boolean
   onToggle: () => void
+  onLineTap: (lineId: string) => void
 }) {
   const accountLines = lines.filter(l => l.accountId === account.id)
   const total = subtotal?.total ?? 0
@@ -361,6 +635,7 @@ function AccountCard({
                 line={line}
                 computed={computed}
                 amount={amountsByLine.get(line.id)}
+                onTap={() => onLineTap(line.id)}
               />
             )
           })}
@@ -466,11 +741,17 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
       if (raw) setExpandedSet(new Set(JSON.parse(raw) as string[]))
     } catch { /* ignore */ }
   }, [expandKey])
+  // Track most-recently-expanded account so + Add line knows where to attach.
+  const lastExpandedRef = useRef<string | null>(null)
   const toggleExpand = (accountId: string) => {
     setExpandedSet(prev => {
       const next = new Set(prev)
-      if (next.has(accountId)) next.delete(accountId)
-      else next.add(accountId)
+      if (next.has(accountId)) {
+        next.delete(accountId)
+      } else {
+        next.add(accountId)
+        lastExpandedRef.current = accountId
+      }
       try {
         window.localStorage.setItem(expandKey, JSON.stringify(Array.from(next)))
       } catch { /* ignore */ }
@@ -478,8 +759,84 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
     })
   }
 
+  // Layer state: 'list' (account list) | 'detail' (line detail sheet).
+  // PR 9 introduces 'detail'; PR 10 will add 'topsheet'.
+  const [layer, setLayer] = useState<'list' | 'detail'>('list')
+  const [activeLineId, setActiveLineId] = useState<string | null>(null)
+  // Reset back to list when budget reloads with no active line (e.g., line deleted).
+  useEffect(() => {
+    if (layer === 'detail' && activeLineId && budget) {
+      const exists = budget.lines.some(l => l.id === activeLineId)
+      if (!exists) { setLayer('list'); setActiveLineId(null) }
+    }
+  }, [budget, layer, activeLineId])
+
+  // Long-press version-pill menu state.
+  const [menuVersionId, setMenuVersionId] = useState<string | null>(null)
+
+  // Resolve current ProjectMember.id for createdBy / lockedBy fields.
+  // Pre-Auth: useMeId returns User.id; we look up the matching ProjectMember
+  // for this project. Single swap point on Auth day.
+  const meId = useMeId()
+  const { data: crewRaw } = useCrew(projectId)
+  const currentMemberId = useMemo<string | null>(() => {
+    if (!meId || !crewRaw) return null
+    // useCrew(projectId) is already server-side filtered to this project,
+    // so userId match is sufficient. Returns ProjectMember.id for use in
+    // createdBy / lockedBy fields per spec §3 (ProjectMember.id pre-Auth).
+    const member = (crewRaw as TeamMember[]).find(c => c.userId === meId)
+    return member?.id ?? null
+  }, [meId, crewRaw])
+
+  // + Add line via ActionBar — registered only when budget is loaded
+  // and we're in list view. handleAddLine creates a fresh line in the
+  // most recently expanded account (or first account in list if none),
+  // then opens the detail sheet on Edit tab.
+  const createLine = useCreateBudgetLine(projectId)
+  const handleAddLine = () => {
+    if (!budget) return
+    if (accountsSorted.length === 0) return
+    const targetAccountId = lastExpandedRef.current ?? accountsSorted[0]!.id
+    haptic('light')
+    createLine.mutate(
+      {
+        budgetId: budget.id,
+        accountId: targetAccountId,
+        description: 'New line',
+        unit: 'DAY',
+        fringeRate: '0',
+        sortOrder: 999,
+      },
+      {
+        onSuccess: (newId) => {
+          setActiveLineId(newId)
+          setLayer('detail')
+          // Make sure the parent account is expanded so back-to-list shows
+          // the new line in context.
+          setExpandedSet(prev => {
+            if (prev.has(targetAccountId)) return prev
+            const next = new Set(prev)
+            next.add(targetAccountId)
+            try {
+              window.localStorage.setItem(expandKey, JSON.stringify(Array.from(next)))
+            } catch { /* ignore */ }
+            return next
+          })
+        },
+      },
+    )
+  }
+  useFabAction(
+    { onPress: handleAddLine, label: 'Add line item' },
+    [budget?.id, accountsSorted.length],
+  )
+
   // Pre-hydration / non-producer: render nothing.
   if (!hydrated || role !== 'producer') return null
+
+  const activeLine = activeLineId && budget
+    ? budget.lines.find(l => l.id === activeLineId) ?? null
+    : null
 
   return (
     <div className="screen">
@@ -580,13 +937,31 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
               </div>
             </div>
 
-            {/* Version pills */}
+            {/* Version pills (long-press → menu) */}
             <VersionPills
               versions={budget.versions}
               activeId={activeVersionId}
               accent={accent}
               onChange={setActiveVersionId}
+              onLongPress={(vid) => setMenuVersionId(vid)}
             />
+
+            {/* Inline version-pill menu — replaces nothing, slots between
+                pills and variables. NOT a nested modal. */}
+            {menuVersionId && (() => {
+              const v = budget.versions.find(x => x.id === menuVersionId)
+              if (!v) return null
+              return (
+                <VersionPillMenu
+                  version={v}
+                  allVersions={budget.versions}
+                  projectId={projectId}
+                  accent={accent}
+                  currentMemberId={currentMemberId}
+                  onDismiss={() => setMenuVersionId(null)}
+                />
+              )
+            })()}
 
             {/* Variables strip */}
             <VariablesStrip
@@ -594,30 +969,46 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
               vars={evalCtx.variables}
             />
 
-            {/* Account list */}
-            <div
-              style={{
-                padding: '12px 16px 24px',
-                display: 'flex', flexDirection: 'column', gap: 10,
-              }}
-            >
-              {accountsSorted.map(a => {
-                // Section header row when transitioning ATL → BTL
-                const sub = rollup.subtotalByAccount.get(a.id)
-                return (
-                  <AccountCard
-                    key={a.id}
-                    account={a}
-                    lines={budget.lines}
-                    amountsByLine={amountsByActiveLine}
-                    computedByLine={rollup.computedByLine}
-                    subtotal={sub}
-                    expanded={expandedSet.has(a.id)}
-                    onToggle={() => toggleExpand(a.id)}
-                  />
-                )
-              })}
-            </div>
+            {/* Layer-switched body — list view OR detail sheet */}
+            {layer === 'detail' && activeLine ? (
+              <LineDetailSheet
+                projectId={projectId}
+                budgetId={budget.id}
+                line={activeLine}
+                versions={budget.versions}
+                accounts={budget.accounts}
+                expenses={budget.expenses}
+                evalCtx={evalCtx}
+                activeVersionId={activeVersionId}
+                accent={accent}
+                currentMemberId={currentMemberId}
+                onBack={() => { setLayer('list'); setActiveLineId(null) }}
+              />
+            ) : (
+              <div
+                style={{
+                  padding: '12px 16px 24px',
+                  display: 'flex', flexDirection: 'column', gap: 10,
+                }}
+              >
+                {accountsSorted.map(a => {
+                  const sub = rollup.subtotalByAccount.get(a.id)
+                  return (
+                    <AccountCard
+                      key={a.id}
+                      account={a}
+                      lines={budget.lines}
+                      amountsByLine={amountsByActiveLine}
+                      computedByLine={rollup.computedByLine}
+                      subtotal={sub}
+                      expanded={expandedSet.has(a.id)}
+                      onToggle={() => toggleExpand(a.id)}
+                      onLineTap={(lineId) => { setActiveLineId(lineId); setLayer('detail') }}
+                    />
+                  )
+                })}
+              </div>
+            )}
           </>
         )}
       </div>

@@ -1553,6 +1553,241 @@ export async function getBudgetByProject(projectId: string) {
   return data
 }
 
+// Update a BudgetLine — line-level fields. Does NOT touch per-version amounts.
+export async function updateBudgetLine(
+  id: string,
+  patch: {
+    description?: string
+    accountId?: string
+    unit?: 'DAY' | 'WEEK' | 'HOUR' | 'FLAT' | 'UNIT'
+    fringeRate?: string
+    tags?: string[]
+    actualsRate?: string | null
+    sortOrder?: number
+  },
+): Promise<void> {
+  const db = createClient()
+  const { error } = await db
+    .from('BudgetLine')
+    .update({ ...patch, updatedAt: new Date().toISOString() })
+    .eq('id', id)
+  if (error) { console.error('updateBudgetLine failed:', error); throw error }
+}
+
+// Update a BudgetLineAmount — per-(line, version) qty + rate. qty stays
+// a string so formulas like "shootDays * 2" persist. Caller validates
+// via evaluate() before save (LineEditTab does this).
+export async function updateBudgetLineAmount(
+  id: string,
+  patch: { qty?: string; rate?: string; notes?: string | null },
+): Promise<void> {
+  const db = createClient()
+  const { error } = await db
+    .from('BudgetLineAmount')
+    .update({ ...patch, updatedAt: new Date().toISOString() })
+    .eq('id', id)
+  if (error) { console.error('updateBudgetLineAmount failed:', error); throw error }
+}
+
+// Create a new BudgetLine + BudgetLineAmount rows for every existing
+// version (qty='0', rate='0' — producer fills in via the per-version
+// cell grid). Returns the new line's id.
+//
+// Multi-step (insert line → fetch versions → bulk-insert amounts).
+// No transaction; tolerable since concurrent budget edits are
+// producer-only and rare.
+export async function createBudgetLine(input: {
+  budgetId: string
+  accountId: string
+  description: string
+  unit: 'DAY' | 'WEEK' | 'HOUR' | 'FLAT' | 'UNIT'
+  fringeRate?: string
+  sortOrder?: number
+  tags?: string[]
+  actualsRate?: string | null
+}): Promise<string> {
+  const db = createClient()
+  const lineId = crypto.randomUUID()
+  const now = new Date().toISOString()
+  const { error: lineErr } = await db.from('BudgetLine').insert({
+    id: lineId,
+    budgetId:    input.budgetId,
+    accountId:   input.accountId,
+    description: input.description,
+    unit:        input.unit,
+    fringeRate:  input.fringeRate ?? '0',
+    tags:        input.tags ?? [],
+    actualsRate: input.actualsRate ?? null,
+    sortOrder:   input.sortOrder ?? 0,
+    updatedAt:   now,
+  })
+  if (lineErr) { console.error('createBudgetLine line insert failed:', lineErr); throw lineErr }
+
+  const versionsResp = await db
+    .from('BudgetVersion').select('id').eq('budgetId', input.budgetId)
+  if (versionsResp.error) {
+    console.error('createBudgetLine versions fetch failed:', versionsResp.error)
+    throw versionsResp.error
+  }
+  const versions = (versionsResp.data ?? []) as { id: string }[]
+  if (versions.length > 0) {
+    const amountRows = versions.map(v => ({
+      id: crypto.randomUUID(),
+      lineId,
+      versionId: v.id,
+      qty: '0',
+      rate: '0',
+      notes: null,
+      updatedAt: now,
+    }))
+    const { error: amtErr } = await db.from('BudgetLineAmount').insert(amountRows)
+    if (amtErr) { console.error('createBudgetLine amounts insert failed:', amtErr); throw amtErr }
+  }
+  return lineId
+}
+
+// Create a manual Expense row. Receipt photo upload lands in PR 14.
+export async function createManualExpense(input: {
+  budgetId: string
+  lineId: string
+  amount: string
+  date: string                         // ISO 'YYYY-MM-DD'
+  vendor?: string | null
+  notes?: string | null
+  createdBy: string                    // ProjectMember.id pre-Auth
+}): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('Expense').insert({
+    id: crypto.randomUUID(),
+    budgetId:   input.budgetId,
+    lineId:     input.lineId,
+    source:     'manual',
+    amount:     input.amount,
+    date:       input.date,
+    units:      null,
+    unitRate:   null,
+    unit:       null,
+    vendor:     input.vendor ?? null,
+    notes:      input.notes ?? null,
+    receiptUrl: null,
+    timecardId: null,
+    createdBy:  input.createdBy,
+    updatedAt:  new Date().toISOString(),
+  })
+  if (error) { console.error('createManualExpense failed:', error); throw error }
+}
+
+// Update a BudgetVersion — name, state, lock metadata. Lock transitions
+// stamp lockedAt/lockedBy; unlock clears them.
+export async function updateBudgetVersion(
+  id: string,
+  patch: {
+    name?: string
+    state?: 'draft' | 'locked'
+    lockedBy?: string | null            // ProjectMember.id when locking
+  },
+): Promise<void> {
+  const db = createClient()
+  const fields: Record<string, unknown> = { updatedAt: new Date().toISOString() }
+  if (patch.name !== undefined) fields.name = patch.name
+  if (patch.state !== undefined) {
+    fields.state = patch.state
+    if (patch.state === 'locked') {
+      fields.lockedAt = new Date().toISOString()
+      fields.lockedBy = patch.lockedBy ?? null
+    } else {
+      fields.lockedAt = null
+      fields.lockedBy = null
+    }
+  } else if (patch.lockedBy !== undefined) {
+    fields.lockedBy = patch.lockedBy
+  }
+  const { error } = await db.from('BudgetVersion').update(fields).eq('id', id)
+  if (error) { console.error('updateBudgetVersion failed:', error); throw error }
+}
+
+// Duplicate a BudgetVersion — new BudgetVersion(kind='other') + deep-copy
+// every BudgetLineAmount from the source version. Variables and markups
+// scoped to the source version are NOT copied — keep the duplicate a
+// clean rate/qty starting point. Returns the new version id.
+export async function duplicateBudgetVersion(
+  srcVersionId: string,
+  name: string,
+): Promise<string> {
+  const db = createClient()
+  const srcResp = await db
+    .from('BudgetVersion').select('*').eq('id', srcVersionId).maybeSingle()
+  if (srcResp.error || !srcResp.data) {
+    console.error('duplicateBudgetVersion source fetch failed:', srcResp.error)
+    throw srcResp.error ?? new Error('Source version not found')
+  }
+  const src = srcResp.data as { id: string; budgetId: string; sortOrder: number }
+
+  const maxResp = await db
+    .from('BudgetVersion').select('sortOrder').eq('budgetId', src.budgetId)
+    .order('sortOrder', { ascending: false }).limit(1).maybeSingle()
+  const nextSort = ((maxResp.data as { sortOrder: number } | null)?.sortOrder ?? src.sortOrder) + 1
+
+  const newId = crypto.randomUUID()
+  const now = new Date().toISOString()
+  const { error: insErr } = await db.from('BudgetVersion').insert({
+    id: newId,
+    budgetId: src.budgetId,
+    name,
+    kind: 'other',
+    sortOrder: nextSort,
+    state: 'draft',
+    lockedAt: null,
+    lockedBy: null,
+    updatedAt: now,
+  })
+  if (insErr) { console.error('duplicateBudgetVersion insert failed:', insErr); throw insErr }
+
+  const amountsResp = await db
+    .from('BudgetLineAmount').select('lineId, qty, rate, notes').eq('versionId', srcVersionId)
+  if (amountsResp.error) {
+    console.error('duplicateBudgetVersion amounts fetch failed:', amountsResp.error)
+    throw amountsResp.error
+  }
+  const srcAmounts = (amountsResp.data ?? []) as { lineId: string; qty: string; rate: string; notes: string | null }[]
+  if (srcAmounts.length > 0) {
+    const newAmounts = srcAmounts.map(a => ({
+      id: crypto.randomUUID(),
+      lineId: a.lineId,
+      versionId: newId,
+      qty: a.qty,
+      rate: a.rate,
+      notes: a.notes,
+      updatedAt: now,
+    }))
+    const { error: copyErr } = await db.from('BudgetLineAmount').insert(newAmounts)
+    if (copyErr) { console.error('duplicateBudgetVersion amounts insert failed:', copyErr); throw copyErr }
+  }
+  return newId
+}
+
+// Delete a BudgetVersion. Refuses to delete the last remaining version
+// for a budget — a budget must always have at least one. Cascading
+// BudgetLineAmount / BudgetVariable / BudgetMarkup rows tied to this
+// version are removed by Postgres ON DELETE CASCADE (PR 4 schema).
+export async function deleteBudgetVersion(id: string): Promise<void> {
+  const db = createClient()
+  const versionResp = await db
+    .from('BudgetVersion').select('budgetId').eq('id', id).maybeSingle()
+  if (versionResp.error || !versionResp.data) {
+    console.error('deleteBudgetVersion lookup failed:', versionResp.error)
+    throw versionResp.error ?? new Error('Version not found')
+  }
+  const { budgetId } = versionResp.data as { budgetId: string }
+  const countResp = await db
+    .from('BudgetVersion').select('id', { count: 'exact', head: true }).eq('budgetId', budgetId)
+  if ((countResp.count ?? 0) <= 1) {
+    throw new Error('Cannot delete the last version — a budget must always have at least one version.')
+  }
+  const { error } = await db.from('BudgetVersion').delete().eq('id', id)
+  if (error) { console.error('deleteBudgetVersion failed:', error); throw error }
+}
+
 // ── ENTITIES (characters, locations, props) ──────────────
 
 export async function getEntities(projectId: string, type?: 'character' | 'location' | 'prop') {
