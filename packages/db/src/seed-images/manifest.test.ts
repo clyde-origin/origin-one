@@ -43,4 +43,9 @@ describe('MANIFEST', () => {
       if (e.surface === 'avatar') expect(e.projectKey).toBe('crew')
     }
   })
+
+  it('is populated with the expected count range', () => {
+    expect(MANIFEST.length).toBeGreaterThanOrEqual(150)
+    expect(MANIFEST.length).toBeLessThanOrEqual(220)
+  })
 })
