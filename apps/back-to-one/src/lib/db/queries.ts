@@ -1153,6 +1153,35 @@ export async function removeAvatar(userId: string): Promise<void> {
   }
 }
 
+// Crew Profile v2 (#22) — split mutations because phone is User-global and
+// notes/skills are ProjectMember-scoped. Each lands on the right table per
+// the DECISIONS "Crew profile fields — global vs project-scoped split" entry.
+
+export async function updateUserPhone(userId: string, phone: string | null): Promise<void> {
+  const db = createClient()
+  const { error } = await db
+    .from('User')
+    .update({ phone: phone?.trim() || null })
+    .eq('id', userId)
+  if (error) { console.error('updateUserPhone failed:', error); throw new Error(error.message) }
+}
+
+export async function updateProjectMemberProfile(
+  projectMemberId: string,
+  fields: { notes?: string | null; skills?: string[] },
+): Promise<void> {
+  const db = createClient()
+  const payload: Record<string, any> = {}
+  if ('notes' in fields)  payload.notes  = fields.notes?.trim() || null
+  if ('skills' in fields) payload.skills = fields.skills ?? []
+  if (Object.keys(payload).length === 0) return
+  const { error } = await db
+    .from('ProjectMember')
+    .update(payload)
+    .eq('id', projectMemberId)
+  if (error) { console.error('updateProjectMemberProfile failed:', error); throw new Error(error.message) }
+}
+
 // ── MOODBOARD TABS ────────────────────────────────────────
 
 export async function getMoodboardTabs(projectId: string) {

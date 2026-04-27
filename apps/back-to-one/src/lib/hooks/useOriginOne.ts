@@ -149,6 +149,40 @@ export function useCrew(projectId: string) {
   })
 }
 
+// Crew Profile v2 (#22) — phone is User-global so it invalidates every project's
+// crew query that includes this user (broad invalidation matching keys.crew).
+// Notes/skills mutations only invalidate the active project's crew query.
+export function useUpdateUserPhone(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userId, phone }: { userId: string; phone: string | null }) =>
+      db.updateUserPhone(userId, phone),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.crew(projectId) }),
+  })
+}
+
+export function useUpdateProjectMemberProfile(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ projectMemberId, fields }: {
+      projectMemberId: string
+      fields: { notes?: string | null; skills?: string[] }
+    }) => db.updateProjectMemberProfile(projectMemberId, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.crew(projectId) }),
+  })
+}
+
+// Avatar upload — invalidates the active project's crew query so the new
+// avatarUrl renders immediately on the next paint.
+export function useUploadAvatar(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ file, userId }: { file: File; userId: string }) =>
+      db.uploadAvatar(file, userId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.crew(projectId) }),
+  })
+}
+
 // Fetch CrewTimecard rows for the inclusive [weekStartISO, weekEndISO] range.
 // Caller provides both bounds (typically Monday and the following Sunday as
 // YYYY-MM-DD strings). The key includes the week start so switching weeks
