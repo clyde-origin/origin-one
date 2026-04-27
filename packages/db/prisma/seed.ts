@@ -453,6 +453,7 @@ async function main() {
   await prisma.thread.deleteMany()
   await prisma.entityAttachment.deleteMany()
   await prisma.propSourced.deleteMany()
+  await prisma.wardrobeSourced.deleteMany()
   await prisma.crewTimecard.deleteMany()
   await prisma.inventoryItem.deleteMany()
   await prisma.projectMember.deleteMany()
@@ -3469,6 +3470,37 @@ FADE TO BLACK.`,
     )
   }
 
+  // ── WardrobeSourced — production-side counterpart to Entity(type='wardrobe')
+  // Dual-write during the lift-and-break transition: Entity.metadata.status
+  // remains the read path until #16 swaps art/page.tsx. Same mapping as
+  // migration `20260427000000_add_wardrobe_sourced`. No isHero — wardrobe
+  // doesn't carry the hero concept (per DECISIONS "WardrobeSourced schema").
+  const allWardrobeEntities = await prisma.entity.findMany({
+    where: { type: 'wardrobe' },
+    select: { id: true, projectId: true, metadata: true },
+  })
+  const wardrobeSourcedRows = allWardrobeEntities.map(e => {
+    const status = ((e.metadata as any)?.status ?? null) as string | null
+    let mapped: 'needed' | 'sourced' | 'fitted' | 'ready' = 'needed'
+    if (status === 'sourced')        mapped = 'sourced'
+    else if (status === 'confirmed') mapped = 'ready'
+    else if (status === 'fitted')    mapped = 'fitted'
+    else if (status === 'needed')    mapped = 'needed'
+    // anything else → default 'needed'
+    return { projectId: e.projectId, entityId: e.id, status: mapped }
+  })
+  if (wardrobeSourcedRows.length > 0) {
+    await prisma.wardrobeSourced.createMany({ data: wardrobeSourcedRows })
+    const wbreakdown = wardrobeSourcedRows.reduce(
+      (acc, r) => { acc[r.status]++; return acc },
+      { needed: 0, sourced: 0, fitted: 0, ready: 0 } as Record<string, number>,
+    )
+    console.log(
+      `  WardrobeSourced: ${wardrobeSourcedRows.length} ` +
+      `(${wbreakdown.needed} needed, ${wbreakdown.sourced} sourced, ${wbreakdown.fitted} fitted, ${wbreakdown.ready} ready)`
+    )
+  }
+
   // ── EntityAttachment seed (location galleries) ───────────────────────────
   // Two production-side attachments per project on the first 1-2 Locations,
   // plus a single narrative-side attachment on one script Entity per project.
@@ -3641,6 +3673,7 @@ FADE TO BLACK.`,
     expenses:          await prisma.expense.count(),
     entityAttachments: await prisma.entityAttachment.count(),
     propSourced:       await prisma.propSourced.count(),
+    wardrobeSourced:   await prisma.wardrobeSourced.count(),
   }
 
   console.log('  ─────────────────────────────')
@@ -3678,6 +3711,7 @@ FADE TO BLACK.`,
   console.log(`  Expenses:           ${counts.expenses}`)
   console.log(`  EntityAttachments:  ${counts.entityAttachments}`)
   console.log(`  PropSourced:        ${counts.propSourced}`)
+  console.log(`  WardrobeSourced:    ${counts.wardrobeSourced}`)
   console.log('  ─────────────────────────────')
   console.log('  Done.\n')
 }
