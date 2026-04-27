@@ -1573,9 +1573,13 @@ export async function deleteCastRole(entityId: string): Promise<void> {
 }
 export async function getArtItems(projectId: string) {
   const db = createClient()
+  // Pull paired production-side rows alongside the Entity:
+  //   props    → PropSourced     (status: PropStatus, isHero: Boolean)
+  //   wardrobe → WardrobeSourced  (status: WardrobeStatus)
+  //   hmu      → still on Entity.metadata.status until HmuSourced ships
   const { data, error } = await db
     .from('Entity')
-    .select('*')
+    .select('*, PropSourced(*), WardrobeSourced(*)')
     .eq('projectId', projectId)
     .in('type', ['prop', 'wardrobe', 'hmu'])
     // Seed inserts art items via a single createMany, so all rows share the
@@ -1585,6 +1589,70 @@ export async function getArtItems(projectId: string) {
     .order('id', { ascending: true })
   if (error) throw error
   return data
+}
+
+// PropSourced / WardrobeSourced mutation helpers — called from the Art page
+// when the user changes a prop's status, toggles its hero flag, or changes a
+// wardrobe item's status. All ops are upserts keyed by entityId so newly-
+// created entities (which don't have a sourced row yet) get one created on
+// first edit.
+export async function upsertPropSourced(
+  entityId: string,
+  projectId: string,
+  fields: { status?: 'needed' | 'sourced' | 'ready'; isHero?: boolean },
+): Promise<void> {
+  const db = createClient()
+  const { data: existing, error: readErr } = await db
+    .from('PropSourced').select('id').eq('entityId', entityId).maybeSingle()
+  if (readErr) { console.error('upsertPropSourced read failed:', readErr); throw readErr }
+  if (existing?.id) {
+    const { error } = await db
+      .from('PropSourced')
+      .update({ ...fields, updatedAt: new Date().toISOString() })
+      .eq('id', existing.id)
+    if (error) { console.error('upsertPropSourced update failed:', error); throw error }
+  } else {
+    const { error } = await db
+      .from('PropSourced')
+      .insert({
+        id: crypto.randomUUID(),
+        projectId,
+        entityId,
+        status: fields.status ?? 'needed',
+        isHero: fields.isHero ?? false,
+        updatedAt: new Date().toISOString(),
+      })
+    if (error) { console.error('upsertPropSourced insert failed:', error); throw error }
+  }
+}
+
+export async function upsertWardrobeSourced(
+  entityId: string,
+  projectId: string,
+  fields: { status?: 'needed' | 'sourced' | 'fitted' | 'ready' },
+): Promise<void> {
+  const db = createClient()
+  const { data: existing, error: readErr } = await db
+    .from('WardrobeSourced').select('id').eq('entityId', entityId).maybeSingle()
+  if (readErr) { console.error('upsertWardrobeSourced read failed:', readErr); throw readErr }
+  if (existing?.id) {
+    const { error } = await db
+      .from('WardrobeSourced')
+      .update({ ...fields, updatedAt: new Date().toISOString() })
+      .eq('id', existing.id)
+    if (error) { console.error('upsertWardrobeSourced update failed:', error); throw error }
+  } else {
+    const { error } = await db
+      .from('WardrobeSourced')
+      .insert({
+        id: crypto.randomUUID(),
+        projectId,
+        entityId,
+        status: fields.status ?? 'needed',
+        updatedAt: new Date().toISOString(),
+      })
+    if (error) { console.error('upsertWardrobeSourced insert failed:', error); throw error }
+  }
 }
 
 export async function createArtItem(item: {

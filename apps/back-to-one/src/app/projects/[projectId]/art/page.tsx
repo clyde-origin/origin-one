@@ -2,7 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useProject, useArtItems, useCreateArtItem, useUpdateArtItem, useDeleteArtItem } from '@/lib/hooks/useOriginOne'
+import {
+  useProject,
+  useArtItems,
+  useCreateArtItem,
+  useUpdateArtItem,
+  useDeleteArtItem,
+  useUpsertPropSourced,
+  useUpsertWardrobeSourced,
+} from '@/lib/hooks/useOriginOne'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
@@ -16,7 +24,20 @@ import type { ThreadAttachmentType } from '@/types'
 // ── Types ───────────────────────────────────────────────
 
 type ArtEntityType = 'wardrobe' | 'prop' | 'hmu'
-type ArtStatus = 'needed' | 'sourced' | 'confirmed' | 'hero'
+
+// Per-type status enums. Props and Wardrobe come from their own typed
+// production-side tables (PropSourced/WardrobeSourced); HMU still rides on
+// Entity.metadata.status until its own future schema PR. The shared union
+// `ArtPillStatus` is what the pill component renders — `confirmed` (HMU's
+// loose value) labels as "Ready" for visual coherence with the typed types'
+// `ready` state. See DECISIONS.md "WardrobeSourced schema" entry.
+type PropStatus     = 'needed' | 'sourced' | 'ready'
+type WardrobeStatus = 'needed' | 'sourced' | 'fitted' | 'ready'
+type HmuStatus      = 'needed' | 'sourced' | 'confirmed'
+type ArtPillStatus  = 'needed' | 'sourced' | 'fitted' | 'ready' | 'confirmed'
+
+interface PropSourcedRow     { id: string; status: PropStatus;     isHero: boolean }
+interface WardrobeSourcedRow { id: string; status: WardrobeStatus }
 
 interface ArtEntity {
   id: string
@@ -24,7 +45,10 @@ interface ArtEntity {
   type: ArtEntityType
   name: string
   description: string | null
-  metadata: { status?: ArtStatus; imageUrl?: string; tags?: string[] } | null
+  metadata: { status?: HmuStatus; imageUrl?: string; tags?: string[] } | null
+  // Supabase nested-select returns these as either an object (1:1) or null.
+  PropSourced: PropSourcedRow | null
+  WardrobeSourced: WardrobeSourcedRow | null
   createdAt: string
   updatedAt: string
 }
@@ -37,26 +61,45 @@ const TABS: { key: ArtEntityType; label: string }[] = [
   { key: 'hmu',      label: 'HMU' },
 ]
 
-const STATUS_STYLES: Record<ArtStatus, { bg: string; border: string; color: string }> = {
+// Pill styling. `confirmed` reuses `ready`'s visual since it's the same
+// concept under different vocabularies (HMU's loose `confirmed` → labeled
+// "Ready" until HMU has its own typed enum).
+const STATUS_STYLES: Record<ArtPillStatus, { bg: string; border: string; color: string }> = {
   needed:    { bg: 'rgba(252,165,0,0.1)',   border: 'rgba(252,165,0,0.2)',   color: '#FCA500' },
   sourced:   { bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.18)',  color: '#22C55E' },
+  fitted:    { bg: 'rgba(167,139,250,0.10)', border: 'rgba(167,139,250,0.22)', color: '#A78BFA' },
+  ready:     { bg: 'rgba(103,232,249,0.08)', border: 'rgba(103,232,249,0.18)', color: '#67E8F9' },
   confirmed: { bg: 'rgba(103,232,249,0.08)', border: 'rgba(103,232,249,0.18)', color: '#67E8F9' },
-  hero:      { bg: 'rgba(224,123,57,0.1)',  border: 'rgba(224,123,57,0.22)', color: '#E07B39' },
 }
 
-const STATUS_LABELS: Record<ArtStatus, string> = {
-  needed: 'Needed', sourced: 'Sourced', confirmed: 'Confirmed', hero: 'Hero',
+const STATUS_LABELS: Record<ArtPillStatus, string> = {
+  needed: 'Needed', sourced: 'Sourced', fitted: 'Fitted', ready: 'Ready', confirmed: 'Ready',
 }
 
-const ALL_STATUSES: ArtStatus[] = ['needed', 'sourced', 'confirmed', 'hero']
+// Hero pill colors (orange — independent of status)
+const HERO_STYLE = { bg: 'rgba(224,123,57,0.1)', border: 'rgba(224,123,57,0.22)', color: '#E07B39' }
 
-function getStatus(entity: ArtEntity): ArtStatus {
-  return (entity.metadata?.status as ArtStatus) ?? 'needed'
+// Type-scoped filter chip lists. The pill component handles label-rename of
+// `confirmed → Ready` automatically via STATUS_LABELS.
+const STATUSES_BY_TYPE: Record<ArtEntityType, ArtPillStatus[]> = {
+  prop:     ['needed', 'sourced', 'ready'],
+  wardrobe: ['needed', 'sourced', 'fitted', 'ready'],
+  hmu:      ['needed', 'sourced', 'confirmed'],
 }
 
-// ── Status Badge ────────────────────────────────────────
+function getStatus(entity: ArtEntity): ArtPillStatus {
+  if (entity.type === 'prop')     return entity.PropSourced?.status     ?? 'needed'
+  if (entity.type === 'wardrobe') return entity.WardrobeSourced?.status ?? 'needed'
+  return (entity.metadata?.status as HmuStatus | undefined) ?? 'needed'
+}
 
-function ArtStatusBadge({ status }: { status: ArtStatus }) {
+function getIsHero(entity: ArtEntity): boolean {
+  return entity.type === 'prop' ? (entity.PropSourced?.isHero ?? false) : false
+}
+
+// ── Status Badge + Hero Badge ───────────────────────────
+
+function ArtStatusBadge({ status }: { status: ArtPillStatus }) {
   const s = STATUS_STYLES[status]
   return (
     <span className="font-mono uppercase" style={{
@@ -69,10 +112,23 @@ function ArtStatusBadge({ status }: { status: ArtStatus }) {
   )
 }
 
+function HeroBadge() {
+  return (
+    <span className="font-mono uppercase" style={{
+      fontSize: '0.42rem', letterSpacing: '0.1em',
+      padding: '3px 8px', borderRadius: 20,
+      background: HERO_STYLE.bg, border: `1px solid ${HERO_STYLE.border}`, color: HERO_STYLE.color,
+    }}>
+      Hero
+    </span>
+  )
+}
+
 // ── Art Item Card ───────────────────────────────────────
 
 function ArtItemCard({ item, accent, onTap, threadEntry }: { item: ArtEntity; accent: string; onTap: () => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
   const status = getStatus(item)
+  const isHero = getIsHero(item)
   const imgUrl = item.metadata?.imageUrl
   const tags = item.metadata?.tags ?? []
 
@@ -136,9 +192,10 @@ function ArtItemCard({ item, accent, onTap, threadEntry }: { item: ArtEntity; ac
         )}
       </div>
 
-      {/* Status */}
-      <div style={{ flexShrink: 0 }}>
+      {/* Status (+ Hero badge for prop with isHero=true) */}
+      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
         <ArtStatusBadge status={status} />
+        {isHero && <HeroBadge />}
       </div>
 
       <ThreadRowBadge entry={threadEntry} />
@@ -160,10 +217,13 @@ function ArtDetailSheet({
   const createArt = useCreateArtItem(projectId)
   const updateArt = useUpdateArtItem(projectId)
   const deleteArt = useDeleteArtItem(projectId)
+  const upsertProp = useUpsertPropSourced(projectId)
+  const upsertWardrobe = useUpsertWardrobeSourced(projectId)
 
   const [name, setName] = useState('')
   const [notes, setNotes] = useState('')
-  const [status, setStatus] = useState<ArtStatus>('needed')
+  const [status, setStatus] = useState<ArtPillStatus>('needed')
+  const [isHero, setIsHero] = useState(false)
   const [itemType, setItemType] = useState<ArtEntityType>('prop')
 
   useEffect(() => {
@@ -171,11 +231,13 @@ function ArtDetailSheet({
       setName(item.name)
       setNotes(item.description ?? '')
       setStatus(getStatus(item))
+      setIsHero(getIsHero(item))
       setItemType(item.type)
     } else {
       setName('')
       setNotes('')
       setStatus('needed')
+      setIsHero(false)
       setItemType('prop')
     }
   }, [item])
@@ -199,20 +261,42 @@ function ArtDetailSheet({
     if (!name.trim()) return
     haptic('light')
     if (isCreate) {
-      createArt.mutate({
-        projectId,
-        type: itemType,
-        name: name.trim(),
-        description: notes || undefined,
-        metadata: { status },
-      })
+      // Create the Entity first; on success, seed the matching production-side
+      // row (PropSourced / WardrobeSourced) so getStatus reads the typed value
+      // immediately. HMU writes to metadata.status as before.
+      createArt.mutate(
+        {
+          projectId,
+          type: itemType,
+          name: name.trim(),
+          description: notes || undefined,
+          metadata: itemType === 'hmu' ? { status: status as HmuStatus } : undefined,
+        },
+        {
+          onSuccess: (created: any) => {
+            if (!created?.id) return
+            if (itemType === 'prop') {
+              upsertProp.mutate({
+                entityId: created.id,
+                fields: { status: status as PropStatus, isHero },
+              })
+            } else if (itemType === 'wardrobe') {
+              upsertWardrobe.mutate({
+                entityId: created.id,
+                fields: { status: status as WardrobeStatus },
+              })
+            }
+          },
+        },
+      )
     } else if (item) {
+      // Edit-mode name/description always update Entity. Status is mutated
+      // separately via handleStatusTap (it routes to the right table by type).
       updateArt.mutate({
         id: item.id,
         fields: {
           name: name.trim(),
           description: notes || null,
-          metadata: { ...(item.metadata ?? {}), status },
         },
       })
     }
@@ -222,18 +306,45 @@ function ArtDetailSheet({
   function handleDelete() {
     if (!item) return
     haptic('warning')
+    // Entity delete cascades to PropSourced/WardrobeSourced via onDelete: Cascade
+    // on projectId — actually no, those cascade on Project, not Entity. SET NULL
+    // on Entity FK leaves orphan PropSourced rows. Acceptable for v1; cleanup
+    // job can sweep them later if it becomes a real concern.
     deleteArt.mutate(item.id)
     onClose()
   }
 
-  function handleStatusTap(s: ArtStatus) {
+  function handleStatusTap(s: ArtPillStatus) {
     setStatus(s)
-    if (!isCreate && item) {
+    if (isCreate || !item) return
+    if (item.type === 'prop') {
+      upsertProp.mutate({
+        entityId: item.id,
+        fields: { status: s as PropStatus },
+      })
+    } else if (item.type === 'wardrobe') {
+      upsertWardrobe.mutate({
+        entityId: item.id,
+        fields: { status: s as WardrobeStatus },
+      })
+    } else {
+      // HMU still writes through Entity.metadata until HmuSourced ships.
       updateArt.mutate({
         id: item.id,
-        fields: { metadata: { ...(item.metadata ?? {}), status: s } },
+        fields: { metadata: { ...(item.metadata ?? {}), status: s as HmuStatus } },
       })
     }
+  }
+
+  function handleHeroToggle() {
+    if (!item || item.type !== 'prop') return
+    const next = !isHero
+    setIsHero(next)
+    if (isCreate) return
+    upsertProp.mutate({
+      entityId: item.id,
+      fields: { isHero: next },
+    })
   }
 
   const inputStyle = {
@@ -363,11 +474,13 @@ function ArtDetailSheet({
           </div>
         )}
 
-        {/* Status pills */}
+        {/* Status pills — list scoped per type. Props show the 3-state
+            PropStatus, Wardrobe shows the 4-state WardrobeStatus (with
+            `fitted`), HMU shows the loose 3-state metadata vocabulary. */}
         <div>
           <label style={labelStyle}>Status</label>
           <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-            {ALL_STATUSES.map(s => {
+            {STATUSES_BY_TYPE[itemType].map(s => {
               const sel = status === s
               const st = STATUS_STYLES[s]
               return (
@@ -383,6 +496,28 @@ function ArtDetailSheet({
             })}
           </div>
         </div>
+
+        {/* Hero toggle — props only. Boolean separate from status workflow
+            (a prop can be in any state AND be the hero / featured prop). */}
+        {itemType === 'prop' && (
+          <div>
+            <label style={labelStyle}>Hero</label>
+            <button
+              onClick={handleHeroToggle}
+              className="font-mono uppercase"
+              style={{
+                fontSize: '0.44rem', letterSpacing: '0.08em',
+                padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
+                background: isHero ? HERO_STYLE.bg : 'transparent',
+                border: `1px solid ${isHero ? HERO_STYLE.border : 'rgba(255,255,255,0.09)'}`,
+                color: isHero ? HERO_STYLE.color : 'rgba(255,255,255,0.3)',
+                transition: 'all 0.14s',
+              }}
+            >
+              {isHero ? '★ Hero' : 'Mark as Hero'}
+            </button>
+          </div>
+        )}
 
         {/* Delete (edit mode only) */}
         {!isCreate && item && (
@@ -449,7 +584,9 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
   const threadByItemId = useThreadsByEntity(projectId, activeTab as ThreadAttachmentType)
 
   // Counts for the section label
-  const confirmed = tabItems.filter(i => getStatus(i) === 'confirmed').length
+  // Ready count covers both `ready` (prop/wardrobe typed enums) and
+  // `confirmed` (HMU's loose vocabulary) — they're the same logical state.
+  const ready  = tabItems.filter(i => { const s = getStatus(i); return s === 'ready' || s === 'confirmed' }).length
   const needed = tabItems.filter(i => getStatus(i) === 'needed').length
 
   return (
@@ -528,7 +665,7 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
               color: 'rgba(255,255,255,0.2)',
               marginBottom: 8, marginTop: 4, paddingLeft: 2,
             }}>
-              {tabItems.length} items · {confirmed} confirmed · {needed} needed
+              {tabItems.length} items · {ready} ready · {needed} needed
             </div>
 
             {/* Item cards */}
