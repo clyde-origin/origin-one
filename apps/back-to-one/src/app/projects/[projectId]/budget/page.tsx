@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  useProject, useBudget, useShootDays, useCrew, useMeId,
+  useProject, useBudget, useShootDays, useCrew, useMeId, useProjects,
   useCreateBudgetLine, useUpdateBudgetVersion,
   useDuplicateBudgetVersion, useDeleteBudgetVersion,
 } from '@/lib/hooks/useOriginOne'
@@ -18,6 +18,9 @@ import { haptic } from '@/lib/utils/haptics'
 import { LineDetailSheet } from '@/components/budget/LineDetailSheet'
 import { TopsheetDrawer } from '@/components/budget/TopsheetDrawer'
 import { TemplatePicker } from '@/components/budget/TemplatePicker'
+import { TagFilterStrip } from '@/components/budget/TagFilterStrip'
+import { BudgetSettingsSheet } from '@/components/budget/BudgetSettingsSheet'
+import { VariableInspectTooltip } from '@/components/budget/VariableInspectTooltip'
 import type { TopsheetVersionTotal } from '@/components/budget/TopsheetContent'
 import type {
   Budget,
@@ -446,20 +449,18 @@ function VariablesStrip({
 // ── LineRow ─────────────────────────────────────────────────────────────
 
 function LineRow({
-  line, computed, amount, onTap,
+  line, computed, amount, onTap, onFormulaTap,
 }: {
   line: BudgetLineWithAmounts
   computed: ComputedLine
   amount: BudgetLineAmount | undefined
   onTap: () => void
+  onFormulaTap?: (lineId: string) => void
 }) {
   const hasFormula = /[a-zA-Z_]/.test(amount?.qty ?? '')
 
   return (
-    <button
-      type="button"
-      onClick={() => { haptic('light'); onTap() }}
-      className="text-left"
+    <div
       style={{
         display: 'grid',
         gridTemplateColumns: '1fr auto',
@@ -468,10 +469,13 @@ function LineRow({
         padding: 10,
         borderRadius: 6,
         borderTop: '1px solid rgba(255,255,255,0.04)',
-        background: 'transparent', border: 'none', borderTopWidth: '1px',
         cursor: 'pointer',
         width: '100%', color: 'inherit',
+        position: 'relative',
       }}
+      onClick={() => { haptic('light'); onTap() }}
+      role="button"
+      tabIndex={0}
     >
       <div style={{ fontSize: 13, fontWeight: 500, color: '#fff', gridColumn: 1, gridRow: 1 }}>
         {line.description}
@@ -496,16 +500,24 @@ function LineRow({
         {/* qty */}
         <span style={{ color: '#a0a0b8' }}>
           {hasFormula ? (
-            <span
-              title={`= ${computed.qtyResolved}`}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                if (onFormulaTap) { haptic('light'); onFormulaTap(line.id) }
+              }}
+              className="font-mono"
               style={{
                 color: PHASE_HEX.prod,
                 borderBottom: `1px dotted ${PHASE_HEX.prod}80`,
-                cursor: 'help',
+                background: 'transparent', border: 'none', padding: 0,
+                fontSize: 'inherit', letterSpacing: 'inherit',
+                cursor: 'pointer',
               }}
+              title={`= ${computed.qtyResolved}`}
             >
               {amount?.qty}
-            </span>
+            </button>
           ) : (
             <>{computed.qtyResolved}</>
           )}
@@ -569,7 +581,7 @@ function LineRow({
           >ERR</span>
         )}
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -577,6 +589,7 @@ function LineRow({
 
 function AccountCard({
   account, lines, amountsByLine, computedByLine, subtotal, expanded, onToggle, onLineTap,
+  visibleLineIds, onFormulaTap,
 }: {
   account: BudgetAccount
   lines: BudgetLineWithAmounts[]
@@ -586,9 +599,19 @@ function AccountCard({
   expanded: boolean
   onToggle: () => void
   onLineTap: (lineId: string) => void
+  // PR 12 — when active filter narrows what's visible, only sum
+  // visible lines into the displayed subtotal. visibleLineIds=null means
+  // no filter active (use rollup subtotal as authoritative).
+  visibleLineIds: Set<string> | null
+  onFormulaTap?: (lineId: string) => void
 }) {
   const accountLines = lines.filter(l => l.accountId === account.id)
-  const total = subtotal?.total ?? 0
+  const visibleAccountLines = visibleLineIds
+    ? accountLines.filter(l => visibleLineIds.has(l.id))
+    : accountLines
+  const total = visibleLineIds
+    ? visibleAccountLines.reduce((s, l) => s + (computedByLine.get(l.id)?.total ?? 0), 0)
+    : subtotal?.total ?? 0
 
   return (
     <div
@@ -629,21 +652,86 @@ function AccountCard({
       </button>
       {expanded && accountLines.length > 0 && (
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', padding: '4px 6px 6px' }}>
-          {accountLines.map(line => {
-            const computed = computedByLine.get(line.id)
-            if (!computed) return null
-            return (
-              <LineRow
-                key={line.id}
-                line={line}
-                computed={computed}
-                amount={amountsByLine.get(line.id)}
-                onTap={() => onLineTap(line.id)}
-              />
-            )
-          })}
+          {visibleAccountLines.length === 0 ? (
+            <div
+              className="font-mono"
+              style={{ fontSize: 10, color: '#62627a', padding: '8px 10px', letterSpacing: '0.04em' }}
+            >No matching lines</div>
+          ) : (
+            visibleAccountLines.map(line => {
+              const computed = computedByLine.get(line.id)
+              if (!computed) return null
+              return (
+                <LineRow
+                  key={line.id}
+                  line={line}
+                  computed={computed}
+                  amount={amountsByLine.get(line.id)}
+                  onTap={() => onLineTap(line.id)}
+                  onFormulaTap={onFormulaTap}
+                />
+              )
+            })
+          )}
         </div>
       )}
+    </div>
+  )
+}
+
+// PR 12 — header overflow menu. Sits inline between the variables
+// strip and the body. Replace-in-place; NOT a nested modal.
+function OverflowMenu({
+  accent, onSettings, onTopsheet, onClose,
+}: {
+  accent: string
+  onSettings: () => void
+  onTopsheet: () => void
+  onClose: () => void
+}) {
+  return (
+    <div
+      style={{
+        margin: '4px 16px 10px',
+        padding: 12,
+        borderRadius: 14,
+        background: 'rgba(10,10,18,0.92)',
+        border: `1px solid ${accent}40`,
+        display: 'flex', flexDirection: 'column', gap: 6,
+      }}
+    >
+      <button
+        type="button"
+        onClick={onSettings}
+        className="text-left"
+        style={{
+          padding: '10px 12px', borderRadius: 8,
+          background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
+          color: '#fff', fontSize: 13, cursor: 'pointer',
+        }}
+      >Settings</button>
+      <button
+        type="button"
+        onClick={onTopsheet}
+        className="text-left"
+        style={{
+          padding: '10px 12px', borderRadius: 8,
+          background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
+          color: '#fff', fontSize: 13, cursor: 'pointer',
+        }}
+      >Topsheet</button>
+      <button
+        type="button"
+        onClick={onClose}
+        className="font-mono uppercase"
+        style={{
+          padding: '8px 12px', borderRadius: 8,
+          fontSize: 9, letterSpacing: '0.10em',
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.10)',
+          color: '#a0a0b8', cursor: 'pointer',
+        }}
+      >Cancel</button>
     </div>
   )
 }
@@ -804,6 +892,68 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
     })
   }, [budget])
 
+  // PR 12 — tag filter (AND semantics). Persists per-(project, budget)
+  // in localStorage; mirrors the account-expand pattern.
+  const tagFilterKey = budget ? `budget-tag-filter:${projectId}:${budget.id}` : null
+  const [activeTags, setActiveTags] = useState<string[]>([])
+  useEffect(() => {
+    if (!tagFilterKey) return
+    try {
+      const raw = window.localStorage.getItem(tagFilterKey)
+      if (raw) setActiveTags(JSON.parse(raw) as string[])
+    } catch { /* ignore */ }
+  }, [tagFilterKey])
+  const toggleTag = (tag: string) => {
+    setActiveTags(prev => {
+      const next = prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+      try {
+        if (tagFilterKey) window.localStorage.setItem(tagFilterKey, JSON.stringify(next))
+      } catch { /* ignore */ }
+      return next
+    })
+  }
+  const clearTags = () => {
+    setActiveTags([])
+    try {
+      if (tagFilterKey) window.localStorage.setItem(tagFilterKey, JSON.stringify([]))
+    } catch { /* ignore */ }
+  }
+
+  // PR 12 — unique tags across the budget, sorted by use count then name.
+  const allTags = useMemo<string[]>(() => {
+    if (!budget) return []
+    const counts = new Map<string, number>()
+    for (const line of budget.lines) {
+      for (const tag of line.tags) {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1)
+      }
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([tag]) => tag)
+  }, [budget])
+
+  // PR 12 — visible line ids under the active filter. AND semantics: a
+  // line passes only if its tags include every active filter tag.
+  // Returns null when no filter is active so children can short-circuit
+  // to the unfiltered rollup subtotals.
+  const visibleLineIds = useMemo<Set<string> | null>(() => {
+    if (!budget || activeTags.length === 0) return null
+    const set = new Set<string>()
+    for (const line of budget.lines) {
+      const lineTags = new Set(line.tags)
+      if (activeTags.every(t => lineTags.has(t))) set.add(line.id)
+    }
+    return set
+  }, [budget, activeTags])
+
+  const findFormulaLine = (lineId: string) => budget?.lines.find(l => l.id === lineId) ?? null
+  const findFormulaAmount = (lineId: string) => {
+    if (!budget || !activeVersionId) return undefined
+    const line = budget.lines.find(l => l.id === lineId)
+    return line?.amounts.find(a => a.versionId === activeVersionId)
+  }
+
   // localStorage-backed expand/collapse per (userId, budgetId). For PR 8
   // we don't have a stable userId pre-Auth; use projectId as the key.
   // Default: all collapsed. The seed has lots of accounts; collapsed-first
@@ -834,14 +984,31 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
     })
   }
 
-  // Layer state: 'list' (account list) | 'detail' (line detail sheet).
-  // PR 9 introduces 'detail'.
+  // Layer state: 'list' (account list) | 'detail' (line detail sheet)
+  // | 'settings' (PR 12 — budget settings sheet, replace-in-place).
   // PR 10 adds the topsheet drawer/panel — orthogonal: it can be open
-  // alongside list OR detail. On mobile it covers; on desktop it sits
-  // alongside as a side panel.
-  const [layer, setLayer] = useState<'list' | 'detail'>('list')
+  // alongside list / detail / settings. On mobile it covers; on
+  // desktop it sits alongside as a side panel.
+  const [layer, setLayer] = useState<'list' | 'detail' | 'settings'>('list')
   const [activeLineId, setActiveLineId] = useState<string | null>(null)
   const [topsheetOpen, setTopsheetOpen] = useState(false)
+
+  // PR 12 — overflow ("•••") menu state.
+  const [overflowOpen, setOverflowOpen] = useState(false)
+
+  // PR 12 — formula-chip inspect tooltip state.
+  const [tooltipLineId, setTooltipLineId] = useState<string | null>(null)
+
+  // PR 12 — clone-source label resolution. Look up the source project
+  // name from the projects list (already loaded for nav). When the
+  // source project was archived/deleted, name is undefined and the
+  // settings sheet falls back to a "no longer accessible" copy.
+  const { data: allProjects } = useProjects()
+  const cloneSourceProjectName = useMemo(() => {
+    if (!budget?.clonedFromProjectId || !allProjects) return null
+    const src = (allProjects as { id: string; name: string }[]).find(p => p.id === budget.clonedFromProjectId)
+    return src?.name ?? null
+  }, [budget?.clonedFromProjectId, allProjects])
   // Reset back to list when budget reloads with no active line (e.g., line deleted).
   useEffect(() => {
     if (layer === 'detail' && activeLineId && budget) {
@@ -938,6 +1105,21 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
             >{projectStatusLabel(project.status)}</span>
           </div>
         ) : ''}
+        right={budget ? (
+          <button
+            type="button"
+            onClick={() => { haptic('light'); setOverflowOpen(o => !o) }}
+            aria-label="Budget options"
+            style={{
+              width: 32, height: 32, borderRadius: 999,
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: '#a0a0b8', fontSize: 16,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >⋯</button>
+        ) : undefined}
         noBorder
       />
 
@@ -1073,7 +1255,31 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
               vars={evalCtx.variables}
             />
 
-            {/* Layer-switched body — list view OR detail sheet */}
+            {/* PR 12 — overflow menu (inline; replaces no surface, sits
+                between the variables strip and the body. NOT a nested
+                modal). */}
+            {overflowOpen && (
+              <OverflowMenu
+                accent={accent}
+                onSettings={() => { setOverflowOpen(false); setLayer('settings') }}
+                onTopsheet={() => { setOverflowOpen(false); setTopsheetOpen(true) }}
+                onClose={() => setOverflowOpen(false)}
+              />
+            )}
+
+            {/* Tag filter strip — appears in list view only. Hidden when
+                no tags exist anywhere in the budget. */}
+            {layer === 'list' && (
+              <TagFilterStrip
+                allTags={allTags}
+                active={activeTags}
+                accent={accent}
+                onToggle={toggleTag}
+                onClearAll={clearTags}
+              />
+            )}
+
+            {/* Layer-switched body — list / detail / settings */}
             {layer === 'detail' && activeLine ? (
               <LineDetailSheet
                 projectId={projectId}
@@ -1087,6 +1293,18 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
                 accent={accent}
                 currentMemberId={currentMemberId}
                 onBack={() => { setLayer('list'); setActiveLineId(null) }}
+              />
+            ) : layer === 'settings' ? (
+              <BudgetSettingsSheet
+                projectId={projectId}
+                projectName={project?.name ?? ''}
+                budget={budget}
+                evalCtx={evalCtx}
+                activeVersionId={activeVersionId}
+                cloneSourceProjectName={cloneSourceProjectName}
+                accent={accent}
+                onBack={() => setLayer('list')}
+                onDeleted={() => setLayer('list')}
               />
             ) : (
               <div
@@ -1108,11 +1326,33 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
                       expanded={expandedSet.has(a.id)}
                       onToggle={() => toggleExpand(a.id)}
                       onLineTap={(lineId) => { setActiveLineId(lineId); setLayer('detail') }}
+                      visibleLineIds={visibleLineIds}
+                      onFormulaTap={(lineId) => setTooltipLineId(lineId)}
                     />
                   )
                 })}
               </div>
             )}
+
+            {/* Variable inspect tooltip — page-level overlay. Triggered
+                by tapping a formula chip in any LineRow. */}
+            {tooltipLineId && (() => {
+              const line = findFormulaLine(tooltipLineId)
+              const amount = findFormulaAmount(tooltipLineId)
+              if (!line || !amount) return null
+              return (
+                <div style={{ position: 'fixed', left: 0, right: 0, bottom: '40%', zIndex: 60 }}>
+                  <VariableInspectTooltip
+                    expression={amount.qty}
+                    ctx={evalCtx}
+                    variables={budget.variables}
+                    versions={budget.versions}
+                    activeVersionId={activeVersionId}
+                    onDismiss={() => setTooltipLineId(null)}
+                  />
+                </div>
+              )
+            })()}
           </>
         )}
       </div>
