@@ -1073,6 +1073,85 @@ export async function uploadStoryboardImage(file: File, projectId: string, shotI
   return publicUrl
 }
 
+// Avatars bucket has permissive RLS pre-Auth (per DECISIONS Apr 27 entry).
+// Path convention: {userId}/{rand}.{ext}; random IDs make URLs unguessable.
+// On replace, best-effort-deletes the old object so we don't accumulate
+// orphan storage objects per user. Updates User.avatarUrl atomically with
+// the new public URL — caller doesn't need a separate update call.
+const AVATARS_BUCKET = 'avatars'
+
+export async function uploadAvatar(file: File, userId: string): Promise<string> {
+  const db = createClient()
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const rand = crypto.randomUUID()
+  const path = `${userId}/${rand}.${ext}`
+
+  // Read existing avatarUrl so we can clean up the old object after upload.
+  const { data: existing } = await db
+    .from('User').select('avatarUrl').eq('id', userId).single()
+  const oldUrl = (existing as any)?.avatarUrl as string | null | undefined
+
+  const { error: uploadErr } = await db.storage.from(AVATARS_BUCKET).upload(path, file, {
+    contentType: file.type || `image/${ext}`,
+    upsert: false,
+  })
+  if (uploadErr) {
+    console.error('uploadAvatar storage failed:', uploadErr)
+    if (uploadErr.message?.includes('Bucket not found')) {
+      throw new Error('Avatars bucket not configured. Run `pnpm --filter @origin-one/db exec prisma migrate deploy`.')
+    }
+    if (uploadErr.message?.includes('mime type')) {
+      throw new Error('File type not supported. Use PNG, JPEG, or WebP.')
+    }
+    if (uploadErr.message?.includes('size')) {
+      throw new Error('File too large. Maximum 5 MB.')
+    }
+    throw new Error(uploadErr.message || 'Avatar upload failed. Please try again.')
+  }
+
+  const { data: { publicUrl } } = db.storage.from(AVATARS_BUCKET).getPublicUrl(path)
+
+  const { error: updateErr } = await db
+    .from('User').update({ avatarUrl: publicUrl }).eq('id', userId)
+  if (updateErr) {
+    // Best-effort: remove the just-uploaded object so we don't strand it.
+    await db.storage.from(AVATARS_BUCKET).remove([path]).catch(() => {})
+    console.error('uploadAvatar User.avatarUrl update failed:', updateErr)
+    throw new Error(updateErr.message || 'Failed to record avatar.')
+  }
+
+  // Clean up the old object — best effort. Orphan storage objects are less
+  // bad than missing avatars, so we never throw here.
+  if (oldUrl) {
+    const match = oldUrl.match(/\/avatars\/(.+)$/)
+    if (match) {
+      await db.storage.from(AVATARS_BUCKET).remove([match[1]]).catch(() => {})
+    }
+  }
+
+  return publicUrl
+}
+
+export async function removeAvatar(userId: string): Promise<void> {
+  const db = createClient()
+  const { data: existing } = await db
+    .from('User').select('avatarUrl').eq('id', userId).single()
+  const oldUrl = (existing as any)?.avatarUrl as string | null | undefined
+
+  if (oldUrl) {
+    const match = oldUrl.match(/\/avatars\/(.+)$/)
+    if (match) {
+      await db.storage.from(AVATARS_BUCKET).remove([match[1]]).catch(() => {})
+    }
+  }
+  const { error } = await db
+    .from('User').update({ avatarUrl: null }).eq('id', userId)
+  if (error) {
+    console.error('removeAvatar update failed:', error)
+    throw new Error(error.message || 'Failed to clear avatar.')
+  }
+}
+
 // ── MOODBOARD TABS ────────────────────────────────────────
 
 export async function getMoodboardTabs(projectId: string) {
