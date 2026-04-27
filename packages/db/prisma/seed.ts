@@ -3,6 +3,7 @@
 // Wipes all existing data and inserts the six Origin Point seed projects clean.
 
 import { PrismaClient, Role } from '@prisma/client'
+import { computeExpenseUnits } from '@origin-one/schema'
 
 const prisma = new PrismaClient()
 
@@ -2537,6 +2538,7 @@ FADE TO BLACK.`,
     date: Date
     hours: number
     rate: number | null
+    rateUnit: 'day' | 'hour' | null
     description: string
     status: TStatus | 'reopened'
     submittedAt?: Date
@@ -2625,6 +2627,9 @@ FADE TO BLACK.`,
         date: relativeDate(dayOffset),
         hours,
         rate,
+        // All seed rates are day rates (lowest rate is $250 — production-realistic
+        // day rates, not hourly). When rate is null, rateUnit is null too.
+        rateUnit: rate !== null ? 'day' : null,
         description,
         status,
       }
@@ -2655,12 +2660,14 @@ FADE TO BLACK.`,
     const dirDays = pickN(dirDayPool, opts.clydeDirectorCount, rng)
     for (let i = 0; i < dirDays.length; i++) {
       const d = dirDays[i]
+      const dirRate = rng() < 0.85 ? rateFor('Director', tier) : null   // Clyde almost always logs his rate
       rows.push({
         projectId: project.id,
         crewMemberId: clydeDir.id,
         date: relativeDate(d),
         hours: randomHours(rng, 8, 12),
-        rate: rng() < 0.85 ? rateFor('Director', tier) : null, // Clyde almost always logs his rate
+        rate: dirRate,
+        rateUnit: dirRate !== null ? 'day' : null,
         description: descriptionFor('Director', i + 7 + Math.abs(d)),
         status: statusForDate(-d, rng),
       })
@@ -2680,12 +2687,14 @@ FADE TO BLACK.`,
     const prodDays = pickN(prodDayPool.length > 0 ? prodDayPool : [-2, -1, 0], opts.clydeProducerCount, rng)
     for (let i = 0; i < prodDays.length; i++) {
       const d = prodDays[i]
+      const prodRate = rng() < 0.85 ? rateFor('Producer', tier) : null
       rows.push({
         projectId: project.id,
         crewMemberId: clydeProd.id,
         date: relativeDate(d),
         hours: randomHours(rng, 6, 10),
-        rate: rng() < 0.85 ? rateFor('Producer', tier) : null,
+        rate: prodRate,
+        rateUnit: prodRate !== null ? 'day' : null,
         description: descriptionFor('Producer', i + 13 + Math.abs(d)),
         status: statusForDate(-d, rng),
       })
@@ -3358,26 +3367,28 @@ FADE TO BLACK.`,
   ] })
 
   // Expenses — 12 from approved IVV timecards (mapped round-robin to crew labor lines).
-  // computeExpenseUnits not yet available (lands PR 6); inline equivalent for day-unit
-  // is units=1, unit='DAY', amount=unitRate. Safe because all backfilled timecards
-  // are 'day' rateUnit per feat/rate-unit-schema (#47).
+  // Uses computeExpenseUnits from @origin-one/schema (PR 6) — single source of
+  // truth for the rate-unit math; same helper that powers the EntryCard total
+  // computation and the future timecard-to-expense flow (PR 8).
   const ivvCrewLines = [
     'Director of Photography', '1st AC', 'Gaffer', 'Key Grip', 'Sound Mixer', 'Boom Operator',
   ].map(d => linesByDescription.get(d)!).filter(Boolean)
 
   const approvedIvvTimecards = await prisma.crewTimecard.findMany({
-    where: { projectId: p3.id, status: 'approved', rate: { not: null } },
-    select: { id: true, date: true, rate: true, crewMemberId: true, approvedBy: true },
+    where: { projectId: p3.id, status: 'approved', rate: { not: null }, rateUnit: { not: null } },
+    select: { id: true, date: true, rate: true, hours: true, rateUnit: true, crewMemberId: true, approvedBy: true },
     orderBy: { date: 'asc' },
     take: 12,
   })
   const expenseRowsFromTimecards = approvedIvvTimecards.map((t, i) => {
     const line = ivvCrewLines[i % ivvCrewLines.length]
     const rate = Number(t.rate)
+    const { units, unit } = computeExpenseUnits(t.rateUnit!, Number(t.hours))
+    const amount = units * rate
     return {
       budgetId: ivvBudget.id, lineId: line.id, source: 'timecard' as const,
-      amount: rate.toFixed(2), date: t.date,
-      units: '1.00', unitRate: rate.toFixed(2), unit: 'DAY' as const,
+      amount: amount.toFixed(2), date: t.date,
+      units: units.toFixed(2), unitRate: rate.toFixed(2), unit,
       timecardId: t.id, createdBy: t.approvedBy ?? clydeOnIvv.id,
     }
   })
