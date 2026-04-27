@@ -4,6 +4,9 @@
 
 import { PrismaClient, Role } from '@prisma/client'
 import { computeExpenseUnits, DEFAULT_AICP_ACCOUNTS } from '@origin-one/schema'
+import { MANIFEST } from '../src/seed-images/manifest'
+import { localFilePath, storagePath } from '../src/seed-images/paths'
+import { uploadSeedImage, clearBucket } from '../src/seed-images/uploader'
 
 const prisma = new PrismaClient()
 
@@ -466,6 +469,12 @@ async function main() {
   await prisma.user.deleteMany()
   await prisma.team.deleteMany()
   console.log('  Cleared\n')
+
+  console.log('  Clearing storage buckets…')
+  await clearBucket('entity-attachments')
+  await clearBucket('moodboard')
+  await clearBucket('avatars')
+  console.log('  Buckets cleared.\n')
 
   // ── Team ──────────────────────────────────────────────────────────────────
   const team = await prisma.team.create({ data: { name: 'Origin Point' } })
@@ -1836,6 +1845,14 @@ FADE TO BLACK.`,
     data: { teamId: team.id, name: 'The Weave', status: 'production', client: 'B Story', type: 'narrative', color: '#6B3FA0' },
   })
 
+  const PROJECT_ID_BY_KEY: Record<'p1'|'p2'|'p3'|'p4'|'p5'|'p6', string> = {
+    p1: p1.id, p2: p2.id, p3: p3.id, p4: p4.id, p5: p5.id, p6: p6.id,
+  }
+  function projectIdByKey(key: 'p1'|'p2'|'p3'|'p4'|'p5'|'p6'|'crew'): string {
+    if (key === 'crew') throw new Error('projectIdByKey called with "crew"')
+    return PROJECT_ID_BY_KEY[key]
+  }
+
   // Scene 01 — Apogee: Eli. EXT. Day. Desert Flats, Mojave. DONE.
   const p6s1 = await prisma.scene.create({ data: {
     projectId: p6.id, sceneNumber: '01', title: 'Apogee — Eli', sortOrder: 1,
@@ -2139,6 +2156,35 @@ FADE TO BLACK.`,
     { projectId: p6.id, tabId: p6mbTab.id, title: 'Score Reference',       cat: 'music',  note: 'Bobby Krlic — Midsommar. Spare, unsettling beauty.',                      sortOrder: 4 },
     { projectId: p6.id, tabId: p6mbTab.id, title: 'FRACTURE Universe',     cat: 'tone',   note: 'Part of the B Story FRACTURE multiverse. Threads weave into larger work.', sortOrder: 5 },
   ]})
+
+  // ── Seed images: MoodboardRef ────────────────────────────────────────────
+  console.log('  Uploading moodboard images…')
+  const moodboardEntries = MANIFEST.filter((e) => e.surface === 'moodboard')
+  let moodboardUploaded = 0, moodboardMissing = 0
+  for (const entry of moodboardEntries) {
+    if (entry.projectKey === 'crew') continue
+    const projectId = projectIdByKey(entry.projectKey)
+    const ref = await prisma.moodboardRef.findFirst({
+      where: { projectId, title: entry.matchByName },
+    })
+    if (!ref) {
+      console.warn(`    ! moodboard ref not found: ${entry.projectKey}/${entry.matchByName}`)
+      moodboardMissing++
+      continue
+    }
+    const sp = storagePath(entry, projectId)
+    await uploadSeedImage({
+      localRelativePath: localFilePath(entry),
+      bucket: 'moodboard',
+      storagePath: sp,
+    })
+    await prisma.moodboardRef.update({
+      where: { id: ref.id },
+      data: { imageUrl: sp },
+    })
+    moodboardUploaded++
+  }
+  console.log(`  Moodboard images: uploaded ${moodboardUploaded}, missing-row ${moodboardMissing}`)
 
   // ══════════════════════════════════════════════════════════════════════════
   // P7 — THREADS
