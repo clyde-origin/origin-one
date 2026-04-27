@@ -797,6 +797,30 @@ export function useDeleteArtItem(projectId: string) {
   })
 }
 
+// PropSourced / WardrobeSourced upserts — invalidate the art-items query
+// so a status change re-renders pills + filter counts immediately.
+export function useUpsertPropSourced(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ entityId, fields }: {
+      entityId: string
+      fields: { status?: 'needed' | 'sourced' | 'ready'; isHero?: boolean }
+    }) => db.upsertPropSourced(entityId, projectId, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.artItems(projectId) }),
+  })
+}
+
+export function useUpsertWardrobeSourced(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ entityId, fields }: {
+      entityId: string
+      fields: { status?: 'needed' | 'sourced' | 'fitted' | 'ready' }
+    }) => db.upsertWardrobeSourced(entityId, projectId, fields),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.artItems(projectId) }),
+  })
+}
+
 // ── MOODBOARD ──────────────────────────────────────────────
 
 export function useMoodboardTabs(projectId: string) {
