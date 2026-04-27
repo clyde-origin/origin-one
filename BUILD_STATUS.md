@@ -1,7 +1,7 @@
 # Back to One — Build Status
 Update this file at the end of every Claude Code session. This is the single source of truth for where the build actually is.
 
-Last updated: April 27, 2026 (post PR #56 merge — Art page typed-status swap closed #14 + #16)
+Last updated: April 27, 2026 (post PR #57 merge — Crew Profile v2 schema #20 closed)
 
 ---
 
@@ -90,7 +90,7 @@ Each row is a complete PR (schema or UI). Strict order — next row doesn't star
 
 | # | Feature | Status | Notes |
 |---|---|---|---|
-| 20 | Crew Profile v2 schema | ⬜ | `phone`/`avatarUrl` on User (global); `notes`/`skills` on ProjectMember (project-scoped) |
+| 20 | Crew Profile v2 schema | ✅ | PR #57 (Apr 27). Migration `20260427010000` adds `User.phone` (global) + `ProjectMember.notes` + `ProjectMember.skills String[]` (project-scoped per the global-vs-role test in DECISIONS). Pure additive — no backfill. Seed sprinkles demo data on 7 well-known crew with realistic phones + 3-4 skills each, plus 4 project-scoped notes; most others stay sparse so empty states get exercised in #22. |
 | 21 | `avatars` bucket + helper | ⬜ | New bucket ships with auth-check RLS. `uploadAvatar` helper |
 | 22 | Crew Profile v2 UI | ⬜ | phone/notes/skills edit + avatar upload. Draft HTML reference first |
 
