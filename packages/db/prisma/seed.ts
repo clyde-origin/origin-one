@@ -3,7 +3,7 @@
 // Wipes all existing data and inserts the six Origin Point seed projects clean.
 
 import { PrismaClient, Role } from '@prisma/client'
-import { computeExpenseUnits } from '@origin-one/schema'
+import { computeExpenseUnits, DEFAULT_AICP_ACCOUNTS } from '@origin-one/schema'
 
 const prisma = new PrismaClient()
 
@@ -3191,28 +3191,11 @@ FADE TO BLACK.`,
     data:  { rateSourceVersionId: committedV.id },
   })
 
-  // 14 AICP accounts — ATL (AA, BB) above, BTL (A–L) below per Q3 refinement.
-  type AccountSpec = { code: string; name: string; section: 'ATL' | 'BTL'; sortOrder: number }
-  const aicpAccounts: AccountSpec[] = [
-    // ATL
-    { code: 'AA', name: 'Director / Creative Fees',             section: 'ATL', sortOrder:   1 },
-    { code: 'BB', name: 'Producer / Production Manager',         section: 'ATL', sortOrder:   2 },
-    // BTL
-    { code: 'A',  name: 'Pre-Production Wages',                  section: 'BTL', sortOrder:  10 },
-    { code: 'B',  name: 'Shooting Crew Labor',                   section: 'BTL', sortOrder:  20 },
-    { code: 'C',  name: 'Production Wrap Wages',                 section: 'BTL', sortOrder:  30 },
-    { code: 'D',  name: 'Locations & Travel',                    section: 'BTL', sortOrder:  40 },
-    { code: 'E',  name: 'Props · Wardrobe · HMU',                section: 'BTL', sortOrder:  50 },
-    { code: 'F',  name: 'Studio Rental & Expenses',              section: 'BTL', sortOrder:  60 },
-    { code: 'G',  name: 'Set Construction',                      section: 'BTL', sortOrder:  70 },
-    { code: 'H',  name: 'Equipment (Camera · Lighting · Grip)',  section: 'BTL', sortOrder:  80 },
-    { code: 'I',  name: 'Media / Data Management',               section: 'BTL', sortOrder:  90 },
-    { code: 'J',  name: 'Talent & Talent Expenses',              section: 'BTL', sortOrder: 100 },
-    { code: 'K',  name: 'Editorial · Post · Music',              section: 'BTL', sortOrder: 110 },
-    { code: 'L',  name: 'Insurance · Misc',                      section: 'BTL', sortOrder: 120 },
-  ]
+  // 14 AICP accounts — imported from @origin-one/schema. Single source of
+  // truth: same fixture is used by the (future) "Start from default AICP
+  // template" affordance in TemplatePicker (PR 11).
   const accountByCode = new Map<string, { id: string }>()
-  for (const a of aicpAccounts) {
+  for (const a of DEFAULT_AICP_ACCOUNTS) {
     const created = await prisma.budgetAccount.create({ data: {
       budgetId: ivvBudget.id, code: a.code, name: a.name, section: a.section, sortOrder: a.sortOrder,
     } })
@@ -3425,7 +3408,7 @@ FADE TO BLACK.`,
   })) })
 
   console.log(`  Budgets:    1 (In Vino Veritas — ` +
-    `${aicpAccounts.length} accounts, ${lineSpecs.length} lines, ` +
+    `${DEFAULT_AICP_ACCOUNTS.length} accounts, ${lineSpecs.length} lines, ` +
     `${expenseRowsFromTimecards.length} timecard + ${manualExpenses.length} manual expenses)`)
 
   // ── PropSourced — production-side counterpart to Entity(type='prop') ────

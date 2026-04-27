@@ -27,3 +27,4 @@ export {
   BudgetMarkup, MarkupTarget,
 } from "./budget";
 export { Expense, ExpenseSource } from "./expense";
+export { DEFAULT_AICP_ACCOUNTS, type AicpAccountSpec } from "./budget-template";
