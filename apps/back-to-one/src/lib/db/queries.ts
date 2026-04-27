@@ -1858,15 +1858,17 @@ export async function createBudgetFromTemplate(input: {
   if (accErr) { console.error('createBudgetFromTemplate accounts failed:', accErr); throw accErr }
 
   // 4. Two default markups — versionId=null applies to all versions.
-  //    Contingency 10% on the Insurance · Misc subtotal (account L);
-  //    Agency Fee 5% on grand total. Producer can edit/delete in PR 12 settings.
-  const insuranceAccount = accountRows.find(a => a.code === 'L')
+  //    Both target grand total: Contingency 10% + Agency Fee 5%. Schema
+  //    lacks a sectionSubtotal MarkupTarget, so the closest match to
+  //    "10% of the full budget" is grandTotal (account L would only
+  //    cover Insurance · Misc, ~$500 instead of producer-expected ~$20K).
+  //    Producer can rescope via PR 12 settings.
   const markupRows = [
     {
       id: crypto.randomUUID(), budgetId, versionId: null,
       name: 'Contingency', percent: '0.10',
-      appliesTo: 'accountSubtotal' as const,
-      accountId: insuranceAccount?.id ?? null,
+      appliesTo: 'grandTotal' as const,
+      accountId: null,
       sortOrder: 1, updatedAt: now,
     },
     {
