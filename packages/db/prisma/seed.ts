@@ -3668,6 +3668,31 @@ FADE TO BLACK.`,
   }
   console.log(`  EntityAttachments: uploaded ${eaUploaded}, missing-row ${eaMissing}`)
 
+  // ── Seed images: User avatars ────────────────────────────────────────────
+  console.log('  Uploading crew avatars…')
+  const avatarEntries = MANIFEST.filter((e) => e.surface === 'avatar')
+  let avatarUploaded = 0, avatarMissing = 0
+  for (const entry of avatarEntries) {
+    const user = await prisma.user.findFirst({ where: { name: entry.matchByName } })
+    if (!user) {
+      console.warn(`    ! user not found: ${entry.matchByName}`)
+      avatarMissing++
+      continue
+    }
+    const sp = storagePath(entry, user.id)  // '<userId>/<slug>.jpg'
+    await uploadSeedImage({
+      localRelativePath: localFilePath(entry),
+      bucket: 'avatars',
+      storagePath: sp,
+    })
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { avatarUrl: sp },
+    })
+    avatarUploaded++
+  }
+  console.log(`  Avatars: uploaded ${avatarUploaded}, missing-user ${avatarMissing}`)
+
   // ── Final count ───────────────────────────────────────────────────────────
   const counts = {
     projects:          await prisma.project.count(),
