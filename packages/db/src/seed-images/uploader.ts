@@ -35,18 +35,23 @@ export async function uploadSeedImage(args: {
     )
   })
 
-  const { error } = await client()
-    .storage
-    .from(args.bucket)
-    .upload(args.storagePath, bytes, {
-      contentType: 'image/jpeg',
-      upsert: true,
-    })
-
-  if (error) {
-    throw new Error(`Storage upload failed (${args.bucket}/${args.storagePath}): ${error.message}`)
+  // Retry up to 3 times with 2-second back-off for transient gateway errors.
+  let lastError: string = ''
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const { error } = await client()
+      .storage
+      .from(args.bucket)
+      .upload(args.storagePath, bytes, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      })
+    if (!error) return args.storagePath
+    lastError = error.message
+    const isTransient = /gateway|timeout|network|503|502/i.test(error.message)
+    if (!isTransient || attempt === 3) break
+    await new Promise(r => setTimeout(r, 2000 * attempt))
   }
-  return args.storagePath
+  throw new Error(`Storage upload failed (${args.bucket}/${args.storagePath}): ${lastError}`)
 }
 
 // Wipes all objects in a bucket so seeding starts from a clean slate.
