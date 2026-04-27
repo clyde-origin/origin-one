@@ -1,7 +1,7 @@
 # Back to One — Build Status
 Update this file at the end of every Claude Code session. This is the single source of truth for where the build actually is.
 
-Last updated: April 27, 2026 (post PR #53 merge — PropSourced schema #13 closed)
+Last updated: April 27, 2026 (post PR #55 merge — WardrobeSourced schema #15 closed)
 
 ---
 
@@ -75,7 +75,7 @@ Each row is a complete PR (schema or UI). Strict order — next row doesn't star
 
 | # | Feature | Status | Notes |
 |---|---|---|---|
-| 15 | WardrobeSourced schema | ⬜ | Same shape as PropSourced with its own status enum |
+| 15 | WardrobeSourced schema | ✅ | PR #55 (Apr 27). Migration `20260427000000` adds `WardrobeStatus` enum (4 states — `needed/sourced/fitted/ready`; adds `fitted` beat that props don't have) + `WardrobeSourced` table with 1:1 FK to Entity (`@unique` on nullable `entityId`). No `isHero` per design (hero is a prop-only concept). 12 wardrobe entities backfilled cleanly (10 ready, 1 sourced, 1 needed). HMU stays on `Entity.metadata.status` for now per DECISIONS — promote when a real production needs it. |
 | 16 | WardrobeSourced UI on Wardrobe page | ⬜ | Mirror PropSourced UI pattern |
 
 ### Inventory
