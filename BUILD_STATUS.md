@@ -1,7 +1,7 @@
 # Back to One — Build Status
 Update this file at the end of every Claude Code session. This is the single source of truth for where the build actually is.
 
-Last updated: April 26, 2026 (post PR #50 merge — EntityAttachment polymorphic gallery #11 closed)
+Last updated: April 27, 2026 (post PR #53 merge — PropSourced schema #13 closed)
 
 ---
 
@@ -68,7 +68,7 @@ Each row is a complete PR (schema or UI). Strict order — next row doesn't star
 | # | Feature | Status | Notes |
 |---|---|---|---|
 | 12 | Department enum conversion | ⬜ | Solo PR, irreversible |
-| 13 | PropSourced schema | ⬜ | 1:1 FK to `Entity(type='prop')` per Location precedent. Lift-and-break migration: `metadata.status` → typed `PropStatus` enum column on PropSourced |
+| 13 | PropSourced schema | ✅ | PR #53 (Apr 27). Migration `20260426210000` adds `PropStatus` enum (needed/sourced/ready) + `PropSourced` table with 1:1 FK to Entity (`@unique` on nullable `entityId`) + `isHero Boolean`. Lift mapping: `confirmed → ready` (rename), `hero → ready+isHero=true` (split, defensive — zero seed rows). 18 prop entities backfilled (1 needed, 2 sourced, 14 ready, 1 default-needed for Lumière Serum). New first-class DECISIONS entry: "Narrative → Production cardinality rule (1:1 vs 1:N)" — names the test for all future narrative→production patterns. Smoke-tested `@unique` constraint empirically (rejects duplicate non-null entityId; accepts multiple NULLs). **Op note:** original deploy partially backfilled 7 of 18 rows (cause unclear — possibly Supabase pooler tx edge case); idempotent `LEFT JOIN ps.id IS NULL` guard made recovery a one-liner re-run. |
 | 14 | PropSourced UI on Art page | ⬜ | Drop the `metadata.status` read path. Mirror Location UI pattern |
 
 ### Wardrobe — narrative→production pattern
