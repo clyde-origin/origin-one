@@ -122,8 +122,8 @@ Supabase Storage state (see root `CLAUDE.md` for the discipline — bucket setup
 |---|---|---|---|
 | `moodboard` | Prisma migration `20260426170000_storage_discipline_moodboard_storyboard` | Permissive (anon) — tightens on Auth day | `uploadMoodboardImage`, `deleteMoodboardRef` in `queries.ts` |
 | `storyboard` | Prisma migration `20260426170000_storage_discipline_moodboard_storyboard` | Permissive (anon) — tightens on Auth day | `uploadStoryboardImage` in `queries.ts` |
-| `locations` | Upcoming — ships with Location images feature | Auth-check from day one | Upcoming — `uploadLocationImage` |
-| `avatars` | Upcoming — ships with Crew Profile v2 avatar feature | Auth-check from day one | Upcoming — avatar upload helper |
+| `entity-attachments` | Prisma migration `20260426190000_add_entity_attachment` | Permissive (anon) — tightens on Auth day; see DECISIONS "EntityAttachment storage" | `uploadEntityAttachment`, `deleteEntityAttachment` in `queries.ts` |
+| `avatars` | Prisma migration `20260427020000_add_avatars_bucket` | Permissive (anon) — tightens on Auth day; see DECISIONS "Avatars storage" | `uploadAvatar`, `removeAvatar` in `queries.ts` |
 
 Schema columns persisting Storage URLs: `User.avatarUrl`, `Shot.imageUrl`, `MoodboardRef.imageUrl`, `Location.imageUrl`, `Talent.imageUrl`. Some have upload paths wired (Shot via storyboard, MoodboardRef via moodboard); others are dormant pending feature work.
 

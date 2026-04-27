@@ -519,3 +519,23 @@ The `thread-context.ts` file now contains six explicit-enumeration sites for eac
 **Revisit trigger:**
 - A real production needs a field that's currently project-scoped to behave globally (or vice-versa) — apply the test ("does this travel with the person, the role, or the team?") and migrate.
 - Skills become structured (skill levels, certifications, expiry dates) — promote to a dedicated `Skill` table linked to `User` or `ProjectMember`.
+
+---
+
+### Avatars storage — v1 unsigned public URLs, RLS deferred
+
+**Decision:** The `avatars` storage bucket ships with permissive RLS (public SELECT, anon INSERT/UPDATE/DELETE) — same posture as `entity-attachments` and the existing `moodboard`/`storyboard` buckets — NOT the `auth.role() = 'authenticated'` pattern that CLAUDE.md "Storage" lists as the default for new buckets. Public URLs are unsigned, never expire, and rely on random per-file IDs in the storage path (`{userId}/{cuid}.{ext}`) for unguessability.  
+**Date:** April 27, 2026  
+**Rationale:**
+- **Pre-Auth usability matches the EntityAttachment precedent.** Auth-checked RLS would make the avatar upload UI in #22 dormant code on main until Auth (#23) ships — the same dead-code-on-main risk that drove the EntityAttachment exception.
+- **Threat model is bounded for v1:** internal users only, no external clients, avatars are inherently meant to be visible (they appear in chat, threads, crew rows, casting bridge, etc.). Avatars are weaker-privacy than scout photos in `entity-attachments`.
+- **Random per-file IDs** make leaked URLs unguessable. Combined with the `uploadAvatar` helper's best-effort cleanup of the old object on replace, an avatar URL that's been retired is gone for new viewers (modulo browser cache).
+- **Tightening with `entity-attachments` on Auth day** keeps the cleanup batched into one RLS pass (#24) rather than per-bucket scattered work.
+
+**Tradeoffs:**
+- Anyone with a leaked avatar URL can view forever pre-Auth. For internal-only users this is acceptable; pre-external-beta this gets revisited.
+- Two storage buckets now ship with permissive RLS by exception (`entity-attachments`, `avatars`). The third (Crew Profile v2 phone numbers — but those aren't in storage, they're in the `User` table). Future buckets must each justify their RLS choice with a DECISIONS entry — the exceptions are deliberate, not standard.
+
+**Revisit trigger:**
+- Auth (#23) ships. Tightened in the same RLS pass that locks down `entity-attachments`, `moodboard`, `storyboard` (#24).
+- External client beta — avatar URLs leaving the internal Trust boundary force a hard tightening pass before that ships.
