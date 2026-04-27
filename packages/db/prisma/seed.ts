@@ -3412,6 +3412,51 @@ FADE TO BLACK.`,
     `${DEFAULT_AICP_ACCOUNTS.length} accounts, ${lineSpecs.length} lines, ` +
     `${expenseRowsFromTimecards.length} timecard + ${manualExpenses.length} manual expenses)`)
 
+  // ── Crew Profile v2 demo data (#20) ──────────────────────────────────────
+  // Sprinkle realistic phone/skills onto a handful of well-known crew so the
+  // upcoming Crew Profile UI (#22) has populated data to render against. Most
+  // crew stay sparse so empty states get exercised too.
+  const demoCrewProfiles: { name: string; phone: string; skills: string[] }[] = [
+    { name: 'Clyde Bessey',       phone: '+1 213 555 0102', skills: ['Direction', 'Camera Operation', 'Color', 'Steadicam'] },
+    { name: 'Tyler Heckerman',    phone: '+1 310 555 0214', skills: ['Producing', 'Budgeting', 'Permitting'] },
+    { name: 'Kelly Pratt',        phone: '+1 323 555 0388', skills: ['Producing', 'Talent Relations'] },
+    { name: 'Alex Drum',          phone: '+1 415 555 0411', skills: ['Cinematography', 'Lighting', 'Color Theory'] },
+    { name: 'Owen Blakely',       phone: '+1 213 555 0577', skills: ['Cinematography', 'Documentary'] },
+    { name: 'Rafi Torres',        phone: '+1 646 555 0698', skills: ['Editorial', 'Premiere Pro', 'DaVinci Resolve'] },
+    { name: 'Cleo Strand',        phone: '+1 718 555 0723', skills: ['Motion Design', 'Nuke', 'After Effects'] },
+  ]
+  // Project-scoped notes — a few examples of how notes vary per role.
+  // Format: [project, userName, role, notes]
+  const demoProjectNotes: { project: { id: string }; userName: string; role: Role; notes: string }[] = [
+    { project: p1, userName: 'Clyde Bessey',    role: 'director', notes: 'Owns the creative vision; loop in early on storyboard reviews.' },
+    { project: p3, userName: 'Owen Blakely',    role: 'crew',     notes: 'Brings Sony FX9 + glimmerglass package; vineyard-light specialist.' },
+    { project: p3, userName: 'Rafi Torres',     role: 'crew',     notes: 'Cross-project post — also editing Natural Order. Schedule rough cut for Apr 22.' },
+    { project: p5, userName: 'Cleo Strand',     role: 'crew',     notes: 'GFX hero composite for Climate Report sequence. Needs storyboard lock by week 2.' },
+  ]
+  let profileUpdates = 0
+  for (const profile of demoCrewProfiles) {
+    const u = await prisma.user.findFirst({ where: { name: profile.name }, select: { id: true } })
+    if (!u) continue
+    await prisma.user.update({ where: { id: u.id }, data: { phone: profile.phone } })
+    // Apply skills to ALL ProjectMember rows for this user — skills are
+    // role-relevant and the same person's skill list is the same regardless
+    // of which project they're on for v1. Future PRs can diverge per-role
+    // if real productions surface the need.
+    await prisma.projectMember.updateMany({ where: { userId: u.id }, data: { skills: profile.skills } })
+    profileUpdates++
+  }
+  let noteUpdates = 0
+  for (const n of demoProjectNotes) {
+    const u = await prisma.user.findFirst({ where: { name: n.userName }, select: { id: true } })
+    if (!u) continue
+    const updated = await prisma.projectMember.updateMany({
+      where: { projectId: n.project.id, userId: u.id, role: n.role },
+      data: { notes: n.notes },
+    })
+    noteUpdates += updated.count
+  }
+  console.log(`  CrewProfileV2: ${profileUpdates} users with phone/skills, ${noteUpdates} project-scoped notes`)
+
   // ── PropSourced — production-side counterpart to Entity(type='prop') ────
   // Dual-write during the lift-and-break transition: Entity.metadata.status
   // remains the read path until #14 swaps art/page.tsx to PropSourced.status.

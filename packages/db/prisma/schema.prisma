@@ -164,6 +164,10 @@ model User {
   email     String   @unique
   name      String
   avatarUrl String?
+  // Crew Profile v2 (#20). Phone is global — follows the person across every
+  // project they're a member of. Notes/skills are per-project on ProjectMember
+  // because the same person can have different relevant context per role.
+  phone     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -214,6 +218,12 @@ model ProjectMember {
   userId     String
   role       Role
   department String?
+  // Crew Profile v2 (#20). Notes are project-scoped — the same person can have
+  // different production-relevant context per role (e.g. "DP on this project,
+  // Director on the next"). Skills as a Postgres native array (String[]) so
+  // they're queryable, indexable, and Prisma-native — no JSON parsing.
+  notes      String?
+  skills     String[] @default([])
   createdAt  DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
