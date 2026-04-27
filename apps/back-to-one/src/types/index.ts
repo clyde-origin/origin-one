@@ -135,6 +135,7 @@ export type ThreadAttachmentType =
   | 'deliverable'
   | 'workflowStage'
   | 'inventoryItem'
+  | 'budgetLine'
 
 export interface Thread {
   id: string

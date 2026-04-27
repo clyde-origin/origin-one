@@ -55,6 +55,7 @@ reserved for Pre / Prod / Post phase semantics).
 | `obj-deliverable`   | `#e84848` | red                   |
 | `obj-workflowStage` | `#a8d428` | lime                  |
 | `obj-inventoryItem` | `#3a98c8` | cerulean              |
+| `obj-budgetLine`    | `#34d399` | emerald               |
 
 Chip pattern: `bg = base @ 0.10 alpha`, `border = base @ 0.22`, `color = base @ 0.9`.
 

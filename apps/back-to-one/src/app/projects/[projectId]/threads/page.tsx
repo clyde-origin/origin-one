@@ -55,6 +55,7 @@ const GRADIENTS: Record<string, string> = {
   'th-milestone':     'linear-gradient(135deg, #081818, #051414)',  // cyan        #22d4d4
   'th-deliverable':   'linear-gradient(135deg, #1a0808, #140606)',  // red         #e84848
   'th-workflowStage': 'linear-gradient(135deg, #141806, #0f1408)',  // lime        #a8d428
+  'th-budgetLine':    'linear-gradient(135deg, #061a14, #04140e)',  // emerald     #34d399
 }
 
 // Chip palette — BRAND_TOKENS project accents, direct hex values.
@@ -77,6 +78,7 @@ const CHIP_STYLES: Record<string, { bg: string; border: string; color: string }>
   'obj-deliverable':   { bg: 'rgba(232,72,72,0.1)',   border: 'rgba(232,72,72,0.22)',   color: 'rgba(232,72,72,0.9)'   }, // #e84848 red
   'obj-workflowStage': { bg: 'rgba(168,212,40,0.1)',  border: 'rgba(168,212,40,0.22)',  color: 'rgba(168,212,40,0.9)'  }, // #a8d428 lime
   'obj-inventoryItem': { bg: 'rgba(58,152,200,0.1)',  border: 'rgba(58,152,200,0.22)',  color: 'rgba(58,152,200,0.9)'  }, // #3a98c8 cerulean
+  'obj-budgetLine':    { bg: 'rgba(52,211,153,0.1)',  border: 'rgba(52,211,153,0.22)',  color: 'rgba(52,211,153,0.9)'  }, // #34d399 emerald
 }
 
 // ── Sub-components ────────────────────────────────────────

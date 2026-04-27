@@ -21,6 +21,7 @@ export type ChipType =
   | 'obj-deliverable'
   | 'obj-workflowStage'
   | 'obj-inventoryItem'
+  | 'obj-budgetLine'
 
 export type ThumbType = 'image' | 'avatar' | 'icon'
 
@@ -63,6 +64,7 @@ export function chipForType(t: ThreadAttachmentType): ChipType {
     case 'deliverable':   return 'obj-deliverable'   // red         #e84848
     case 'workflowStage': return 'obj-workflowStage' // lime        #a8d428
     case 'inventoryItem': return 'obj-inventoryItem' // cerulean    #3a98c8
+    case 'budgetLine':    return 'obj-budgetLine'    // emerald     #34d399
     default:              return 'obj-actionItem'
   }
 }
@@ -84,6 +86,7 @@ export function gradientForType(t: ThreadAttachmentType): string {
     case 'deliverable':   return 'th-deliverable'
     case 'workflowStage': return 'th-workflowStage'
     case 'inventoryItem': return 'th-inventoryItem'
+    case 'budgetLine':    return 'th-budgetLine'
     default:              return 'th-actionItem'
   }
 }
@@ -105,6 +108,7 @@ function labelForType(t: ThreadAttachmentType): string {
     case 'deliverable':   return 'Deliverable'
     case 'workflowStage': return 'Workflow'
     case 'inventoryItem': return 'Inventory item'
+    case 'budgetLine':    return 'Budget line'
     default:              return 'Thread'
   }
 }
@@ -465,6 +469,21 @@ function buildContext(thread: Thread, m: Maps): ThreadContext {
         thumbnailType: 'icon',
         thumbnailValue: null,
         thumbnailGradient: 'th-inventoryItem',
+      }
+    }
+    case 'budgetLine': {
+      // Budget-line per-thread context. The detail-sheet caller passes
+      // attachedToId=line.id directly, so for the in-place context we
+      // fall back to a generic label until line data is loaded into the
+      // batched-loaders pass (future PR if a Threads page renders these
+      // out-of-context). Today the budget-line surface is only the line
+      // detail sheet, which already has the description in scope.
+      return {
+        displayLabel: 'Budget line',
+        chipType: 'obj-budgetLine',
+        thumbnailType: 'icon',
+        thumbnailValue: null,
+        thumbnailGradient: 'th-budgetLine',
       }
     }
     default:

@@ -783,6 +783,72 @@ export function useBudget(projectId: string) {
   })
 }
 
+// All budget mutations invalidate the same cache key. Page rollup
+// recomputes from the fresh tree on next fetch.
+function invalidateBudget(qc: ReturnType<typeof useQueryClient>, projectId: string) {
+  qc.invalidateQueries({ queryKey: keys.budget(projectId) })
+}
+
+export function useUpdateBudgetLine(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof db.updateBudgetLine>[1] }) =>
+      db.updateBudgetLine(id, patch),
+    onSuccess: () => invalidateBudget(qc, projectId),
+  })
+}
+
+export function useUpdateBudgetLineAmount(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof db.updateBudgetLineAmount>[1] }) =>
+      db.updateBudgetLineAmount(id, patch),
+    onSuccess: () => invalidateBudget(qc, projectId),
+  })
+}
+
+export function useCreateBudgetLine(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createBudgetLine,
+    onSuccess: () => invalidateBudget(qc, projectId),
+  })
+}
+
+export function useCreateManualExpense(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createManualExpense,
+    onSuccess: () => invalidateBudget(qc, projectId),
+  })
+}
+
+export function useUpdateBudgetVersion(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof db.updateBudgetVersion>[1] }) =>
+      db.updateBudgetVersion(id, patch),
+    onSuccess: () => invalidateBudget(qc, projectId),
+  })
+}
+
+export function useDuplicateBudgetVersion(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ srcVersionId, name }: { srcVersionId: string; name: string }) =>
+      db.duplicateBudgetVersion(srcVersionId, name),
+    onSuccess: () => invalidateBudget(qc, projectId),
+  })
+}
+
+export function useDeleteBudgetVersion(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => db.deleteBudgetVersion(id),
+    onSuccess: () => invalidateBudget(qc, projectId),
+  })
+}
+
 // ── CASTING ────────────────────────────────────────────────
 
 export function useCastRoles(projectId: string) {
