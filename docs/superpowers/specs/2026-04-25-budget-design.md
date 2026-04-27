@@ -99,6 +99,8 @@ model Budget {
   rateSourceVersionId  String?
   // Budget-level threshold for variance flagging (default 10%).
   varianceThreshold    Decimal  @default(0.10) @db.Decimal(5,4)
+  // Traceability when this budget was deep-copied from another project (see §7.2).
+  clonedFromProjectId  String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
