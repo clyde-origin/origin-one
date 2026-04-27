@@ -471,3 +471,26 @@ The `thread-context.ts` file now contains six explicit-enumeration sites for eac
 - A real production surfaces an `on_set` or `wrapped` lifecycle stage that needs to be tracked separately from `ready` — extend the enum (append-only is cheap).
 - Multiple production candidates per scripted prop become a real pattern — add the `PropSourceOption` child table.
 - Hero/featured props acquire enough metadata (tags, render priority, etc.) to deserve their own table — promote `isHero` from Boolean to FK.
+
+---
+
+### WardrobeSourced schema — production-side wardrobe tracking with WardrobeStatus enum
+
+**Decision:** Production-side wardrobe data lives in a dedicated `WardrobeSourced` table — 1:1 FK to `Entity(type='wardrobe')` (enforced via `@unique` on `entityId`, per the Narrative→Production cardinality rule), with a typed `WardrobeStatus` enum (`needed | sourced | fitted | ready`) and **no** `isHero` Boolean. Existing `Entity.metadata.status` values lift into `WardrobeSourced.status` via migration `20260427000000_add_wardrobe_sourced`; the `metadata.status` read path drops in the next PR (#16). `metadata.imageUrl` and `metadata.tags` remain on Entity unless explicitly lifted.  
+**Date:** April 27, 2026  
+**Rationale:**
+- **Cardinality 1:1:** Apply the rule from the entry above — wardrobe sourcing produces one physical wardrobe item per scripted item; the answer to "does production evaluate multiple candidates per script element" is no. Same answer as Prop, distinct from Location.
+- **4-state enum (`needed | sourced | fitted | ready`):** Distinct from `PropStatus` per BUILD_STATUS Apr 24 lock — wardrobe has a `fitted` beat that props don't. Real production wardrobe goes through fitting with talent, alterations, and final approval before it's ready for shoot day. Prop's `ready` means "prepped"; wardrobe's `fitted` means "talent has tried it on, alterations underway/done"; wardrobe's `ready` means "alterations done, locked in."
+- **No `isHero`:** Hero is a prop concept (the hero camera, the hero device) — the analogous wardrobe pattern would be "principal wardrobe" but the workflow doesn't branch on it the same way. Add later only if a real production surfaces the need (parallel to the prop `PropSourceOption` deferral).
+- **`@unique` on nullable `entityId`:** Same shape as PropSourced, smoke-tested in PR #53. Multiple production-only WardrobeSourced rows allowed (production-added wardrobe not in script); 1:1 enforced once paired.
+- **`projectId` cascade:** matches every other production-side table.
+
+**Tradeoffs:**
+- Two parallel enums (`PropStatus` and `WardrobeStatus`) with overlapping but distinct values means the Art page UI branches on type for status display. Acceptable cost for honest workflow modeling.
+- HMU is the third art type but stays on `Entity.metadata.status` for now — no `HmuSourced` table or typed enum yet. Defers schema work until a real production surfaces the need (smaller surface than props/wardrobe; the polymorphic Entity.metadata pattern still serves it).
+
+**Revisit trigger:**
+- A real production surfaces an `on_set` or `wrapped` lifecycle stage — extend the enum.
+- Multiple production candidates per scripted wardrobe item become a real pattern — add `WardrobeSourceOption` child table.
+- HMU complexity grows enough to warrant its own typed table — add `HmuSourced` with the same shape (apply the cardinality test first; HMU likely 1:1 too).
+- Wardrobe acquires a "principal" / "hero" concept worth tracking — add `WardrobeSourced.isPrincipal Boolean`.

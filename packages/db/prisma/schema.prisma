@@ -143,6 +143,20 @@ enum PropStatus {
   ready
 }
 
+// WardrobeStatus — production-side wardrobe tracking workflow.
+//   needed   — script lists it; not yet sourced.
+//   sourced  — physically have it (bought / built / rented).
+//   fitted   — fitting with talent complete; alterations underway/done.
+//   ready    — prepped for shoot day; locked in.
+// Distinct from PropStatus per DECISIONS.md "WardrobeSourced schema" — wardrobe
+// has a fitting beat that props don't.
+enum WardrobeStatus {
+  needed
+  sourced
+  fitted
+  ready
+}
+
 // ─── Core identity and membership ────────────────────────────────────────────
 
 model User {
@@ -314,6 +328,7 @@ model Project {
   budget            Budget?
   entityAttachments EntityAttachment[]
   propSourced       PropSourced[]
+  wardrobeSourced   WardrobeSourced[]
 }
 
 // ─── Scenes, Shots, Entities ─────────────────────────────────────────────────
@@ -359,10 +374,11 @@ model Entity {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignments TalentAssignment[]
-  locations   Location[]
-  propSourced PropSourced?
+  project         Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignments     TalentAssignment[]
+  locations       Location[]
+  propSourced     PropSourced?
+  wardrobeSourced WardrobeSourced?
 }
 
 // Shotlist snapshot versions. RLS-enabled (managed outside Prisma).
@@ -604,6 +620,32 @@ model PropSourced {
   isHero    Boolean    @default(false)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  entity  Entity? @relation(fields: [entityId], references: [id])
+
+  @@index([projectId])
+}
+
+// WardrobeSourced — production-side counterpart to Entity(type='wardrobe').
+// Mirrors the PropSourced shape (1:1 nullable FK, @unique on entityId per the
+// Narrative→Production cardinality rule) with a wardrobe-specific status
+// enum that adds a `fitted` state for the fitting/alteration beat.
+//
+// No `isHero` — hero/featured is a prop concept, not a wardrobe one. Add later
+// only if a real production surfaces a parallel "principal wardrobe" workflow.
+//
+// Lift-and-break migration relationship with Entity.metadata.status: existing
+// values lifted to WardrobeSourced.status by migration 20260427000000. The Art
+// page wardrobe read path drops in the next PR (#16). metadata.imageUrl /
+// metadata.tags remain on Entity unless explicitly lifted.
+model WardrobeSourced {
+  id        String         @id @default(dbgenerated("gen_random_uuid()"))
+  projectId String
+  entityId  String?        @unique
+  status    WardrobeStatus @default(needed)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   entity  Entity? @relation(fields: [entityId], references: [id])
