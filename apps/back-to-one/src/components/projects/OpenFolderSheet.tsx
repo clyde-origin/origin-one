@@ -7,6 +7,7 @@
 // RootFabContext.closeOpenFolder() (already wired in PR #37 stack
 // extension), tap on the dim backdrop, or escape (later).
 
+import { useLayoutEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { getProjectColor } from '@/lib/utils/phase'
@@ -38,6 +39,11 @@ interface OpenFolderSheetProps {
   folders?: FolderWithCount[]
   onFolderClick?: (folder: FolderRef) => void
   onFolderLongPress?: (folder: FolderRef) => void
+  // Optional viewport-space origin for an iOS-style zoom-from-source open.
+  // When provided, the sheet's transform-origin is anchored to this point
+  // so it scales out from where the user tapped (the folder card or the
+  // archive icon) instead of scaling around its own center.
+  originPoint?: { x: number; y: number } | null
 }
 
 // Per-project button — extracted so each instance can register its own
@@ -89,6 +95,7 @@ function FolderTile({
   const accent = folder.color ?? '#6470f3'
   return (
     <button
+      data-folder-id={folder.id}
       onClick={onClick}
       {...(onLongPress ? longPressHandlers : {})}
       className="active:scale-[0.96] active:brightness-[0.85]"
@@ -135,6 +142,7 @@ export function OpenFolderSheet({
   open, folder, projects, onClose, kicker, emptyMessage,
   onProjectClick, onProjectLongPress,
   folders, onFolderClick, onFolderLongPress,
+  originPoint,
 }: OpenFolderSheetProps) {
   const router = useRouter()
   const accent = folder?.color ?? '#6470f3'
@@ -144,19 +152,38 @@ export function OpenFolderSheet({
   const isEmpty = projects.length === 0 && folderList.length === 0
   const totalCount = projects.length + folderList.length
 
+  // Compute transform-origin in pixels relative to the sheet's own bounding
+  // box so the open animation scales out of (and the close animation scales
+  // back into) the source tile. If no originPoint is supplied (e.g. closing
+  // via the bar back button), we keep the previous origin so the exit still
+  // animates toward the source instead of snapping to center.
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const [transformOriginPx, setTransformOriginPx] = useState<string>('50% 50%')
+  useLayoutEffect(() => {
+    if (!open || !originPoint) return
+    const el = sheetRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const x = Math.max(0, Math.min(r.width, originPoint.x - r.left))
+    const y = Math.max(0, Math.min(r.height, originPoint.y - r.top))
+    setTransformOriginPx(`${x}px ${y}px`)
+  }, [open, originPoint])
+
   return (
     <AnimatePresence>
       {open && folder && (
         <motion.div
+          ref={sheetRef}
           key="open-folder"
-          initial={{ opacity: 0, scale: 0.92, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.92, y: 12 }}
-          transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+          initial={{ opacity: 0, scale: 0.06 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.06 }}
+          transition={{ duration: 0.32, ease: [0.32, 0.72, 0, 1] }}
           style={{
             position: 'fixed',
             top: 156,
             bottom: 'calc(68px + 52px + 64px + env(safe-area-inset-bottom, 0px))',
+            transformOrigin: transformOriginPx,
             left: 14, right: 14,
             zIndex: 12,
             background: 'rgba(10,10,18,0.78)',

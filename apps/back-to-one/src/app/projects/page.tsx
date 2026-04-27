@@ -411,6 +411,7 @@ export default function ProjectsPage() {
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [restoreProject, setRestoreProject] = useState<Project | null>(null)
   const [restoreFolder, setRestoreFolder] = useState<{ id: string; name: string; color: string | null; count: number } | null>(null)
+  const [openFolderOrigin, setOpenFolderOrigin] = useState<{ x: number; y: number } | null>(null)
 
   const { data: archivedProjects } = useArchivedProjects()
   const allArchivedProjects = archivedProjects ?? []
@@ -434,6 +435,23 @@ export default function ProjectsPage() {
     openFolderId, setOpenFolderId, closeOpenFolder,
   } = useRootFab()
   const [activePanel, setActivePanel] = useState<PanelId | null>(null)
+
+  // Capture the source tile's center so OpenFolderSheet can zoom from it.
+  // Looks up the rect by data-folder-id / data-archive-target, both already
+  // present on the home grid and on archived-folder tiles inside the sheet.
+  const openFolder = useCallback((id: string) => {
+    const selector = id === '__archive__'
+      ? '[data-archive-target]'
+      : `[data-folder-id="${id}"]`
+    const el = document.querySelector(selector) as HTMLElement | null
+    if (el) {
+      const r = el.getBoundingClientRect()
+      setOpenFolderOrigin({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
+    } else {
+      setOpenFolderOrigin(null)
+    }
+    setOpenFolderId(id)
+  }, [setOpenFolderId])
 
   // ── Merged home-grid items ────────────────────────────────────
   type HomeItem =
@@ -767,7 +785,7 @@ export default function ProjectsPage() {
                             setActionFolder({ id: it.folder.id, name: it.folder.name, color: it.folder.color })
                             return
                           }
-                          setOpenFolderId(it.id)
+                          openFolder(it.id)
                         }}
                       />
                     </motion.div>
@@ -857,7 +875,7 @@ export default function ProjectsPage() {
               <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'center', padding: '6px 2px 2px' }}>
                 <button
                   data-archive-target={ARCHIVE_FOLDER_ID}
-                  onClick={() => { haptic('light'); setOpenFolderId(ARCHIVE_FOLDER_ID) }}
+                  onClick={() => { haptic('light'); openFolder(ARCHIVE_FOLDER_ID) }}
                   className="active:opacity-80 transition-all"
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
@@ -1069,6 +1087,7 @@ export default function ProjectsPage() {
 
       <OpenFolderSheet
         open={!!openFolderId}
+        originPoint={openFolderOrigin}
         folder={
           openFolderId === ARCHIVE_FOLDER_ID
             ? archiveFolder
@@ -1106,7 +1125,7 @@ export default function ProjectsPage() {
         }
         onFolderClick={
           openFolderId === ARCHIVE_FOLDER_ID
-            ? (f) => { haptic('light'); setOpenFolderId(f.id) }
+            ? (f) => { haptic('light'); openFolder(f.id) }
             : undefined
         }
         onFolderLongPress={
