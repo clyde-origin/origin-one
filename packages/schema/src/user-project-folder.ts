@@ -6,6 +6,7 @@ export const UserProjectFolder = z.object({
   name: z.string().min(1),
   color: z.string().nullable(),
   sortOrder: z.number().int(),
+  archived: z.boolean(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
