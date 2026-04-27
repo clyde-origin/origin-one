@@ -1,7 +1,7 @@
 # Back to One — Build Status
 Update this file at the end of every Claude Code session. This is the single source of truth for where the build actually is.
 
-Last updated: April 27, 2026 (post PR #57 merge — Crew Profile v2 schema #20 closed)
+Last updated: April 27, 2026 (post PR #58 merge — Avatars bucket #21 closed)
 
 ---
 
@@ -91,7 +91,7 @@ Each row is a complete PR (schema or UI). Strict order — next row doesn't star
 | # | Feature | Status | Notes |
 |---|---|---|---|
 | 20 | Crew Profile v2 schema | ✅ | PR #57 (Apr 27). Migration `20260427010000` adds `User.phone` (global) + `ProjectMember.notes` + `ProjectMember.skills String[]` (project-scoped per the global-vs-role test in DECISIONS). Pure additive — no backfill. Seed sprinkles demo data on 7 well-known crew with realistic phones + 3-4 skills each, plus 4 project-scoped notes; most others stay sparse so empty states get exercised in #22. |
-| 21 | `avatars` bucket + helper | ⬜ | New bucket ships with auth-check RLS. `uploadAvatar` helper |
+| 21 | `avatars` bucket + helper | ✅ | PR #58 (Apr 27). Migration `20260427020000` adds `avatars` bucket (5MB, png/jpeg/webp) with **permissive RLS** matching the `entity-attachments` precedent — DECISIONS "Avatars storage" entry justifies the deviation from auth-check-from-day-one. `uploadAvatar(file, userId)` helper handles upload + atomic `User.avatarUrl` update + best-effort cleanup of the old avatar object. `removeAvatar(userId)` for clearing. Both buckets (`entity-attachments` + `avatars`) tightened on Auth day in #24's RLS pass. |
 | 22 | Crew Profile v2 UI | ⬜ | phone/notes/skills edit + avatar upload. Draft HTML reference first |
 
 ### Auth
