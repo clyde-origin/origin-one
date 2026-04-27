@@ -889,6 +889,49 @@ export function useProjectsWithBudgets() {
   })
 }
 
+// PR 12 — settings sheet mutations.
+export function useUpdateBudget(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof db.updateBudget>[1] }) =>
+      db.updateBudget(id, patch),
+    onSuccess: () => invalidateBudget(qc, projectId),
+  })
+}
+
+export function useDeleteBudget(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => db.deleteBudget(id),
+    onSuccess: () => invalidateBudget(qc, projectId),
+  })
+}
+
+export function useCreateBudgetMarkup(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createBudgetMarkup,
+    onSuccess:  () => invalidateBudget(qc, projectId),
+  })
+}
+
+export function useUpdateBudgetMarkup(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof db.updateBudgetMarkup>[1] }) =>
+      db.updateBudgetMarkup(id, patch),
+    onSuccess: () => invalidateBudget(qc, projectId),
+  })
+}
+
+export function useDeleteBudgetMarkup(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => db.deleteBudgetMarkup(id),
+    onSuccess: () => invalidateBudget(qc, projectId),
+  })
+}
+
 // ── CASTING ────────────────────────────────────────────────
 
 export function useCastRoles(projectId: string) {

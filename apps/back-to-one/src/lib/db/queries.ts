@@ -2124,6 +2124,82 @@ export async function getProjectsWithBudgets() {
     .map(p => ({ id: p.id, name: p.name, color: p.color, status: p.status }))
 }
 
+// PR 12 — settings sheet mutations.
+
+// Producer-editable Budget patch — variance threshold, rate source.
+// Currency is locked at v1; not exposed in this patch shape.
+export async function updateBudget(
+  budgetId: string,
+  patch: { varianceThreshold?: string; rateSourceVersionId?: string | null },
+): Promise<void> {
+  const db = createClient()
+  const fields: Record<string, unknown> = { updatedAt: new Date().toISOString() }
+  if (patch.varianceThreshold !== undefined) fields.varianceThreshold = patch.varianceThreshold
+  if (patch.rateSourceVersionId !== undefined) fields.rateSourceVersionId = patch.rateSourceVersionId
+  const { error } = await db.from('Budget').update(fields).eq('id', budgetId)
+  if (error) { console.error('updateBudget failed:', error); throw error }
+}
+
+// Hard delete a Budget. Postgres ON DELETE CASCADE (PR 4 schema)
+// removes BudgetVersion / BudgetAccount / BudgetLine / BudgetLineAmount
+// / BudgetVariable / BudgetMarkup rows. Manual Expenses on the project
+// are detached (Expense.budgetLineId nullable per PR 4); they are NOT
+// deleted with the budget — they outlive the chart of accounts.
+export async function deleteBudget(budgetId: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('Budget').delete().eq('id', budgetId)
+  if (error) { console.error('deleteBudget failed:', error); throw error }
+}
+
+// Markup CRUD. accountId is required when appliesTo='accountSubtotal'
+// (validated at call site; the DB has a CHECK constraint per PR 4 too).
+export async function createBudgetMarkup(input: {
+  budgetId: string
+  versionId: string | null
+  name: string
+  percent: string                       // Decimal(5,4) — '0.10' for 10%
+  appliesTo: 'grandTotal' | 'accountSubtotal'
+  accountId: string | null
+  sortOrder: number
+}): Promise<string> {
+  const db = createClient()
+  const id = crypto.randomUUID()
+  const { error } = await db.from('BudgetMarkup').insert({
+    id, ...input, updatedAt: new Date().toISOString(),
+  })
+  if (error) { console.error('createBudgetMarkup failed:', error); throw error }
+  return id
+}
+
+export async function updateBudgetMarkup(
+  id: string,
+  patch: {
+    name?: string
+    percent?: string
+    appliesTo?: 'grandTotal' | 'accountSubtotal'
+    accountId?: string | null
+    versionId?: string | null
+    sortOrder?: number
+  },
+): Promise<void> {
+  const db = createClient()
+  const fields: Record<string, unknown> = { updatedAt: new Date().toISOString() }
+  if (patch.name !== undefined)       fields.name = patch.name
+  if (patch.percent !== undefined)    fields.percent = patch.percent
+  if (patch.appliesTo !== undefined)  fields.appliesTo = patch.appliesTo
+  if (patch.accountId !== undefined)  fields.accountId = patch.accountId
+  if (patch.versionId !== undefined)  fields.versionId = patch.versionId
+  if (patch.sortOrder !== undefined)  fields.sortOrder = patch.sortOrder
+  const { error } = await db.from('BudgetMarkup').update(fields).eq('id', id)
+  if (error) { console.error('updateBudgetMarkup failed:', error); throw error }
+}
+
+export async function deleteBudgetMarkup(id: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('BudgetMarkup').delete().eq('id', id)
+  if (error) { console.error('deleteBudgetMarkup failed:', error); throw error }
+}
+
 // ── ENTITIES (characters, locations, props) ──────────────
 
 export async function getEntities(projectId: string, type?: 'character' | 'location' | 'prop') {
