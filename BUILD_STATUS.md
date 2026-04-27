@@ -259,7 +259,9 @@ Organized by severity. Non-blocking unless noted.
 | WorkflowEdges | 33 | |
 | Deliverables | 20 | |
 | MoodboardTabs | 6 | |
-| MoodboardRefs | 30 | |
+| MoodboardRefs | 30 | All have `imageUrl` populated from manifest (Apr 27 2026) |
+| EntityAttachments (seeded) | 82 | location 18 + narrativeLocation 12 + prop 18 + wardrobe 12 + hmu 10 + cast 12 — manifest-driven, real Pexels + AI bytes (Apr 27 2026) |
+| User avatars | 56 | All `User.avatarUrl` populated from manifest (Apr 27 2026) |
 | Threads | 26 | 9 unread / 10 read / 7 resolved |
 | ThreadMessages | 50 | |
 | ThreadReads | 10 | |
