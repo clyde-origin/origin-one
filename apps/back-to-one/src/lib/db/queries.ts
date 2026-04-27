@@ -233,6 +233,31 @@ export async function archiveProject(projectId: string): Promise<void> {
   if (error) { console.error('archiveProject failed:', error); throw error }
 }
 
+export async function getArchivedProjects() {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Project')
+    .select('*')
+    .eq('status', 'archived')
+    .order('updatedAt', { ascending: false })
+  if (error) { console.error('getArchivedProjects failed:', error); throw error }
+  return data ?? []
+}
+
+/**
+ * Restore an archived project. We don't track the pre-archive status, so
+ * default to 'post_production' as the heuristic — most archived projects
+ * came from there. The user can adjust status from inside the project.
+ */
+export async function restoreProject(projectId: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db
+    .from('Project')
+    .update({ status: 'post_production' })
+    .eq('id', projectId)
+  if (error) { console.error('restoreProject failed:', error); throw error }
+}
+
 export async function deleteProject(projectId: string): Promise<void> {
   const db = createClient()
   const { error } = await db
@@ -2260,4 +2285,136 @@ export function subscribeToChatMessages(
   ch.subscribe()
 
   return () => { db.removeChannel(ch) }
+}
+
+// ── PROJECT-SELECTION FOLDERS (per-user) ──────────────────
+
+export async function getUserProjectFolders(meId: string | null) {
+  if (!meId) return []
+  const db = createClient()
+  const { data, error } = await db
+    .from('UserProjectFolder')
+    .select('*')
+    .eq('userId', meId)
+    .order('sortOrder', { ascending: true })
+  if (error) { console.error('getUserProjectFolders failed:', error); throw error }
+  return data ?? []
+}
+
+export async function getUserProjectPlacements(meId: string | null) {
+  if (!meId) return []
+  const db = createClient()
+  const { data, error } = await db
+    .from('UserProjectPlacement')
+    .select('*')
+    .eq('userId', meId)
+  if (error) { console.error('getUserProjectPlacements failed:', error); throw error }
+  return data ?? []
+}
+
+export async function createUserProjectFolder(input: {
+  userId: string; name?: string; color?: string | null; sortOrder?: number
+}) {
+  const db = createClient()
+  // Pass updatedAt explicitly — Prisma's @updatedAt is client-side only,
+  // so direct PostgREST inserts must supply a value. createdAt has a DB
+  // default but supplying it keeps the two timestamps coherent.
+  const now = new Date().toISOString()
+  const { data, error } = await db
+    .from('UserProjectFolder')
+    .insert({
+      userId: input.userId,
+      name: input.name ?? 'Untitled',
+      color: input.color ?? null,
+      sortOrder: input.sortOrder ?? 0,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createUserProjectFolder failed:', error); throw error }
+  return data
+}
+
+// Pre-Auth: caller is trusted; no userId scope. Tightens to .eq('userId', meId) on Auth-day RLS pass.
+export async function updateUserProjectFolder(
+  id: string,
+  fields: { name?: string; color?: string | null; sortOrder?: number }
+) {
+  const db = createClient()
+  const { error } = await db.from('UserProjectFolder').update(fields).eq('id', id)
+  if (error) { console.error('updateUserProjectFolder failed:', error); throw error }
+}
+
+// Pre-Auth: caller is trusted; no userId scope. Tightens to .eq('userId', meId) on Auth-day RLS pass.
+export async function deleteUserProjectFolder(id: string) {
+  const db = createClient()
+  const { error } = await db.from('UserProjectFolder').delete().eq('id', id)
+  if (error) { console.error('deleteUserProjectFolder failed:', error); throw error }
+}
+
+/**
+ * Insert-or-update a placement for (userId, projectId). Upsert on the
+ * unique (userId, projectId) constraint — every drag-into / drag-out /
+ * top-level reorder writes through here.
+ */
+export async function upsertUserProjectPlacement(input: {
+  userId: string; projectId: string; folderId?: string | null; sortOrder?: number
+}) {
+  const db = createClient()
+  const now = new Date().toISOString()
+  const { data, error } = await db
+    .from('UserProjectPlacement')
+    .upsert({
+      userId: input.userId,
+      projectId: input.projectId,
+      folderId: input.folderId ?? null,
+      sortOrder: input.sortOrder ?? 0,
+      createdAt: now,
+      updatedAt: now,
+    }, { onConflict: 'userId,projectId' })
+    .select()
+    .single()
+  if (error) { console.error('upsertUserProjectPlacement failed:', error); throw error }
+  return data
+}
+
+/** Bulk reorder for a single home-grid pass (all top-level items). */
+export async function bulkReorderHomeGrid(
+  meId: string,
+  items: { type: 'folder' | 'project'; id: string; sortOrder: number }[]
+) {
+  const db = createClient()
+  const folders = items.filter(i => i.type === 'folder')
+  const projects = items.filter(i => i.type === 'project')
+
+  // Per-row update (Supabase doesn't support multi-row UPDATE with different
+  // values in one call). PostgREST returns { error } per row instead of
+  // throwing — collect responses and surface the first error so a partial
+  // failure doesn't silently masquerade as success.
+  const now = new Date().toISOString()
+  if (folders.length > 0) {
+    const results = await Promise.all(folders.map(f =>
+      db.from('UserProjectFolder')
+        .update({ sortOrder: f.sortOrder, updatedAt: now })
+        .eq('id', f.id)
+        .eq('userId', meId)
+    ))
+    const err = results.find(r => r.error)?.error
+    if (err) { console.error('bulkReorderHomeGrid folders failed:', err); throw err }
+  }
+  if (projects.length > 0) {
+    const results = await Promise.all(projects.map(p =>
+      db.from('UserProjectPlacement').upsert({
+        userId: meId,
+        projectId: p.id,
+        folderId: null,
+        sortOrder: p.sortOrder,
+        createdAt: now,
+        updatedAt: now,
+      }, { onConflict: 'userId,projectId' })
+    ))
+    const err = results.find(r => r.error)?.error
+    if (err) { console.error('bulkReorderHomeGrid placements failed:', err); throw err }
+  }
 }
