@@ -28,10 +28,23 @@ const ENTITY_ATTACHMENT_SURFACES: ReadonlySet<Surface> = new Set([
 ])
 
 export function bucketForSurface(surface: Surface): Bucket {
-  if (ENTITY_ATTACHMENT_SURFACES.has(surface)) return 'entity-attachments'
-  if (surface === 'moodboard') return 'moodboard'
-  if (surface === 'avatar') return 'avatars'
-  throw new Error(`Unknown surface: ${surface satisfies never}`)
+  switch (surface) {
+    case 'location':
+    case 'narrativeLocation':
+    case 'prop':
+    case 'wardrobe':
+    case 'hmu':
+    case 'cast':
+      return 'entity-attachments'
+    case 'moodboard':
+      return 'moodboard'
+    case 'avatar':
+      return 'avatars'
+  }
+  // TS-verified exhaustive: if a new Surface is added without updating the
+  // switch above, this assignment fails at compile time.
+  const _exhaustive: never = surface
+  throw new Error(`Unknown surface: ${_exhaustive as string}`)
 }
 
 export function localFilePath(entry: Pick<ImageEntry, 'projectKey' | 'surface' | 'slug'>): string {
