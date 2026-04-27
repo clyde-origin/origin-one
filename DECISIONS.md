@@ -494,3 +494,28 @@ The `thread-context.ts` file now contains six explicit-enumeration sites for eac
 - Multiple production candidates per scripted wardrobe item become a real pattern — add `WardrobeSourceOption` child table.
 - HMU complexity grows enough to warrant its own typed table — add `HmuSourced` with the same shape (apply the cardinality test first; HMU likely 1:1 too).
 - Wardrobe acquires a "principal" / "hero" concept worth tracking — add `WardrobeSourced.isPrincipal Boolean`.
+
+---
+
+### Crew profile fields — global vs project-scoped split
+
+**Decision:** Crew Profile v2 fields are split between `User` (global) and `ProjectMember` (project-scoped):
+- **`User.phone`** — global. The person's contact number; follows them across every project they're a member of.
+- **`User.avatarUrl`** — global. Already existed; same reasoning.
+- **`ProjectMember.notes`** — project-scoped. Production-relevant context that varies by role.
+- **`ProjectMember.skills String[]`** — project-scoped. Relevant skills for this role on this project; Postgres native array.
+
+**Date:** April 27, 2026  
+**Rationale:**
+- **Phone is identity, not role.** A person has one phone number across every project. Storing it on `ProjectMember` would either duplicate it across rows for the same person or require a "primary ProjectMember" tiebreaker — both bad.
+- **Notes are context, not identity.** The same person can be DP on Project A (notes: "owns RED package") and Director on Project B (notes: "needs script breakdown by week 2"). Production-side context is per-role, not per-person.
+- **Skills are role-relevant.** Camera operation matters to a DP credit, not to a director credit on a different project. The `String[]` shape makes them queryable (e.g. "find all crew with `Steadicam` skills on this project"); switching to a JSON column or a separate `Skill` table would lose Postgres' native array operators for marginal flexibility.
+
+**Tradeoffs:**
+- Editing a person's notes/skills means editing the right `ProjectMember` row, not the `User` — UI must surface this clearly to avoid "I edited it on Project A but it didn't change on Project B."
+- Empty-array default for `skills` (Postgres `'{}'` / Prisma `@default([])`) means existing seeded `ProjectMember` rows get `[]` not `NULL` — fewer null-vs-empty branches in app code. Matches the Inventory `ImportSource` precedent of "make defaults explicit at migration time."
+- Future migration to per-team profile fields (e.g. payroll tax info that's global per User but only relevant inside one Team) follows the same test: scope to the smallest container that the field naturally belongs to.
+
+**Revisit trigger:**
+- A real production needs a field that's currently project-scoped to behave globally (or vice-versa) — apply the test ("does this travel with the person, the role, or the team?") and migrate.
+- Skills become structured (skill levels, certifications, expiry dates) — promote to a dedicated `Skill` table linked to `User` or `ProjectMember`.
