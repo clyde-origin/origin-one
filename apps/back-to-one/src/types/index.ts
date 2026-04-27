@@ -45,6 +45,8 @@ export interface User {
   email: string
   name: string
   avatarUrl: string | null
+  // Crew Profile v2 (#20). Global — follows the person across every project.
+  phone: string | null
   createdAt: string
   updatedAt: string
 }
