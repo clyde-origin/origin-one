@@ -452,7 +452,15 @@ total     = qty * rate + fringeAmt
 // Actuals (NOT versioned)
 actuals = sum(expense.amount where expense.lineId = line.id)
 varPct  = (actuals - total) / total           // negative = under, positive = over
-flag    = abs(varPct) > budget.varianceThreshold
+
+// 3-tier flag matching mockup color treatment (over=danger, warn=amber, under=post-green).
+// Boundary: at exactly threshold, flag is 'warn' (not yet 'over'). Reserves 'over'/'under'
+// for clear breaches. Half-threshold midpoint gives early warning before crossing.
+if      (total === 0)                                      flag = null
+else if (abs(varPct) > threshold && varPct > 0)            flag = 'over'
+else if (abs(varPct) > threshold && varPct < 0)            flag = 'under'
+else if (abs(varPct) > threshold / 2)                      flag = 'warn'
+else                                                       flag = null
 ```
 
 Subtotals roll up the account tree. Markups apply to grand total or named-account subtotals depending on `appliesTo`.
