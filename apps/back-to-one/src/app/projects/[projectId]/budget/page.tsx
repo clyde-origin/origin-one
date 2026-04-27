@@ -16,6 +16,8 @@ import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { useLongPress } from '@/lib/hooks/useLongPress'
 import { haptic } from '@/lib/utils/haptics'
 import { LineDetailSheet } from '@/components/budget/LineDetailSheet'
+import { TopsheetDrawer } from '@/components/budget/TopsheetDrawer'
+import type { TopsheetVersionTotal } from '@/components/budget/TopsheetContent'
 import type {
   Budget,
   BudgetVersion,
@@ -718,6 +720,78 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
     })
   }, [budget, evalCtx, activeVersionId, amountsByActiveLine])
 
+  // Per-version rollups for the topsheet — one column per version. The
+  // active-version rollup above feeds the on-page list; topsheet needs
+  // every version's totals at once. EvalContext is built per version
+  // because version-scoped variable overrides differ.
+  const topsheetData = useMemo(() => {
+    if (!budget) return null
+    const sortedVersions = [...budget.versions].sort((a, b) => a.sortOrder - b.sortOrder)
+    const perVersion = new Map<string, TopsheetVersionTotal>()
+    const sectionByVersion = new Map<string, { atl: number; btl: number }>()
+
+    for (const v of sortedVersions) {
+      const ctx = buildEvalContext(budget.variables, shootDays, v.id)
+      const amountsByLine = new Map<string, BudgetLineAmount | undefined>()
+      for (const line of budget.lines) {
+        amountsByLine.set(line.id, line.amounts.find(a => a.versionId === v.id))
+      }
+      const r = rollUpBudget({
+        lines: budget.lines,
+        amountsByLine,
+        accounts: budget.accounts,
+        expenses: budget.expenses,
+        markups: budget.markups,
+        ctx,
+        varianceThreshold: Number(budget.varianceThreshold),
+        activeVersionId: v.id,
+      })
+      const byAccountId = new Map<string, number>()
+      for (const a of budget.accounts) {
+        if (a.parentId == null) {
+          byAccountId.set(a.id, r.subtotalByAccount.get(a.id)?.total ?? 0)
+        }
+      }
+      perVersion.set(v.id, {
+        versionId: v.id,
+        total: r.grandTotal,
+        byAccountId,
+        markupAmounts: r.markupAmounts,
+      })
+      // Section subtotals (sum of root accounts in each section).
+      let atl = 0, btl = 0
+      for (const a of budget.accounts) {
+        if (a.parentId != null) continue
+        const sub = r.subtotalByAccount.get(a.id)?.total ?? 0
+        if (a.section === 'ATL') atl += sub
+        else btl += sub
+      }
+      sectionByVersion.set(v.id, { atl, btl })
+    }
+
+    // Actuals per top-level account (versions don't change actuals).
+    const actualsByAccountId = new Map<string, number>()
+    let atlActuals = 0, btlActuals = 0
+    if (rollup) {
+      for (const a of budget.accounts) {
+        if (a.parentId == null) {
+          const sub = rollup.subtotalByAccount.get(a.id)
+          const v = sub?.totalActuals ?? 0
+          actualsByAccountId.set(a.id, v)
+          if (a.section === 'ATL') atlActuals += v
+          else btlActuals += v
+        }
+      }
+    }
+
+    return {
+      perVersion,
+      sectionSubtotalsByVersion: sectionByVersion,
+      sectionActuals: { atl: atlActuals, btl: btlActuals },
+      actualsByAccountId,
+    }
+  }, [budget, shootDays, rollup])
+
   const accountsSorted = useMemo<BudgetAccount[]>(() => {
     if (!budget) return []
     // Top-level only (parentId === null), sorted by section then sortOrder.
@@ -760,9 +834,13 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
   }
 
   // Layer state: 'list' (account list) | 'detail' (line detail sheet).
-  // PR 9 introduces 'detail'; PR 10 will add 'topsheet'.
+  // PR 9 introduces 'detail'.
+  // PR 10 adds the topsheet drawer/panel — orthogonal: it can be open
+  // alongside list OR detail. On mobile it covers; on desktop it sits
+  // alongside as a side panel.
   const [layer, setLayer] = useState<'list' | 'detail'>('list')
   const [activeLineId, setActiveLineId] = useState<string | null>(null)
+  const [topsheetOpen, setTopsheetOpen] = useState(false)
   // Reset back to list when budget reloads with no active line (e.g., line deleted).
   useEffect(() => {
     if (layer === 'detail' && activeLineId && budget) {
@@ -1012,6 +1090,77 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
           </>
         )}
       </div>
+
+      {/* Topsheet handle — fixed bottom of the budget surface, above
+          ActionBar. Tap to open. PR 8 had this slot as decoration in
+          the mockup; PR 10 wires it. */}
+      {budget && rollup && topsheetData && (
+        <button
+          type="button"
+          onClick={() => { haptic('light'); setTopsheetOpen(true) }}
+          className="font-mono"
+          style={{
+            // Sit above the ActionBar (cluster height + padding) and
+            // above the page content. ActionBar handles env(safe-area).
+            position: 'fixed',
+            left: 0, right: 0,
+            bottom: 'calc(68px + 52px + 14px + env(safe-area-inset-bottom, 0px))',
+            margin: '0 16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '12px 16px', borderRadius: 14,
+            background: 'rgba(15,15,25,0.92)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.40)',
+            color: '#e8e8f0', fontSize: 12,
+            cursor: 'pointer', zIndex: 30,
+          }}
+        >
+          <div className="flex flex-col" style={{ alignItems: 'flex-start', gap: 2 }}>
+            <span
+              className="font-mono uppercase"
+              style={{ fontSize: 9, color: '#62627a', letterSpacing: '0.08em' }}
+            >Grand Total · {(() => {
+              const v = budget.versions.find(x => x.id === activeVersionId)
+              return v?.name ?? '—'
+            })()}</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>
+              {(() => {
+                const total = rollup.grandTotal
+                if (total >= 100) return `$${Math.round(total).toLocaleString('en-US')}`
+                return `$${total.toFixed(2)}`
+              })()}
+            </span>
+          </div>
+          <span style={{ color: '#62627a', fontSize: 12 }}>▴ topsheet</span>
+        </button>
+      )}
+
+      {/* Topsheet drawer — bottom on mobile, right side panel on desktop */}
+      {budget && topsheetData && (
+        <TopsheetDrawer
+          open={topsheetOpen}
+          onClose={() => setTopsheetOpen(false)}
+          accent={accent}
+          content={{
+            projectName: project?.name ?? '',
+            projectClient: (project as { client?: string | null } | null | undefined)?.client ?? null,
+            projectType:   (project as { type?: string | null } | null | undefined)?.type ?? null,
+            currency: budget.currency,
+            versions: budget.versions,
+            accounts: accountsSorted,
+            markups: budget.markups,
+            perVersion: topsheetData.perVersion,
+            activeVersionId,
+            actualsByAccountId: topsheetData.actualsByAccountId,
+            grandActuals: rollup?.grandActuals ?? 0,
+            generatedAt: new Date(),
+            sectionSubtotalsByVersion: topsheetData.sectionSubtotalsByVersion,
+            sectionActuals: topsheetData.sectionActuals,
+          }}
+        />
+      )}
     </div>
   )
 }
