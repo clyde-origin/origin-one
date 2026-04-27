@@ -2178,9 +2178,13 @@ FADE TO BLACK.`,
       bucket: 'moodboard',
       storagePath: sp,
     })
+    // MoodboardRef.imageUrl convention is a full public URL (matches what
+    // uploadMoodboardImage returns from the app — see queries.ts).
+    const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/moodboard/${sp}`
     await prisma.moodboardRef.update({
       where: { id: ref.id },
-      data: { imageUrl: sp },
+      data: { imageUrl: publicUrl },
     })
     moodboardUploaded++
   }
