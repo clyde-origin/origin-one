@@ -23,6 +23,7 @@ export const keys = {
   locations:      (projectId: string) => ['locations', projectId] as const,
   inventoryItems: (projectId: string) => ['inventoryItems', projectId] as const,
   shootDays:      (projectId: string) => ['shootDays', projectId] as const,
+  budget:         (projectId: string) => ['budget', projectId] as const,
   castRoles:      (projectId: string) => ['castRoles', projectId] as const,
   artItems:       (projectId: string) => ['artItems', projectId] as const,
   threads:        (projectId: string, meId: string | null) => ['threads', projectId, meId ?? ''] as const,
@@ -171,6 +172,8 @@ export function useCrewTimecardsByWeek(
 // is negligible.
 function invalidateTimecards(qc: ReturnType<typeof useQueryClient>, projectId: string) {
   qc.invalidateQueries({ queryKey: ['timecardsByWeek', projectId] })
+  // approveTimecard / reopenTimecard side-effect on Expense → budget rollup must refresh.
+  qc.invalidateQueries({ queryKey: keys.budget(projectId) })
 }
 
 export function useCreateTimecard(projectId: string) {
@@ -707,6 +710,18 @@ export function useDeleteShootDay(projectId: string) {
   return useMutation({
     mutationFn: db.deleteShootDay,
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.shootDays(projectId) }),
+  })
+}
+
+// ── BUDGET ─────────────────────────────────────────────────
+
+// Single nested query → full budget tree + expenses. Re-fetches when
+// shootDays or expenses invalidate the cache.
+export function useBudget(projectId: string) {
+  return useQuery({
+    queryKey: keys.budget(projectId),
+    queryFn:  () => db.getBudgetByProject(projectId),
+    enabled:  !!projectId,
   })
 }
 

@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budget — Visual Reference (Exploration)</title>
+<style>
+  :root {
+    --bg: #04040a;
+    --surface: rgba(10, 10, 18, 0.42);
+    --surface-raised: #0a0a12;
+    --surface-card: rgba(15, 15, 25, 0.6);
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.14);
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0b8;
+    --text-muted: #62627a;
+
+    /* Phase tokens */
+    --pre: #e8a020;
+    --prod: #6470f3;
+    --post: #00b894;
+
+    /* Status tokens */
+    --approved: #00b894;
+    --submitted: #6470f3;
+    --draft: #62627a;
+    --reopened: #e8a020;
+    --danger: #e8564a;
+    --thread-violet: #7C3AED;
+    --thread-amber: #F59E0B;
+
+    /* Project accent (In Vino Veritas — Napa Collective) */
+    --project-accent: #9b6ef3;
+
+    --mono: 'Geist Mono', 'SF Mono', 'Fira Code', 'Menlo', monospace;
+    --sans: -apple-system, 'Inter', 'Geist Sans', 'SF Pro Display', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--sans);
+    padding: 32px 24px 64px;
+    min-height: 100vh;
+  }
+
+  .page-header {
+    max-width: 1280px;
+    margin: 0 auto 32px;
+    padding: 18px 22px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-card);
+  }
+  .page-header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .page-header p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    max-width: 880px;
+  }
+  .page-header code {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--project-accent);
+  }
+
+  .frames {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    justify-content: center;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  .frame-col { display: flex; flex-direction: column; gap: 10px; }
+  .frame-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .frame {
+    width: 388px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Sheet header ─────────────────────────────────────────── */
+  .sheet-grabber {
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 6px;
+  }
+  .sheet-grabber::before {
+    content: "";
+    width: 40px;
+    height: 4px;
+    background: var(--border-strong);
+    border-radius: 999px;
+  }
+  .sheet-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 16px 10px;
+  }
+  .icon-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-primary);
+    font-size: 18px;
+    cursor: pointer;
+  }
+  .nav-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  /* ── Project header (Frame A only) ────────────────────────── */
+  .project-block {
+    padding: 4px 20px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .project-name {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .project-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+  }
+  .project-totals {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-top: 14px;
+    gap: 16px;
+  }
+  .total-block .label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .total-block .amount {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+  }
+  .total-block .amount.actuals { color: var(--project-accent); }
+  .pct-spent {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .pct-spent .bar {
+    margin-top: 4px;
+    width: 80px;
+    height: 3px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+  }
+  .pct-spent .bar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 38%;
+    background: var(--project-accent);
+    border-radius: 2px;
+  }
+
+  /* ── Version selector ─────────────────────────────────────── */
+  .version-bar {
+    display: flex;
+    gap: 6px;
+    padding: 14px 16px 10px;
+    align-items: center;
+  }
+  .version-bar .lbl {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-right: 4px;
+  }
+  .v-pill {
+    flex: 1;
+    text-align: center;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    background: rgba(255,255,255,0.02);
+  }
+  .v-pill.active {
+    background: rgba(155, 110, 243, 0.14);
+    border-color: rgba(155, 110, 243, 0.4);
+    color: var(--project-accent);
+  }
+  .v-pill.locked::after {
+    content: " ⌃";
+    color: var(--approved);
+    font-size: 9px;
+  }
+
+  /* ── Variables strip ──────────────────────────────────────── */
+  .vars-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 16px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .var-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    border: 1px solid;
+  }
+  .var-chip .name { opacity: 0.85; }
+  .var-chip .val { font-weight: 600; }
+  .var-chip.pre  { background: rgba(232,160,32,0.10); border-color: rgba(232,160,32,0.22); color: var(--pre); }
+  .var-chip.prod { background: rgba(100,112,243,0.10); border-color: rgba(100,112,243,0.22); color: var(--prod); }
+  .var-chip.post { background: rgba(0,184,148,0.10); border-color: rgba(0,184,148,0.22); color: var(--post); }
+  .var-chip.user { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.10); color: var(--text-secondary); }
+  .var-chip.add  { background: transparent; border-color: rgba(255,255,255,0.08); color: var(--text-muted); cursor: pointer; }
+
+  /* ── Account list ─────────────────────────────────────────── */
+  .accounts {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .account {
+    background: var(--surface-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .account-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    cursor: pointer;
+  }
+  .account-code {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    min-width: 24px;
+  }
+  .account-name { flex: 1; font-size: 13px; font-weight: 500; }
+  .account-total {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .account-chev {
+    color: var(--text-muted);
+    font-size: 12px;
+    transition: transform 0.2s;
+  }
+  .account.expanded .account-chev { transform: rotate(90deg); }
+  .account-body {
+    border-top: 1px solid var(--border);
+    padding: 4px 6px 6px;
+  }
+
+  /* ── Line items ──────────────────────────────────────────── */
+  .line {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    column-gap: 10px;
+    row-gap: 4px;
+    padding: 10px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .line:hover { background: rgba(255,255,255,0.03); }
+  .line + .line { border-top: 1px solid rgba(255,255,255,0.04); }
+
+  .line-desc {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .line-total {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    grid-column: 2;
+    grid-row: 1;
+    text-align: right;
+  }
+  .line-meta {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.03em;
+  }
+
+  /* qty/rate inline math */
+  .qty {
+    color: var(--text-secondary);
+  }
+  .qty .formula {
+    color: var(--prod);
+    border-bottom: 1px dotted rgba(100,112,243,0.5);
+    cursor: help;
+  }
+  .qty .formula.pre   { color: var(--pre);  border-bottom-color: rgba(232,160,32,0.5); }
+  .qty .formula.post  { color: var(--post); border-bottom-color: rgba(0,184,148,0.5); }
+  .unit {
+    background: rgba(255,255,255,0.06);
+    color: var(--text-secondary);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+  }
+  .rate { color: var(--text-secondary); }
+  .fringe-pct {
+    color: var(--text-muted);
+    font-size: 9px;
+  }
+
+  /* tags + thread + variance chips */
+  .tag-chip {
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    border: 1px solid;
+  }
+  .tag-chip.dept-art    { background: rgba(240,128,48,0.10);  border-color: rgba(240,128,48,0.22);  color: #f08030; }
+  .tag-chip.dept-camera { background: rgba(155,110,243,0.10); border-color: rgba(155,110,243,0.22); color: #9b6ef3; }
+  .tag-chip.shootday   { background: rgba(100,112,243,0.10); border-color: rgba(100,112,243,0.22); color: var(--prod); }
+  .tag-chip.location   { background: rgba(60,190,106,0.10);  border-color: rgba(60,190,106,0.22);  color: #3cbe6a; }
+
+  .thread-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(124,58,237,0.10);
+    border: 1px solid rgba(124,58,237,0.22);
+    color: var(--thread-violet);
+    font-size: 9px;
+  }
+  .thread-chip.unread {
+    background: rgba(245,158,11,0.10);
+    border-color: rgba(245,158,11,0.22);
+    color: var(--thread-amber);
+  }
+  .variance {
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    border: 1px solid;
+  }
+  .variance.over    { background: rgba(232,86,74,0.10);  border-color: rgba(232,86,74,0.22);  color: var(--danger); }
+  .variance.warn    { background: rgba(232,160,32,0.10); border-color: rgba(232,160,32,0.22); color: var(--pre); }
+  .variance.under   { background: rgba(0,184,148,0.10);  border-color: rgba(0,184,148,0.22);  color: var(--post); }
+
+  /* ── FAB ──────────────────────────────────────────────────── */
+  .fab {
+    position: absolute;
+    bottom: 60px;
+    right: 18px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--project-accent);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 300;
+    box-shadow: 0 4px 20px rgba(155,110,243,0.4);
+    cursor: pointer;
+  }
+
+  /* ── Topsheet drawer handle (Frame A) ─────────────────────── */
+  .topsheet-handle {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(180deg, rgba(10,10,18,0) 0%, rgba(10,10,18,0.95) 50%, var(--surface-raised) 100%);
+    padding: 24px 16px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+  }
+  .topsheet-handle .grand-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .topsheet-handle .grand-amount {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .topsheet-handle .pull-up {
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  /* ─────────────────────────────────────────────────────────── */
+  /* FRAME B — Line detail sheet                                 */
+  /* ─────────────────────────────────────────────────────────── */
+  .crumb {
+    padding: 0 20px 14px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  .crumb b { color: var(--text-secondary); font-weight: 500; }
+
+  .line-title {
+    padding: 0 20px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .line-title h2 {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .line-title .pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 12px 16px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 10px 0;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+  }
+  .tab.active {
+    color: var(--project-accent);
+    border-bottom-color: var(--project-accent);
+  }
+
+  .detail-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px 80px;
+  }
+  .detail-section { margin-bottom: 20px; }
+  .detail-section .h {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  /* version columns */
+  .v-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .v-cell {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+  }
+  .v-cell.active {
+    border-color: rgba(155,110,243,0.4);
+    background: rgba(155,110,243,0.05);
+  }
+  .v-cell .v-name {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .v-cell .v-num {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .v-cell .v-formula {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--prod);
+    margin-top: 2px;
+    border-bottom: 1px dotted rgba(100,112,243,0.5);
+    display: inline-block;
+  }
+  .v-cell .v-rate {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+  .v-cell .v-total {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--project-accent);
+    font-weight: 600;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* expense list */
+  .expense-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 8px;
+    border-radius: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .expense-row:last-child { border-bottom: 0; }
+  .expense-thumb {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
+  }
+  .expense-thumb.timecard { background: rgba(100,112,243,0.10); border-color: rgba(100,112,243,0.3); color: var(--prod); }
+  .expense-thumb.receipt {
+    background: linear-gradient(135deg, rgba(155,110,243,0.18), rgba(60,190,106,0.10));
+  }
+  .expense-thumb.receipt::after {
+    content: "🧾";
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    filter: grayscale(0.3) opacity(0.85);
+  }
+  .expense-meta { flex: 1; min-width: 0; }
+  .expense-meta .e-line1 { font-size: 12px; color: var(--text-primary); margin-bottom: 2px; }
+  .expense-meta .e-line2 {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+  }
+  .expense-amt {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: right;
+  }
+  .expense-amt .e-status {
+    font-size: 8px;
+    color: var(--approved);
+    margin-top: 2px;
+    display: block;
+    letter-spacing: 0.06em;
+  }
+
+  .add-expense {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px;
+    margin-top: 8px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  /* mini thread teaser */
+  .thread-teaser {
+    background: rgba(124,58,237,0.06);
+    border: 1px solid rgba(124,58,237,0.18);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .thread-teaser .t-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--thread-violet);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .thread-teaser .t-msg {
+    font-size: 12px;
+    color: var(--text-primary);
+    line-height: 1.4;
+  }
+  .thread-teaser .t-author {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ─────────────────────────────────────────────────────────── */
+  /* FRAME C — Topsheet (PDF preview shape)                      */
+  /* ─────────────────────────────────────────────────────────── */
+  .topsheet {
+    background: #f4f1ea;
+    color: #1a1a26;
+    padding: 22px 22px 16px;
+    flex: 1;
+    overflow-y: auto;
+    font-family: var(--sans);
+  }
+  .ts-head {
+    border-bottom: 1px solid #c8c1b3;
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+  }
+  .ts-brand {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #6a6258;
+    margin-bottom: 6px;
+  }
+  .ts-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 2px;
+    color: #1a1a26;
+  }
+  .ts-sub {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: #6a6258;
+    letter-spacing: 0.04em;
+  }
+  .ts-meta-row {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: #6a6258;
+    letter-spacing: 0.04em;
+  }
+
+  .ts-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 10px;
+  }
+  .ts-table th {
+    text-align: right;
+    padding: 6px 4px 4px;
+    border-bottom: 1px solid #c8c1b3;
+    color: #6a6258;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-size: 8px;
+  }
+  .ts-table th.left { text-align: left; }
+  .ts-table td {
+    padding: 7px 4px;
+    border-bottom: 1px solid #e2dccb;
+  }
+  .ts-table td.right { text-align: right; }
+  .ts-table td.code { color: #6a6258; font-size: 9px; width: 24px; }
+  .ts-table td.name { font-family: var(--sans); font-size: 11px; color: #1a1a26; }
+  .ts-table td.amt { color: #1a1a26; }
+  .ts-table tr.markup td { font-style: italic; color: #6a6258; }
+  .ts-table tr.subtotal td {
+    background: #ece6d6;
+    font-weight: 700;
+    border-top: 1px solid #c8c1b3;
+  }
+  .ts-table tr.grand td {
+    background: #1a1a26;
+    color: #f4f1ea;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 10px 4px;
+  }
+  .ts-table .var-pos { color: #1a8c5a; }
+  .ts-table .var-neg { color: #c44030; }
+
+  .ts-footer {
+    margin-top: 16px;
+    padding-top: 10px;
+    border-top: 1px solid #c8c1b3;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: #6a6258;
+    letter-spacing: 0.04em;
+  }
+  .export-row {
+    display: flex;
+    gap: 6px;
+    padding: 12px 16px 14px;
+    background: var(--surface-raised);
+    border-top: 1px solid var(--border);
+  }
+  .export-btn {
+    flex: 1;
+    padding: 9px 0;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+    color: var(--text-primary);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    text-align: center;
+  }
+  .export-btn.primary {
+    background: rgba(155,110,243,0.14);
+    border-color: rgba(155,110,243,0.4);
+    color: var(--project-accent);
+  }
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <h1>Budget — Visual Reference (Exploration)</h1>
+  <p>
+    Budget module mockup grounded in the existing BT1 token system. Three frames: full budget page,
+    line-item detail sheet, and topsheet (PDF preview). Project shown is <code>In Vino Veritas</code>
+    (project accent <code>#9b6ef3</code>). Sample data is illustrative — formulas, tags, and threads
+    demonstrate the schema decisions captured in the spec under draft. Token sources:
+    <code>BRAND_TOKENS.md</code> + the existing <code>timecards-ui-reference.html</code> patterns.
+  </p>
+</header>
+
+<section class="frames">
+
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <!-- FRAME A — Full Budget Page                                 -->
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <div class="frame-col">
+    <div class="frame-label">A · Budget Page (active version: Working)</div>
+    <div class="frame">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-nav">
+        <span class="icon-btn">‹</span>
+        <span class="nav-title">Budget</span>
+        <span class="icon-btn">⋯</span>
+      </div>
+
+      <!-- Project header -->
+      <div class="project-block">
+        <div class="project-name">In Vino Veritas</div>
+        <div class="project-sub">NAPA COLLECTIVE · COMMERCIAL · USD</div>
+
+        <div class="project-totals">
+          <div class="total-block">
+            <div class="label">Working Total</div>
+            <div class="amount">$284,650</div>
+          </div>
+          <div class="total-block">
+            <div class="label">Actuals</div>
+            <div class="amount actuals">$108,221</div>
+            <div class="pct-spent">38% spent
+              <div class="bar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Version selector -->
+      <div class="version-bar">
+        <span class="lbl">Version</span>
+        <span class="v-pill locked">Estimate</span>
+        <span class="v-pill active">Working</span>
+        <span class="v-pill">Committed</span>
+      </div>
+
+      <!-- Variables strip -->
+      <div class="vars-strip">
+        <span class="var-chip pre"><span class="name">prepDays</span><span class="val">3</span></span>
+        <span class="var-chip prod"><span class="name">shootDays</span><span class="val">12</span></span>
+        <span class="var-chip post"><span class="name">postDays</span><span class="val">21</span></span>
+        <span class="var-chip user"><span class="name">cameras</span><span class="val">2</span></span>
+        <span class="var-chip user"><span class="name">talentCount</span><span class="val">5</span></span>
+        <span class="var-chip add">+ var</span>
+      </div>
+
+      <!-- Account list -->
+      <div class="accounts">
+
+        <div class="account">
+          <div class="account-head">
+            <span class="account-code">A</span>
+            <span class="account-name">Pre-Production Wages</span>
+            <span class="account-total">$18,400</span>
+            <span class="account-chev">›</span>
+          </div>
+        </div>
+
+        <div class="account expanded">
+          <div class="account-head">
+            <span class="account-code">B</span>
+            <span class="account-name">Shooting Crew Labor</span>
+            <span class="account-total">$84,720</span>
+            <span class="account-chev">›</span>
+          </div>
+          <div class="account-body">
+            <div class="line">
+              <div class="line-desc">Director</div>
+              <div class="line-total">$18,000</div>
+              <div class="line-meta">
+                <span class="qty">1</span>
+                <span class="unit">FLAT</span>
+                <span class="rate">@ $18,000</span>
+                <span class="fringe-pct">+0% fr</span>
+              </div>
+            </div>
+            <div class="line">
+              <div class="line-desc">DP — Asha Reyna</div>
+              <div class="line-total">$14,950</div>
+              <div class="line-meta">
+                <span class="qty"><span class="formula">shootDays</span></span>
+                <span class="unit">DAY</span>
+                <span class="rate">@ $1,150</span>
+                <span class="fringe-pct">+8.3% fr</span>
+                <span class="tag-chip dept-camera">camera</span>
+              </div>
+            </div>
+            <div class="line">
+              <div class="line-desc">
+                1st AC — Mateo Solis
+                <span class="thread-chip unread">● 2</span>
+              </div>
+              <div class="line-total">$8,580</div>
+              <div class="line-meta">
+                <span class="qty"><span class="formula">shootDays</span></span>
+                <span class="unit">DAY</span>
+                <span class="rate">@ $660</span>
+                <span class="fringe-pct">+8.3% fr</span>
+                <span class="variance over">↑ +12%</span>
+              </div>
+            </div>
+            <div class="line">
+              <div class="line-desc">2nd AC / Loader</div>
+              <div class="line-total">$4,500</div>
+              <div class="line-meta">
+                <span class="qty"><span class="formula">shootDays</span></span>
+                <span class="unit">DAY</span>
+                <span class="rate">@ $375</span>
+                <span class="fringe-pct">+0% fr</span>
+                <span class="tag-chip dept-camera">camera</span>
+              </div>
+            </div>
+            <div class="line">
+              <div class="line-desc">Camera Op (B-cam)</div>
+              <div class="line-total">$10,200</div>
+              <div class="line-meta">
+                <span class="qty"><span class="formula">shootDays * 2</span></span>
+                <span class="unit">DAY</span>
+                <span class="rate">@ $425</span>
+                <span class="fringe-pct">+0% fr</span>
+              </div>
+            </div>
+            <div class="line">
+              <div class="line-desc">Sound Mixer</div>
+              <div class="line-total">$7,200</div>
+              <div class="line-meta">
+                <span class="qty"><span class="formula">shootDays</span></span>
+                <span class="unit">DAY</span>
+                <span class="rate">@ $600</span>
+                <span class="fringe-pct">+0% fr</span>
+              </div>
+            </div>
+            <div class="line">
+              <div class="line-desc">Gaffer + Key Grip pkg</div>
+              <div class="line-total">$13,200</div>
+              <div class="line-meta">
+                <span class="qty"><span class="formula">prepDays + shootDays</span></span>
+                <span class="unit">DAY</span>
+                <span class="rate">@ $880</span>
+                <span class="fringe-pct">+0% fr</span>
+                <span class="tag-chip shootday">shootDay:1–12</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="account">
+          <div class="account-head">
+            <span class="account-code">D</span>
+            <span class="account-name">Locations & Travel</span>
+            <span class="account-total">$32,180</span>
+            <span class="account-chev">›</span>
+          </div>
+        </div>
+
+        <div class="account">
+          <div class="account-head">
+            <span class="account-code">E</span>
+            <span class="account-name">Props · Wardrobe · HMU</span>
+            <span class="account-total">$14,950</span>
+            <span class="account-chev">›</span>
+          </div>
+        </div>
+
+        <div class="account">
+          <div class="account-head">
+            <span class="account-code">H</span>
+            <span class="account-name">Equipment (Camera · Lighting · Grip)</span>
+            <span class="account-total">$48,900</span>
+            <span class="account-chev">›</span>
+          </div>
+        </div>
+
+        <div class="account">
+          <div class="account-head">
+            <span class="account-code">J</span>
+            <span class="account-name">Talent &amp; Talent Expenses</span>
+            <span class="account-total">$22,500</span>
+            <span class="account-chev">›</span>
+          </div>
+        </div>
+
+        <div class="account">
+          <div class="account-head">
+            <span class="account-code">L</span>
+            <span class="account-name">Editorial · Post · Music</span>
+            <span class="account-total">$38,400</span>
+            <span class="account-chev">›</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!--
+        FAB visual is intentionally NOT rendered here.
+        Per the codebase ActionBar pattern (PR #37 + budget arc PR 8),
+        + Add line is registered via useFabAction({ onPress, label }) and
+        rendered by the global ActionBar at the bottom of the screen, not
+        by the page. The freestanding bottom-right FAB is gone — the
+        page-level + affordance flows through ActionBar's + slot.
+        (PR 8 itself is read-only and registers no useFabAction; the slot
+        hides cleanly. PR 9 adds the line-edit affordance.)
+      -->
+
+      <!-- Topsheet drawer handle -->
+      <div class="topsheet-handle">
+        <div>
+          <div class="grand-label">Grand Total · Working</div>
+          <div class="grand-amount">$284,650</div>
+        </div>
+        <span class="pull-up">▴ topsheet</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <!-- FRAME B — Line Detail Sheet                                -->
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <div class="frame-col">
+    <div class="frame-label">B · Line Detail Sheet (1st AC — Mateo Solis)</div>
+    <div class="frame">
+      <div class="sheet-grabber"></div>
+      <div class="sheet-nav">
+        <span class="icon-btn">‹</span>
+        <span class="nav-title">Line Item</span>
+        <span class="icon-btn">⋯</span>
+      </div>
+
+      <div class="crumb">B · Shooting Crew Labor / <b>B.20 Camera Department</b></div>
+
+      <div class="line-title">
+        <h2>1st AC — Mateo Solis</h2>
+        <div style="font-family:var(--mono); font-size:11px; color:var(--text-secondary); letter-spacing:0.04em;">
+          <span class="formula" style="color:var(--prod); border-bottom:1px dotted rgba(100,112,243,0.5);">shootDays</span>
+          × <span class="unit">DAY</span> @ $660 + 8.3% fringe
+        </div>
+        <div class="pills">
+          <span class="tag-chip dept-camera">camera</span>
+          <span class="tag-chip shootday">shootDay:1–12</span>
+          <span class="thread-chip unread">● 2 unread</span>
+          <span class="variance over">↑ +12% vs estimate</span>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <span class="tab active">Edit</span>
+        <span class="tab">Expenses · 13</span>
+        <span class="tab">Threads</span>
+      </div>
+
+      <div class="detail-body">
+        <!-- Per-version amounts -->
+        <div class="detail-section">
+          <div class="h">Per-version amounts</div>
+          <div class="v-grid">
+            <div class="v-cell">
+              <div class="v-name">Estimate ⌃</div>
+              <div class="v-num">12 × $590</div>
+              <div class="v-rate">+0% fringe</div>
+              <div class="v-total">$7,080</div>
+            </div>
+            <div class="v-cell active">
+              <div class="v-name">Working</div>
+              <div class="v-num">13</div>
+              <div class="v-formula">shootDays</div>
+              <div class="v-rate">× $660 +8.3% fr</div>
+              <div class="v-total">$8,580</div>
+            </div>
+            <div class="v-cell">
+              <div class="v-name">Committed</div>
+              <div class="v-num">— —</div>
+              <div class="v-rate">not set</div>
+              <div class="v-total">$0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Expenses -->
+        <div class="detail-section">
+          <div class="h">Recent expenses · 4 of 13</div>
+
+          <div class="expense-row">
+            <div class="expense-thumb timecard">⏱</div>
+            <div class="expense-meta">
+              <div class="e-line1">Timecard · Apr 18 · 12.5h</div>
+              <div class="e-line2">MATEO SOLIS · APPROVED BY KELLY</div>
+            </div>
+            <div class="expense-amt">
+              $660.00
+              <span class="e-status">● APPROVED</span>
+            </div>
+          </div>
+
+          <div class="expense-row">
+            <div class="expense-thumb timecard">⏱</div>
+            <div class="expense-meta">
+              <div class="e-line1">Timecard · Apr 17 · 11h</div>
+              <div class="e-line2">MATEO SOLIS · APPROVED BY KELLY</div>
+            </div>
+            <div class="expense-amt">
+              $660.00
+              <span class="e-status">● APPROVED</span>
+            </div>
+          </div>
+
+          <div class="expense-row">
+            <div class="expense-thumb receipt"></div>
+            <div class="expense-meta">
+              <div class="e-line1">Camera tape + lens cloth</div>
+              <div class="e-line2">B&amp;H PHOTO · APR 16 · RECEIPT ATTACHED</div>
+            </div>
+            <div class="expense-amt">
+              $48.22
+              <span class="e-status">● MANUAL</span>
+            </div>
+          </div>
+
+          <div class="expense-row">
+            <div class="expense-thumb timecard">⏱</div>
+            <div class="expense-meta">
+              <div class="e-line1">Timecard · Apr 15 · 13h</div>
+              <div class="e-line2">MATEO SOLIS · APPROVED BY KELLY</div>
+            </div>
+            <div class="expense-amt">
+              $660.00
+              <span class="e-status">● APPROVED</span>
+            </div>
+          </div>
+
+          <div class="add-expense">+ Add expense / receipt</div>
+        </div>
+
+        <!-- Thread teaser -->
+        <div class="detail-section">
+          <div class="h">Thread · 2 unread</div>
+          <div class="thread-teaser">
+            <div class="t-head">
+              <span>● UNREAD</span>
+              <span style="margin-left:auto; opacity:0.6;">2 messages</span>
+            </div>
+            <div class="t-msg">"Mateo's day rate jumped on day 6 when we added B-cam — should we split that into a separate B-cam AC line?"</div>
+            <div class="t-author">KELLY · 1H AGO</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <!-- FRAME C — Topsheet (PDF preview)                           -->
+  <!-- ═════════════════════════════════════════════════════════ -->
+  <div class="frame-col">
+    <div class="frame-label">C · Topsheet (PDF preview · client-facing)</div>
+    <div class="frame">
+      <div class="topsheet">
+        <div class="ts-head">
+          <div class="ts-brand">Origin One · Back to One</div>
+          <div class="ts-title">In Vino Veritas — Topsheet</div>
+          <div class="ts-sub">Napa Collective · Commercial · USD</div>
+          <div class="ts-meta-row">
+            <span>VERSION · WORKING</span>
+            <span>APR 25, 2026</span>
+          </div>
+        </div>
+
+        <table class="ts-table">
+          <thead>
+            <tr>
+              <th class="left">Account</th>
+              <th>Estimate</th>
+              <th>Working</th>
+              <th>Actuals</th>
+              <th>Δ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="code">A</td>
+              <td class="name">Pre-Production Wages</td>
+              <td class="right amt">17,200</td>
+              <td class="right amt">18,400</td>
+              <td class="right amt">17,650</td>
+              <td class="right amt var-pos">−750</td>
+            </tr>
+            <tr>
+              <td class="code">B</td>
+              <td class="name">Shooting Crew Labor</td>
+              <td class="right amt">79,400</td>
+              <td class="right amt">84,720</td>
+              <td class="right amt">42,180</td>
+              <td class="right amt var-neg">+1,920</td>
+            </tr>
+            <tr>
+              <td class="code">D</td>
+              <td class="name">Locations &amp; Travel</td>
+              <td class="right amt">28,400</td>
+              <td class="right amt">32,180</td>
+              <td class="right amt">12,890</td>
+              <td class="right amt">—</td>
+            </tr>
+            <tr>
+              <td class="code">E</td>
+              <td class="name">Props · Wardrobe · HMU</td>
+              <td class="right amt">14,200</td>
+              <td class="right amt">14,950</td>
+              <td class="right amt">8,420</td>
+              <td class="right amt">—</td>
+            </tr>
+            <tr>
+              <td class="code">H</td>
+              <td class="name">Equipment</td>
+              <td class="right amt">46,200</td>
+              <td class="right amt">48,900</td>
+              <td class="right amt">22,400</td>
+              <td class="right amt">—</td>
+            </tr>
+            <tr>
+              <td class="code">J</td>
+              <td class="name">Talent &amp; Expenses</td>
+              <td class="right amt">22,500</td>
+              <td class="right amt">22,500</td>
+              <td class="right amt">4,200</td>
+              <td class="right amt">—</td>
+            </tr>
+            <tr>
+              <td class="code">L</td>
+              <td class="name">Editorial · Post · Music</td>
+              <td class="right amt">36,400</td>
+              <td class="right amt">38,400</td>
+              <td class="right amt">481</td>
+              <td class="right amt">—</td>
+            </tr>
+
+            <tr class="subtotal">
+              <td class="code"></td>
+              <td class="name">Subtotal Below-the-Line</td>
+              <td class="right amt">244,300</td>
+              <td class="right amt">260,050</td>
+              <td class="right amt">108,221</td>
+              <td class="right amt">—</td>
+            </tr>
+            <tr class="markup">
+              <td class="code"></td>
+              <td class="name">Contingency 10%</td>
+              <td class="right amt">24,430</td>
+              <td class="right amt">26,005</td>
+              <td class="right amt">—</td>
+              <td class="right amt">—</td>
+            </tr>
+            <tr class="markup">
+              <td class="code"></td>
+              <td class="name">Agency Fee 5% (on grand)</td>
+              <td class="right amt">13,437</td>
+              <td class="right amt">14,303</td>
+              <td class="right amt">—</td>
+              <td class="right amt">—</td>
+            </tr>
+            <tr class="grand">
+              <td class="code"></td>
+              <td class="name">GRAND TOTAL</td>
+              <td class="right amt">282,167</td>
+              <td class="right amt">300,358</td>
+              <td class="right amt">108,221</td>
+              <td class="right amt">36% spent</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="ts-footer">
+          <span>1 of 1</span>
+          <span>Generated · BTO Budget · v1</span>
+        </div>
+      </div>
+
+      <div class="export-row">
+        <button class="export-btn primary">PDF · TOPSHEET</button>
+        <button class="export-btn">PDF · DETAIL</button>
+        <button class="export-btn">CSV</button>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+</body>
+</html>

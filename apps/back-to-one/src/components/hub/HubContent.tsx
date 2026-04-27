@@ -10,8 +10,13 @@ import { EntityAttachmentCover } from '@/components/attachments/EntityAttachment
 import {
   useProjects, useProject, useActionItems, useToggleActionItem, useCreateActionItem, useMilestones, useCreateMilestone, useCrew,
   useScenes, useMoodboard, useThreads,
-  useLocations, useArtItems, useCastRoles, useWorkflowNodes, useInventoryItems, useShootDays,
+  useLocations, useArtItems, useCastRoles, useWorkflowNodes, useInventoryItems, useShootDays, useBudget,
 } from '@/lib/hooks/useOriginOne'
+import { buildEvalContext, rollUpBudget } from '@/lib/budget/compute'
+import type {
+  Budget, BudgetVersion, BudgetAccount, BudgetLine, BudgetLineAmount,
+  BudgetVariable, BudgetMarkup, Expense, ShootDay,
+} from '@/types'
 import { readStoredViewerRole, type ViewerRole } from '@/lib/utils/viewerIdentity'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { CrewAvatar, ThreadsIcon } from '@/components/ui'
@@ -625,10 +630,43 @@ export function HubContent({ projectId }: { projectId: string }) {
   const { data: workflowNodes } = useWorkflowNodes(projectId)
   const { data: inventoryItems } = useInventoryItems(projectId)
   const { data: shootDays } = useShootDays(projectId)
+  const { data: budgetData } = useBudget(projectId)
 
-  // Pre-Auth viewer-identity shim — Schedule block (and the upcoming Budget
-  // block, PR 8) is producer-only per spec Q8. Replaces with Auth session
-  // when it lands; single swap point at top of HubContent.
+  // Hub Budget preview rollup — same compute pipeline the budget page uses.
+  // PR 8 keeps the card simple (working total + actuals + % spent); the
+  // fancier topsheet card (variance flags etc.) lands in PR 10.
+  const budgetTree = budgetData as (Budget & {
+    versions:  BudgetVersion[]
+    accounts:  BudgetAccount[]
+    lines:     (BudgetLine & { amounts: BudgetLineAmount[] })[]
+    variables: BudgetVariable[]
+    markups:   BudgetMarkup[]
+    expenses:  Expense[]
+  }) | null | undefined
+  const budgetPreview = useMemo(() => {
+    if (!budgetTree) return null
+    const working = budgetTree.versions.find(v => v.kind === 'working') ?? budgetTree.versions[0]
+    if (!working) return null
+    const ctx = buildEvalContext(budgetTree.variables, (shootDays ?? []) as ShootDay[], working.id)
+    const amountsByLine = new Map<string, BudgetLineAmount | undefined>()
+    for (const line of budgetTree.lines) {
+      amountsByLine.set(line.id, line.amounts.find(a => a.versionId === working.id))
+    }
+    const rollup = rollUpBudget({
+      lines: budgetTree.lines,
+      amountsByLine,
+      accounts: budgetTree.accounts,
+      expenses: budgetTree.expenses,
+      markups: budgetTree.markups,
+      ctx,
+      varianceThreshold: Number(budgetTree.varianceThreshold),
+      activeVersionId: working.id,
+    })
+    return { workingTotal: rollup.grandTotal, actuals: rollup.grandActuals }
+  }, [budgetTree, shootDays])
+
+  // Pre-Auth viewer-identity shim — Schedule + Budget blocks are producer-only
+  // per spec Q8. Replaces with Auth session when it lands; single swap point.
   const [hubViewerRole, setHubViewerRole] = useState<ViewerRole | null>(null)
   useEffect(() => { setHubViewerRole(readStoredViewerRole()) }, [])
   const isProducer = hubViewerRole === 'producer'
@@ -1187,6 +1225,91 @@ export function HubContent({ projectId }: { projectId: string }) {
                   )
                 })}
               </div>
+            </div>
+          )}
+
+          {/* BUDGET — producer-only (spec Q8). PR 8: simple working total +
+              actuals + % spent. Fancier topsheet variants land in PR 10. */}
+          {isProducer && (
+            <div style={{ padding: '0 2px' }}>
+              <div
+                className="cursor-pointer"
+                onClick={() => router.push(`/projects/${projectId}/budget`)}
+              >
+                <ModuleHeader
+                  name="Budget"
+                  meta={
+                    budgetPreview
+                      ? `Working · $${Math.round(budgetPreview.workingTotal).toLocaleString('en-US')}`
+                      : 'Not started'
+                  }
+                />
+              </div>
+              {budgetPreview ? (
+                <div
+                  onClick={() => { haptic('light'); router.push(`/projects/${projectId}/budget`) }}
+                  className="cursor-pointer active:opacity-80 transition-opacity"
+                  style={{
+                    padding: '12px 14px',
+                    background: 'rgba(10,10,18,0.42)',
+                    backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+                    border: '1px solid rgba(255,255,255,0.07)',
+                    borderRadius: 14,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    gap: 16,
+                  }}
+                >
+                  <div>
+                    <div
+                      className="font-mono uppercase"
+                      style={{ fontSize: '0.40rem', letterSpacing: '0.1em', color: '#62627a', marginBottom: 4 }}
+                    >Actuals · Working</div>
+                    <div
+                      className="font-mono"
+                      style={{ fontSize: '0.95rem', fontWeight: 600, color: '#9b6ef3' }}
+                    >${Math.round(budgetPreview.actuals).toLocaleString('en-US')}</div>
+                    {budgetPreview.workingTotal > 0 && (
+                      <div className="font-mono" style={{ fontSize: '0.5rem', color: '#a0a0b8', marginTop: 4 }}>
+                        {Math.round((budgetPreview.actuals / budgetPreview.workingTotal) * 100)}% spent
+                        <div
+                          style={{
+                            marginTop: 4, width: 100, height: 3, borderRadius: 2, overflow: 'hidden',
+                            background: 'rgba(255,255,255,0.06)', position: 'relative',
+                          }}
+                        >
+                          <div
+                            style={{
+                              position: 'absolute', inset: 0,
+                              width: `${Math.min(100, Math.round((budgetPreview.actuals / budgetPreview.workingTotal) * 100))}%`,
+                              background: '#9b6ef3', borderRadius: 2,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div
+                    style={{ color: '#62627a', fontSize: '1rem' }}
+                  >›</div>
+                </div>
+              ) : (
+                <div
+                  onClick={() => { haptic('light'); router.push(`/projects/${projectId}/budget`) }}
+                  className="cursor-pointer active:opacity-80 transition-opacity"
+                  style={{
+                    padding: '14px',
+                    background: 'rgba(10,10,18,0.42)',
+                    backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+                    border: '1px dashed rgba(155,110,243,0.28)',
+                    borderRadius: 14,
+                    textAlign: 'center',
+                    color: 'rgba(196,90,220,0.75)',
+                    fontFamily: 'monospace', fontSize: '0.5rem', letterSpacing: '0.08em', textTransform: 'uppercase',
+                  }}
+                >
+                  Start budget →
+                </div>
+              )}
             </div>
           )}
 
