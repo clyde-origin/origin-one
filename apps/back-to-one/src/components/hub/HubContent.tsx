@@ -905,7 +905,20 @@ export function HubContent({ projectId }: { projectId: string }) {
       varianceThreshold: Number(budgetTree.varianceThreshold),
       activeVersionId: working.id,
     })
-    return { workingTotal: rollup.grandTotal, actuals: rollup.grandActuals }
+    // Variance summary across lines (PR 10): count lines flagged 'over'
+    // and 'under' so the Hub card can surface "N over budget".
+    let over = 0, under = 0
+    rollup.computedByLine.forEach(c => {
+      if (c.flag === 'over')  over++
+      else if (c.flag === 'under') under++
+    })
+    return {
+      workingTotal: rollup.grandTotal,
+      actuals: rollup.grandActuals,
+      lineCount: budgetTree.lines.length,
+      overCount: over,
+      underCount: under,
+    }
   }, [budgetTree, shootDays])
 
   // Pre-Auth viewer-identity shim — Schedule + Budget blocks are producer-only
@@ -1502,7 +1515,7 @@ export function HubContent({ projectId }: { projectId: string }) {
                     gap: 16,
                   }}
                 >
-                  <div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       className="font-mono uppercase"
                       style={{ fontSize: '0.40rem', letterSpacing: '0.1em', color: '#62627a', marginBottom: 4 }}
@@ -1530,9 +1543,49 @@ export function HubContent({ projectId }: { projectId: string }) {
                         </div>
                       </div>
                     )}
+                    {/* Variance summary chip — over-budget tally if any. */}
+                    <div className="flex" style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                      {budgetPreview.overCount > 0 ? (
+                        <span
+                          className="font-mono uppercase"
+                          style={{
+                            fontSize: '0.40rem', letterSpacing: '0.08em',
+                            padding: '3px 8px', borderRadius: 999,
+                            background: 'rgba(232,86,74,0.10)',
+                            border: '1px solid rgba(232,86,74,0.30)',
+                            color: '#e8564a',
+                          }}
+                        >
+                          ⚠ {budgetPreview.overCount} {budgetPreview.overCount === 1 ? 'line' : 'lines'} over budget
+                        </span>
+                      ) : budgetPreview.lineCount > 0 ? (
+                        <span
+                          className="font-mono uppercase"
+                          style={{
+                            fontSize: '0.40rem', letterSpacing: '0.08em',
+                            padding: '3px 8px', borderRadius: 999,
+                            background: 'rgba(0,184,148,0.08)',
+                            border: '1px solid rgba(0,184,148,0.28)',
+                            color: '#00b894',
+                          }}
+                        >On budget</span>
+                      ) : null}
+                      {budgetPreview.underCount > 0 && (
+                        <span
+                          className="font-mono uppercase"
+                          style={{
+                            fontSize: '0.40rem', letterSpacing: '0.08em',
+                            padding: '3px 8px', borderRadius: 999,
+                            background: 'rgba(0,184,148,0.08)',
+                            border: '1px solid rgba(0,184,148,0.28)',
+                            color: '#00b894',
+                          }}
+                        >↓ {budgetPreview.underCount} under</span>
+                      )}
+                    </div>
                   </div>
                   <div
-                    style={{ color: '#62627a', fontSize: '1rem' }}
+                    style={{ color: '#62627a', fontSize: '1rem', alignSelf: 'flex-start', paddingTop: 4 }}
                   >›</div>
                 </div>
               ) : (
