@@ -17,6 +17,7 @@ import { useLongPress } from '@/lib/hooks/useLongPress'
 import { haptic } from '@/lib/utils/haptics'
 import { LineDetailSheet } from '@/components/budget/LineDetailSheet'
 import { TopsheetDrawer } from '@/components/budget/TopsheetDrawer'
+import { TemplatePicker } from '@/components/budget/TemplatePicker'
 import type { TopsheetVersionTotal } from '@/components/budget/TopsheetContent'
 import type {
   Budget,
@@ -852,6 +853,10 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
   // Long-press version-pill menu state.
   const [menuVersionId, setMenuVersionId] = useState<string | null>(null)
 
+  // PR 11 — empty-state template picker. Shown inline (replaces the
+  // empty-state copy on the same surface, no nested modal).
+  const [pickerOpen, setPickerOpen] = useState(false)
+
   // Resolve current ProjectMember.id for createdBy / lockedBy fields.
   // Pre-Auth: useMeId returns User.id; we look up the matching ProjectMember
   // for this project. Single swap point on Auth day.
@@ -950,16 +955,37 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
             style={{ fontSize: '0.42rem', letterSpacing: '0.1em', color: '#62627a', padding: '32px 0' }}
           >Loading…</div>
         ) : !budget ? (
-          // Empty state (5 of 6 seed projects). PR 11 wires the TemplatePicker.
-          <div className="text-center" style={{ padding: '60px 24px' }}>
-            <div
-              className="font-mono uppercase"
-              style={{ fontSize: '0.5rem', letterSpacing: '0.1em', color: '#62627a', marginBottom: 10 }}
-            >No budget yet</div>
-            <div style={{ fontSize: '0.85rem', color: '#a0a0b8', lineHeight: 1.5 }}>
-              Start one from the AICP template, clone from another project,<br />or begin blank — coming with the template picker.
+          // Empty state — TemplatePicker swaps in on tap. Replace-in-place;
+          // not a nested modal.
+          pickerOpen ? (
+            <TemplatePicker
+              projectId={projectId}
+              accent={accent}
+              onCreated={() => setPickerOpen(false)}
+              onCancel={() => setPickerOpen(false)}
+            />
+          ) : (
+            <div className="text-center" style={{ padding: '60px 24px' }}>
+              <div
+                className="font-mono uppercase"
+                style={{ fontSize: '0.5rem', letterSpacing: '0.1em', color: '#62627a', marginBottom: 10 }}
+              >No budget yet</div>
+              <div style={{ fontSize: '0.85rem', color: '#a0a0b8', lineHeight: 1.5, marginBottom: 18 }}>
+                Start from the AICP template, clone from another project,<br />or begin blank.
+              </div>
+              <button
+                type="button"
+                onClick={() => { haptic('light'); setPickerOpen(true) }}
+                className="font-mono uppercase"
+                style={{
+                  padding: '11px 22px', borderRadius: 999,
+                  fontSize: 10, letterSpacing: '0.10em',
+                  background: `${accent}24`, border: `1px solid ${accent}66`,
+                  color: accent, cursor: 'pointer',
+                }}
+              >Start budget</button>
             </div>
-          </div>
+          )
         ) : !rollup || !evalCtx ? (
           <div
             className="font-mono uppercase text-center"

@@ -6,6 +6,7 @@ import * as db from '@/lib/db/queries'
 
 export const keys = {
   projects:           () => ['projects'] as const,
+  projectsWithBudgets: () => ['projectsWithBudgets'] as const,
   project:            (id: string) => ['projects', id] as const,
   crew:               (teamId: string) => ['crew', teamId] as const,
   actionItems:        (projectId: string) => ['actionItems', projectId] as const,
@@ -846,6 +847,45 @@ export function useDeleteBudgetVersion(projectId: string) {
   return useMutation({
     mutationFn: (id: string) => db.deleteBudgetVersion(id),
     onSuccess: () => invalidateBudget(qc, projectId),
+  })
+}
+
+// PR 11 — budget creation flows. Each mutation invalidates the target
+// project's budget cache so the page flips from empty-state to live
+// budget without a manual refetch. The clone flow also invalidates the
+// projects-with-budgets list so a producer cloning rapidly across
+// projects sees up-to-date source options.
+export function useCreateBudgetFromTemplate(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createBudgetFromTemplate,
+    onSuccess:  () => invalidateBudget(qc, projectId),
+  })
+}
+
+export function useCreateBlankBudget(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createBlankBudget,
+    onSuccess:  () => invalidateBudget(qc, projectId),
+  })
+}
+
+export function useCreateBudgetByClone(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createBudgetByClone,
+    onSuccess:  () => {
+      invalidateBudget(qc, projectId)
+      qc.invalidateQueries({ queryKey: keys.projectsWithBudgets() })
+    },
+  })
+}
+
+export function useProjectsWithBudgets() {
+  return useQuery({
+    queryKey: keys.projectsWithBudgets(),
+    queryFn:  () => db.getProjectsWithBudgets(),
   })
 }
 

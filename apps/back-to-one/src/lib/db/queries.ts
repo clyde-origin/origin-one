@@ -1,4 +1,5 @@
 import { createBrowserAuthClient as createClient } from '@origin-one/auth'
+import { DEFAULT_AICP_ACCOUNTS } from '@origin-one/schema'
 import { initials } from '@/lib/utils/formatting'
 import { syncExpenseFromTimecard, deleteExpenseForTimecard } from '@/lib/budget/timecard-to-expense'
 
@@ -1786,6 +1787,339 @@ export async function deleteBudgetVersion(id: string): Promise<void> {
   }
   const { error } = await db.from('BudgetVersion').delete().eq('id', id)
   if (error) { console.error('deleteBudgetVersion failed:', error); throw error }
+}
+
+// Helper — insert the standard 3-version starter set onto a freshly
+// created Budget. Returns the created versions in sortOrder.
+async function insertStandardVersions(
+  db: ReturnType<typeof createClient>,
+  budgetId: string,
+): Promise<{ id: string; kind: 'estimate' | 'working' | 'committed' }[]> {
+  const now = new Date().toISOString()
+  const versions = [
+    { id: crypto.randomUUID(), budgetId, name: 'Estimate',  kind: 'estimate'  as const, sortOrder: 1, state: 'draft', updatedAt: now },
+    { id: crypto.randomUUID(), budgetId, name: 'Working',   kind: 'working'   as const, sortOrder: 2, state: 'draft', updatedAt: now },
+    { id: crypto.randomUUID(), budgetId, name: 'Committed', kind: 'committed' as const, sortOrder: 3, state: 'draft', updatedAt: now },
+  ]
+  const { error } = await db.from('BudgetVersion').insert(versions)
+  if (error) { console.error('insertStandardVersions failed:', error); throw error }
+  return versions.map(v => ({ id: v.id, kind: v.kind }))
+}
+
+// Create a fresh budget from the AICP template — Budget + 3 versions +
+// 14 accounts (DEFAULT_AICP_ACCOUNTS fixture, single source of truth)
+// + 2 default markups (Contingency 10% on the Insurance · Misc account
+// subtotal, Agency Fee 5% on grand total). Mirrors the IVV seed shape
+// minus lines/expenses.
+//
+// Multi-step (Budget → Versions → Accounts → Markups). No transactions
+// in the Supabase client path; tolerable since concurrent budget
+// creation on the same project is producer-only and rare. rateSourceVersionId
+// is set to the Committed version after creation (committed > working > estimate
+// per spec §3.1).
+export async function createBudgetFromTemplate(input: {
+  projectId: string
+  currency: string
+  varianceThreshold: string                   // Decimal(5,4) string, e.g. '0.10'
+}): Promise<string> {
+  const db = createClient()
+  const budgetId = crypto.randomUUID()
+  const now = new Date().toISOString()
+
+  // 1. Budget shell.
+  const { error: budErr } = await db.from('Budget').insert({
+    id: budgetId,
+    projectId:           input.projectId,
+    currency:            input.currency,
+    varianceThreshold:   input.varianceThreshold,
+    rateSourceVersionId: null,                  // set after versions created
+    clonedFromProjectId: null,
+    updatedAt:           now,
+  })
+  if (budErr) { console.error('createBudgetFromTemplate budget failed:', budErr); throw budErr }
+
+  // 2. Three versions (Estimate / Working / Committed).
+  const versions = await insertStandardVersions(db, budgetId)
+  const committed = versions.find(v => v.kind === 'committed')!
+  await db.from('Budget').update({ rateSourceVersionId: committed.id }).eq('id', budgetId)
+
+  // 3. 14 AICP accounts from the shared fixture.
+  const accountRows = DEFAULT_AICP_ACCOUNTS.map(a => ({
+    id: crypto.randomUUID(),
+    budgetId,
+    parentId:  null,
+    section:   a.section,
+    code:      a.code,
+    name:      a.name,
+    sortOrder: a.sortOrder,
+    updatedAt: now,
+  }))
+  const { error: accErr } = await db.from('BudgetAccount').insert(accountRows)
+  if (accErr) { console.error('createBudgetFromTemplate accounts failed:', accErr); throw accErr }
+
+  // 4. Two default markups — versionId=null applies to all versions.
+  //    Contingency 10% on the Insurance · Misc subtotal (account L);
+  //    Agency Fee 5% on grand total. Producer can edit/delete in PR 12 settings.
+  const insuranceAccount = accountRows.find(a => a.code === 'L')
+  const markupRows = [
+    {
+      id: crypto.randomUUID(), budgetId, versionId: null,
+      name: 'Contingency', percent: '0.10',
+      appliesTo: 'accountSubtotal' as const,
+      accountId: insuranceAccount?.id ?? null,
+      sortOrder: 1, updatedAt: now,
+    },
+    {
+      id: crypto.randomUUID(), budgetId, versionId: null,
+      name: 'Agency Fee', percent: '0.05',
+      appliesTo: 'grandTotal' as const,
+      accountId: null,
+      sortOrder: 2, updatedAt: now,
+    },
+  ]
+  const { error: mkErr } = await db.from('BudgetMarkup').insert(markupRows)
+  if (mkErr) { console.error('createBudgetFromTemplate markups failed:', mkErr); throw mkErr }
+
+  return budgetId
+}
+
+// Create a blank budget — Budget + 3 versions only. No accounts, no
+// markups, no variables. Producer builds from scratch.
+export async function createBlankBudget(input: {
+  projectId: string
+  currency: string
+  varianceThreshold: string
+}): Promise<string> {
+  const db = createClient()
+  const budgetId = crypto.randomUUID()
+  const now = new Date().toISOString()
+
+  const { error: budErr } = await db.from('Budget').insert({
+    id: budgetId,
+    projectId:           input.projectId,
+    currency:            input.currency,
+    varianceThreshold:   input.varianceThreshold,
+    rateSourceVersionId: null,
+    clonedFromProjectId: null,
+    updatedAt:           now,
+  })
+  if (budErr) { console.error('createBlankBudget budget failed:', budErr); throw budErr }
+
+  const versions = await insertStandardVersions(db, budgetId)
+  const committed = versions.find(v => v.kind === 'committed')!
+  await db.from('Budget').update({ rateSourceVersionId: committed.id }).eq('id', budgetId)
+
+  return budgetId
+}
+
+// Clone-from-prior — deep copy via Supabase client.
+//
+// Codebase fit: cloneBudget() in @origin-one/db (PR 7) is the design
+// intent, but it imports PrismaClient — back-to-one runs on Supabase
+// client only (DATABASE_URL not in apps/back-to-one/.env.local). Rather
+// than spread DB credentials across env files OR add a Next.js API
+// route just for this op, the clone is implemented here using the same
+// browser Supabase client that powers every other write path. The seed
+// path (packages/db/prisma/seed.ts) can still call the Prisma helper.
+//
+// Topological pass for accounts (parent before child) ports the same
+// utility from clone-budget.ts. Expenses are NOT cloned (spec §7.2).
+export async function createBudgetByClone(input: {
+  srcProjectId: string
+  targetProjectId: string
+}): Promise<string> {
+  const db = createClient()
+  const now = new Date().toISOString()
+
+  // 1. Source budget tree (one nested fetch).
+  const srcResp = await db
+    .from('Budget')
+    .select(`
+      *,
+      versions:BudgetVersion(*),
+      accounts:BudgetAccount(*),
+      lines:BudgetLine(*, amounts:BudgetLineAmount(*)),
+      variables:BudgetVariable(*),
+      markups:BudgetMarkup(*)
+    `)
+    .eq('projectId', input.srcProjectId)
+    .maybeSingle()
+  if (srcResp.error || !srcResp.data) {
+    console.error('createBudgetByClone source fetch failed:', srcResp.error)
+    throw srcResp.error ?? new Error('Source project has no budget to clone')
+  }
+  const src = srcResp.data as {
+    currency: string
+    varianceThreshold: string
+    rateSourceVersionId: string | null
+    versions: { id: string; name: string; kind: 'estimate' | 'working' | 'committed' | 'other'; sortOrder: number; state: 'draft' | 'locked' }[]
+    accounts: { id: string; parentId: string | null; section: 'ATL' | 'BTL'; code: string; name: string; sortOrder: number }[]
+    lines: { id: string; accountId: string; description: string; unit: string; fringeRate: string; tags: string[]; actualsRate: string | null; sortOrder: number; amounts: { versionId: string; qty: string; rate: string; notes: string | null }[] }[]
+    variables: { versionId: string | null; name: string; value: string; notes: string | null }[]
+    markups: { versionId: string | null; name: string; percent: string; appliesTo: 'grandTotal' | 'accountSubtotal'; accountId: string | null; sortOrder: number }[]
+  }
+
+  // 2. New Budget shell — clonedFromProjectId set for traceability.
+  const newBudgetId = crypto.randomUUID()
+  const { error: budErr } = await db.from('Budget').insert({
+    id: newBudgetId,
+    projectId:           input.targetProjectId,
+    currency:            src.currency,
+    varianceThreshold:   src.varianceThreshold,
+    rateSourceVersionId: null,
+    clonedFromProjectId: input.srcProjectId,
+    updatedAt:           now,
+  })
+  if (budErr) { console.error('createBudgetByClone budget failed:', budErr); throw budErr }
+
+  // 3. Versions — drop lock metadata (clones start unlocked).
+  const versionIdByOld = new Map<string, string>()
+  const newVersionRows = src.versions.map(v => {
+    const newId = crypto.randomUUID()
+    versionIdByOld.set(v.id, newId)
+    return {
+      id: newId, budgetId: newBudgetId,
+      name: v.name, kind: v.kind, sortOrder: v.sortOrder,
+      state: 'draft' as const, lockedAt: null, lockedBy: null,
+      updatedAt: now,
+    }
+  })
+  if (newVersionRows.length > 0) {
+    const { error } = await db.from('BudgetVersion').insert(newVersionRows)
+    if (error) { console.error('createBudgetByClone versions failed:', error); throw error }
+  }
+  if (src.rateSourceVersionId) {
+    const newRateSource = versionIdByOld.get(src.rateSourceVersionId)
+    if (newRateSource) {
+      await db.from('Budget').update({ rateSourceVersionId: newRateSource }).eq('id', newBudgetId)
+    }
+  }
+
+  // 4. Accounts — topological pass (parent before child).
+  const accountIdByOld = new Map<string, string>()
+  const sortedAccounts = topologicalAccountsLocal(src.accounts)
+  const newAccountRows = sortedAccounts.map(a => {
+    const newId = crypto.randomUUID()
+    accountIdByOld.set(a.id, newId)
+    return {
+      id: newId, budgetId: newBudgetId,
+      parentId: a.parentId ? accountIdByOld.get(a.parentId) ?? null : null,
+      section: a.section, code: a.code, name: a.name, sortOrder: a.sortOrder,
+      updatedAt: now,
+    }
+  })
+  if (newAccountRows.length > 0) {
+    const { error } = await db.from('BudgetAccount').insert(newAccountRows)
+    if (error) { console.error('createBudgetByClone accounts failed:', error); throw error }
+  }
+
+  // 5. Lines + amounts.
+  if (src.lines.length > 0) {
+    const newLineRows: Array<Record<string, unknown>> = []
+    const newAmountRows: Array<Record<string, unknown>> = []
+    for (const line of src.lines) {
+      const newLineId = crypto.randomUUID()
+      const newAccountId = accountIdByOld.get(line.accountId)
+      if (!newAccountId) continue
+      newLineRows.push({
+        id: newLineId, budgetId: newBudgetId,
+        accountId: newAccountId,
+        description: line.description, unit: line.unit, fringeRate: line.fringeRate,
+        tags: line.tags, actualsRate: line.actualsRate, sortOrder: line.sortOrder,
+        updatedAt: now,
+      })
+      for (const amt of line.amounts) {
+        const newVersionId = versionIdByOld.get(amt.versionId)
+        if (!newVersionId) continue
+        newAmountRows.push({
+          id: crypto.randomUUID(),
+          lineId: newLineId, versionId: newVersionId,
+          qty: amt.qty, rate: amt.rate, notes: amt.notes,
+          updatedAt: now,
+        })
+      }
+    }
+    if (newLineRows.length > 0) {
+      const { error } = await db.from('BudgetLine').insert(newLineRows)
+      if (error) { console.error('createBudgetByClone lines failed:', error); throw error }
+    }
+    if (newAmountRows.length > 0) {
+      const { error } = await db.from('BudgetLineAmount').insert(newAmountRows)
+      if (error) { console.error('createBudgetByClone amounts failed:', error); throw error }
+    }
+  }
+
+  // 6. Variables.
+  if (src.variables.length > 0) {
+    const newVariableRows = src.variables.map(v => ({
+      id: crypto.randomUUID(),
+      budgetId: newBudgetId,
+      versionId: v.versionId ? versionIdByOld.get(v.versionId) ?? null : null,
+      name: v.name, value: v.value, notes: v.notes,
+      updatedAt: now,
+    }))
+    const { error } = await db.from('BudgetVariable').insert(newVariableRows)
+    if (error) { console.error('createBudgetByClone variables failed:', error); throw error }
+  }
+
+  // 7. Markups.
+  if (src.markups.length > 0) {
+    const newMarkupRows = src.markups.map(m => ({
+      id: crypto.randomUUID(),
+      budgetId: newBudgetId,
+      versionId: m.versionId ? versionIdByOld.get(m.versionId) ?? null : null,
+      accountId: m.accountId ? accountIdByOld.get(m.accountId) ?? null : null,
+      name: m.name, percent: m.percent, appliesTo: m.appliesTo, sortOrder: m.sortOrder,
+      updatedAt: now,
+    }))
+    const { error } = await db.from('BudgetMarkup').insert(newMarkupRows)
+    if (error) { console.error('createBudgetByClone markups failed:', error); throw error }
+  }
+
+  // Expenses are intentionally NOT cloned (spec §7.2 — actuals are
+  // real-world data, not template).
+  return newBudgetId
+}
+
+// Local topological sort — same algorithm as topologicalAccounts() in
+// @origin-one/db/src/clone-budget.ts. Inlined to keep the Supabase
+// path self-contained.
+function topologicalAccountsLocal<T extends { id: string; parentId: string | null }>(rows: T[]): T[] {
+  const sorted: T[] = []
+  const remaining = [...rows]
+  const placed = new Set<string>()
+  while (remaining.length > 0) {
+    const i = remaining.findIndex(r => !r.parentId || placed.has(r.parentId))
+    if (i < 0) throw new Error('createBudgetByClone: cycle (or dangling parentId) in account tree')
+    const [next] = remaining.splice(i, 1)
+    sorted.push(next)
+    placed.add(next.id)
+  }
+  return sorted
+}
+
+// List of projects in the team that have a budget — for the clone source
+// picker. Excludes the current project (caller filters).
+export async function getProjectsWithBudgets() {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Project')
+    .select(`
+      id, name, color, status,
+      budget:Budget(id, clonedFromProjectId)
+    `)
+    .neq('status', 'archived')
+    .order('createdAt', { ascending: false })
+  if (error) { console.error('getProjectsWithBudgets failed:', error); throw error }
+  // Supabase returns `budget` as either an object or null; some configs
+  // return an array. Normalize to "has budget?" by checking truthiness.
+  type Row = { id: string; name: string; color: string | null; status: string; budget: unknown }
+  return (data as Row[] ?? [])
+    .filter(p => {
+      if (Array.isArray(p.budget)) return p.budget.length > 0
+      return p.budget != null
+    })
+    .map(p => ({ id: p.id, name: p.name, color: p.color, status: p.status }))
 }
 
 // ── ENTITIES (characters, locations, props) ──────────────
