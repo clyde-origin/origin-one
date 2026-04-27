@@ -3661,6 +3661,25 @@ FADE TO BLACK.`,
       uploadedById: clydeBessey.id,
       mimeType: 'image/jpeg',
     })
+
+    // Per-row image fields (used by UIs that read directly rather than
+    // through the EntityAttachment gallery — Art page reads
+    // Entity.metadata.imageUrl, Casting reads Talent.imageUrl).
+    // Locations have already migrated to EA-only (Location.imageUrl removed).
+    const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/entity-attachments/${sp}`
+    if (entry.surface === 'cast') {
+      await prisma.talent.update({ where: { id: attachedToId }, data: { imageUrl: publicUrl } })
+    } else if (entry.surface === 'prop' || entry.surface === 'wardrobe' || entry.surface === 'hmu') {
+      const ent = await prisma.entity.findUnique({ where: { id: attachedToId } })
+      const meta = (ent?.metadata && typeof ent.metadata === 'object' && !Array.isArray(ent.metadata))
+        ? (ent.metadata as Record<string, unknown>) : {}
+      await prisma.entity.update({
+        where: { id: attachedToId },
+        data: { metadata: { ...meta, imageUrl: publicUrl } },
+      })
+    }
+
     eaUploaded++
   }
   if (attachmentRows.length > 0) {
