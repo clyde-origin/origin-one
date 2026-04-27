@@ -1,5 +1,6 @@
 import { createBrowserAuthClient as createClient } from '@origin-one/auth'
 import { initials } from '@/lib/utils/formatting'
+import { syncExpenseFromTimecard, deleteExpenseForTimecard } from '@/lib/budget/timecard-to-expense'
 
 // ── STORAGE ───────────────────────────────────────────────
 
@@ -1468,6 +1469,36 @@ export async function deleteShootDay(id: string): Promise<void> {
   if (error) { console.error('deleteShootDay failed:', error); throw error }
 }
 
+// ── BUDGET ───────────────────────────────────────────────
+
+// One nested query for the entire budget tree + expenses. The page
+// computes rolled-up totals client-side via apps/back-to-one/src/lib/
+// budget/compute.ts. Returns null when the project has no budget yet
+// (5 of 6 seed projects today; only IVV has one).
+//
+// Performance: this is the only round-trip per budget-page render
+// after React Query hydration. Memoize the computed-line array
+// downstream — recompute only when active version, variables, or
+// expenses change.
+export async function getBudgetByProject(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Budget')
+    .select(`
+      *,
+      versions:BudgetVersion(*),
+      accounts:BudgetAccount(*),
+      lines:BudgetLine(*, amounts:BudgetLineAmount(*)),
+      variables:BudgetVariable(*),
+      markups:BudgetMarkup(*),
+      expenses:Expense(*)
+    `)
+    .eq('projectId', projectId)
+    .maybeSingle()
+  if (error) { console.error('getBudgetByProject failed:', error); throw error }
+  return data
+}
+
 // ── ENTITIES (characters, locations, props) ──────────────
 
 export async function getEntities(projectId: string, type?: 'character' | 'location' | 'prop') {
@@ -1857,6 +1888,10 @@ export async function submitTimecard(id: string): Promise<void> {
 
 // submitted → approved. Producer clicks "Approve" on a submitted entry.
 // approvedBy is the producer's ProjectMember.id (not User.id) per schema.
+//
+// Side-effect: materializes a paired Expense row in the project's Budget
+// (if one exists). Idempotent via Expense.timecardId @unique. Sync runs
+// after the status update — sync failures don't roll back the approval.
 export async function approveTimecard(id: string, approvedBy: string): Promise<void> {
   const db = createClient()
   const now = new Date().toISOString()
@@ -1865,11 +1900,15 @@ export async function approveTimecard(id: string, approvedBy: string): Promise<v
     .update({ status: 'approved', approvedAt: now, approvedBy, updatedAt: now })
     .eq('id', id)
   if (error) { console.error('approveTimecard failed:', error); throw error }
+  await syncExpenseFromTimecard(id)
 }
 
 // any → reopened. Producer clicks "Reopen" on an approved/submitted entry
 // and provides a reason. Existing approvedBy/approvedAt are preserved so the
 // record still carries "was approved by X" context; reopen fields layer on.
+//
+// Side-effect: deletes the paired Expense row (if any). The Expense will
+// be re-created when the timecard is re-approved. No-throw on failure.
 export async function reopenTimecard(
   id: string,
   reopenedBy: string,
@@ -1888,6 +1927,7 @@ export async function reopenTimecard(
     })
     .eq('id', id)
   if (error) { console.error('reopenTimecard failed:', error); throw error }
+  await deleteExpenseForTimecard(id)
 }
 
 // ── WORKFLOW NODES ───────────────────────────────────────
