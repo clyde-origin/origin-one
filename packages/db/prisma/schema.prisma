@@ -131,6 +131,18 @@ enum ImportSource {
   excel
 }
 
+// PropStatus — production-side prop tracking workflow.
+//   needed   — script lists it; not yet sourced.
+//   sourced  — physically have it (bought / rented / made).
+//   ready    — prepped for shoot day; locked in.
+// Hero/featured-prop status is a separate Boolean (PropSourced.isHero) — it's
+// a category, not a workflow stage. See DECISIONS.md "PropSourced schema".
+enum PropStatus {
+  needed
+  sourced
+  ready
+}
+
 // ─── Core identity and membership ────────────────────────────────────────────
 
 model User {
@@ -301,6 +313,7 @@ model Project {
   placements        UserProjectPlacement[]
   budget            Budget?
   entityAttachments EntityAttachment[]
+  propSourced       PropSourced[]
 }
 
 // ─── Scenes, Shots, Entities ─────────────────────────────────────────────────
@@ -349,6 +362,7 @@ model Entity {
   project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   assignments TalentAssignment[]
   locations   Location[]
+  propSourced PropSourced?
 }
 
 // Shotlist snapshot versions. RLS-enabled (managed outside Prisma).
@@ -568,6 +582,33 @@ model Location {
   shootDays ShootDay[]
 
   @@index([entityId])
+}
+
+// PropSourced — production-side counterpart to Entity(type='prop').
+// Mirrors the Location precedent (FK-back to Entity, optional pairing) but
+// 1:1 cardinality enforced via @unique on entityId — one production prop per
+// scripted prop. The pickup-options pattern (multiple production candidates per
+// scripted prop) is deferred to a child PropSourceOption table only if a real
+// production surfaces the need. See DECISIONS.md "PropSourced schema".
+//
+// Lift-and-break migration relationship with Entity.metadata.status: existing
+// values lifted to PropSourced.status by migration 20260426210000. The Art
+// page read path (entity.metadata.status) drops in the next PR (#14);
+// metadata.imageUrl and metadata.tags remain on Entity unless explicitly lifted
+// (per BUILD_STATUS Apr 24 lock).
+model PropSourced {
+  id        String     @id @default(dbgenerated("gen_random_uuid()"))
+  projectId String
+  entityId  String?    @unique
+  status    PropStatus @default(needed)
+  isHero    Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  entity  Entity? @relation(fields: [entityId], references: [id])
+
+  @@index([projectId])
 }
 
 model InventoryItem {

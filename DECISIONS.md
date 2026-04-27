@@ -417,3 +417,57 @@ The `thread-context.ts` file now contains six explicit-enumeration sites for eac
 **Rationale:** EntityAttachment is foundational for six+ surfaces (locations, props, wardrobe, hmu, moodboard refs, future cast reference photos). Auth-checked RLS would render the entire pattern unusable until Auth (#23) ships, which means the gallery component and helper code sit dormant on main for weeks of internal-only Phase 1A work — exactly the kind of dead-code-on-main the discipline was meant to avoid. The threat model is bounded: internal users only, no external clients, no PII in scout photos. Random filenames mean leaked URLs are unguessable but link-leaks are permanent until the bucket policy tightens.  
 **Tradeoffs:** Anyone with a leaked URL can view forever. The CLAUDE.md "auth-check from day one" rule now has an explicit exception, which weakens the rule unless every future bucket either follows it or earns its own DECISIONS entry. The next bucket (`avatars` for Crew Profile v2) MUST justify its policy choice the same way — no silent precedent.  
 **Revisit trigger:** Auth (#23) ships. Tightened in the same RLS pass that locks down `moodboard` and `storyboard`. Also: external client beta — the "v1 sharing model" must be revisited before any non-employee user touches the system.
+
+---
+
+### Narrative → Production cardinality rule (1:1 vs 1:N)
+
+**Decision:** The narrative→production pattern chooses cardinality per entity type using a single test:
+
+> **Does the production process for this type involve evaluating multiple candidates per script element?**
+>
+> - **Yes → 1:N.** The narrative entity is the parent; multiple production rows can FK back to it. Apply when production scouting / casting / sourcing organically produces several options for a single scripted thing, and the choice between them is part of the workflow.
+> - **No → 1:1.** Enforced via `@unique` on the nullable production-side `entityId`. Apply when narrative entities map cleanly to a single tracked physical record and any "alternates" are noise rather than first-class workflow state.
+
+**Date:** April 26, 2026
+
+**Application by type (current + planned):**
+
+| Type | Cardinality | Reasoning |
+|---|---|---|
+| Character → Cast (Talent) | 1:1 | One actor portrays one character. Recasting replaces, doesn't add. |
+| **Location → Location** | **1:N** | Scouting produces multiple candidates per scripted location; choosing between them is the workflow. (P1 Bel Air Estate → 3 Location candidates is the seed example.) |
+| **Prop → PropSourced** | **1:1** | Production sources one prop per scripted prop. Pickup-options (multiple vendors / candidates per scripted item) deferred to a child `PropSourceOption` table only if a real production surfaces the need. |
+| Wardrobe → WardrobeSourced (#15) | TBD per test | Open question: do directors typically evaluate multiple wardrobe options per scripted item, or is sourcing 1:1? Apply the test when #15 is designed. |
+| HMU (TBD) | TBD per test | HMU looks tend toward 1:1 (one final per character look) but apply the test on real production data. |
+| Future entity types | TBD per test | Always answer the test before choosing. |
+
+**Tradeoffs:**
+- 1:1-with-`@unique` is harder to reverse than 1:N — going from 1:1 to 1:N means dropping the unique constraint and possibly migrating data. Going from 1:N to 1:1 means picking a "winner" row and deduplicating. Choose the cardinality that matches the workflow.
+- The 1:1 test gates premature optionality. If a future PR proposes a child-options table for what's currently 1:1, the proposer must show that real productions are creating multiple rows in app code or via dashboard edits — not just speculate.
+
+**Revisit trigger:** A type's actual production data shows the chosen cardinality was wrong (1:1 with persistent need for multiple rows, or 1:N where the "options" pattern is never used). Promote/demote with a dedicated migration.
+
+---
+
+### PropSourced schema — production-side prop tracking with PropStatus enum
+
+**Decision:** Production-side prop data lives in a dedicated `PropSourced` table — 1:1 FK to `Entity(type='prop')` (enforced via `@unique` on `entityId`, per the Narrative→Production cardinality rule above), with a typed `PropStatus` enum (`needed | sourced | ready`) and a separate `isHero Boolean` for the hero/featured-prop category. Existing `Entity.metadata.status` values lift into `PropSourced.status` via migration `20260426210000_add_prop_sourced`; the `metadata.status` read path drops in the next PR (#14). `metadata.imageUrl` and `metadata.tags` remain on Entity unless explicitly lifted.  
+**Date:** April 26, 2026  
+**Rationale:**
+- **Own table, not Entity.metadata:** Production-side data has its own lifecycle (status changes, hero flagging, future sourcing detail) distinct from script-side identity. Typed columns on a typed table beat untyped JSON for a field that drives UI state.
+- **3-state enum (needed / sourced / ready):** Matches the documented spec in `apps/back-to-one/reference/locations-art-casting.html`. Existing TS code used `confirmed` (== `ready`) plus a `hero` value that was type-only — never seeded, never read, never compared. Reference HTML is the spec; the migration renames `confirmed → ready` and splits `hero` out as a Boolean.
+- **`isHero` as Boolean, not enum value:** Hero is a category (this prop is featured / hero), not a workflow stage. Mixing it into the status enum forces awkward two-axis decisions (a hero prop can be needed OR sourced OR ready — three states × two categories = 6 combos). Boolean is cleaner and orthogonal.
+- **1:1 cardinality (per the rule above):** Production sources one prop per scripted prop — the test answers "no" for props. Pickup-options pattern (`PropSourceOption` child table) deferred per BUILD_STATUS Apr 24 lock; added later only if a real production surfaces the need.
+- **`@unique` on nullable `entityId`:** Allows `PropSourced` rows without a parent Entity (production-only props that weren't scripted), mirroring the Location-Silver-Lake case. Postgres' `UNIQUE` treats `NULL` as distinct, so multiple unpaired rows are allowed; once paired, the 1:1 constraint is enforced. **Smoke-tested:** see Flag-2 verification in PR #53 conversation — duplicates rejected, multiple nulls accepted.
+- **`projectId` with cascade + index:** Matches every other table's pattern (deleting a Project deletes all PropSourced rows). Required for the same RLS-day storyboarding as `EntityAttachment`.
+
+**Tradeoffs:**
+- Removing or renaming a `PropStatus` enum value later requires a Postgres migration (enum values append cleanly; remove/rename is harder). The 3-value choice is conservative; expansion later is deliberate work.
+- `confirmed → ready` rename means anyone with a `confirmed` value in their head needs to internalize the new vocabulary. Mitigated by the rename happening in lift-and-break migration before any UI consumes it.
+- Dual-write transition: between #13 merge and #14 merge, both `Entity.metadata.status` and `PropSourced.status` are populated. Slight redundancy. Cleared up in #14 when the read path swaps.
+
+**Revisit trigger:**
+- A real production surfaces an `on_set` or `wrapped` lifecycle stage that needs to be tracked separately from `ready` — extend the enum (append-only is cheap).
+- Multiple production candidates per scripted prop become a real pattern — add the `PropSourceOption` child table.
+- Hero/featured props acquire enough metadata (tags, render priority, etc.) to deserve their own table — promote `isHero` from Boolean to FK.

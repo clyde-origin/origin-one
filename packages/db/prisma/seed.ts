@@ -451,6 +451,7 @@ async function main() {
   await prisma.threadMessage.deleteMany()
   await prisma.thread.deleteMany()
   await prisma.entityAttachment.deleteMany()
+  await prisma.propSourced.deleteMany()
   await prisma.crewTimecard.deleteMany()
   await prisma.inventoryItem.deleteMany()
   await prisma.projectMember.deleteMany()
@@ -3416,6 +3417,47 @@ FADE TO BLACK.`,
     `${aicpAccounts.length} accounts, ${lineSpecs.length} lines, ` +
     `${expenseRowsFromTimecards.length} timecard + ${manualExpenses.length} manual expenses)`)
 
+  // ── PropSourced — production-side counterpart to Entity(type='prop') ────
+  // Dual-write during the lift-and-break transition: Entity.metadata.status
+  // remains the read path until #14 swaps art/page.tsx to PropSourced.status.
+  // Same mapping as migration `20260426210000_add_prop_sourced`.
+  const allPropEntities = await prisma.entity.findMany({
+    where: { type: 'prop' },
+    select: { id: true, projectId: true, metadata: true },
+  })
+  const propSourcedRows = allPropEntities.map(e => {
+    const status = ((e.metadata as any)?.status ?? null) as string | null
+    let mapped: 'needed' | 'sourced' | 'ready' = 'needed'
+    let isHero = false
+    if (status === 'sourced')        mapped = 'sourced'
+    else if (status === 'confirmed') mapped = 'ready'
+    else if (status === 'hero')    { mapped = 'ready'; isHero = true }
+    else if (status === 'needed')    mapped = 'needed'
+    // anything else → default 'needed'
+    return {
+      projectId: e.projectId,
+      entityId: e.id,
+      status: mapped,
+      isHero,
+    }
+  })
+  if (propSourcedRows.length > 0) {
+    await prisma.propSourced.createMany({ data: propSourcedRows })
+    const breakdown = propSourcedRows.reduce(
+      (acc, r) => {
+        acc[r.status]++
+        if (r.isHero) acc.hero++
+        return acc
+      },
+      { needed: 0, sourced: 0, ready: 0, hero: 0 } as Record<string, number>,
+    )
+    console.log(
+      `  PropSourced: ${propSourcedRows.length} ` +
+      `(${breakdown.needed} needed, ${breakdown.sourced} sourced, ${breakdown.ready} ready` +
+      `${breakdown.hero > 0 ? `, ${breakdown.hero} hero` : ''})`
+    )
+  }
+
   // ── EntityAttachment seed (location galleries) ───────────────────────────
   // Two production-side attachments per project on the first 1-2 Locations,
   // plus a single narrative-side attachment on one script Entity per project.
@@ -3587,6 +3629,7 @@ FADE TO BLACK.`,
     budgetMarkups:     await prisma.budgetMarkup.count(),
     expenses:          await prisma.expense.count(),
     entityAttachments: await prisma.entityAttachment.count(),
+    propSourced:       await prisma.propSourced.count(),
   }
 
   console.log('  ─────────────────────────────')
@@ -3623,6 +3666,7 @@ FADE TO BLACK.`,
   console.log(`  BudgetMarkups:      ${counts.budgetMarkups}`)
   console.log(`  Expenses:           ${counts.expenses}`)
   console.log(`  EntityAttachments:  ${counts.entityAttachments}`)
+  console.log(`  PropSourced:        ${counts.propSourced}`)
   console.log('  ─────────────────────────────')
   console.log('  Done.\n')
 }
