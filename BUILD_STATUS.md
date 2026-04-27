@@ -1,7 +1,7 @@
 # Back to One — Build Status
 Update this file at the end of every Claude Code session. This is the single source of truth for where the build actually is.
 
-Last updated: April 27, 2026 (post PR #55 merge — WardrobeSourced schema #15 closed)
+Last updated: April 27, 2026 (post PR #56 merge — Art page typed-status swap closed #14 + #16)
 
 ---
 
@@ -69,14 +69,14 @@ Each row is a complete PR (schema or UI). Strict order — next row doesn't star
 |---|---|---|---|
 | 12 | Department enum conversion | ⬜ | Solo PR, irreversible |
 | 13 | PropSourced schema | ✅ | PR #53 (Apr 27). Migration `20260426210000` adds `PropStatus` enum (needed/sourced/ready) + `PropSourced` table with 1:1 FK to Entity (`@unique` on nullable `entityId`) + `isHero Boolean`. Lift mapping: `confirmed → ready` (rename), `hero → ready+isHero=true` (split, defensive — zero seed rows). 18 prop entities backfilled (1 needed, 2 sourced, 14 ready, 1 default-needed for Lumière Serum). New first-class DECISIONS entry: "Narrative → Production cardinality rule (1:1 vs 1:N)" — names the test for all future narrative→production patterns. Smoke-tested `@unique` constraint empirically (rejects duplicate non-null entityId; accepts multiple NULLs). **Op note:** original deploy partially backfilled 7 of 18 rows (cause unclear — possibly Supabase pooler tx edge case); idempotent `LEFT JOIN ps.id IS NULL` guard made recovery a one-liner re-run. |
-| 14 | PropSourced UI on Art page | ⬜ | Drop the `metadata.status` read path. Mirror Location UI pattern |
+| 14 | PropSourced UI on Art page | ✅ | PR #56 (Apr 27, bundled with #16). Art page swap reads PropSourced.status + isHero (paired Boolean for hero/featured-prop category — separate pill, orange). Drops the `metadata.status` read path for props. New `upsertPropSourced` helper. Type-scoped filter chips (3 for prop). Hero toggle in detail sheet. |
 
 ### Wardrobe — narrative→production pattern
 
 | # | Feature | Status | Notes |
 |---|---|---|---|
 | 15 | WardrobeSourced schema | ✅ | PR #55 (Apr 27). Migration `20260427000000` adds `WardrobeStatus` enum (4 states — `needed/sourced/fitted/ready`; adds `fitted` beat that props don't have) + `WardrobeSourced` table with 1:1 FK to Entity (`@unique` on nullable `entityId`). No `isHero` per design (hero is a prop-only concept). 12 wardrobe entities backfilled cleanly (10 ready, 1 sourced, 1 needed). HMU stays on `Entity.metadata.status` for now per DECISIONS — promote when a real production needs it. |
-| 16 | WardrobeSourced UI on Wardrobe page | ⬜ | Mirror PropSourced UI pattern |
+| 16 | WardrobeSourced UI on Wardrobe page | ✅ | PR #56 (Apr 27, bundled with #14). Same Art-page swap reads WardrobeSourced.status. 4-state filter chips (`needed/sourced/fitted/ready`). Drops `metadata.status` read for wardrobe. New `upsertWardrobeSourced` helper. **HMU stays on `metadata.status`** (smaller surface, polymorphic pattern still serves it; promote when a real production needs it — see DECISIONS "WardrobeSourced schema"). Bundled with #14 in one Art-page swap rather than shipping a separate UI PR. |
 
 ### Inventory
 
