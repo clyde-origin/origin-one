@@ -26,6 +26,7 @@ enum Role {
   coordinator
   writer
   crew
+  partner
 }
 
 enum ProjectStatus {
@@ -161,6 +162,7 @@ enum WardrobeStatus {
 
 model User {
   id        String   @id @default(dbgenerated("gen_random_uuid()"))
+  authId    String?  @unique
   email     String   @unique
   name      String
   avatarUrl String?
@@ -225,6 +227,10 @@ model ProjectMember {
   // they're queryable, indexable, and Prisma-native — no JSON parsing.
   notes      String?
   skills     String[] @default([])
+  // Trusted-contributor flag — when true, crew can write to high-trust surfaces
+  // (Workflow, Shotlist edits, Milestones, Scenes/Entities/Locations, etc.).
+  // Producer/director rows backfill to true; crew defaults to false.
+  canEdit    Boolean  @default(false)
   createdAt  DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -309,6 +315,9 @@ model Project {
   client      String?
   type        String?
   aspectRatio String?
+  // Canonical demo project — cloned per team in future demo-cloning feature.
+  // The 6 seed projects are marked true; user-created projects default false.
+  is_demo     Boolean       @default(false)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @default(now()) @updatedAt
 
@@ -535,9 +544,9 @@ model EntityAttachment {
   projectId      String
   attachedToType String // string union enforced in app code, mirrors Thread.attachedToType
   attachedToId   String
-  storagePath    String // entity-attachments/{attachedToType}/{attachedToId}/{rand}.{ext}
+  storagePath    String // entity-attachments/{projectId}/{attachedToType}/{attachedToId}/{rand}.{ext} (path includes projectId post auth-005)
   caption        String?
-  uploadedById   String? // FK to User.id; nullable until Auth ships (DECISIONS Apr 26 2026)
+  uploadedById   String  // FK to User.id (NOT NULL post-Auth)
   uploadedAt     DateTime @default(now())
   width          Int?
   height         Int?
@@ -547,7 +556,7 @@ model EntityAttachment {
   updatedAt      DateTime @updatedAt
 
   project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  uploadedBy User?   @relation(fields: [uploadedById], references: [id])
+  uploadedBy User    @relation(fields: [uploadedById], references: [id])
 
   @@index([projectId])
   @@index([attachedToType, attachedToId])
