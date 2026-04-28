@@ -5,6 +5,105 @@ import { syncExpenseFromTimecard, deleteExpenseForTimecard } from '@/lib/budget/
 
 // ── STORAGE ───────────────────────────────────────────────
 
+// PR 14 — Manual expense receipt upload + signed-URL helpers.
+//
+// The receipts bucket is PRIVATE (public=false) per PR 4 — auth-check
+// RLS on read/insert/update/delete from day one (storage discipline
+// rule for new buckets). That means:
+//   - Upload returns the storage path, NOT a public URL.
+//   - Display layer fetches a short-lived signed URL on demand.
+//   - `Expense.receiptUrl` stores the path (named for legacy clarity).
+//
+// 5 MB + MIME allowlist enforced server-side by the bucket config (PR 4
+// migration); client-side checks below short-circuit a network round-
+// trip on rejection.
+
+const RECEIPTS_BUCKET = 'receipts'
+const RECEIPT_MAX_BYTES = 5 * 1024 * 1024
+const RECEIPT_ALLOWED_MIME = new Set([
+  'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'application/pdf',
+])
+
+export class ReceiptValidationError extends Error {
+  constructor(message: string) { super(message); this.name = 'ReceiptValidationError' }
+}
+
+export function validateReceiptFile(file: File): void {
+  if (!RECEIPT_ALLOWED_MIME.has(file.type)) {
+    throw new ReceiptValidationError(
+      `File type not supported (${file.type || 'unknown'}). Use PNG, JPEG, WebP, HEIC, or PDF.`,
+    )
+  }
+  if (file.size > RECEIPT_MAX_BYTES) {
+    throw new ReceiptValidationError(
+      `Receipt too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum 5 MB.`,
+    )
+  }
+}
+
+export async function uploadExpenseReceipt(
+  file: File,
+  projectId: string,
+  lineId: string,
+): Promise<{ path: string }> {
+  validateReceiptFile(file)
+  const db = createClient()
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? guessExtFromMime(file.type)
+  const path = `${projectId}/${lineId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+
+  const { error } = await db.storage.from(RECEIPTS_BUCKET).upload(path, file, {
+    upsert: false,
+    contentType: file.type,
+  })
+  if (error) {
+    console.error('uploadExpenseReceipt failed:', error)
+    if (error.message?.includes('Bucket not found')) {
+      throw new Error('Receipts bucket not configured. Run `pnpm --filter @origin-one/db exec prisma migrate deploy`.')
+    }
+    if (error.message?.includes('mime type')) {
+      throw new Error('File type not supported. Use PNG, JPEG, WebP, HEIC, or PDF.')
+    }
+    if (error.message?.toLowerCase().includes('size') || error.message?.includes('exceeded')) {
+      throw new Error('File too large. Maximum 5 MB.')
+    }
+    throw new Error(error.message || 'Upload failed. Please try again.')
+  }
+  return { path }
+}
+
+function guessExtFromMime(mime: string): string {
+  if (mime === 'image/png')        return 'png'
+  if (mime === 'image/jpeg')       return 'jpg'
+  if (mime === 'image/webp')       return 'webp'
+  if (mime === 'image/heic')       return 'heic'
+  if (mime === 'application/pdf')  return 'pdf'
+  return 'bin'
+}
+
+// Resolve a storage path stored on Expense.receiptUrl into a short-
+// lived signed URL the browser can fetch. 1-hour expiry — well past
+// the typical render lifecycle and within Supabase's max.
+export async function getReceiptSignedUrl(path: string): Promise<string | null> {
+  const db = createClient()
+  const { data, error } = await db.storage
+    .from(RECEIPTS_BUCKET)
+    .createSignedUrl(path, 60 * 60)
+  if (error || !data) {
+    console.error('getReceiptSignedUrl failed:', error)
+    return null
+  }
+  return data.signedUrl
+}
+
+export async function deleteExpenseReceipt(path: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.storage.from(RECEIPTS_BUCKET).remove([path])
+  if (error) {
+    console.error('deleteExpenseReceipt failed:', error)
+    throw error
+  }
+}
+
 export async function uploadMoodboardImage(file: File, projectId: string): Promise<string> {
   const db = createClient()
   const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
@@ -1655,6 +1754,7 @@ export async function createManualExpense(input: {
   date: string                         // ISO 'YYYY-MM-DD'
   vendor?: string | null
   notes?: string | null
+  receiptUrl?: string | null           // Storage path in receipts bucket
   createdBy: string                    // ProjectMember.id pre-Auth
 }): Promise<void> {
   const db = createClient()
@@ -1670,7 +1770,7 @@ export async function createManualExpense(input: {
     unit:       null,
     vendor:     input.vendor ?? null,
     notes:      input.notes ?? null,
-    receiptUrl: null,
+    receiptUrl: input.receiptUrl ?? null,
     timecardId: null,
     createdBy:  input.createdBy,
     updatedAt:  new Date().toISOString(),

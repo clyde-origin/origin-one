@@ -7,6 +7,12 @@ import {
   useUpdateBudgetLineAmount,
   useCreateManualExpense,
 } from '@/lib/hooks/useOriginOne'
+import {
+  uploadExpenseReceipt,
+  validateReceiptFile,
+  ReceiptValidationError,
+  getReceiptSignedUrl,
+} from '@/lib/db/queries'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import { haptic } from '@/lib/utils/haptics'
 import type {
@@ -772,19 +778,81 @@ function LineExpensesTab({
   const [vendor, setVendor] = useState('')
   const [notes, setNotes] = useState('')
 
-  const reset = () => { setAmount(''); setDate(today); setVendor(''); setNotes(''); setAdding(false) }
-  const submit = () => {
-    if (!currentMemberId) return
+  // PR 14 — receipt capture.
+  // - receiptFile: File picked via input[capture=environment] OR file picker
+  // - receiptObjectUrl: URL.createObjectURL for optimistic preview (revoked on reset)
+  // - receiptError: client-side validation error (5MB / MIME)
+  // - submitting: blocks the button while upload + insert are in flight
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [receiptObjectUrl, setReceiptObjectUrl] = useState<string | null>(null)
+  const [receiptError, setReceiptError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  const clearReceipt = () => {
+    if (receiptObjectUrl) URL.revokeObjectURL(receiptObjectUrl)
+    setReceiptFile(null)
+    setReceiptObjectUrl(null)
+    setReceiptError(null)
+  }
+
+  const handlePickReceipt = (file: File | null) => {
+    if (!file) { clearReceipt(); return }
+    try {
+      validateReceiptFile(file)
+    } catch (e) {
+      const msg = e instanceof ReceiptValidationError ? e.message : 'Invalid file'
+      setReceiptError(msg)
+      return
+    }
+    if (receiptObjectUrl) URL.revokeObjectURL(receiptObjectUrl)
+    setReceiptError(null)
+    setReceiptFile(file)
+    setReceiptObjectUrl(URL.createObjectURL(file))
+  }
+
+  // Cleanup any lingering object URL on unmount.
+  useEffect(() => {
+    return () => { if (receiptObjectUrl) URL.revokeObjectURL(receiptObjectUrl) }
+  }, [receiptObjectUrl])
+
+  const reset = () => {
+    setAmount(''); setDate(today); setVendor(''); setNotes('')
+    clearReceipt()
+    setSubmitting(false)
+    setAdding(false)
+  }
+
+  const submit = async () => {
+    if (!currentMemberId || submitting) return
     const n = Number.parseFloat(amount)
     if (!Number.isFinite(n) || n < 0) return
-    create.mutate({
-      budgetId, lineId: line.id,
-      amount: n.toFixed(2),
-      date,
-      vendor: vendor.trim() || null,
-      notes: notes.trim() || null,
-      createdBy: currentMemberId,
-    }, { onSuccess: reset })
+    setSubmitting(true)
+    try {
+      let receiptPath: string | null = null
+      if (receiptFile) {
+        const result = await uploadExpenseReceipt(receiptFile, projectId, line.id)
+        receiptPath = result.path
+      }
+      await new Promise<void>((resolveCreate, rejectCreate) => {
+        create.mutate({
+          budgetId, lineId: line.id,
+          amount: n.toFixed(2),
+          date,
+          vendor: vendor.trim() || null,
+          notes: notes.trim() || null,
+          receiptUrl: receiptPath,
+          createdBy: currentMemberId,
+        }, {
+          onSuccess: () => resolveCreate(),
+          onError:   (err) => rejectCreate(err),
+        })
+      })
+      reset()
+    } catch (e) {
+      console.error('manual expense submit failed:', e)
+      setReceiptError(e instanceof Error ? e.message : 'Save failed. Please try again.')
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -874,6 +942,17 @@ function LineExpensesTab({
               }}
             />
           </Field>
+
+          <ReceiptCaptureField
+            file={receiptFile}
+            objectUrl={receiptObjectUrl}
+            error={receiptError}
+            accent={accent}
+            onPick={handlePickReceipt}
+            onRemove={clearReceipt}
+            disabled={submitting}
+          />
+
           <div className="flex" style={{ gap: 8, justifyContent: 'flex-end' }}>
             <button
               type="button"
@@ -888,17 +967,17 @@ function LineExpensesTab({
             <button
               type="button"
               onClick={submit}
-              disabled={!currentMemberId || !amount.trim()}
+              disabled={!currentMemberId || !amount.trim() || submitting}
               className="font-mono uppercase"
               style={{
                 padding: '8px 16px', borderRadius: 999,
-                background: amount.trim() && currentMemberId ? `${accent}24` : 'rgba(255,255,255,0.04)',
-                border: amount.trim() && currentMemberId ? `1px solid ${accent}66` : '1px solid rgba(255,255,255,0.06)',
-                color: amount.trim() && currentMemberId ? accent : '#62627a',
+                background: amount.trim() && currentMemberId && !submitting ? `${accent}24` : 'rgba(255,255,255,0.04)',
+                border: amount.trim() && currentMemberId && !submitting ? `1px solid ${accent}66` : '1px solid rgba(255,255,255,0.06)',
+                color: amount.trim() && currentMemberId && !submitting ? accent : '#62627a',
                 fontSize: 9, letterSpacing: '0.08em',
-                cursor: amount.trim() && currentMemberId ? 'pointer' : 'not-allowed',
+                cursor: amount.trim() && currentMemberId && !submitting ? 'pointer' : 'not-allowed',
               }}
-            >Save expense</button>
+            >{submitting ? 'Saving…' : 'Save expense'}</button>
           </div>
         </div>
       ) : (
@@ -921,32 +1000,356 @@ function LineExpensesTab({
 function ExpenseRow({ expense }: { expense: Expense }) {
   const sourceLabel = expense.source === 'timecard' ? '⏱ Timecard' : '🧾 Manual'
   const subtitle = expense.vendor ?? expense.notes ?? (expense.source === 'timecard' ? 'Approved timecard' : 'Manual entry')
+  const [previewOpen, setPreviewOpen] = useState(false)
+
   return (
-    <div
+    <>
+      <div
+        style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '12px 14px', borderRadius: 10,
+          background: 'rgba(10,10,18,0.42)',
+          border: '1px solid rgba(255,255,255,0.08)',
+        }}
+      >
+        {expense.receiptUrl && (
+          <ReceiptThumbnail
+            path={expense.receiptUrl}
+            onTap={() => { haptic('light'); setPreviewOpen(true) }}
+          />
+        )}
+        <div className="flex-1" style={{ minWidth: 0 }}>
+          <div
+            className="font-mono uppercase"
+            style={{ fontSize: 9, letterSpacing: '0.08em', color: '#a0a0b8' }}
+          >{sourceLabel} · {expense.date}</div>
+          <div
+            style={{
+              fontSize: 12, color: '#e8e8f0', marginTop: 2,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}
+          >{subtitle}</div>
+        </div>
+        <div
+          className="font-mono"
+          style={{ fontSize: 13, fontWeight: 600, color: '#fff', flexShrink: 0 }}
+        >{formatUSD(Number(expense.amount))}</div>
+      </div>
+      {previewOpen && expense.receiptUrl && (
+        <ReceiptPreviewSheet
+          path={expense.receiptUrl}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
+    </>
+  )
+}
+
+// Fetches a short-lived signed URL for the receipts bucket (private)
+// and renders an image thumbnail. PDFs show a generic icon — <img>
+// can't render PDFs and inlining a viewer is overkill for v1.
+function ReceiptThumbnail({ path, onTap }: { path: string; onTap: () => void }) {
+  const isPdf = path.toLowerCase().endsWith('.pdf')
+  const [signedUrl, setSignedUrl] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (isPdf) return
+    let cancelled = false
+    getReceiptSignedUrl(path).then(u => { if (!cancelled) setSignedUrl(u) })
+    return () => { cancelled = true }
+  }, [path, isPdf])
+
+  return (
+    <button
+      type="button"
+      onClick={onTap}
+      aria-label="View receipt"
       style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '12px 14px', borderRadius: 10,
-        background: 'rgba(10,10,18,0.42)',
+        flexShrink: 0,
+        width: 44, height: 44, borderRadius: 8,
+        background: 'rgba(255,255,255,0.04)',
         border: '1px solid rgba(255,255,255,0.08)',
+        cursor: 'pointer',
+        overflow: 'hidden', padding: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
     >
-      <div className="flex-1" style={{ minWidth: 0 }}>
+      {isPdf ? (
+        <span style={{ fontSize: 18 }}>📄</span>
+      ) : signedUrl ? (
+        <img
+          src={signedUrl}
+          alt="Receipt"
+          onLoad={() => setLoaded(true)}
+          style={{
+            width: '100%', height: '100%', objectFit: 'cover',
+            opacity: loaded ? 1 : 0,
+            transition: 'opacity 0.2s',
+          }}
+        />
+      ) : (
+        <span style={{ fontSize: 12, color: '#62627a' }}>·</span>
+      )}
+    </button>
+  )
+}
+
+// Fullscreen preview overlay — replace-in-place on top of the parent
+// surface. NOT a nested modal in the sheet-stacking sense; it's a
+// fullscreen scrim that dismisses on tap-anywhere or X.
+function ReceiptPreviewSheet({ path, onClose }: { path: string; onClose: () => void }) {
+  const isPdf = path.toLowerCase().endsWith('.pdf')
+  const [signedUrl, setSignedUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getReceiptSignedUrl(path).then(u => { if (!cancelled) setSignedUrl(u) })
+    return () => { cancelled = true }
+  }, [path])
+
+  // Esc-to-close on desktop.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return (
+    <div
+      role="dialog"
+      aria-label="Receipt preview"
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 70,
+        background: 'rgba(4,4,10,0.92)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px)',
+      }}
+    >
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onClose() }}
+        aria-label="Close receipt preview"
+        style={{
+          position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 12px)', right: 12,
+          width: 36, height: 36, borderRadius: 999,
+          background: 'rgba(255,255,255,0.10)',
+          border: '1px solid rgba(255,255,255,0.16)',
+          color: '#fff', fontSize: 16, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >×</button>
+      {!signedUrl ? (
         <div
           className="font-mono uppercase"
-          style={{ fontSize: 9, letterSpacing: '0.08em', color: '#a0a0b8' }}
-        >{sourceLabel} · {expense.date}</div>
-        <div
+          style={{ fontSize: 10, color: '#a0a0b8', letterSpacing: '0.08em' }}
+        >Loading…</div>
+      ) : isPdf ? (
+        <a
+          href={signedUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="font-mono uppercase"
           style={{
-            fontSize: 12, color: '#e8e8f0', marginTop: 2,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            padding: '12px 18px', borderRadius: 10,
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.18)',
+            color: '#e8e8f0', fontSize: 11, letterSpacing: '0.08em',
+            textDecoration: 'none',
           }}
-        >{subtitle}</div>
-      </div>
-      <div
-        className="font-mono"
-        style={{ fontSize: 13, fontWeight: 600, color: '#fff', flexShrink: 0 }}
-      >{formatUSD(Number(expense.amount))}</div>
+        >Open PDF in new tab ↗</a>
+      ) : (
+        <img
+          src={signedUrl}
+          alt="Receipt full size"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            maxWidth: '100%', maxHeight: '100%',
+            objectFit: 'contain', borderRadius: 8,
+            background: '#0a0a12',
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+// PR 14 — receipt capture button + optimistic preview. iOS Safari uses
+// `capture="environment"` to open the back camera directly; desktop
+// falls back to the file picker.
+function ReceiptCaptureField({
+  file, objectUrl, error, accent, onPick, onRemove, disabled,
+}: {
+  file: File | null
+  objectUrl: string | null
+  error: string | null
+  accent: string
+  onPick: (file: File | null) => void
+  onRemove: () => void
+  disabled: boolean
+}) {
+  const isPdf = file?.type === 'application/pdf'
+  return (
+    <div className="flex flex-col" style={{ gap: 6 }}>
+      <span
+        className="font-mono uppercase"
+        style={{ fontSize: 9, letterSpacing: '0.10em', color: '#a0a0b8' }}
+      >Receipt {file ? '' : '(optional)'}</span>
+
+      {file && objectUrl ? (
+        <div
+          className="flex items-center"
+          style={{
+            gap: 12, padding: 8, borderRadius: 10,
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.10)',
+          }}
+        >
+          <div
+            style={{
+              width: 56, height: 56, borderRadius: 8,
+              background: '#0a0a12', overflow: 'hidden',
+              flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            {isPdf ? (
+              <span style={{ fontSize: 22 }}>📄</span>
+            ) : (
+              <img
+                src={objectUrl}
+                alt="Receipt preview"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            )}
+          </div>
+          <div className="flex-1" style={{ minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 12, color: '#e8e8f0',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}
+            >{file.name}</div>
+            <div
+              className="font-mono uppercase"
+              style={{ fontSize: 9, letterSpacing: '0.08em', color: '#62627a', marginTop: 2 }}
+            >{(file.size / 1024 / 1024).toFixed(2)} MB</div>
+          </div>
+          <div className="flex" style={{ gap: 6, flexShrink: 0 }}>
+            <ReplaceLabel accent={accent} disabled={disabled} onPick={onPick} />
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={disabled}
+              className="font-mono uppercase"
+              aria-label="Remove receipt"
+              style={{
+                minHeight: 44, minWidth: 44, padding: '0 10px', borderRadius: 8,
+                background: 'transparent', border: '1px solid rgba(232,86,74,0.25)',
+                color: '#e8564a', fontSize: 9, letterSpacing: '0.08em',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+              }}
+            >Remove</button>
+          </div>
+        </div>
+      ) : (
+        <CaptureLabel accent={accent} disabled={disabled} onPick={onPick} />
+      )}
+
+      {error && (
+        <div
+          className="font-mono"
+          role="status"
+          style={{
+            padding: '6px 10px', borderRadius: 6,
+            background: 'rgba(232,86,74,0.10)',
+            border: '1px solid rgba(232,86,74,0.30)',
+            color: '#e8564a',
+            fontSize: 10, letterSpacing: '0.04em',
+          }}
+        >{error}</div>
+      )}
+    </div>
+  )
+}
+
+function CaptureLabel({
+  accent, disabled, onPick,
+}: {
+  accent: string
+  disabled: boolean
+  onPick: (file: File | null) => void
+}) {
+  return (
+    <label
+      className="font-mono uppercase"
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        gap: 8,
+        minHeight: 44,
+        padding: '12px 14px', borderRadius: 10,
+        background: `${accent}14`,
+        border: `1px dashed ${accent}55`,
+        color: accent,
+        fontSize: 10, letterSpacing: '0.08em',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <span>📷 Capture receipt</span>
+      <input
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/heic,application/pdf"
+        capture="environment"
+        disabled={disabled}
+        onChange={e => {
+          const f = e.target.files?.[0] ?? null
+          onPick(f)
+          e.target.value = ''  // allow re-picking the same file
+        }}
+        style={{ display: 'none' }}
+      />
+    </label>
+  )
+}
+
+function ReplaceLabel({
+  accent, disabled, onPick,
+}: {
+  accent: string
+  disabled: boolean
+  onPick: (file: File | null) => void
+}) {
+  return (
+    <label
+      className="font-mono uppercase"
+      aria-label="Replace receipt"
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        minHeight: 44, minWidth: 44, padding: '0 10px', borderRadius: 8,
+        background: `${accent}1a`,
+        border: `1px solid ${accent}55`,
+        color: accent, fontSize: 9, letterSpacing: '0.08em',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      Replace
+      <input
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/heic,application/pdf"
+        capture="environment"
+        disabled={disabled}
+        onChange={e => {
+          const f = e.target.files?.[0] ?? null
+          onPick(f)
+          e.target.value = ''
+        }}
+        style={{ display: 'none' }}
+      />
+    </label>
   )
 }
 
