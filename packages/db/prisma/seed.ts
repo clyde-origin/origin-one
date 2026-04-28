@@ -404,11 +404,16 @@ async function upsertCrew(
     create: { email, name },
   })
   USER_NAMES.set(user.id, name)
-  await prisma.teamMember.upsert({
-    where:  { teamId_userId: { teamId, userId: user.id } },
-    update: {},
-    create: { teamId, userId: user.id, role },
-  })
+  // Tenant model post auth-003: TeamMember = "team-tier access" (producer only).
+  // Crew is ProjectMember-only; no TeamMember row.
+  // Director also gets team-tier access since on this team directors produce.
+  if (role === 'producer' || role === 'director') {
+    await prisma.teamMember.upsert({
+      where:  { teamId_userId: { teamId, userId: user.id } },
+      update: {},
+      create: { teamId, userId: user.id, role },
+    })
+  }
   return user
 }
 
