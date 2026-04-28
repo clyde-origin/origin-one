@@ -467,27 +467,30 @@ function SwipeableSceneMaker({
           )}
         </div>
 
-        {/* Page 2: Storyboard — first 3 cards */}
+        {/* Page 2: Storyboard — first board only, with condensed description */}
         <div style={{ width: '33.333%', flex: '0 0 33.333%', padding: '8px 9px', display: 'flex', flexDirection: 'column' }}>
-          <div className="flex flex-1 items-stretch" style={{ gap: 3 }}>
-            {allShots.length > 0 ? allShots.slice(0, 3).map((shot: any, i: number) => (
-              <div key={shot.id} className="flex-1 flex flex-col overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 5 }}>
-                <div className="flex-shrink-0 relative" style={{ height: 46, background: SCENE_GRAD[(i % 3) + 1] ?? SCENE_GRAD[1] }}>
+          {allShots.length > 0 ? (() => {
+            const shot: any = allShots[0]
+            return (
+              <div className="flex flex-1 flex-col overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 6 }}>
+                <div className="flex-shrink-0 relative" style={{ flex: 1, minHeight: 0, background: SCENE_GRAD[1] }}>
                   {shot.imageUrl && (
                     <StorageImage url={shot.imageUrl} alt={shot.shotNumber} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                   )}
+                  <div className="absolute" style={{ top: 4, left: 4, fontFamily: "'Geist', sans-serif", fontSize: '0.40rem', fontWeight: 700, color: projectColor, background: 'rgba(4,4,10,0.7)', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.04em' }}>
+                    {shot.shotNumber}
+                  </div>
                 </div>
-                <div style={{ padding: '3px 4px' }}>
-                  <div className="font-mono" style={{ fontSize: '0.30rem', color: projectColor }}>{shot.shotNumber}</div>
-                  <div className="truncate" style={{ fontSize: '0.26rem', color: '#62627a' }}>{shot.description ?? ''}</div>
+                <div style={{ padding: '5px 7px', flexShrink: 0 }}>
+                  <div className="truncate" style={{ fontSize: '0.36rem', color: '#a0a0b8', lineHeight: 1.3 }}>{shot.description ?? ''}</div>
                 </div>
               </div>
-            )) : (
-              <div className="flex-1 flex items-center justify-center">
-                <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a' }}>No boards yet</span>
-              </div>
-            )}
-          </div>
+            )
+          })() : (
+            <div className="flex-1 flex items-center justify-center">
+              <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a' }}>No boards yet</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1414,22 +1417,48 @@ export function HubContent({ projectId }: { projectId: string }) {
                   )}
                 />
 
-                {/* Casting panel — swipeable cast headshots */}
+                {/* Casting panel — grid of cast headshots (single page, no swiping) */}
                 <SwipePanel
-                  items={allCast}
+                  items={allCast.length > 0 ? [allCast] : []}
                   label="Casting"
                   labelColor="#00b894"
                   emptyIcon="🎭"
                   href={`/projects/${projectId}/casting`}
-                  renderItem={(role: any) => (
-                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
-                        <span style={{ fontSize: 16 }}>🎭</span>
+                  renderItem={(roles: any[]) => {
+                    // Show up to 6 actors (confirmed first, then uncast); avatar grid.
+                    const sorted = [...roles].sort((a, b) => Number(b.cast) - Number(a.cast))
+                    const visible = sorted.slice(0, 6)
+                    const remaining = sorted.length - visible.length
+                    return (
+                      <div style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, padding: '6px 8px 10px' }}>
+                        {visible.map((role: any, i: number) => {
+                          const t = role.talent
+                          return (
+                            <div key={role.id ?? i} style={{
+                              position: 'relative', aspectRatio: '1 / 1', borderRadius: '50%',
+                              overflow: 'hidden',
+                              border: t ? '1px solid rgba(0,184,148,0.35)' : '1px dashed rgba(255,255,255,0.12)',
+                              background: 'rgba(255,255,255,0.04)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              {t?.imageUrl ? (
+                                <StorageImage url={t.imageUrl} alt={t.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <span className="font-mono" style={{ fontSize: '0.42rem', fontWeight: 700, color: t ? '#00b894' : 'rgba(255,255,255,0.18)' }}>
+                                  {t?.initials ?? '?'}
+                                </span>
+                              )}
+                              {i === 5 && remaining > 0 && (
+                                <div style={{ position: 'absolute', inset: 0, background: 'rgba(4,4,10,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dddde8', fontSize: '0.46rem', fontWeight: 700 }}>
+                                  +{remaining}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
-                      <span style={{ fontSize: '0.46rem', fontWeight: 600, color: '#dddde8' }}>{role.role}</span>
-                      <span className="font-mono capitalize" style={{ fontSize: '0.32rem', color: '#62627a' }}>{role.cast ? 'Confirmed' : 'Uncast'}</span>
-                    </div>
-                  )}
+                    )
+                  }}
                 />
 
                 {/* Art panel — swipeable tabs: Wardrobe, Props, HMU */}
