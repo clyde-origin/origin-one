@@ -13,6 +13,7 @@ import {
 } from '@/lib/hooks/useOriginOne'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { StorageImage } from '@/components/ui/StorageImage'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
@@ -83,8 +84,8 @@ function CastRow({ role, accent, onTap, threadEntry }: { role: CastRoleData; acc
           overflow: 'hidden',
         }}>
           {role.talent.imageUrl ? (
-            <img
-              src={role.talent.imageUrl}
+            <StorageImage
+              url={role.talent.imageUrl}
               alt={role.talent.name}
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               onError={(ev) => { (ev.target as HTMLImageElement).style.display = 'none' }}
@@ -375,8 +376,8 @@ function CastDetailSheet({
               overflow: 'hidden',
             }}>
               {role.talent.imageUrl ? (
-                <img
-                  src={role.talent.imageUrl}
+                <StorageImage
+                  url={role.talent.imageUrl}
                   alt={role.talent.name}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   onError={(ev) => { (ev.target as HTMLImageElement).style.display = 'none' }}

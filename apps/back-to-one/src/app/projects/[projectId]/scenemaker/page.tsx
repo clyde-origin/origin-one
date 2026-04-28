@@ -9,6 +9,7 @@ import { useProject, useScenes, useShotlistVersions, useCreateShotlistVersion, u
 import { getShotsByProject, updateShotOrder, updateShootOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene, deleteScene } from '@/lib/db/queries'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { StorageImage } from '@/components/ui/StorageImage'
 import { Sheet } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
@@ -635,7 +636,7 @@ function SortableShotRow({
             style={{ width: 72, height: 44, borderRadius: 6, marginLeft: 'auto' }}
             onClick={onTapThumbnail}>
             {shot.imageUrl ? (
-              <img src={shot.imageUrl} alt={displayNum} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <StorageImage url={shot.imageUrl} alt={displayNum} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${sceneColor}18, ${sceneColor}08)` }}>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -826,7 +827,7 @@ function StoryboardView({ scenes, shots, scale, aspectRatio, onTapShot, onReorde
             style={{ background: 'rgba(10,10,18,0.42)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, overflow: 'hidden' }}>
             <div className="relative" style={{ aspectRatio: aspectRatioToCss(aspectRatio) }}>
               {shot.imageUrl ? (
-                <img src={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <StorageImage url={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <div className="w-full h-full" style={{ background: `linear-gradient(135deg, ${sc}15, ${sc}08)` }} />
               )}
@@ -868,7 +869,7 @@ function StoryboardView({ scenes, shots, scale, aspectRatio, onTapShot, onReorde
                   border: `2px solid ${slotColor}60`,
                   boxShadow: `0 0 12px ${slotColor}15`,
                 }}>
-                {shot?.imageUrl && <img src={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                {shot?.imageUrl && <StorageImage url={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                 {shot && (
                   <div className="absolute top-1.5 left-1.5" style={{
                     fontFamily: "'Geist', sans-serif", fontSize: '0.44rem', fontWeight: 700,
@@ -906,7 +907,7 @@ function StoryboardView({ scenes, shots, scale, aspectRatio, onTapShot, onReorde
                     }}
                       onClick={() => { haptic('light'); setSlotId[slot](shot.id) }}>
                       <div style={{ aspectRatio: aspectRatioToCss(aspectRatio), background: `linear-gradient(135deg, ${sc}15, ${sc}08)` }}>
-                        {shot.imageUrl && <img src={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                        {shot.imageUrl && <StorageImage url={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                       </div>
                       <div style={{ padding: '2px 4px', fontSize: '0.3rem', fontWeight: 700, color: isSelected ? slotColor : sc, textAlign: 'center' }}>{shot.shotNumber}</div>
                     </div>
@@ -933,7 +934,7 @@ function StoryboardView({ scenes, shots, scale, aspectRatio, onTapShot, onReorde
             <div key={shot.id} className="cursor-pointer" onClick={() => onTapShot(shot)}
               style={{ borderRadius: 4, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)', position: 'relative' }}>
               <div style={{ aspectRatio: aspectRatioToCss(aspectRatio), background: `linear-gradient(135deg, ${sc}12, ${sc}06)` }}>
-                {shot.imageUrl && <img src={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                {shot.imageUrl && <StorageImage url={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
               </div>
               <div className="absolute bottom-0 left-0 right-0" style={{
                 fontSize: '0.28rem', fontWeight: 700, color: sc,

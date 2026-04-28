@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
+import { StorageImage } from '@/components/ui/StorageImage'
 import type { Scene, Shot } from '@/types'
 import { aspectRatioToCss } from '@/lib/aspect-ratio'
 
@@ -161,7 +162,7 @@ function ShotlistPage({ shots, orientation, projectName, clientName, version }: 
                 </td>
                 <td style={{ width: 28, padding: '3px 4px', borderBottom: '1px solid #f0f0f0', verticalAlign: 'top' }}>
                   {shot.imageUrl ? (
-                    <img src={shot.imageUrl} alt="" style={{ width: 26, height: 18, borderRadius: 2, objectFit: 'cover' }} />
+                    <StorageImage url={shot.imageUrl} alt="" style={{ width: 26, height: 18, borderRadius: 2, objectFit: 'cover' }} />
                   ) : (
                     <div style={{
                       width: 26, height: 18, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -195,7 +196,7 @@ function StoryboardPage({ shots, orientation, projectName, clientName, version, 
             <div key={shot.id} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <div style={{ width: '100%', aspectRatio: aspectRatioToCss(aspectRatio), borderRadius: 2, overflow: 'hidden' }}>
                 {shot.imageUrl ? (
-                  <img src={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <StorageImage url={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
                   <div style={{ width: '100%', height: '100%', background: '#f0f0f0' }} />
                 )}

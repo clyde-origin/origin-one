@@ -21,6 +21,7 @@ import type {
 import { useViewerRole } from '@/lib/auth/useViewerRole'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { CrewAvatar, ThreadsIcon } from '@/components/ui'
+import { StorageImage } from '@/components/ui/StorageImage'
 import { HubSkeleton } from '@/components/hub/HubSkeleton'
 import { CrewPanel } from '@/components/hub/CrewPanel'
 import { CreateTaskSheet, CreateMilestoneSheet, CreateCreativeSheet } from '@/components/create'
@@ -1373,7 +1374,8 @@ export function HubContent({ projectId }: { projectId: string }) {
                   }
                   renderItem={(ref) => (
                     ref.imageUrl ? (
-                      <img src={ref.imageUrl} alt={ref.title} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }} />
+                      <StorageImage url={ref.imageUrl} alt={ref.title} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }}
+                        placeholder={<div style={{ width: '100%', height: '100%', background: ref.gradient || '#0a0a12', opacity: 0.7 }} />} />
                     ) : (
                       <div style={{ width: '100%', height: '100%', background: ref.gradient || '#0a0a12', opacity: 0.7 }} />
                     )
