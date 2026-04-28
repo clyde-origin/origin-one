@@ -7,6 +7,7 @@ export type Surface =
   | 'hmu'
   | 'cast'
   | 'avatar'
+  | 'storyboard'
 
 export type ProjectKey = 'p1' | 'p2' | 'p3' | 'p4' | 'p5' | 'p6' | 'crew'
 
@@ -23,7 +24,7 @@ export type ImageEntry = {
   matchByName: string
 }
 
-export type Bucket = 'entity-attachments' | 'moodboard' | 'avatars'
+export type Bucket = 'entity-attachments' | 'moodboard' | 'avatars' | 'storyboard'
 
 const ENTITY_ATTACHMENT_SURFACES: ReadonlySet<Surface> = new Set([
   'location', 'narrativeLocation', 'prop', 'wardrobe', 'hmu', 'cast',
@@ -42,6 +43,8 @@ export function bucketForSurface(surface: Surface): Bucket {
       return 'moodboard'
     case 'avatar':
       return 'avatars'
+    case 'storyboard':
+      return 'storyboard'
   }
   // TS-verified exhaustive: if a new Surface is added without updating the
   // switch above, this assignment fails at compile time.
@@ -69,5 +72,6 @@ export function storagePath(
 
 export function imageSizeForSurface(surface: Surface): '1536x1024' | '1024x1024' {
   if (surface === 'cast' || surface === 'avatar') return '1024x1024'
+  if (surface === 'storyboard') return '1024x1024'
   return '1536x1024'
 }

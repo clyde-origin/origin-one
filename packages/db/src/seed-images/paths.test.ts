@@ -76,3 +76,9 @@ describe('imageSizeForSurface', () => {
     expect(imageSizeForSurface('avatar')).toBe('1024x1024')
   })
 })
+
+describe('bucketForSurface — storyboard', () => {
+  it('routes storyboard to storyboard bucket', () => {
+    expect(bucketForSurface('storyboard')).toBe('storyboard')
+  })
+})
