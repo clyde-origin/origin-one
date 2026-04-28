@@ -148,7 +148,7 @@ function CrewDetail({ member, accent, projectId, onBack, onRemoved, onTimecards 
 
       {/* Profile */}
       <div className="flex flex-col items-center px-5 pb-5 flex-shrink-0">
-        <CrewAvatar name={member.User.name} size={56} />
+        <CrewAvatar name={member.User.name} size={56} avatarUrl={member.User.avatarUrl} />
         <div className="mt-3 text-center">
           <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#dddde8' }}>{member.User.name}</div>
           <div className="text-text2 mt-0.5" style={{ fontSize: '0.82rem' }}>{member.User.email}</div>
@@ -212,7 +212,7 @@ function CrewCell({ member, onTap }: { member: TeamMember; onTap: () => void }) 
       style={{ width: 68, gap: 4 }}
       onClick={onTap}
     >
-      <CrewAvatar name={member.User.name} size={42} />
+      <CrewAvatar name={member.User.name} size={42} avatarUrl={member.User.avatarUrl} />
       <div className="text-center w-full" style={{
         fontSize: '0.62rem', fontWeight: 500, color: '#dddde8', lineHeight: 1.25,
         display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
@@ -539,7 +539,7 @@ function ProducerOverview({
                   onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
                 >
                   <div className="flex items-center gap-2" style={{ fontSize: 13, fontWeight: 500 }}>
-                    <CrewAvatar name={m.User.name} size={22} />
+                    <CrewAvatar name={m.User.name} size={22} avatarUrl={m.User.avatarUrl} />
                     <span style={{ color: '#dddde8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {m.User.name}
                     </span>

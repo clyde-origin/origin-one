@@ -512,7 +512,7 @@ function AIDetailSheet({ item, crew, onClose }: { item: ActionItem | null; crew:
           <div className="mb-4">
             <span className="font-mono text-sm text-muted tracking-widest uppercase block mb-2">Assigned to</span>
             <div className="flex items-center gap-3 p-3 bg-surface2 rounded-lg border border-border">
-              <CrewAvatar name={assignee.User?.name ?? 'Unknown'} size={32} />
+              <CrewAvatar name={assignee.User?.name ?? 'Unknown'} size={32} avatarUrl={assignee.User?.avatarUrl} />
               <div>
                 <div className="text-base font-semibold text-text">{assignee.User?.name ?? 'Unknown'}</div>
                 <div className="font-mono text-xs text-muted">{assignee.role}</div>
@@ -551,7 +551,7 @@ function MSDetailSheet({ milestone, crew, onClose }: { milestone: Milestone | nu
             <div className="flex flex-col gap-2">
               {people.map(p => (
                 <div key={p.id} className="flex items-center gap-3 p-3 bg-surface2 rounded-lg border border-border">
-                  <CrewAvatar name={p.User?.name ?? 'Unknown'} size={32} />
+                  <CrewAvatar name={p.User?.name ?? 'Unknown'} size={32} avatarUrl={p.User?.avatarUrl} />
                   <div>
                     <div className="text-base font-semibold text-text">{p.User?.name ?? 'Unknown'}</div>
                     <div className="font-mono text-xs text-muted">{p.role}</div>
@@ -1089,7 +1089,7 @@ export function HubContent({ projectId }: { projectId: string }) {
           onClick={() => { haptic('light'); setCrewPanelOpen(true) }}>
           {allCrew.slice(0, 4).map((m, i) => (
             <div key={m.id} className="relative" style={{ marginLeft: i === 0 ? 0 : -7, zIndex: 4 - i }}>
-              <CrewAvatar name={m.User?.name ?? 'Unknown'} size={28} />
+              <CrewAvatar name={m.User?.name ?? 'Unknown'} size={28} avatarUrl={m.User?.avatarUrl} />
             </div>
           ))}
           {allCrew.length > 4 && (

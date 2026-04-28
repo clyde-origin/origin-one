@@ -1,3 +1,6 @@
+'use client'
+
+import { useState } from 'react'
 import { cn } from '@/lib/utils/cn'
 import type { Phase } from '@/lib/utils/phase'
 
@@ -128,16 +131,20 @@ function avatarInitials(name: string): string {
 export function CrewAvatar({
   name,
   size = 38,
+  avatarUrl,
 }: {
   name: string
   size?: number
+  avatarUrl?: string | null
 }) {
   const [c1] = avatarGradient(name)
   const initials = avatarInitials(name)
+  const [imgFailed, setImgFailed] = useState(false)
+  const showImage = !!avatarUrl && !imgFailed
   return (
     <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
       <div
-        className="rounded-full flex items-center justify-center font-semibold"
+        className="rounded-full flex items-center justify-center font-semibold overflow-hidden"
         style={{
           width: size,
           height: size,
@@ -147,7 +154,17 @@ export function CrewAvatar({
           fontSize: size * 0.26,
         }}
       >
-        {initials}
+        {showImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={avatarUrl!}
+            alt={name}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={() => setImgFailed(true)}
+          />
+        ) : (
+          initials
+        )}
       </div>
     </div>
   )
