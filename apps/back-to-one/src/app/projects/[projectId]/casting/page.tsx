@@ -45,6 +45,7 @@ interface CastRoleData {
     id: string
     name: string
     initials: string
+    imageUrl: string | null
     agency: string
     email: string
     phone: string
@@ -79,8 +80,18 @@ function CastRow({ role, accent, onTap, threadEntry }: { role: CastRoleData; acc
           background: `${accent}20`, border: `1.5px solid ${accent}45`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 16, fontWeight: 700, flexShrink: 0, color: accent,
+          overflow: 'hidden',
         }}>
-          {role.talent.initials}
+          {role.talent.imageUrl ? (
+            <img
+              src={role.talent.imageUrl}
+              alt={role.talent.name}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={(ev) => { (ev.target as HTMLImageElement).style.display = 'none' }}
+            />
+          ) : (
+            role.talent.initials
+          )}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 600, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -361,8 +372,18 @@ function CastDetailSheet({
               background: `${accent}20`, border: `1.5px solid ${accent}45`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 16, fontWeight: 700, flexShrink: 0, color: accent,
+              overflow: 'hidden',
             }}>
-              {role.talent.initials}
+              {role.talent.imageUrl ? (
+                <img
+                  src={role.talent.imageUrl}
+                  alt={role.talent.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={(ev) => { (ev.target as HTMLImageElement).style.display = 'none' }}
+                />
+              ) : (
+                role.talent.initials
+              )}
             </div>
             <input
               ref={actorNameRef}

@@ -2274,6 +2274,7 @@ export async function getCastRoles(projectId: string) {
         id: t.id,
         name: t.name ?? '',
         initials: initials(t.name ?? '', '+'),
+        imageUrl: t.imageUrl ?? null,
         agency: t.agency ?? '',
         email: t.email ?? '',
         phone: t.phone ?? '',
