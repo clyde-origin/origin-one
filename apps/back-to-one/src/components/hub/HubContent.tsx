@@ -1302,13 +1302,19 @@ export function HubContent({ projectId }: { projectId: string }) {
                   emptyIcon="🎨"
                   href={`/projects/${projectId}/art`}
                   renderItem={(cat: string) => {
-                    const catItems = allArt.filter(a => a.cat === cat)
-                    const latest = catItems.find(a => a.imageUrl) ?? catItems[0]
+                    // 'props' (UI label) maps to Entity.type 'prop' (singular).
+                    // wardrobe / hmu match Entity.type one-to-one.
+                    const entityType = cat === 'props' ? 'prop' : cat
+                    const catItems = allArt.filter(a => a.type === entityType)
+                    // First item from each section, in the same order the Art
+                    // page lists them (createdAt asc, id asc — see getArtItems).
+                    const first = catItems[0]
+                    const imgUrl = (first?.metadata as { imageUrl?: string } | null)?.imageUrl
                     const catLabel = cat === 'hmu' ? 'HMU' : cat === 'wardrobe' ? 'Wardrobe' : 'Props'
                     return (
                       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 6 }}>
-                        {latest?.imageUrl ? (
-                          <img src={latest.imageUrl} alt={catLabel} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
+                        {imgUrl ? (
+                          <img src={imgUrl} alt={catLabel} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
                         ) : (
                           <>
                             <span className="font-mono uppercase" style={{ fontSize: '0.38rem', color: '#6470f3', letterSpacing: '0.06em' }}>{catLabel}</span>
