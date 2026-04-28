@@ -2,15 +2,18 @@
 // Run with: pnpm db:seed
 // Wipes all existing data and inserts the six Origin Point seed projects clean.
 
+import { existsSync } from 'node:fs'
+import * as path from 'node:path'
 import { PrismaClient, Role } from '@prisma/client'
 import { computeExpenseUnits, DEFAULT_AICP_ACCOUNTS } from '@origin-one/schema'
 import { MANIFEST } from '../src/seed-images/manifest'
 import type { SeedProjectKey } from '../src/seed-images/paths'
-import { localFilePath, storagePath } from '../src/seed-images/paths'
-import { uploadSeedImage, clearBucket } from '../src/seed-images/uploader'
+import { localFilePath, storagePath, bucketForSurface } from '../src/seed-images/paths'
+import { uploadSeedImage, clearBucket, FILES_ROOT } from '../src/seed-images/uploader'
 import { SCENES } from '../src/seed-data/scenes'
 import { SHOTS } from '../src/seed-data/shots'
 import { projectAspectRatio } from '../src/seed-images/tone-primers'
+import { listStoryboardEntries } from '../src/seed-images/shot-entries'
 
 const prisma = new PrismaClient()
 
@@ -518,6 +521,7 @@ async function main() {
   await clearBucket('entity-attachments')
   await clearBucket('moodboard')
   await clearBucket('avatars')
+  await clearBucket('storyboard')
   console.log('  Buckets cleared.\n')
 
   // ── Team ──────────────────────────────────────────────────────────────────
@@ -3550,6 +3554,73 @@ FADE TO BLACK.`,
     avatarUploaded++
   }
   console.log(`  Avatars: uploaded ${avatarUploaded}, missing-user ${avatarMissing}`)
+
+  // ── Seed images: Storyboard frames → Shot.imageUrl ────────────────────────
+  // Project name → projectKey lookup. Names must match the values used in the
+  // 6 prisma.project.create calls. If you rename a seeded project here, also
+  // update its name in seed-data — they're the join key for storyboard upload.
+  const PROJECT_NAME_BY_KEY = {
+    p1: 'Simple Skin Promo',
+    p2: 'Full Send',
+    p3: 'In Vino Veritas',
+    p4: 'Flexibility Course A',
+    p5: 'Natural Order',
+    p6: 'The Weave',
+  } as const
+
+  console.log('Uploading storyboard images...')
+  let storyboardUploads = 0
+  let storyboardSkipped = 0
+  const storyboardEntries = listStoryboardEntries()
+  for (const entry of storyboardEntries) {
+    const localPath = path.join(FILES_ROOT, entry.localRelativePath)
+    if (!existsSync(localPath)) {
+      console.warn(
+        `  skip: ${entry.localRelativePath} not on disk. ` +
+        `Run \`pnpm db:fetch-images --only=${entry.projectKey}.storyboard.${entry.shot.shotNumber} --confirm-spend\``,
+      )
+      storyboardSkipped++
+      continue
+    }
+
+    const projectName = PROJECT_NAME_BY_KEY[entry.projectKey]
+    const sceneRow = await prisma.scene.findFirst({
+      where: {
+        sceneNumber: entry.scene.sceneNumber,
+        project: { name: projectName },
+      },
+    })
+    if (!sceneRow) {
+      console.warn(`  skip: scene ${entry.projectKey}/${entry.scene.sceneNumber} (${projectName}) not found in DB`)
+      storyboardSkipped++
+      continue
+    }
+    const shotRow = await prisma.shot.findFirst({
+      where: { sceneId: sceneRow.id, shotNumber: entry.shot.shotNumber },
+    })
+    if (!shotRow) {
+      console.warn(`  skip: shot ${entry.projectKey}/${entry.scene.sceneNumber}/${entry.shot.shotNumber} not found in DB`)
+      storyboardSkipped++
+      continue
+    }
+
+    const filename = `${entry.scene.sceneNumber}-${entry.shot.shotNumber}.jpg`
+    const storagePath2 = `${shotRow.id}/${filename}`
+    await uploadSeedImage({
+      localRelativePath: entry.localRelativePath,
+      bucket: bucketForSurface('storyboard'),
+      storagePath: storagePath2,
+    })
+
+    const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/storyboard/${storagePath2}`
+    await prisma.shot.update({
+      where: { id: shotRow.id },
+      data: { imageUrl: publicUrl },
+    })
+    storyboardUploads++
+  }
+  console.log(`  Storyboards uploaded: ${storyboardUploads}, skipped: ${storyboardSkipped}`)
 
   // ── Final count ───────────────────────────────────────────────────────────
   const counts = {
