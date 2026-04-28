@@ -10,6 +10,7 @@ import { localFilePath, storagePath } from '../src/seed-images/paths'
 import { uploadSeedImage, clearBucket } from '../src/seed-images/uploader'
 import { SCENES } from '../src/seed-data/scenes'
 import { SHOTS } from '../src/seed-data/shots'
+import { projectAspectRatio } from '../src/seed-images/tone-primers'
 
 const prisma = new PrismaClient()
 
@@ -561,7 +562,7 @@ async function main() {
   const lenaFarrow    = await upsertCrew(team.id, 'Lena Farrow',    'crew')
 
   const p1 = await prisma.project.create({
-    data: { teamId: team.id, name: 'Simple Skin Promo', status: 'pre_production', client: 'Lumière Skincare', type: 'commercial', color: '#D4A847' },
+    data: { teamId: team.id, name: 'Simple Skin Promo', status: 'pre_production', client: 'Lumière Skincare', type: 'commercial', color: '#D4A847', aspectRatio: projectAspectRatio('p1') },
   })
 
   await seedProjectScenes('p1', p1.id)
@@ -826,7 +827,7 @@ FADE TO BLACK.`,
   const devOkafor   = await upsertCrew(team.id, 'Dev Okafor',  'crew')
 
   const p2 = await prisma.project.create({
-    data: { teamId: team.id, name: 'Full Send', status: 'production', client: 'Vanta', type: 'commercial', color: '#E84225' },
+    data: { teamId: team.id, name: 'Full Send', status: 'production', client: 'Vanta', type: 'commercial', color: '#E84225', aspectRatio: projectAspectRatio('p2') },
   })
 
   await seedProjectScenes('p2', p2.id)
@@ -1058,7 +1059,7 @@ CUT TO BLACK.`,
   const jinHo          = await upsertCrew(team.id, 'Jin Ho',         'crew')
 
   const p3 = await prisma.project.create({
-    data: { teamId: team.id, name: 'In Vino Veritas', status: 'production', client: 'Napa Collective', type: 'documentary', color: '#5B2333' },
+    data: { teamId: team.id, name: 'In Vino Veritas', status: 'production', client: 'Napa Collective', type: 'documentary', color: '#5B2333', aspectRatio: projectAspectRatio('p3') },
   })
 
   await seedProjectScenes('p3', p3.id)
@@ -1292,7 +1293,7 @@ FINAL IMAGE — No direction. The car moves away down the valley road. Don't for
   const kaiaMori   = await upsertCrew(team.id, 'Kaia Mori',  'crew')
 
   const p4 = await prisma.project.create({
-    data: { teamId: team.id, name: 'Flexibility Course A', status: 'pre_production', client: 'Kaia Mori', type: 'educational', color: '#7AACB3' },
+    data: { teamId: team.id, name: 'Flexibility Course A', status: 'pre_production', client: 'Kaia Mori', type: 'educational', color: '#7AACB3', aspectRatio: projectAspectRatio('p4') },
   })
 
   await seedProjectScenes('p4', p4.id)
@@ -1525,7 +1526,7 @@ END EPISODE 1.`,
   const sarahOsei  = await upsertCrew(team.id, 'Sarah Osei',  'crew')
 
   const p5 = await prisma.project.create({
-    data: { teamId: team.id, name: 'Natural Order', status: 'post_production', client: 'Meridian Climate', type: 'branded', color: '#6B7F3B' },
+    data: { teamId: team.id, name: 'Natural Order', status: 'post_production', client: 'Meridian Climate', type: 'branded', color: '#6B7F3B', aspectRatio: projectAspectRatio('p5') },
   })
 
   await seedProjectScenes('p5', p5.id)
@@ -1709,7 +1710,7 @@ FADE TO BLACK.`,
   const sofiaAvila = await upsertCrew(team.id, 'Sofia Avila', 'crew')
 
   const p6 = await prisma.project.create({
-    data: { teamId: team.id, name: 'The Weave', status: 'production', client: 'B Story', type: 'narrative', color: '#6B3FA0' },
+    data: { teamId: team.id, name: 'The Weave', status: 'production', client: 'B Story', type: 'narrative', color: '#6B3FA0', aspectRatio: projectAspectRatio('p6') },
   })
 
   const PROJECT_ID_BY_KEY: Record<'p1'|'p2'|'p3'|'p4'|'p5'|'p6', string> = {
