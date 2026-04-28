@@ -12,6 +12,7 @@ import {
   useUpsertWardrobeSourced,
 } from '@/lib/hooks/useOriginOne'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { StorageImage } from '@/components/ui/StorageImage'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusHex, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
@@ -151,7 +152,7 @@ function ArtItemCard({ item, accent, onTap, threadEntry }: { item: ArtEntity; ac
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         {imgUrl ? (
-          <img src={imgUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} />
+          <StorageImage url={imgUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} />
         ) : (
           <div style={{
             width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -394,7 +395,7 @@ function ArtDetailSheet({
       }}>
         {imgUrl ? (
           <>
-            <img src={imgUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <StorageImage url={imgUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             <div className="font-mono uppercase" style={{
               position: 'absolute', bottom: 10, right: 10,
               background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.15)',
