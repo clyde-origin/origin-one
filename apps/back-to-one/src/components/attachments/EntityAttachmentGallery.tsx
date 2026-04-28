@@ -1,14 +1,8 @@
 'use client'
 
 // Polymorphic image gallery — renders on any entity surface (Locations,
-// Props/Wardrobe/HMU when those land, future cast reference photos).
+// Props/Wardrobe/HMU, future cast reference photos).
 // Spec: apps/back-to-one/reference/back-to-one-entity-attachments.html
-//
-// FOLLOW-UP (auth-005c): the publicUrl pattern (background-image: url(...))
-// breaks after auth-005 flips entity-attachments bucket to public:false.
-// Refactor to sign URLs inline (see useStorageImage / StorageImage). This
-// gallery has ~10 backgroundImage sites — separate PR to keep auth-005b
-// reviewable. Until that lands, gallery renders blank backgrounds post-Auth.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -22,7 +16,25 @@ import {
   type EntityAttachmentRow,
 } from '@/lib/db/queries'
 import { useMeId, useAllCrew } from '@/lib/hooks/useOriginOne'
+import { useStorageImage } from '@/lib/auth/useStorageImage'
 import { haptic } from '@/lib/utils/haptics'
+
+// SignedBg — wraps a div with backgroundImage: url(<signed>) for any
+// publicUrl in a private bucket. Matches the existing backgroundImage CSS
+// pattern used throughout this gallery so each render site stays minimal.
+function SignedBg({
+  url, children, style, ...rest
+}: {
+  url: string | null | undefined
+  children?: React.ReactNode
+  style?: React.CSSProperties
+} & Omit<React.HTMLAttributes<HTMLDivElement>, 'style'>) {
+  const signed = useStorageImage(url)
+  const finalStyle = signed
+    ? { ...style, backgroundImage: `url(${signed})` }
+    : { ...style, backgroundImage: undefined as string | undefined }
+  return <div style={finalStyle} {...rest}>{children}</div>
+}
 
 export type EntityAttachmentGalleryVariant = 'row' | 'sheet'
 
@@ -187,14 +199,14 @@ function RowVariant({ items, uploading }: { items: EntityAttachmentRow[]; upload
   // Stacked
   return (
     <div style={{ position: 'relative', width: 44, height: 44, flexShrink: 0 }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, width: 36, height: 36, borderRadius: 7,
-        backgroundImage: `url(${items[2]?.publicUrl ?? items[0].publicUrl})`, backgroundSize: 'cover', backgroundPosition: 'center',
+      <SignedBg url={items[2]?.publicUrl ?? items[0].publicUrl} style={{ position: 'absolute', top: 0, left: 0, width: 36, height: 36, borderRadius: 7,
+        backgroundSize: 'cover', backgroundPosition: 'center',
         border: '0.5px solid rgba(0,0,0,0.4)' }} />
-      <div style={{ position: 'absolute', top: 4, left: 4, width: 36, height: 36, borderRadius: 7,
-        backgroundImage: `url(${items[1]?.publicUrl ?? items[0].publicUrl})`, backgroundSize: 'cover', backgroundPosition: 'center',
+      <SignedBg url={items[1]?.publicUrl ?? items[0].publicUrl} style={{ position: 'absolute', top: 4, left: 4, width: 36, height: 36, borderRadius: 7,
+        backgroundSize: 'cover', backgroundPosition: 'center',
         border: '0.5px solid rgba(0,0,0,0.4)' }} />
-      <div style={{ position: 'absolute', bottom: 0, right: 0, width: 36, height: 36, borderRadius: 7,
-        backgroundImage: `url(${items[0].publicUrl})`, backgroundSize: 'cover', backgroundPosition: 'center',
+      <SignedBg url={items[0].publicUrl} style={{ position: 'absolute', bottom: 0, right: 0, width: 36, height: 36, borderRadius: 7,
+        backgroundSize: 'cover', backgroundPosition: 'center',
         boxShadow: '0 0 0 1.5px #04040a' }} />
       <span style={{
         position: 'absolute', bottom: -2, right: -2,
@@ -222,9 +234,9 @@ function RowThumb({ imageUrl, empty, children }: { imageUrl?: string; empty?: bo
     )
   }
   return (
-    <div style={{
+    <SignedBg url={imageUrl} style={{
       width: 44, height: 44, borderRadius: 8, flexShrink: 0,
-      backgroundImage: `url(${imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center',
+      backgroundSize: 'cover', backgroundPosition: 'center',
     }} />
   )
 }
@@ -327,7 +339,8 @@ function SheetVariant(p: SheetVariantProps) {
 
 function Tile({ item, onClick }: { item: EntityAttachmentRow; onClick: () => void }) {
   return (
-    <div
+    <SignedBg
+      url={item.publicUrl}
       onClick={onClick}
       style={{
         position: 'relative',
@@ -336,7 +349,6 @@ function Tile({ item, onClick }: { item: EntityAttachmentRow; onClick: () => voi
         overflow: 'hidden',
         background: 'rgba(255,255,255,0.04)',
         cursor: 'pointer',
-        backgroundImage: `url(${item.publicUrl})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
@@ -348,7 +360,7 @@ function Tile({ item, onClick }: { item: EntityAttachmentRow; onClick: () => voi
           background: 'rgba(255,255,255,0.7)',
         }} />
       )}
-    </div>
+    </SignedBg>
   )
 }
 
@@ -568,9 +580,9 @@ function Lightbox(p: LightboxProps) {
           </span>
         </div>
 
-        <div style={{
+        <SignedBg url={item.publicUrl} style={{
           aspectRatio: '4 / 3', borderRadius: 10, marginBottom: 14, position: 'relative',
-          backgroundImage: `url(${item.publicUrl})`, backgroundSize: 'cover', backgroundPosition: 'center',
+          backgroundSize: 'cover', backgroundPosition: 'center',
           background: '#0a0a12',
         }}>
           {p.items.length > 1 && (
@@ -579,7 +591,7 @@ function Lightbox(p: LightboxProps) {
               <button onClick={() => p.onIndex(p.index + 1)} aria-label="Next photo" style={navBtnStyle('right')}>›</button>
             </>
           )}
-        </div>
+        </SignedBg>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 14 }}>
           <div style={{ flex: 1, position: 'relative' }}>
@@ -712,9 +724,8 @@ export function EntityAttachmentCover({
   }
 
   return (
-    <div style={{
+    <SignedBg url={items[0].publicUrl} style={{
       width: dim, height: dim, position: 'relative',
-      backgroundImage: `url(${items[0].publicUrl})`,
       backgroundSize: 'cover', backgroundPosition: 'center',
       background: '#0a0a12',
     }}
@@ -733,7 +744,7 @@ export function EntityAttachmentCover({
           +{items.length - 1}
         </span>
       )}
-    </div>
+    </SignedBg>
   )
 }
 
