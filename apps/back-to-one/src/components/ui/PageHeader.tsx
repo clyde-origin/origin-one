@@ -4,11 +4,12 @@ interface PageHeaderProps {
   projectId: string
   title: string
   meta?: React.ReactNode
+  left?: React.ReactNode
   right?: React.ReactNode
   noBorder?: boolean
 }
 
-export function PageHeader({ projectId, title, meta, right, noBorder }: PageHeaderProps) {
+export function PageHeader({ projectId, title, meta, left, right, noBorder }: PageHeaderProps) {
   return (
     <div
       className="relative flex flex-col items-center justify-end sticky top-0 z-20 flex-shrink-0 px-5"
@@ -31,6 +32,19 @@ export function PageHeader({ projectId, title, meta, right, noBorder }: PageHead
           </div>
         )}
       </div>
+
+      {/* Optional left content — absolute top-left, mirror of right slot */}
+      {left && (
+        <div
+          className="absolute flex items-center flex-shrink-0"
+          style={{
+            top: 'calc(var(--safe-top) + 10px)',
+            left: 20,
+          }}
+        >
+          {left}
+        </div>
+      )}
 
       {/* Optional right content — absolute top-right */}
       {right && (
