@@ -324,11 +324,15 @@ function GanttChart({ milestones, projectStatus }: { milestones: Milestone[]; pr
             </div>
             {/* Milestone row */}
             <div style={{
-              flex: 1, display: 'flex', alignItems: 'center', gap: 10,
+              flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10,
               padding: '11px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)',
             }}>
               <div style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: statusColor }} />
-              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#dddde8', flex: 1 }}>{ms.title}</span>
+              <span style={{
+                fontSize: '0.72rem', fontWeight: 600, color: '#dddde8',
+                flex: 1, minWidth: 0,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>{ms.title}</span>
               <span className="font-mono" style={{ fontSize: '0.48rem', color: '#62627a', flexShrink: 0 }}>{fmt(msDate)}</span>
               <span className="font-mono" style={{ fontSize: '0.46rem', color: statusColor, flexShrink: 0 }}>{daysLabel}</span>
             </div>
