@@ -362,8 +362,8 @@ function SwipeableSceneMaker({
     medium_close_up: 'MCU', close_up: 'CU', extreme_close_up: 'ECU', insert: 'INS',
   }
 
-  // Pages: 0=Script, 1=Shotlist (default), 2=Storyboard
-  const [page, setPage] = useState(1)
+  // Pages: 0=Script, 1=Shotlist, 2=Storyboard (default — most visual)
+  const [page, setPage] = useState(2)
   const touchStart = useRef<number | null>(null)
   const touchDelta = useRef(0)
   const [dragging, setDragging] = useState(false)
@@ -472,7 +472,11 @@ function SwipeableSceneMaker({
           <div className="flex flex-1 items-stretch" style={{ gap: 3 }}>
             {allShots.length > 0 ? allShots.slice(0, 3).map((shot: any, i: number) => (
               <div key={shot.id} className="flex-1 flex flex-col overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 5 }}>
-                <div className="flex-shrink-0" style={{ height: 46, background: SCENE_GRAD[(i % 3) + 1] ?? SCENE_GRAD[1] }} />
+                <div className="flex-shrink-0 relative" style={{ height: 46, background: SCENE_GRAD[(i % 3) + 1] ?? SCENE_GRAD[1] }}>
+                  {shot.imageUrl && (
+                    <StorageImage url={shot.imageUrl} alt={shot.shotNumber} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                  )}
+                </div>
                 <div style={{ padding: '3px 4px' }}>
                   <div className="font-mono" style={{ fontSize: '0.30rem', color: projectColor }}>{shot.shotNumber}</div>
                   <div className="truncate" style={{ fontSize: '0.26rem', color: '#62627a' }}>{shot.description ?? ''}</div>
