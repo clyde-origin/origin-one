@@ -558,3 +558,24 @@ The `thread-context.ts` file now contains six explicit-enumeration sites for eac
 **Revisit trigger:**
 - Auth (#23) ships. Tightened in the same RLS pass that locks down `entity-attachments`, `moodboard`, `storyboard`, `avatars` (#24). Receipts get the strictest tightening of the five — `auth.role() = 'authenticated'` AND a project-membership check via `storage.objects.metadata` so a producer can only read receipts on their projects.
 - External client beta — receipts hitting an external Trust boundary forces a hard tightening pass before that ships.
+
+### Producer-only swap sites — pre-Auth viewer-shim consolidation
+
+**Decision:** Three sites read `readStoredViewerRole()` (localStorage shim) to gate producer-only UI pre-Auth. Cataloged here so Auth day swaps them in a single pass to a Supabase session check.
+
+**Date:** April 27, 2026 (PR 15 added the third site).  
+**Sites:**
+1. **Budget page** — `apps/back-to-one/src/app/projects/[projectId]/budget/page.tsx`. Non-producer hits `/budget` → `router.replace` back to project root. Established in PR 8.
+2. **Hub Budget block** — `apps/back-to-one/src/components/hub/HubContent.tsx`. Producer-only block at the top-row 2-col grid (peer of Timeline). Established in PR 8; placement moved to top in PR 14.
+3. **Timeline Days tab** — `apps/back-to-one/src/app/projects/[projectId]/timeline/page.tsx`. Days pill in the right-slot toggle is producer-only; renders the lifted /schedule UI. Established in PR 15. Replaces the standalone /schedule page.
+
+**Rationale:**
+- Day counts (`prepDays`/`shootDays`/`postDays`) drive budget formula globals. Crew should not be able to mutate these — they fan out through every line item with `qty = shootDays * 2` etc.
+- Same shim across all three sites keeps the Auth-day refactor surface trivial: one `useEffect(() => setRole(readStoredViewerRole()), [])` to swap per file.
+
+**Tradeoffs:**
+- localStorage is trivially bypassable (`localStorage.setItem('origin_one_user_role', 'producer')`). Pre-Auth dogfood (Tyler + Kelly) only — no external producers.
+- Three sites need to be touched on Auth day, not one — but the swap is mechanical and the search/replace is `readStoredViewerRole` → `useSupabaseSession().user.role`.
+
+**Revisit trigger:**
+- Auth (#23) ships. Replace `readStoredViewerRole()` with the Supabase session role-claim across all three sites in a single PR. Add a `useViewerRole()` hook in `@origin-one/auth` so future producer-only sites have one entry point.
