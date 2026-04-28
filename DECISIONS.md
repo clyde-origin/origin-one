@@ -539,3 +539,22 @@ The `thread-context.ts` file now contains six explicit-enumeration sites for eac
 **Revisit trigger:**
 - Auth (#23) ships. Tightened in the same RLS pass that locks down `entity-attachments`, `moodboard`, `storyboard` (#24).
 - External client beta — avatar URLs leaving the internal Trust boundary force a hard tightening pass before that ships.
+
+### Receipts storage — pre-Auth permissive, signed-URL-only access
+
+**Decision:** The `receipts` storage bucket's `storage.objects` policies ship permissive (anon SELECT/INSERT/UPDATE/DELETE) — same posture as `moodboard`/`storyboard`/`entity-attachments`/`avatars`. The bucket itself stays `public=false`, so files are NEVER reachable via raw public URLs — only via short-lived signed URLs created by the JS client. Originally PR 4 set `auth.role() = 'authenticated'` on every policy; PR 14 (#72) browser smoke surfaced that the localStorage-only viewer-shim does NOT establish a Supabase auth session pre-Auth, so every browser upload was denied.
+
+**Date:** April 27, 2026  
+**Rationale:**
+- **Pre-Auth usability matches the EntityAttachment / Avatars precedent.** Auth-checked RLS would make PR 14's receipt-capture UI dormant code on main until Auth (#23) ships — same dead-code-on-main risk that drove the prior exceptions.
+- **Bucket stays `public=false`.** Unlike moodboard/storyboard/entity-attachments/avatars (all public buckets), receipts are sensitive financial documents. Forcing access through `createSignedUrl` (1-hour expiry, generated server-side via the browser anon client) means leaked filesystem paths alone don't expose receipts — you need an active Supabase client + the path. Weaker than auth-only RLS, stronger than public URLs.
+- **Random per-file IDs** in the storage path (`{projectId}/{lineId}/{timestamp}-{random}.{ext}`) make targeted enumeration of other projects' receipts infeasible without the path.
+- **5MB + MIME allowlist** (PNG/JPEG/WebP/HEIC/PDF) stays enforced server-side on the bucket — that's a separate config, unaffected by RLS.
+
+**Tradeoffs:**
+- Anyone with the anon key + a receipt path can fetch a signed URL pre-Auth. For the closed-set v1 dogfood (Tyler + Kelly), this is acceptable; pre-external-beta this gets the same hard tightening as avatars.
+- Five storage buckets now ship permissive by exception — three public (moodboard, storyboard, entity-attachments, avatars) and one private-bucket-with-permissive-RLS (receipts). The pattern is "RLS is dead-code pre-Auth" — Auth day's #24 RLS pass restores the discipline across all five.
+
+**Revisit trigger:**
+- Auth (#23) ships. Tightened in the same RLS pass that locks down `entity-attachments`, `moodboard`, `storyboard`, `avatars` (#24). Receipts get the strictest tightening of the five — `auth.role() = 'authenticated'` AND a project-membership check via `storage.objects.metadata` so a producer can only read receipts on their projects.
+- External client beta — receipts hitting an external Trust boundary forces a hard tightening pass before that ships.

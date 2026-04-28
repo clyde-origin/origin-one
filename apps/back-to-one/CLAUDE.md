@@ -124,6 +124,7 @@ Supabase Storage state (see root `CLAUDE.md` for the discipline — bucket setup
 | `storyboard` | Prisma migration `20260426170000_storage_discipline_moodboard_storyboard` | Permissive (anon) — tightens on Auth day | `uploadStoryboardImage` in `queries.ts` |
 | `entity-attachments` | Prisma migration `20260426190000_add_entity_attachment` | Permissive (anon) — tightens on Auth day; see DECISIONS "EntityAttachment storage" | `uploadEntityAttachment`, `deleteEntityAttachment` in `queries.ts` |
 | `avatars` | Prisma migration `20260427020000_add_avatars_bucket` | Permissive (anon) — tightens on Auth day; see DECISIONS "Avatars storage" | `uploadAvatar`, `removeAvatar` in `queries.ts` |
+| `receipts` | Prisma migrations `20260426200000_add_budget_core` (bucket + 5MB + MIME allowlist) and `20260427180000_receipts_pre_auth_permissive` (loosen RLS) | Permissive (anon) on `storage.objects` policies; bucket stays `public=false` so files reach via signed URL only — tightens on Auth day; see DECISIONS "Receipts storage" | `uploadExpenseReceipt`, `getReceiptSignedUrl`, `deleteExpenseReceipt`, `validateReceiptFile` in `queries.ts` |
 
 Schema columns persisting Storage URLs: `User.avatarUrl`, `Shot.imageUrl`, `MoodboardRef.imageUrl`, `Location.imageUrl`, `Talent.imageUrl`. Some have upload paths wired (Shot via storyboard, MoodboardRef via moodboard); others are dormant pending feature work.
 

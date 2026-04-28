@@ -96,7 +96,7 @@ This alignment is deliberate and foundational. When making schema decisions invo
 
 Supabase Storage buckets and RLS policies live in Prisma migrations, not as manual SQL scripts. If a fresh environment can't recreate the full database + storage state from one command, the environment isn't reproducible.
 
-New buckets ship with `auth.role() = 'authenticated'` RLS checks from day one — unless a DECISIONS.md entry explicitly justifies a different posture. Buckets currently shipping permissive (each with its own DECISIONS entry): `moodboard`, `storyboard`, `entity-attachments`, and `avatars`. All four are tightened on Auth day alongside table RLS in the #24 RLS pass.
+New buckets ship with `auth.role() = 'authenticated'` RLS checks from day one — unless a DECISIONS.md entry explicitly justifies a different posture. Buckets currently shipping permissive (each with its own DECISIONS entry): `moodboard`, `storyboard`, `entity-attachments`, `avatars`, and `receipts`. All five are tightened on Auth day alongside table RLS in the #24 RLS pass.
 
 ## North Star
 
