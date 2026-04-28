@@ -14,7 +14,6 @@
 import 'dotenv/config'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import sharp from 'sharp'
 import pLimit from 'p-limit'
 import { MANIFEST } from '../src/seed-images/manifest'
 import { tonePrimer } from '../src/seed-images/tone-primers'
@@ -26,6 +25,7 @@ import { generateStoryboard } from '../src/seed-images/clients/bria'
 import { briaAspect } from '../src/seed-images/bria-aspect'
 import { buildStoryboardPrompt } from '../src/seed-images/storyboard-prompt'
 import { listStoryboardEntries, type StoryboardEntry } from '../src/seed-images/shot-entries'
+import { cropToRatio } from '../src/seed-images/crop'
 
 const FILES_ROOT = path.resolve(__dirname, '../seed-images/files')
 const CREDITS_PATH = path.resolve(__dirname, '../seed-images/CREDITS.md')
@@ -136,31 +136,6 @@ async function fetchEntry(entry: ImageEntry, flags: Flags, stats: RunStats): Pro
       console.error(`  ✗ failed: ${localFilePath(entry)} — ${msg}`)
     }
   }
-}
-
-async function cropToRatio(bytes: Buffer, ratio: string): Promise<Buffer> {
-  // Center-crop to the target ratio. Bria delivers 16:9 source; we crop the
-  // top/bottom for wider ratios like 2.39:1 and 1.85:1.
-  const [w, h] = ratio.split(':').map(Number)
-  const targetRatio = w / h
-  const img = sharp(bytes)
-  const meta = await img.metadata()
-  if (!meta.width || !meta.height) throw new Error('cropToRatio: source has no dimensions')
-
-  const sourceRatio = meta.width / meta.height
-  if (Math.abs(sourceRatio - targetRatio) < 0.001) {
-    return bytes
-  }
-  if (sourceRatio < targetRatio) {
-    // Crop sides (target is wider than source — unusual for our case but handled).
-    const newWidth = Math.round(meta.height * targetRatio)
-    const left = Math.round((meta.width - newWidth) / 2)
-    return img.extract({ left, top: 0, width: newWidth, height: meta.height }).jpeg().toBuffer()
-  }
-  // Source wider than target — crop top/bottom.
-  const newHeight = Math.round(meta.width / targetRatio)
-  const top = Math.round((meta.height - newHeight) / 2)
-  return img.extract({ left: 0, top, width: meta.width, height: newHeight }).jpeg().toBuffer()
 }
 
 async function fetchStoryboardEntry(entry: StoryboardEntry, flags: Flags, stats: RunStats): Promise<void> {
