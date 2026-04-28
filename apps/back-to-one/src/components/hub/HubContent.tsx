@@ -1448,7 +1448,7 @@ export function HubContent({ projectId }: { projectId: string }) {
                     return (
                       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 6 }}>
                         {imgUrl ? (
-                          <img src={imgUrl} alt={catLabel} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
+                          <StorageImage url={imgUrl} alt={catLabel} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
                         ) : (
                           <>
                             <span className="font-mono uppercase" style={{ fontSize: '0.38rem', color: '#6470f3', letterSpacing: '0.06em' }}>{catLabel}</span>
