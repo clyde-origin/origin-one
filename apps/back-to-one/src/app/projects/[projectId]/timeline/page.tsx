@@ -460,6 +460,33 @@ export default function TimelinePage({ params }: { params: { projectId: string }
             <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{projectStatusLabel}</span>
           </div>
         ) : ''}
+        left={
+          // Days button — producer-only, opposite the Project/Master
+          // pills on the right. Tap toggles in/out of Days view; tapping
+          // a Project/Master pill on the right also exits Days as a
+          // side effect. Connects to budget formula globals
+          // (prepDays/shootDays/postDays). Auth day swap site (one of
+          // three — see DECISIONS "Producer-only swap sites").
+          isProducer ? (
+            <button
+              onClick={() => {
+                haptic('light')
+                setMode(mode === 'days' ? 'project' : 'days')
+                setSelectedDate(null)
+              }}
+              className="font-mono uppercase cursor-pointer select-none whitespace-nowrap flex items-center"
+              style={{
+                fontSize: '0.44rem', letterSpacing: '0.05em',
+                padding: '5px 10px', borderRadius: 16, transition: 'all 0.18s',
+                ...(mode === 'days'
+                  ? { background: `${accent}2e`, color: accent, border: `1px solid ${accent}4d` }
+                  : { background: 'rgba(255,255,255,0.05)', color: '#62627a', border: '1px solid rgba(255,255,255,0.05)' }),
+              }}
+            >
+              Days
+            </button>
+          ) : null
+        }
         right={
           <div className="flex items-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 20, padding: 3, gap: 2 }}>
             <button onClick={() => setMode('project')} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
@@ -472,16 +499,6 @@ export default function TimelinePage({ params }: { params: { projectId: string }
                 ...(mode === 'master' ? { background: 'rgba(255,255,255,0.08)', color: '#dddde8' } : { color: '#62627a', border: '1px solid transparent' }) }}>
               Master
             </button>
-            {/* Days tab — producer-only. Connects to budget formula
-                globals (prepDays/shootDays/postDays). Auth day swap
-                site (one of three). */}
-            {isProducer && (
-              <button onClick={() => { setMode('days'); setSelectedDate(null) }} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
-                style={{ fontSize: '0.44rem', letterSpacing: '0.05em', padding: '4px 9px', borderRadius: 16, transition: 'all 0.18s',
-                  ...(mode === 'days' ? { background: `${accent}2e`, color: accent, border: `1px solid ${accent}4d` } : { color: '#62627a', border: '1px solid transparent' }) }}>
-                Days
-              </button>
-            )}
           </div>
         }
       />
