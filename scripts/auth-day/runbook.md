@@ -2,6 +2,14 @@
 
 The orchestrated cutover that flips Back to One from pre-Auth (open access) to authenticated + RLS-gated. Each step is a checkbox; do them in order, top to bottom.
 
+> ⚠️  **Trap to avoid: do not sign in before the rebind runs.**
+>
+> The app on main now has a working /login page. If anyone (including a producer) signs in with their real email *before* the rebind script (Step 3.1) updates the seeded `User.email` columns to real values, the magic-link flow still creates an `auth.users` row — but the binding handler can't match it to a `User` row and returns `incomplete-invite`. That `auth.users` row sticks around as a "ghost." The next sign-in attempt (post-rebind) fails with `conflict` because the User's `authId` candidate is already taken by the ghost.
+>
+> If this happens: delete the ghost row from `auth.users` in Supabase Studio, then sign in again. Cheap to recover from, but easier to avoid.
+>
+> **Bottom line:** Step 3.1 (rebind) is the gate. Don't tap /login until it's done.
+
 **Prerequisites — every PR in this list must be merged to main before starting:**
 
 | PR | Status | Notes |
