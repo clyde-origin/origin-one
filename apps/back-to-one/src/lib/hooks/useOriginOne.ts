@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import * as db from '@/lib/db/queries'
+import { createBrowserAuthClient } from '@origin-one/auth'
+import { useSupabaseSession } from '@/lib/auth/useSupabaseSession'
 
 // ── QUERY KEYS — one place, no magic strings ───────────────
 
@@ -446,17 +448,25 @@ export function useUpdateShotlistVersionLabel(projectId: string) {
 // ── THREADS ────────────────────────────────────────────────
 
 /**
- * Resolve the current user id.
+ * Resolve the current user id (User.id, not auth.users.id).
  *
- * Placeholder: reads the first ProjectMember row and returns its userId.
- * This is the ONLY place meId is resolved — Auth replacement touches this file
- * and nothing else. When Auth lands, the body becomes
- * `return useAuth().user?.id ?? null` (or similar) and every consumer stays
- * unchanged.
+ * Reads the Supabase session, looks up the User row by authId, returns its id.
+ * Returns null while resolving or for unauthenticated users.
  */
 export function useMeId(): string | null {
-  const { data } = useAllCrew()
-  return data?.[0]?.userId ?? null
+  const session = useSupabaseSession()
+  const authId = session?.user.id ?? null
+  const { data } = useQuery({
+    queryKey: ['meId', authId],
+    queryFn: async (): Promise<string | null> => {
+      if (!authId) return null
+      const supa = createBrowserAuthClient()
+      const { data } = await supa.from('User').select('id').eq('authId', authId).maybeSingle()
+      return (data as { id: string } | null)?.id ?? null
+    },
+    enabled: !!authId,
+  })
+  return data ?? null
 }
 
 export function useThreads(projectId: string) {

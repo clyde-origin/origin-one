@@ -18,7 +18,7 @@ import type {
   Budget, BudgetVersion, BudgetAccount, BudgetLine, BudgetLineAmount,
   BudgetVariable, BudgetMarkup, Expense, ShootDay,
 } from '@/types'
-import { readStoredViewerRole, type ViewerRole } from '@/lib/utils/viewerIdentity'
+import { useViewerRole } from '@/lib/auth/useViewerRole'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { CrewAvatar, ThreadsIcon } from '@/components/ui'
 import { HubSkeleton } from '@/components/hub/HubSkeleton'
@@ -494,7 +494,7 @@ function SwipeableSceneMaker({
 
 function AIDetailSheet({ item, crew, onClose }: { item: ActionItem | null; crew: CrewMember[]; onClose: () => void }) {
   if (!item) return null
-  const assignee = crew.find(c => c.id === item.assignedTo)
+  const assignee = crew.find(c => c.userId === item.assignedTo)
   const late = item.dueDate ? isLate(item.dueDate) : false
   const urgent = item.dueDate ? isUrgent(item.dueDate) : false
   const dateLabel = item.dueDate ? formatDate(item.dueDate) : '—'
@@ -921,12 +921,9 @@ export function HubContent({ projectId }: { projectId: string }) {
     }
   }, [budgetTree, shootDays])
 
-  // Pre-Auth viewer-identity shim — Budget block is producer-only per spec Q8.
-  // Replaces with Auth session when it lands; single swap point. (Schedule
-  // moved into Timeline/Days tab in PR 15; Hub no longer has a Schedule
-  // preview block.)
-  const [hubViewerRole, setHubViewerRole] = useState<ViewerRole | null>(null)
-  useEffect(() => { setHubViewerRole(readStoredViewerRole()) }, [])
+  // Budget block is producer-only per spec. RLS guarantees Budget data
+  // returns empty for crew; this hook hides the entry-points too.
+  const hubViewerRole = useViewerRole(projectId)
   const isProducer = hubViewerRole === 'producer'
   const toggle = useToggleActionItem(projectId)
   const createTask = useCreateActionItem(projectId)
@@ -1304,7 +1301,7 @@ export function HubContent({ projectId }: { projectId: string }) {
                   const dateLabel = item.dueDate ? formatDate(item.dueDate) : null
                   const overdue = item.dueDate ? isLate(item.dueDate) : false
                   // item 13: look up assignee name from crew
-                  const assigneeMember = item.assignedTo ? allCrew.find(c => c.id === item.assignedTo) : null
+                  const assigneeMember = item.assignedTo ? allCrew.find(c => c.userId === item.assignedTo) : null
                   const assigneeName = assigneeMember?.User?.name ?? null
                   return (
                     <div key={item.id} className="flex items-start cursor-pointer" style={{ gap: 10, padding: '9px 12px', borderBottom: i < previewTasks.length - 1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}

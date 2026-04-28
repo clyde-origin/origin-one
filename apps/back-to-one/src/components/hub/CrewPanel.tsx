@@ -6,17 +6,13 @@ import {
   useCrew, useRemoveCrewMember, useUpdateCrewMember,
   useCrewTimecardsByWeek,
   useCreateTimecard, useUpdateTimecard, useSubmitTimecard, useApproveTimecard, useReopenTimecard,
+  useProject, useMeId,
 } from '@/lib/hooks/useOriginOne'
-import { useProject } from '@/lib/hooks/useOriginOne'
 import { CrewAvatar } from '@/components/ui'
 import { haptic } from '@/lib/utils/haptics'
 import { DEPARTMENTS } from '@/lib/utils/phase'
 import { formatUSD } from '@/lib/utils/currency'
-import {
-  readStoredViewerName,
-  readStoredViewerRole,
-  type ViewerRole,
-} from '@/lib/utils/viewerIdentity'
+import { useViewerRole } from '@/lib/auth/useViewerRole'
 import type { TeamMember, RateUnit } from '@/types'
 import { computeExpenseUnits } from '@origin-one/schema'
 
@@ -1411,59 +1407,31 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
   const [weekOrigin, setWeekOrigin] = useState<WeekOrigin>('overview')
 
-  // Pre-Auth viewer-identity shim. Reads role + name from localStorage (set
-  // on the entry screen) and resolves to a matching ProjectMember on this
-  // project. Falls back to first-of-role when the typed name has no match —
-  // surfaced via the banner so identity is never silently wrong.
-  // TODO: replace with Auth session when landed. Single spot to swap.
-  const [storedRole, setStoredRole] = useState<ViewerRole | null>(null)
-  const [storedName, setStoredName] = useState<string | null>(null)
-  useEffect(() => {
-    setStoredRole(readStoredViewerRole())
-    setStoredName(readStoredViewerName())
-  }, [])
+  // Auth-driven viewer identity. meId is User.id from session; viewerRole
+  // tells us whether this user is producer-tier on this project. Resolve
+  // current viewer's ProjectMember row via userId match — multi-role users
+  // (e.g. Clyde-as-director-and-producer) pick the first row and accept it
+  // for timecard navigation; the role list shows them once per role.
+  const meId = useMeId()
+  const viewerRole = useViewerRole(projectId)
 
-  const { currentViewerMember, isFallback } = useMemo<{
-    currentViewerMember: TeamMember | null
-    isFallback: boolean
-  }>(() => {
-    // No stored role (revisit before role-toggle entry): preserve historical
-    // behaviour — first producer, no fallback flag.
-    if (!storedRole) {
-      return { currentViewerMember: allCrew.find(m => m.role === 'producer') ?? null, isFallback: false }
-    }
+  const currentViewerMember: TeamMember | null = useMemo(() => {
+    if (!meId) return null
+    return allCrew.find(m => m.userId === meId) ?? null
+  }, [allCrew, meId])
 
-    const sameRole = allCrew.filter(m => m.role === storedRole)
-
-    // No name typed — pick first-of-role, no banner.
-    if (!storedName) {
-      return { currentViewerMember: sameRole[0] ?? null, isFallback: false }
-    }
-
-    // Try exact case-insensitive name match within role.
-    const target = storedName.toLowerCase()
-    const exact = sameRole.find(m => (m.User?.name ?? '').toLowerCase() === target)
-    if (exact) return { currentViewerMember: exact, isFallback: false }
-
-    // No match — fall back to first-of-role and flag the banner. If this
-    // project has zero members of that role, no viewer (banner suppressed).
-    if (sameRole.length === 0) return { currentViewerMember: null, isFallback: false }
-    return { currentViewerMember: sameRole[0], isFallback: true }
-  }, [allCrew, storedRole, storedName])
-
+  // Fallback banner from the pre-Auth shim is no longer needed — identity
+  // comes from session, not a typed name. Keep the dismiss state plumbing
+  // but show the banner is permanently suppressed.
   const [bannerDismissed, setBannerDismissed] = useState(false)
-  const showFallbackBanner = isFallback && !!currentViewerMember && !bannerDismissed
+  const showFallbackBanner = false
 
-  // Role-gated entry into Timecards from the panel header. Producer (and any
-  // unset/legacy state) lands on Producer Overview as before; Crew skips
-  // Overview entirely and drops directly into their own Individual Week View.
-  // Edge case: a Crew viewer with no matching ProjectMember on this project
-  // (project has zero crew members of that role) falls back to Overview with
-  // a console.warn — the fallback banner from PR #13 covers user-visible
-  // communication when identity itself is the mismatch.
+  // Role-gated entry into Timecards from the panel header. Producer-tier
+  // lands on Producer Overview; crew skips Overview entirely and drops into
+  // their own Individual Week View.
   function openTimecards() {
     haptic('light')
-    if (storedRole === 'crew') {
+    if (viewerRole === 'crew') {
       if (currentViewerMember) {
         setSelectedMember(currentViewerMember)
         setWeekOrigin('list')

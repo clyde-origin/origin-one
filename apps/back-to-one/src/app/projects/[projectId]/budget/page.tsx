@@ -10,7 +10,7 @@ import {
 import { PageHeader } from '@/components/ui/PageHeader'
 import { getProjectColor, statusHex, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
-import { readStoredViewerRole, type ViewerRole } from '@/lib/utils/viewerIdentity'
+import { useViewerRole } from '@/lib/auth/useViewerRole'
 import { buildEvalContext, rollUpBudget, type ComputedLine, type AccountSubtotal, type BudgetRollup } from '@/lib/budget/compute'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { useLongPress } from '@/lib/hooks/useLongPress'
@@ -742,18 +742,13 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
   const { projectId } = params
   const router = useRouter()
 
-  // Producer gate (Q8) — same shim pattern Schedule uses (PR #40).
-  const [role, setRole] = useState<ViewerRole | null>(null)
-  const [hydrated, setHydrated] = useState(false)
+  // Producer-only page (auth-004 RLS guarantees no Budget data leaks; this
+  // redirect just keeps crew from landing on a hard-empty page).
+  const role = useViewerRole(projectId)
   useEffect(() => {
-    setRole(readStoredViewerRole())
-    setHydrated(true)
-  }, [])
-  useEffect(() => {
-    if (hydrated && role !== 'producer') {
-      router.replace(`/projects/${projectId}`)
-    }
-  }, [hydrated, role, router, projectId])
+    if (role === 'crew') router.replace(`/projects/${projectId}`)
+  }, [role, router, projectId])
+  if (role !== 'producer') return null
 
   const { data: project } = useProject(projectId)
   const { data: budgetRaw, isLoading } = useBudget(projectId)
@@ -1081,8 +1076,10 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
     [budget?.id, accountsSorted.length],
   )
 
-  // Pre-hydration / non-producer: render nothing.
-  if (!hydrated || role !== 'producer') return null
+  // Resolving / non-producer: render nothing (early return at top of
+  // component already handled most of this, but this guard remains for
+  // late-arriving role changes).
+  if (role !== 'producer') return null
 
   const activeLine = activeLineId && budget
     ? budget.lines.find(l => l.id === activeLineId) ?? null

@@ -15,7 +15,7 @@ import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { CreateMilestoneSheet } from '@/components/create'
 import { haptic } from '@/lib/utils/haptics'
 import { formatDate, isLate, getProjectColor, MILESTONE_STATUS_HEX, MILESTONE_STATUS_LABEL, statusLabel, statusHex } from '@/lib/utils/phase'
-import { readStoredViewerRole, type ViewerRole } from '@/lib/utils/viewerIdentity'
+import { useViewerRole } from '@/lib/auth/useViewerRole'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
 import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
@@ -344,14 +344,10 @@ export default function TimelinePage({ params }: { params: { projectId: string }
   const { data: crew } = useCrew(projectId)
   const threadByMilestoneId = useThreadsByEntity(projectId, 'milestone')
 
-  // Producer-only Days tab gate. Pre-Auth: localStorage shim
-  // (readStoredViewerRole). Auth day: swap to real Supabase session in
-  // one pass with the budget page + hub block. Pre-hydration we treat
-  // role as null so the third pill never flashes for non-producers.
-  const [role, setRole] = useState<ViewerRole | null>(null)
-  const [hydrated, setHydrated] = useState(false)
-  useEffect(() => { setRole(readStoredViewerRole()); setHydrated(true) }, [])
-  const isProducer = hydrated && role === 'producer'
+  // Producer-only Days tab gate. role is null while resolving so the
+  // third pill never flashes for non-producers.
+  const role = useViewerRole(projectId)
+  const isProducer = role === 'producer'
 
   const allMS = milestones ?? []
   const allCrew = crew ?? []
@@ -378,10 +374,10 @@ export default function TimelinePage({ params }: { params: { projectId: string }
 
   const [mode, setMode] = useState<Mode>('project')
   // If a non-producer somehow lands on `mode='days'` (e.g., role flips
-  // mid-session), bounce back to project view.
+  // mid-session), bounce back to project view. Only fires once role resolves.
   useEffect(() => {
-    if (mode === 'days' && hydrated && !isProducer) setMode('project')
-  }, [mode, hydrated, isProducer])
+    if (mode === 'days' && role !== null && !isProducer) setMode('project')
+  }, [mode, role, isProducer])
   const [month, setMonth] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedMS, setSelectedMS] = useState<Milestone | null>(null)

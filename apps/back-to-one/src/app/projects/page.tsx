@@ -25,7 +25,7 @@ import { GlobalPanels, type PanelId } from '@/components/projects/GlobalPanels'
 import { ThreadsSheet } from '@/components/projects/ThreadsSheet'
 import { ChatSheet } from '@/components/projects/ChatSheet'
 import { ResourcesSheet } from '@/components/projects/ResourcesSheet'
-import { clearStoredViewer } from '@/lib/utils/viewerIdentity'
+import { createBrowserAuthClient } from '@origin-one/auth'
 import type { Project } from '@/types'
 
 // ── HELPERS ──────────────────────────────────────────────────
@@ -247,10 +247,11 @@ export default function ProjectsPage() {
     return p?.color || getProjectColor(projectId)
   }
 
-  function handleLogout() {
+  async function handleLogout() {
     haptic('medium')
-    clearStoredViewer()
-    router.push('/')
+    const supabase = createBrowserAuthClient()
+    await supabase.auth.signOut()
+    router.push('/login')
   }
 
   function handleRename(name: string, client: string) {
