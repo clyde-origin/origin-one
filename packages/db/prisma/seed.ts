@@ -5,6 +5,7 @@
 import { PrismaClient, Role } from '@prisma/client'
 import { computeExpenseUnits, DEFAULT_AICP_ACCOUNTS } from '@origin-one/schema'
 import { MANIFEST } from '../src/seed-images/manifest'
+import type { SeedProjectKey } from '../src/seed-images/paths'
 import { localFilePath, storagePath } from '../src/seed-images/paths'
 import { uploadSeedImage, clearBucket } from '../src/seed-images/uploader'
 import { SCENES } from '../src/seed-data/scenes'
@@ -442,7 +443,7 @@ async function assignProjectCrew(
 // ─── Scene + Shot seeder ──────────────────────────────────────────────────────
 
 async function seedProjectScenes(
-  projectKey: 'p1' | 'p2' | 'p3' | 'p4' | 'p5' | 'p6',
+  projectKey: SeedProjectKey,
   projectId: string,
 ): Promise<Record<string, { id: string }>> {
   const result: Record<string, { id: string }> = {}

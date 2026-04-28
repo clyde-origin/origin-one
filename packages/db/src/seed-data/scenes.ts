@@ -3,7 +3,7 @@
 // supplies the projectId at insert time) and by seed-images/shot-entries.ts
 // (which uses sceneNumber + description to build storyboard prompts).
 
-import type { ProjectKey } from '../seed-images/paths'
+import type { SeedProjectKey } from '../seed-images/paths'
 
 export type SceneSeedRow = {
   sceneNumber: string
@@ -12,7 +12,7 @@ export type SceneSeedRow = {
   description: string
 }
 
-export const SCENES: Record<Exclude<ProjectKey, 'crew'>, SceneSeedRow[]> = {
+export const SCENES: Record<SeedProjectKey, SceneSeedRow[]> = {
   p1: [
     { sceneNumber: '01', title: 'The Ritual', sortOrder: 1, description: 'Bathroom. Marble surfaces, soft window light. The beginning of the day and the product.' },
     { sceneNumber: '02', title: 'The Light',  sortOrder: 2, description: 'Estate garden. Dappled shade, old stone. The exterior world as an extension of the interior one.' },

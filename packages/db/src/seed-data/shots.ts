@@ -2,13 +2,10 @@
 // passed to prisma.shot.createMany. Imported by prisma/seed.ts and by
 // seed-images/shot-entries.ts (which uses size + description to build prompts).
 
-import type { ProjectKey } from '../seed-images/paths'
+import type { ShotSize, ShotStatus } from '@prisma/client'
+import type { SeedProjectKey } from '../seed-images/paths'
 
-export type ShotSize =
-  | 'extreme_close_up' | 'close_up' | 'medium_close_up'
-  | 'medium' | 'wide' | 'full' | 'insert'
-
-export type ShotStatus = 'planned' | 'in_progress' | 'completed'
+export type { ShotSize, ShotStatus }
 
 export type ShotSeedRow = {
   shotNumber: string
@@ -19,7 +16,7 @@ export type ShotSeedRow = {
 }
 
 // Outer key: projectKey. Inner key: sceneNumber.
-export const SHOTS: Record<Exclude<ProjectKey, 'crew'>, Record<string, ShotSeedRow[]>> = {
+export const SHOTS: Record<SeedProjectKey, Record<string, ShotSeedRow[]>> = {
   p1: {
     '01': [
       { shotNumber: '01A', size: 'extreme_close_up', status: 'planned', sortOrder: 1, description: 'Fingers drawing a single drop from the bottle. The product in motion for the first time.' },

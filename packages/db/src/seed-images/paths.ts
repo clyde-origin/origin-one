@@ -10,6 +10,8 @@ export type Surface =
 
 export type ProjectKey = 'p1' | 'p2' | 'p3' | 'p4' | 'p5' | 'p6' | 'crew'
 
+export type SeedProjectKey = Exclude<ProjectKey, 'crew'>
+
 export type ImageEntry = {
   projectKey: ProjectKey
   surface: Surface
