@@ -44,7 +44,7 @@ function CrewRow({ member, onTap }: { member: TeamMember; onTap: (m: TeamMember)
   return (
     <div className="flex items-center gap-3.5 px-5 py-2.5 cursor-pointer active:bg-white/[0.02] relative"
       onClick={() => onTap(member)}>
-      <CrewAvatar name={name} size={40} />
+      <CrewAvatar name={name} size={40} avatarUrl={member.User?.avatarUrl} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <span style={{ fontWeight: 600, fontSize: 14, color: '#dddde8' }}>{name}</span>
@@ -95,7 +95,7 @@ function AvatarStrip({ crew, selectedId, onSelect }: {
                 } : {}),
                 borderRadius: '50%',
               }}>
-                <CrewAvatar name={name} size={44} />
+                <CrewAvatar name={name} size={44} avatarUrl={m.User?.avatarUrl} />
               </div>
               <span className="font-mono truncate" style={{ fontSize: 9, color: isSelected ? '#c45adc' : '#62627a', maxWidth: 52 }}>{name.split(' ')[0]}</span>
             </div>
@@ -130,7 +130,7 @@ function MemberPanel({ member, onClose }: {
       <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2, margin: '10px auto 0', flexShrink: 0 }} />
 
       <div className="flex items-center gap-3.5" style={{ padding: '12px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
-        <CrewAvatar name={name} size={50} />
+        <CrewAvatar name={name} size={50} avatarUrl={member.User?.avatarUrl} />
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 17, color: '#dddde8' }}>{name}</div>
           <div className="font-mono capitalize" style={{ fontSize: 11, color: '#a0a0b8', marginTop: 2 }}>{member.role}</div>

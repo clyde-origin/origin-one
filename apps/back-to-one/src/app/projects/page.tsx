@@ -174,7 +174,7 @@ function SlateCard({ project, color, dimmed, editMode, isGhost, isDragging, wigg
             <div style={{ display: 'flex' }}>
               {allCrew.slice(0, 5).map((c, i) => (
                 <div key={c.id} style={{ marginLeft: i === 0 ? 0 : -3, position: 'relative', zIndex: 5 - i }}>
-                  <CrewAvatar name={c.User?.name ?? 'Unknown'} size={20} />
+                  <CrewAvatar name={c.User?.name ?? 'Unknown'} size={20} avatarUrl={c.User?.avatarUrl} />
                 </div>
               ))}
               {allCrew.length > 5 && (

@@ -169,7 +169,7 @@ export default function NewProjectPage() {
                 <div className="flex items-center">
                   {selectedCrew.slice(0, 4).map((c, i) => (
                     <div key={i} style={{ marginLeft: i === 0 ? 0 : -6 }}>
-                      <CrewAvatar name={c.User?.name ?? 'Unknown'} size={24} />
+                      <CrewAvatar name={c.User?.name ?? 'Unknown'} size={24} avatarUrl={c.User?.avatarUrl} />
                     </div>
                   ))}
                   {selectedCrew.length > 4 && (

@@ -16,6 +16,7 @@ export function CrewPreview({ crew }: CrewPreviewProps) {
           <CrewAvatar
             name={member.User.name}
             size={38}
+            avatarUrl={member.User.avatarUrl}
           />
           <span className="font-sans text-[0.58rem] text-text2 w-10 text-center truncate">
             {member.User.name.split(' ')[0]}
