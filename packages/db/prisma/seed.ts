@@ -4,6 +4,9 @@
 
 import { PrismaClient, Role } from '@prisma/client'
 import { computeExpenseUnits, DEFAULT_AICP_ACCOUNTS } from '@origin-one/schema'
+import { MANIFEST } from '../src/seed-images/manifest'
+import { localFilePath, storagePath } from '../src/seed-images/paths'
+import { uploadSeedImage, clearBucket } from '../src/seed-images/uploader'
 
 const prisma = new PrismaClient()
 
@@ -466,6 +469,12 @@ async function main() {
   await prisma.user.deleteMany()
   await prisma.team.deleteMany()
   console.log('  Cleared\n')
+
+  console.log('  Clearing storage buckets…')
+  await clearBucket('entity-attachments')
+  await clearBucket('moodboard')
+  await clearBucket('avatars')
+  console.log('  Buckets cleared.\n')
 
   // ── Team ──────────────────────────────────────────────────────────────────
   const team = await prisma.team.create({ data: { name: 'Origin Point' } })
@@ -1836,6 +1845,14 @@ FADE TO BLACK.`,
     data: { teamId: team.id, name: 'The Weave', status: 'production', client: 'B Story', type: 'narrative', color: '#6B3FA0' },
   })
 
+  const PROJECT_ID_BY_KEY: Record<'p1'|'p2'|'p3'|'p4'|'p5'|'p6', string> = {
+    p1: p1.id, p2: p2.id, p3: p3.id, p4: p4.id, p5: p5.id, p6: p6.id,
+  }
+  function projectIdByKey(key: 'p1'|'p2'|'p3'|'p4'|'p5'|'p6'|'crew'): string {
+    if (key === 'crew') throw new Error('projectIdByKey called with "crew"')
+    return PROJECT_ID_BY_KEY[key]
+  }
+
   // Scene 01 — Apogee: Eli. EXT. Day. Desert Flats, Mojave. DONE.
   const p6s1 = await prisma.scene.create({ data: {
     projectId: p6.id, sceneNumber: '01', title: 'Apogee — Eli', sortOrder: 1,
@@ -2139,6 +2156,39 @@ FADE TO BLACK.`,
     { projectId: p6.id, tabId: p6mbTab.id, title: 'Score Reference',       cat: 'music',  note: 'Bobby Krlic — Midsommar. Spare, unsettling beauty.',                      sortOrder: 4 },
     { projectId: p6.id, tabId: p6mbTab.id, title: 'FRACTURE Universe',     cat: 'tone',   note: 'Part of the B Story FRACTURE multiverse. Threads weave into larger work.', sortOrder: 5 },
   ]})
+
+  // ── Seed images: MoodboardRef ────────────────────────────────────────────
+  console.log('  Uploading moodboard images…')
+  const moodboardEntries = MANIFEST.filter((e) => e.surface === 'moodboard')
+  let moodboardUploaded = 0, moodboardMissing = 0
+  for (const entry of moodboardEntries) {
+    if (entry.projectKey === 'crew') continue
+    const projectId = projectIdByKey(entry.projectKey)
+    const ref = await prisma.moodboardRef.findFirst({
+      where: { projectId, title: entry.matchByName },
+    })
+    if (!ref) {
+      console.warn(`    ! moodboard ref not found: ${entry.projectKey}/${entry.matchByName}`)
+      moodboardMissing++
+      continue
+    }
+    const sp = storagePath(entry, projectId)
+    await uploadSeedImage({
+      localRelativePath: localFilePath(entry),
+      bucket: 'moodboard',
+      storagePath: sp,
+    })
+    // MoodboardRef.imageUrl convention is a full public URL (matches what
+    // uploadMoodboardImage returns from the app — see queries.ts).
+    const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/moodboard/${sp}`
+    await prisma.moodboardRef.update({
+      where: { id: ref.id },
+      data: { imageUrl: publicUrl },
+    })
+    moodboardUploaded++
+  }
+  console.log(`  Moodboard images: uploaded ${moodboardUploaded}, missing-row ${moodboardMissing}`)
 
   // ══════════════════════════════════════════════════════════════════════════
   // P7 — THREADS
@@ -3529,141 +3579,142 @@ FADE TO BLACK.`,
     )
   }
 
-  // ── EntityAttachment seed (location galleries) ───────────────────────────
-  // Two production-side attachments per project on the first 1-2 Locations,
-  // plus a single narrative-side attachment on one script Entity per project.
-  // External Unsplash URLs render via the storagePath escape hatch in
-  // queries.ts (storagePath starting with http(s) is treated as the public URL).
-  // Real uploads via the UI write to bucket paths instead.
-  const locsByProject: Record<string, { id: string; name: string }[]> = {}
-  const allLocs = await prisma.location.findMany({ select: { id: true, projectId: true, name: true }, orderBy: { sortOrder: 'asc' } })
-  for (const l of allLocs) {
-    if (!locsByProject[l.projectId]) locsByProject[l.projectId] = []
-    locsByProject[l.projectId].push({ id: l.id, name: l.name })
+  // ── Seed images: EntityAttachment surfaces ───────────────────────────────
+  // Walks MANIFEST for every EntityAttachment surface and uploads + records.
+  //
+  // matchByName resolution per surface:
+  //   location           → Location.where({ projectId, name })            → Location.id
+  //   narrativeLocation  → Entity.where({ projectId, type:'location', name }) → Entity.id
+  //   prop               → Entity.where({ projectId, type:'prop', name })     → Entity.id
+  //   wardrobe           → Entity.where({ projectId, type:'wardrobe', name }) → Entity.id
+  //   hmu                → Entity.where({ projectId, type:'hmu', name })      → Entity.id
+  //   cast               → Talent.where({ projectId, name })                  → Talent.id
+
+  const ENTITY_ATTACHMENT_SURFACES = ['location', 'narrativeLocation', 'prop', 'wardrobe', 'hmu', 'cast'] as const
+  type EaSurface = typeof ENTITY_ATTACHMENT_SURFACES[number]
+
+  async function resolveAttachedToId(
+    projectId: string,
+    surface: EaSurface,
+    name: string,
+  ): Promise<string | null> {
+    switch (surface) {
+      case 'location': {
+        const r = await prisma.location.findFirst({ where: { projectId, name } })
+        return r?.id ?? null
+      }
+      case 'narrativeLocation': {
+        const r = await prisma.entity.findFirst({ where: { projectId, type: 'location', name } })
+        return r?.id ?? null
+      }
+      case 'prop': {
+        const r = await prisma.entity.findFirst({ where: { projectId, type: 'prop', name } })
+        return r?.id ?? null
+      }
+      case 'wardrobe': {
+        const r = await prisma.entity.findFirst({ where: { projectId, type: 'wardrobe', name } })
+        return r?.id ?? null
+      }
+      case 'hmu': {
+        const r = await prisma.entity.findFirst({ where: { projectId, type: 'hmu', name } })
+        return r?.id ?? null
+      }
+      case 'cast': {
+        const r = await prisma.talent.findFirst({ where: { projectId, name } })
+        return r?.id ?? null
+      }
+    }
   }
-  const entLocsByProject: Record<string, { id: string; name: string }[]> = {}
-  const allEntLocs = await prisma.entity.findMany({ where: { type: 'location' }, select: { id: true, projectId: true, name: true } })
-  for (const e of allEntLocs) {
-    if (!entLocsByProject[e.projectId]) entLocsByProject[e.projectId] = []
-    entLocsByProject[e.projectId].push({ id: e.id, name: e.name })
-  }
 
-  // Curated Unsplash placeholders by general vibe — six pairs so each project
-  // gets two distinct production-side photos plus one narrative reference.
-  const PLACEHOLDER_PAIRS = [
-    {
-      a: 'https://images.unsplash.com/photo-1494522855154-9297ac14b55f?w=1200&q=80',
-      b: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=1200&q=80',
-      narrative: 'https://images.unsplash.com/photo-1448630360428-65456885c650?w=1200&q=80',
-      capA: 'Wide reference, mid-day',
-      capB: 'Hero angle from scout',
-      capN: 'Script reference — initial board image',
-    },
-    {
-      a: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1200&q=80',
-      b: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1200&q=80',
-      narrative: 'https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=1200&q=80',
-      capA: 'Golden hour pass',
-      capB: 'Backup angle',
-      capN: 'Tone reference',
-    },
-    {
-      a: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=1200&q=80',
-      b: 'https://images.unsplash.com/photo-1493711662062-fa541adb3fc8?w=1200&q=80',
-      narrative: null,
-      capA: 'Interior wide',
-      capB: 'Detail',
-      capN: '',
-    },
-    {
-      a: 'https://images.unsplash.com/photo-1484589065579-248aad0d8b13?w=1200&q=80',
-      b: 'https://images.unsplash.com/photo-1500301119717-d0b8efbb6b13?w=1200&q=80',
-      narrative: 'https://images.unsplash.com/photo-1429277096327-11ee3b35e3d4?w=1200&q=80',
-      capA: 'Alternate option',
-      capB: 'Aerial reference',
-      capN: 'Original location idea',
-    },
-    {
-      a: 'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=1200&q=80',
-      b: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1200&q=80',
-      narrative: 'https://images.unsplash.com/photo-1530908295418-a12e326966ba?w=1200&q=80',
-      capA: 'Coverage one',
-      capB: 'Coverage two',
-      capN: 'Mood reference',
-    },
-    {
-      a: 'https://images.unsplash.com/photo-1497486751825-1233686d5d80?w=1200&q=80',
-      b: 'https://images.unsplash.com/photo-1502425102553-0f64de1b76e2?w=1200&q=80',
-      narrative: 'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=1200&q=80',
-      capA: 'Approved hero',
-      capB: 'Wide establishing',
-      capN: 'Initial reference',
-    },
-  ]
+  console.log('  Uploading EntityAttachment images…')
+  const eaEntries = MANIFEST.filter((e): e is typeof e & { surface: EaSurface } =>
+    (ENTITY_ATTACHMENT_SURFACES as readonly string[]).includes(e.surface),
+  )
+  const attachmentRows: Array<{
+    projectId: string
+    attachedToType: string
+    attachedToId: string
+    storagePath: string
+    caption: string | null
+    uploadedById: string | null
+    mimeType: string
+  }> = []
+  let eaUploaded = 0
+  let eaMissing = 0
+  for (const entry of eaEntries) {
+    if (entry.projectKey === 'crew') continue
+    const projectId = projectIdByKey(entry.projectKey)
+    const attachedToId = await resolveAttachedToId(projectId, entry.surface, entry.matchByName)
+    if (!attachedToId) {
+      console.warn(`    ! ${entry.surface} not found: ${entry.projectKey}/${entry.matchByName}`)
+      eaMissing++
+      continue
+    }
+    const sp = storagePath(entry, attachedToId)  // 'location/<id>/<slug>.jpg'
+    await uploadSeedImage({
+      localRelativePath: localFilePath(entry),
+      bucket: 'entity-attachments',
+      storagePath: sp,
+    })
+    attachmentRows.push({
+      projectId,
+      attachedToType: entry.surface,
+      attachedToId,
+      storagePath: sp,
+      caption: entry.caption ?? null,
+      uploadedById: clydeBessey.id,
+      mimeType: 'image/jpeg',
+    })
 
-  const attachmentRows: any[] = []
-  const projectIds = [p1.id, p2.id, p3.id, p4.id, p5.id, p6.id]
-  for (let i = 0; i < projectIds.length; i++) {
-    const pid = projectIds[i]
-    const pair = PLACEHOLDER_PAIRS[i] ?? PLACEHOLDER_PAIRS[0]
-    const locs = locsByProject[pid] ?? []
-    const ents = entLocsByProject[pid] ?? []
-    const uploader = clydeBessey.id
-    const baseTime = Date.now() - (i + 1) * 6 * 60 * 60 * 1000 // staggered hours back
+    // Per-row image fields (used by UIs that read directly rather than
+    // through the EntityAttachment gallery — Art page reads
+    // Entity.metadata.imageUrl, Casting reads Talent.imageUrl).
+    // Locations have already migrated to EA-only (Location.imageUrl removed).
+    const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/entity-attachments/${sp}`
+    if (entry.surface === 'cast') {
+      await prisma.talent.update({ where: { id: attachedToId }, data: { imageUrl: publicUrl } })
+    } else if (entry.surface === 'prop' || entry.surface === 'wardrobe' || entry.surface === 'hmu') {
+      const ent = await prisma.entity.findUnique({ where: { id: attachedToId } })
+      const meta = (ent?.metadata && typeof ent.metadata === 'object' && !Array.isArray(ent.metadata))
+        ? (ent.metadata as Record<string, unknown>) : {}
+      await prisma.entity.update({
+        where: { id: attachedToId },
+        data: { metadata: { ...meta, imageUrl: publicUrl } },
+      })
+    }
 
-    if (locs[0]) {
-      attachmentRows.push({
-        projectId: pid,
-        attachedToType: 'location',
-        attachedToId: locs[0].id,
-        storagePath: pair.a,
-        caption: pair.capA,
-        uploadedById: uploader,
-        uploadedAt: new Date(baseTime),
-        mimeType: 'image/jpeg',
-      })
-    }
-    if (locs[0]) {
-      attachmentRows.push({
-        projectId: pid,
-        attachedToType: 'location',
-        attachedToId: locs[0].id,
-        storagePath: pair.b,
-        caption: pair.capB,
-        uploadedById: uploader,
-        uploadedAt: new Date(baseTime + 60 * 60 * 1000),
-        mimeType: 'image/jpeg',
-      })
-    }
-    if (locs[1]) {
-      attachmentRows.push({
-        projectId: pid,
-        attachedToType: 'location',
-        attachedToId: locs[1].id,
-        storagePath: pair.a,
-        caption: null,
-        uploadedById: uploader,
-        uploadedAt: new Date(baseTime + 2 * 60 * 60 * 1000),
-        mimeType: 'image/jpeg',
-      })
-    }
-    if (pair.narrative && ents[0]) {
-      attachmentRows.push({
-        projectId: pid,
-        attachedToType: 'narrativeLocation',
-        attachedToId: ents[0].id,
-        storagePath: pair.narrative,
-        caption: pair.capN || null,
-        uploadedById: uploader,
-        uploadedAt: new Date(baseTime + 3 * 60 * 60 * 1000),
-        mimeType: 'image/jpeg',
-      })
-    }
+    eaUploaded++
   }
   if (attachmentRows.length > 0) {
     await prisma.entityAttachment.createMany({ data: attachmentRows })
-    console.log(`  EntityAttachments: ${attachmentRows.length} (location + narrativeLocation seed)`)
   }
+  console.log(`  EntityAttachments: uploaded ${eaUploaded}, missing-row ${eaMissing}`)
+
+  // ── Seed images: User avatars ────────────────────────────────────────────
+  console.log('  Uploading crew avatars…')
+  const avatarEntries = MANIFEST.filter((e) => e.surface === 'avatar')
+  let avatarUploaded = 0, avatarMissing = 0
+  for (const entry of avatarEntries) {
+    const user = await prisma.user.findFirst({ where: { name: entry.matchByName } })
+    if (!user) {
+      console.warn(`    ! user not found: ${entry.matchByName}`)
+      avatarMissing++
+      continue
+    }
+    const sp = storagePath(entry, user.id)  // '<userId>/<slug>.jpg'
+    await uploadSeedImage({
+      localRelativePath: localFilePath(entry),
+      bucket: 'avatars',
+      storagePath: sp,
+    })
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { avatarUrl: sp },
+    })
+    avatarUploaded++
+  }
+  console.log(`  Avatars: uploaded ${avatarUploaded}, missing-user ${avatarMissing}`)
 
   // ── Final count ───────────────────────────────────────────────────────────
   const counts = {

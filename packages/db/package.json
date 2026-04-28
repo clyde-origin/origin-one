@@ -13,14 +13,18 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "db:fetch-images": "tsx scripts/fetch-seed-images.ts"
   },
   "dependencies": {
     "@origin-one/schema": "workspace:*",
-    "@prisma/client": "^5.14.0"
+    "@prisma/client": "^5.14.0",
+    "@supabase/supabase-js": "^2.104.1",
+    "dotenv": "^17.4.2",
+    "openai": "^6.34.0"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@types/node": "^20.19.39",
     "prisma": "^5.14.0",
     "tsx": "^4.15.0",
     "typescript": "^5"
