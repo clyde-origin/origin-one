@@ -957,10 +957,18 @@ export async function createResource(
   resource: { projectId: string; folderId?: string | null; title: string; url: string; type: string; createdBy: string }
 ) {
   const db = createClient()
+  // teamId is derived from the project (Resource.teamId NOT NULL since auth-000).
+  const { data: project, error: projErr } = await db
+    .from('Project').select('teamId').eq('id', resource.projectId).single()
+  if (projErr || !project) {
+    console.error('createResource: could not resolve teamId from projectId', projErr)
+    throw projErr ?? new Error('Project not found')
+  }
   const { data, error } = await db
     .from('Resource')
     .insert({
       id: crypto.randomUUID(),
+      teamId: project.teamId,
       projectId: resource.projectId,
       folderId: resource.folderId ?? null,
       title: resource.title,
@@ -994,10 +1002,19 @@ export async function createGlobalResource(
   resource: { title: string; url: string; type: string; createdBy: string }
 ) {
   const db = createClient()
+  // Pre-Auth: only one team exists (Origin Point). Look it up by name.
+  // Post-Auth: caller passes teamId from session; remove this lookup.
+  const { data: team, error: teamErr } = await db
+    .from('Team').select('id').eq('name', 'Origin Point').single()
+  if (teamErr || !team) {
+    console.error('createGlobalResource: Origin Point team lookup failed', teamErr)
+    throw teamErr ?? new Error('Team not found')
+  }
   const { data, error } = await db
     .from('Resource')
     .insert({
       id: crypto.randomUUID(),
+      teamId: team.id,
       projectId: null,
       folderId: null,
       title: resource.title,
