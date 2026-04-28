@@ -13,6 +13,9 @@ import { haptic } from '@/lib/utils/haptics'
 import { DEPARTMENTS } from '@/lib/utils/phase'
 import { formatUSD } from '@/lib/utils/currency'
 import { useViewerRole } from '@/lib/auth/useViewerRole'
+import { InviteCrewSheet } from '@/components/crew/InviteCrewSheet'
+import { AddRoleSheet } from '@/components/crew/AddRoleSheet'
+import { useQueryClient } from '@tanstack/react-query'
 import type { TeamMember, RateUnit } from '@/types'
 import { computeExpenseUnits } from '@origin-one/schema'
 
@@ -1402,10 +1405,13 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
 }) {
   const { data: crew } = useCrew(projectId)
   const { data: project } = useProject(projectId)
+  const qc = useQueryClient()
   const allCrew = crew ?? []
   const [layer, setLayer] = useState<Layer>('list')
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
   const [weekOrigin, setWeekOrigin] = useState<WeekOrigin>('overview')
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [addRoleOpen, setAddRoleOpen] = useState(false)
 
   // Auth-driven viewer identity. meId is User.id from session; viewerRole
   // tells us whether this user is producer-tier on this project. Resolve
@@ -1553,6 +1559,20 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                   accent={accent}
                   onClick={openTimecards}
                 />
+                {viewerRole === 'producer' && (
+                  <button
+                    onClick={() => { haptic('light'); setInviteOpen(true) }}
+                    className="font-mono uppercase"
+                    style={{
+                      fontSize: '0.5rem', letterSpacing: '0.08em',
+                      padding: '6px 10px', marginRight: 4, borderRadius: 8,
+                      background: `${accent}1a`, border: `1px solid ${accent}40`,
+                      color: accent, cursor: 'pointer',
+                    }}
+                  >
+                    + Invite
+                  </button>
+                )}
                 <button onClick={onClose} className="text-muted w-11 h-11 flex items-center justify-center active:opacity-60">
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
                 </button>
@@ -1599,6 +1619,22 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                   onRemoved={() => { setLayer('list'); setSelectedMember(null) }}
                   onTimecards={() => { setWeekOrigin('detail'); setLayer('week') }}
                 />
+                {viewerRole === 'producer' && (
+                  <div style={{ padding: '0 20px 16px' }}>
+                    <button
+                      onClick={() => { haptic('light'); setAddRoleOpen(true) }}
+                      className="font-mono uppercase"
+                      style={{
+                        width: '100%', padding: '10px',
+                        background: `${accent}1a`, border: `1px solid ${accent}40`,
+                        borderRadius: 8, color: accent, fontSize: '0.7rem',
+                        letterSpacing: '0.08em', cursor: 'pointer',
+                      }}
+                    >
+                      + Add role
+                    </button>
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -1641,6 +1677,22 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
             )}
           </motion.div>
         </>
+      )}
+      <InviteCrewSheet
+        projectId={projectId}
+        open={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+        onSuccess={() => qc.invalidateQueries({ queryKey: ['crew', projectId] })}
+      />
+      {selectedMember && (
+        <AddRoleSheet
+          projectId={projectId}
+          memberId={selectedMember.id}
+          memberName={selectedMember.User?.name ?? 'this user'}
+          open={addRoleOpen}
+          onClose={() => setAddRoleOpen(false)}
+          onSuccess={() => qc.invalidateQueries({ queryKey: ['crew', projectId] })}
+        />
       )}
     </AnimatePresence>
   )
