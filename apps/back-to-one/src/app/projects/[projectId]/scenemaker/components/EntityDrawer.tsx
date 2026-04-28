@@ -9,6 +9,7 @@ import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThread
 import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
 import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
 import { EntityAttachmentGallery } from '@/components/attachments/EntityAttachmentGallery'
+import { StorageImage } from '@/components/ui/StorageImage'
 
 // ── Entity type colors (from reference spec) ────────────
 export const ENTITY_COLORS = {
@@ -178,10 +179,18 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
                         anchored to the avatar edge, not under the label below. */}
                     <div style={{ position: 'relative' }}>
                       {item.imageUrl ? (
-                        <img src={item.imageUrl} alt={item.name} style={{
+                        <StorageImage url={item.imageUrl} alt={item.name} style={{
                           width: 56, height: 56, borderRadius: '50%', objectFit: 'cover',
                           border: `1.5px solid ${colors.border}`,
-                        }} />
+                        }} placeholder={
+                          <div className="flex items-center justify-center" style={{
+                            width: 56, height: 56, borderRadius: '50%',
+                            background: colors.bg, border: `1.5px solid ${colors.border}`,
+                            color: colors.base, fontSize: 18, fontWeight: 700,
+                          }}>
+                            {getInitials(item.name)}
+                          </div>
+                        } />
                       ) : (
                         <div className="flex items-center justify-center" style={{
                           width: 56, height: 56, borderRadius: '50%',
@@ -332,7 +341,7 @@ export function EntityDetailSheet({ type, projectId, colors, label, entity, onSa
           {isEdit && entity && (
             <div className="flex items-center" style={{ gap: 16, marginBottom: 4 }}>
               {entity.imageUrl ? (
-                <img src={entity.imageUrl} alt={entity.name} style={{
+                <StorageImage url={entity.imageUrl} alt={entity.name} style={{
                   width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', flexShrink: 0,
                   border: `1.5px solid ${colors.border}`,
                 }} />

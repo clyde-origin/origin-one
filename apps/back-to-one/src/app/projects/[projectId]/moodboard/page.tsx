@@ -17,6 +17,7 @@ import { uploadMoodboardImage } from '@/lib/db/queries'
 import { LoadingState } from '@/components/ui'
 import { EmptyCTA } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { StorageImage } from '@/components/ui/StorageImage'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
@@ -177,7 +178,13 @@ function RefCard({
       {...dragHandleProps}
     >
       {showImage ? (
-        <img src={item.imageUrl!} alt={item.title} className="h-28 w-full object-cover" onError={() => setImgError(true)} />
+        <StorageImage
+          url={item.imageUrl!}
+          alt={item.title}
+          className="h-28 w-full object-cover"
+          onError={() => setImgError(true)}
+          placeholder={<div className="h-28 w-full" style={{ background: item.gradient || GRADIENTS[0] }} />}
+        />
       ) : (
         <div className="h-28 w-full" style={{ background: item.gradient || GRADIENTS[0] }} />
       )}
@@ -288,7 +295,13 @@ function DetailSheet({
 
         {/* Image */}
         {item.imageUrl ? (
-          <img src={item.imageUrl} alt={item.title} className="w-full rounded-lg mb-3 object-cover" style={{ maxHeight: 240 }} />
+          <StorageImage
+            url={item.imageUrl}
+            alt={item.title}
+            className="w-full rounded-lg mb-3 object-cover"
+            style={{ maxHeight: 240 }}
+            placeholder={<div className="h-40 w-full rounded-lg mb-3" style={{ background: item.gradient || GRADIENTS[0] }} />}
+          />
         ) : (
           <div className="h-40 w-full rounded-lg mb-3" style={{ background: item.gradient || GRADIENTS[0] }} />
         )}

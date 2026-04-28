@@ -5,6 +5,7 @@ import { haptic } from '@/lib/utils/haptics'
 import { aspectRatioToCss } from '@/lib/aspect-ratio'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import { TV } from '@/lib/thread-tokens'
+import { StorageImage } from '@/components/ui/StorageImage'
 import type { Shot } from '@/types'
 
 const SIZE_ABBREV: Record<string, string> = {
@@ -109,7 +110,7 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
         onClick={() => fileRef.current?.click()}
       >
         {shot.imageUrl ? (
-          <img src={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <StorageImage url={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
           <div className="flex flex-col items-center gap-2">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">

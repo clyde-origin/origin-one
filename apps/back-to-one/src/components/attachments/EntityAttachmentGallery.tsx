@@ -3,7 +3,12 @@
 // Polymorphic image gallery — renders on any entity surface (Locations,
 // Props/Wardrobe/HMU when those land, future cast reference photos).
 // Spec: apps/back-to-one/reference/back-to-one-entity-attachments.html
-// DECISIONS: "EntityAttachment storage — v1 unsigned public URLs, RLS deferred."
+//
+// FOLLOW-UP (auth-005c): the publicUrl pattern (background-image: url(...))
+// breaks after auth-005 flips entity-attachments bucket to public:false.
+// Refactor to sign URLs inline (see useStorageImage / StorageImage). This
+// gallery has ~10 backgroundImage sites — separate PR to keep auth-005b
+// reviewable. Until that lands, gallery renders blank backgrounds post-Auth.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'

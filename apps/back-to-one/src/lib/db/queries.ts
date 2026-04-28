@@ -205,7 +205,9 @@ export async function uploadEntityAttachment(args: {
 
   const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
   const rand = crypto.randomUUID()
-  const storagePath = `${attachedToType}/${attachedToId}/${rand}.${ext}`
+  // Path includes projectId as the first segment so storage RLS can extract
+  // it via (storage.foldername(name))[1] — see auth-005 migration.
+  const storagePath = `${projectId}/${attachedToType}/${attachedToId}/${rand}.${ext}`
 
   const { width, height } = await probeImageDimensions(file)
 
