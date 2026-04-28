@@ -1409,6 +1409,10 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
           open={topsheetOpen}
           onClose={() => setTopsheetOpen(false)}
           accent={accent}
+          budgetId={budget.id}
+          activeVersionKind={
+            (budget.versions.find(v => v.id === activeVersionId)?.kind ?? null)
+          }
           content={{
             projectName: project?.name ?? '',
             projectClient: (project as { client?: string | null } | null | undefined)?.client ?? null,

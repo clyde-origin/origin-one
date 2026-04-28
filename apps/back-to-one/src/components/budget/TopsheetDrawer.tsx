@@ -5,6 +5,35 @@ import { motion, AnimatePresence, useMotionValue, useTransform, type PanInfo } f
 import { TopsheetContent, type TopsheetContentProps } from './TopsheetContent'
 import { haptic } from '@/lib/utils/haptics'
 
+// PR 13 — export endpoints + download helper. The drawer's three
+// previously-disabled buttons now invoke these.
+type ExportKind = 'topsheet' | 'detail' | 'csv'
+
+function exportPath(budgetId: string, kind: ExportKind, versionKind: string | null): string {
+  const v = versionKind ? `?version=${encodeURIComponent(versionKind)}` : ''
+  if (kind === 'csv')      return `/api/budget/${budgetId}/csv${v}`
+  if (kind === 'topsheet') return `/api/budget/${budgetId}/topsheet-pdf${v}`
+  return `/api/budget/${budgetId}/detail-pdf${v}`
+}
+
+// Trigger a browser download from a fetch Response. Reads
+// Content-Disposition for the filename so the server stays canonical;
+// falls back to a sane default. Cleans up the blob URL on next tick.
+async function triggerDownload(response: Response, fallbackName: string): Promise<void> {
+  const blob = await response.blob()
+  const cd = response.headers.get('Content-Disposition') ?? ''
+  const match = /filename\s*=\s*"?([^";]+)"?/i.exec(cd)
+  const filename = match?.[1] ?? fallbackName
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
 // Mobile bottom-pull-up drawer (drag-to-dismiss). Desktop right side panel
 // at ≥1024px (no backdrop, slides in from right). Same TopsheetContent
 // renders inside both — single visual contract whether printed (PR 13)
@@ -32,18 +61,24 @@ interface TopsheetDrawerProps {
   onClose: () => void
   accent: string
   content: TopsheetContentProps
+  // PR 13 — wires the export buttons in ExportRow. budgetId is the
+  // canonical budget primary key; activeVersionKind drives the
+  // ?version= query param so the server pins the same column the
+  // drawer is showing.
+  budgetId: string
+  activeVersionKind: string | null
 }
 
-export function TopsheetDrawer({ open, onClose, accent, content }: TopsheetDrawerProps) {
+export function TopsheetDrawer({ open, onClose, accent, content, budgetId, activeVersionKind }: TopsheetDrawerProps) {
   const isDesktop = useIsDesktop()
   return isDesktop
-    ? <TopsheetDesktopPanel open={open} onClose={onClose} accent={accent} content={content} />
-    : <TopsheetMobileDrawer open={open} onClose={onClose} accent={accent} content={content} />
+    ? <TopsheetDesktopPanel open={open} onClose={onClose} accent={accent} content={content} budgetId={budgetId} activeVersionKind={activeVersionKind} />
+    : <TopsheetMobileDrawer open={open} onClose={onClose} accent={accent} content={content} budgetId={budgetId} activeVersionKind={activeVersionKind} />
 }
 
 // ── Mobile bottom drawer ─────────────────────────────────────────────────
 
-function TopsheetMobileDrawer({ open, onClose, accent, content }: TopsheetDrawerProps) {
+function TopsheetMobileDrawer({ open, onClose, accent, content, budgetId, activeVersionKind }: TopsheetDrawerProps) {
   const dragY = useMotionValue(0)
   const overlayOpacity = useTransform(dragY, [0, 400], [1, 0])
 
@@ -117,7 +152,7 @@ function TopsheetMobileDrawer({ open, onClose, accent, content }: TopsheetDrawer
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
               <TopsheetContent {...content} />
             </div>
-            <ExportRow accent={accent} />
+            <ExportRow accent={accent} budgetId={budgetId} activeVersionKind={activeVersionKind} />
           </motion.div>
         </>
       )}
@@ -127,7 +162,7 @@ function TopsheetMobileDrawer({ open, onClose, accent, content }: TopsheetDrawer
 
 // ── Desktop side panel ───────────────────────────────────────────────────
 
-function TopsheetDesktopPanel({ open, onClose, accent, content }: TopsheetDrawerProps) {
+function TopsheetDesktopPanel({ open, onClose, accent, content, budgetId, activeVersionKind }: TopsheetDrawerProps) {
   return (
     <AnimatePresence>
       {open && (
@@ -165,7 +200,7 @@ function TopsheetDesktopPanel({ open, onClose, accent, content }: TopsheetDrawer
           <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
             <TopsheetContent {...content} />
           </div>
-          <ExportRow accent={accent} />
+          <ExportRow accent={accent} budgetId={budgetId} activeVersionKind={activeVersionKind} />
         </motion.div>
       )}
     </AnimatePresence>
@@ -174,45 +209,93 @@ function TopsheetDesktopPanel({ open, onClose, accent, content }: TopsheetDrawer
 
 // ── Export buttons row ───────────────────────────────────────────────────
 //
-// PR 10 renders these as DISABLED ("Coming in PR 13"). Visual contract
-// is set; PR 13 wires the actual /api/budget/.../export endpoints + the
-// download click handlers.
+// PR 13 wires the three buttons to /api/budget/<id>/{topsheet-pdf,
+// detail-pdf, csv}. Click → fetch → triggerDownload via blob URL.
+// Loading state on the active button; the other two disable while a
+// request is in flight to prevent fan-out. Errors surface as a brief
+// inline chip (5s) without blanking the drawer.
 
-function ExportRow({ accent }: { accent: string }) {
-  const buttons = [
-    { label: 'PDF · TOPSHEET', primary: true },
-    { label: 'PDF · DETAIL',   primary: false },
-    { label: 'CSV',            primary: false },
+function ExportRow({
+  accent, budgetId, activeVersionKind,
+}: {
+  accent: string
+  budgetId: string
+  activeVersionKind: string | null
+}) {
+  const [pending, setPending] = useState<ExportKind | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const buttons: { kind: ExportKind; label: string; primary: boolean; fallback: string }[] = [
+    { kind: 'topsheet', label: 'PDF · TOPSHEET', primary: true,  fallback: 'topsheet.pdf' },
+    { kind: 'detail',   label: 'PDF · DETAIL',   primary: false, fallback: 'detail.pdf'   },
+    { kind: 'csv',      label: 'CSV',            primary: false, fallback: 'budget.csv'   },
   ]
+
+  const run = async (kind: ExportKind, fallback: string) => {
+    if (pending) return
+    haptic('light')
+    setPending(kind)
+    setError(null)
+    try {
+      const resp = await fetch(exportPath(budgetId, kind, activeVersionKind))
+      if (!resp.ok) throw new Error(`Export failed (${resp.status})`)
+      await triggerDownload(resp, fallback)
+    } catch (e) {
+      console.error('Export request failed:', e)
+      setError('Export failed — try again')
+      setTimeout(() => setError(null), 5000)
+    } finally {
+      setPending(null)
+    }
+  }
+
   return (
     <div
-      className="flex"
       style={{
-        gap: 6, padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 14px)',
         background: '#0a0a12',
         borderTop: '1px solid rgba(255,255,255,0.08)',
+        padding: 'calc(env(safe-area-inset-bottom, 0px) + 14px) 16px 14px',
       }}
     >
-      {buttons.map(b => (
-        <button
-          key={b.label}
-          type="button"
-          disabled
-          title="Coming in PR 13"
-          className="font-mono uppercase"
+      {error && (
+        <div
+          className="font-mono"
+          role="status"
           style={{
-            flex: 1,
-            padding: '9px 0', borderRadius: 8,
-            background: b.primary ? `${accent}24` : 'rgba(255,255,255,0.03)',
-            border: b.primary ? `1px solid ${accent}66` : '1px solid rgba(255,255,255,0.08)',
-            color: b.primary ? accent : 'rgba(255,255,255,0.55)',
-            fontSize: 10, letterSpacing: '0.08em',
-            cursor: 'not-allowed',
-            opacity: 0.6,
-            textAlign: 'center',
+            marginBottom: 8, padding: '6px 10px', borderRadius: 6,
+            background: 'rgba(232,86,74,0.10)',
+            border: '1px solid rgba(232,86,74,0.30)',
+            color: '#e8564a',
+            fontSize: 10, letterSpacing: '0.04em',
           }}
-        >{b.label}</button>
-      ))}
+        >{error}</div>
+      )}
+      <div className="flex" style={{ gap: 6 }}>
+        {buttons.map(b => {
+          const isPending = pending === b.kind
+          const isLocked  = !!pending && !isPending
+          return (
+            <button
+              key={b.kind}
+              type="button"
+              onClick={() => run(b.kind, b.fallback)}
+              disabled={isLocked}
+              className="font-mono uppercase"
+              style={{
+                flex: 1,
+                padding: '9px 0', borderRadius: 8,
+                background: b.primary ? `${accent}24` : 'rgba(255,255,255,0.03)',
+                border: b.primary ? `1px solid ${accent}66` : '1px solid rgba(255,255,255,0.08)',
+                color: b.primary ? accent : 'rgba(255,255,255,0.85)',
+                fontSize: 10, letterSpacing: '0.08em',
+                cursor: isLocked ? 'not-allowed' : 'pointer',
+                opacity: isLocked ? 0.5 : 1,
+                textAlign: 'center',
+              }}
+            >{isPending ? 'Generating…' : b.label}</button>
+          )
+        })}
+      </div>
     </div>
   )
 }
