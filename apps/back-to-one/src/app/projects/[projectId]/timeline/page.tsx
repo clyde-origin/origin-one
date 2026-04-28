@@ -1,26 +1,66 @@
 'use client'
 
-import { useState, useRef, useMemo, useCallback } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { useProject, useMilestones, useCreateMilestone, useUpdateMilestone, useAddMilestonePerson, useRemoveMilestonePerson, useCrew } from '@/lib/hooks/useOriginOne'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  useProject, useMilestones, useCreateMilestone, useUpdateMilestone,
+  useAddMilestonePerson, useRemoveMilestonePerson, useCrew,
+  useShootDays, useLocations,
+  useCreateShootDay, useUpdateShootDay, useDeleteShootDay,
+} from '@/lib/hooks/useOriginOne'
 import { LoadingState, EmptyState, CrewAvatar, SkeletonLine } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { CreateMilestoneSheet } from '@/components/create'
 import { haptic } from '@/lib/utils/haptics'
 import { formatDate, isLate, getProjectColor, MILESTONE_STATUS_HEX, MILESTONE_STATUS_LABEL, statusLabel, statusHex } from '@/lib/utils/phase'
+import { readStoredViewerRole, type ViewerRole } from '@/lib/utils/viewerIdentity'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
 import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
-import type { Milestone, CrewMember } from '@/types'
+import type { Milestone, CrewMember, ShootDay, ShootDayType, Location } from '@/types'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 const DOW = ['Su','Mo','Tu','We','Th','Fr','Sa']
 
-type Mode = 'project' | 'master'
+type Mode = 'project' | 'master' | 'days'
+
+// PR 15 — Days tab is producer-only because day counts drive budget
+// formula globals (prepDays / shootDays / postDays). Same shim pattern
+// as Budget page + Hub Budget block. Auth day swaps the three sites
+// in one pass — see DECISIONS "Producer-only swap sites".
+const PHASE_HEX: Record<ShootDayType, string> = {
+  pre:  '#e8a020',
+  prod: '#6470f3',
+  post: '#00b894',
+}
+
+const PHASE_LABEL: Record<ShootDayType, string> = {
+  pre:  'Prep',
+  prod: 'Shoot',
+  post: 'Post',
+}
+
+const PHASE_ORDER: ShootDayType[] = ['pre', 'prod', 'post']
+
+function shootDayFormatDate(iso: string): string {
+  // 'YYYY-MM-DD' → 'Mon Apr 26'
+  const [y, m, d] = iso.split('-').map(Number)
+  if (!y || !m || !d) return iso
+  const date = new Date(Date.UTC(y, m - 1, d))
+  const dow = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getUTCDay()]
+  const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][date.getUTCMonth()]
+  return `${dow} ${mon} ${d}`
+}
+
+function todayISO(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
 
 function sameDay(a: Date, b: Date) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate() }
 function dateKey(d: Date) { return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` }
@@ -304,17 +344,65 @@ export default function TimelinePage({ params }: { params: { projectId: string }
   const { data: crew } = useCrew(projectId)
   const threadByMilestoneId = useThreadsByEntity(projectId, 'milestone')
 
+  // Producer-only Days tab gate. Pre-Auth: localStorage shim
+  // (readStoredViewerRole). Auth day: swap to real Supabase session in
+  // one pass with the budget page + hub block. Pre-hydration we treat
+  // role as null so the third pill never flashes for non-producers.
+  const [role, setRole] = useState<ViewerRole | null>(null)
+  const [hydrated, setHydrated] = useState(false)
+  useEffect(() => { setRole(readStoredViewerRole()); setHydrated(true) }, [])
+  const isProducer = hydrated && role === 'producer'
+
   const allMS = milestones ?? []
   const allCrew = crew ?? []
 
+  // PR 15 — Days tab data. Always called (hooks must be unconditional);
+  // the data only renders inside the Days tab body. React Query handles
+  // de-dup so this is fine.
+  const { data: shootDaysRaw, isLoading: loadingDays } = useShootDays(projectId)
+  const { data: locationsRaw } = useLocations(projectId)
+  const days = (shootDaysRaw ?? []) as ShootDay[]
+  const locations = (locationsRaw ?? []) as Location[]
+  const locationsById = useMemo(() => {
+    const m = new Map<string, Location>()
+    for (const l of locations) m.set(l.id, l)
+    return m
+  }, [locations])
+  const dayCounts = useMemo<Record<ShootDayType, number>>(() => {
+    const c: Record<ShootDayType, number> = { pre: 0, prod: 0, post: 0 }
+    for (const d of days) c[d.type]++
+    return c
+  }, [days])
+  const [editingDay, setEditingDay] = useState<ShootDay | null>(null)
+  const [showCreateDay, setShowCreateDay] = useState(false)
+
   const [mode, setMode] = useState<Mode>('project')
+  // If a non-producer somehow lands on `mode='days'` (e.g., role flips
+  // mid-session), bounce back to project view.
+  useEffect(() => {
+    if (mode === 'days' && hydrated && !isProducer) setMode('project')
+  }, [mode, hydrated, isProducer])
   const [month, setMonth] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedMS, setSelectedMS] = useState<Milestone | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
-  // Register the + handler with the global ActionBar.
-  useFabAction({ onPress: () => { haptic('light'); setShowAdd(true) } })
+  // Register the + handler with the global ActionBar. The handler
+  // switches based on active tab — milestone create on Project/Master,
+  // shoot-day create on Days. ActionBar shows one + at a time per
+  // codebase convention, so this single registration is the right
+  // shape.
+  useFabAction(
+    {
+      onPress: () => {
+        haptic('light')
+        if (mode === 'days') setShowCreateDay(true)
+        else setShowAdd(true)
+      },
+      label: mode === 'days' ? 'Add shoot day' : undefined,
+    },
+    [mode],
+  )
   const createMilestone = useCreateMilestone(projectId)
 
   const msListRef = useRef<HTMLDivElement>(null)
@@ -384,10 +472,38 @@ export default function TimelinePage({ params }: { params: { projectId: string }
                 ...(mode === 'master' ? { background: 'rgba(255,255,255,0.08)', color: '#dddde8' } : { color: '#62627a', border: '1px solid transparent' }) }}>
               Master
             </button>
+            {/* Days tab — producer-only. Connects to budget formula
+                globals (prepDays/shootDays/postDays). Auth day swap
+                site (one of three). */}
+            {isProducer && (
+              <button onClick={() => { setMode('days'); setSelectedDate(null) }} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
+                style={{ fontSize: '0.44rem', letterSpacing: '0.05em', padding: '4px 9px', borderRadius: 16, transition: 'all 0.18s',
+                  ...(mode === 'days' ? { background: `${accent}2e`, color: accent, border: `1px solid ${accent}4d` } : { color: '#62627a', border: '1px solid transparent' }) }}>
+                Days
+              </button>
+            )}
           </div>
         }
       />
 
+      {/* Days tab — producer-only schedule UI; lifts the standalone
+          /schedule page contents. Replaces calendar + milestone list. */}
+      {mode === 'days' ? (
+        <DaysTabContent
+          projectId={projectId}
+          accent={accent}
+          days={days}
+          locations={locations}
+          locationsById={locationsById}
+          isLoading={loadingDays}
+          counts={dayCounts}
+          editing={editingDay}
+          showCreate={showCreateDay}
+          setEditing={setEditingDay}
+          setShowCreate={setShowCreateDay}
+        />
+      ) : (
+      <>
       {/* Calendar — anchored, does not scroll */}
       <Calendar
         month={month} mode={mode} accent={accent}
@@ -507,6 +623,8 @@ export default function TimelinePage({ params }: { params: { projectId: string }
           </>
         )}
       </div>
+      </>
+      )}
 
       {/* + handler registered above via useFabAction. ActionBar is mounted globally. */}
 
@@ -524,5 +642,342 @@ export default function TimelinePage({ params }: { params: { projectId: string }
         <MilestoneDetailSheet milestone={selectedMS} crew={allCrew} accent={accent} projectId={projectId} onClose={() => setSelectedMS(null)} />
       </Sheet>
     </div>
+  )
+}
+
+// ── DAYS TAB (PR 15 — lifted from /schedule) ──────────────
+
+function DaysTabContent({
+  projectId, accent, days, locations, locationsById, isLoading, counts,
+  editing, showCreate, setEditing, setShowCreate,
+}: {
+  projectId: string
+  accent: string
+  days: ShootDay[]
+  locations: Location[]
+  locationsById: Map<string, Location>
+  isLoading: boolean
+  counts: Record<ShootDayType, number>
+  editing: ShootDay | null
+  showCreate: boolean
+  setEditing: (d: ShootDay | null) => void
+  setShowCreate: (b: boolean) => void
+}) {
+  return (
+    <>
+      {/* Phase counts strip */}
+      <div
+        className="flex items-center justify-center font-mono uppercase flex-shrink-0"
+        style={{ gap: 14, padding: '12px 16px 14px', fontSize: '0.5rem', letterSpacing: '0.1em', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+      >
+        {PHASE_ORDER.map(t => (
+          <span key={t} style={{ color: counts[t] > 0 ? PHASE_HEX[t] : '#62627a' }}>
+            {PHASE_LABEL[t].toUpperCase()} {counts[t]}
+          </span>
+        ))}
+      </div>
+
+      {/* Day list */}
+      <div
+        className="flex-1 overflow-y-auto"
+        style={{
+          padding: '12px 16px 100px',
+          display: 'flex', flexDirection: 'column', gap: 8,
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
+        }}
+      >
+        {isLoading && (
+          <div className="font-mono uppercase text-center" style={{ fontSize: '0.42rem', letterSpacing: '0.1em', color: '#62627a', padding: '32px 0' }}>
+            Loading…
+          </div>
+        )}
+        {!isLoading && days.length === 0 && (
+          <div className="text-center" style={{ padding: '40px 8px' }}>
+            <div className="font-mono uppercase" style={{ fontSize: '0.5rem', letterSpacing: '0.1em', color: '#62627a', marginBottom: 8 }}>
+              No shoot days yet
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#a0a0b8' }}>
+              Tap + to add prep, shoot, or post days. Day counts feed the budget's schedule globals.
+            </div>
+          </div>
+        )}
+        {days.map(day => (
+          <ShootDayRow
+            key={day.id}
+            day={day}
+            locationName={day.locationId ? (locationsById.get(day.locationId)?.name ?? null) : null}
+            onTap={() => setEditing(day)}
+          />
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {showCreate && (
+          <ShootDayEditSheet
+            key="create"
+            mode="create"
+            day={null}
+            projectId={projectId}
+            locations={locations}
+            onClose={() => setShowCreate(false)}
+            onSubmitted={() => setShowCreate(false)}
+          />
+        )}
+        {editing && (
+          <ShootDayEditSheet
+            key={editing.id}
+            mode="edit"
+            day={editing}
+            projectId={projectId}
+            locations={locations}
+            onClose={() => setEditing(null)}
+            onSubmitted={() => setEditing(null)}
+          />
+        )}
+      </AnimatePresence>
+    </>
+  )
+}
+
+function PhaseChip({ type }: { type: ShootDayType }) {
+  const c = PHASE_HEX[type]
+  return (
+    <span
+      className="font-mono uppercase"
+      style={{
+        fontSize: '0.42rem', letterSpacing: '0.1em',
+        padding: '3px 8px', borderRadius: 20,
+        background: `${c}14`, border: `1px solid ${c}59`, color: c,
+        flexShrink: 0,
+      }}
+    >
+      {PHASE_LABEL[type]}
+    </span>
+  )
+}
+
+function ShootDayRow({
+  day, locationName, onTap,
+}: {
+  day: ShootDay
+  locationName: string | null
+  onTap: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => { haptic('light'); onTap() }}
+      className="w-full text-left active:opacity-80 transition-opacity"
+      style={{
+        padding: '12px 14px', borderRadius: 14,
+        background: 'rgba(10,10,18,0.42)',
+        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+        border: '1px solid rgba(255,255,255,0.07)',
+        display: 'grid',
+        gridTemplateColumns: '1fr auto',
+        gridTemplateRows: 'auto auto',
+        rowGap: 4, columnGap: 8,
+        alignItems: 'center',
+      }}
+    >
+      <div style={{ fontSize: '0.85rem', color: '#e8e8f0', fontWeight: 500 }}>
+        {shootDayFormatDate(day.date)}
+      </div>
+      <PhaseChip type={day.type} />
+      <div
+        className="font-mono uppercase"
+        style={{
+          fontSize: '0.42rem', letterSpacing: '0.08em', color: '#62627a',
+          gridColumn: '1 / span 2',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}
+      >
+        {locationName ?? (day.notes ? day.notes : 'No location')}
+      </div>
+    </button>
+  )
+}
+
+function ShootDayEditSheet({
+  mode, day, projectId, locations,
+  onClose, onSubmitted,
+}: {
+  mode: 'create' | 'edit'
+  day: ShootDay | null
+  projectId: string
+  locations: Location[]
+  onClose: () => void
+  onSubmitted: () => void
+}) {
+  const [date, setDate] = useState<string>(day?.date ?? todayISO())
+  const [type, setType] = useState<ShootDayType>(day?.type ?? 'prod')
+  const [locationId, setLocationId] = useState<string | null>(day?.locationId ?? null)
+  const [notes, setNotes] = useState<string>(day?.notes ?? '')
+
+  const create = useCreateShootDay(projectId)
+  const update = useUpdateShootDay(projectId)
+  const del    = useDeleteShootDay(projectId)
+
+  const submit = async () => {
+    if (!date) return
+    haptic('medium')
+    if (mode === 'create') {
+      await create.mutateAsync({
+        projectId, date, type,
+        locationId, notes: notes.trim() || null,
+      })
+    } else if (day) {
+      await update.mutateAsync({
+        id: day.id,
+        fields: { date, type, locationId, notes: notes.trim() || null },
+      })
+    }
+    onSubmitted()
+  }
+
+  const remove = async () => {
+    if (!day) return
+    if (!confirm('Delete this shoot day?')) return
+    haptic('warning')
+    await del.mutateAsync(day.id)
+    onSubmitted()
+  }
+
+  return (
+    <motion.div
+      initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+      transition={{ type: 'spring', damping: 30, stiffness: 280 }}
+      className="fixed inset-x-0 bottom-0 z-50"
+      style={{
+        background: 'rgba(8,8,14,0.96)',
+        backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
+        borderTop: '1px solid rgba(255,255,255,0.08)',
+        borderTopLeftRadius: 20, borderTopRightRadius: 20,
+        padding: '20px 18px calc(env(safe-area-inset-bottom, 0px) + 24px)',
+        display: 'flex', flexDirection: 'column', gap: 14,
+      }}
+    >
+      <div className="self-center" style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)' }} />
+
+      <div className="font-mono uppercase" style={{ fontSize: '0.50rem', letterSpacing: '0.1em', color: '#9ba6ff' }}>
+        {mode === 'create' ? 'Add shoot day' : 'Edit shoot day'}
+      </div>
+
+      <label className="flex flex-col" style={{ gap: 6 }}>
+        <span className="font-mono uppercase" style={{ fontSize: '0.42rem', letterSpacing: '0.1em', color: '#62627a' }}>Date</span>
+        <input
+          type="date"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+          className="font-mono"
+          style={{
+            padding: '10px 12px', borderRadius: 10,
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            color: '#e8e8f0', fontSize: '0.78rem',
+          }}
+        />
+      </label>
+
+      <div className="flex flex-col" style={{ gap: 6 }}>
+        <span className="font-mono uppercase" style={{ fontSize: '0.42rem', letterSpacing: '0.1em', color: '#62627a' }}>Phase</span>
+        <div className="flex" style={{ gap: 8 }}>
+          {PHASE_ORDER.map(t => {
+            const active = type === t
+            const c = PHASE_HEX[t]
+            return (
+              <button
+                key={t} type="button"
+                onClick={() => { haptic('light'); setType(t) }}
+                className="font-mono uppercase flex-1"
+                style={{
+                  padding: '10px 0', borderRadius: 10,
+                  background: active ? `${c}26` : 'rgba(255,255,255,0.04)',
+                  border: active ? `1px solid ${c}73` : '1px solid rgba(255,255,255,0.08)',
+                  color: active ? c : '#62627a',
+                  fontSize: '0.5rem', letterSpacing: '0.1em',
+                }}
+              >
+                {PHASE_LABEL[t]}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {locations.length > 0 && (
+        <label className="flex flex-col" style={{ gap: 6 }}>
+          <span className="font-mono uppercase" style={{ fontSize: '0.42rem', letterSpacing: '0.1em', color: '#62627a' }}>Location (optional)</span>
+          <select
+            value={locationId ?? ''}
+            onChange={e => setLocationId(e.target.value || null)}
+            className="font-mono"
+            style={{
+              padding: '10px 12px', borderRadius: 10,
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: '#e8e8f0', fontSize: '0.78rem',
+            }}
+          >
+            <option value="">— None —</option>
+            {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </label>
+      )}
+
+      <label className="flex flex-col" style={{ gap: 6 }}>
+        <span className="font-mono uppercase" style={{ fontSize: '0.42rem', letterSpacing: '0.1em', color: '#62627a' }}>Notes (optional)</span>
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          rows={2}
+          style={{
+            padding: '10px 12px', borderRadius: 10,
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            color: '#e8e8f0', fontSize: '0.78rem', resize: 'none',
+            fontFamily: 'inherit',
+          }}
+        />
+      </label>
+
+      <div className="flex items-center" style={{ gap: 10, marginTop: 4 }}>
+        {mode === 'edit' && (
+          <button
+            type="button" onClick={remove}
+            className="font-mono uppercase"
+            style={{
+              padding: '10px 14px', borderRadius: 20,
+              background: 'rgba(232,72,72,0.10)', border: '1px solid rgba(232,72,72,0.35)',
+              color: '#e84848', fontSize: '0.5rem', letterSpacing: '0.1em',
+            }}
+          >Delete</button>
+        )}
+        <button
+          type="button" onClick={onClose}
+          className="font-mono uppercase"
+          style={{
+            padding: '10px 14px', borderRadius: 20,
+            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+            color: '#a0a0b8', fontSize: '0.5rem', letterSpacing: '0.1em',
+            marginLeft: 'auto',
+          }}
+        >Cancel</button>
+        <button
+          type="button" onClick={submit}
+          disabled={!date}
+          className="font-mono uppercase"
+          style={{
+            padding: '10px 18px', borderRadius: 20,
+            background: date ? 'rgba(100,112,243,0.16)' : 'rgba(255,255,255,0.04)',
+            border: date ? '1px solid rgba(100,112,243,0.45)' : '1px solid rgba(255,255,255,0.06)',
+            color: date ? '#9ba6ff' : 'rgba(255,255,255,0.3)',
+            fontSize: '0.5rem', letterSpacing: '0.1em',
+            cursor: date ? 'pointer' : 'not-allowed',
+          }}
+        >{mode === 'create' ? 'Add' : 'Save'}</button>
+      </div>
+    </motion.div>
   )
 }

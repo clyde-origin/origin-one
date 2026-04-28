@@ -921,8 +921,10 @@ export function HubContent({ projectId }: { projectId: string }) {
     }
   }, [budgetTree, shootDays])
 
-  // Pre-Auth viewer-identity shim — Schedule + Budget blocks are producer-only
-  // per spec Q8. Replaces with Auth session when it lands; single swap point.
+  // Pre-Auth viewer-identity shim — Budget block is producer-only per spec Q8.
+  // Replaces with Auth session when it lands; single swap point. (Schedule
+  // moved into Timeline/Days tab in PR 15; Hub no longer has a Schedule
+  // preview block.)
   const [hubViewerRole, setHubViewerRole] = useState<ViewerRole | null>(null)
   useEffect(() => { setHubViewerRole(readStoredViewerRole()) }, [])
   const isProducer = hubViewerRole === 'producer'
@@ -1566,62 +1568,6 @@ export function HubContent({ projectId }: { projectId: string }) {
               </div>
             </div>
           </div>
-
-          {/* SCHEDULE — producer-only (spec Q8). Hidden for crew. */}
-          {isProducer && (
-            <div style={{ padding: '0 2px' }}>
-              <div
-                className="cursor-pointer"
-                onClick={() => router.push(`/projects/${projectId}/schedule`)}
-              >
-                {(() => {
-                  const sd = shootDays ?? []
-                  const counts = { pre: 0, prod: 0, post: 0 }
-                  for (const d of sd as { type: 'pre' | 'prod' | 'post' }[]) counts[d.type]++
-                  const total = sd.length
-                  return (
-                    <ModuleHeader
-                      name="Schedule"
-                      meta={
-                        total > 0
-                          ? `${total} ${total === 1 ? 'day' : 'days'} · ${counts.pre} prep · ${counts.prod} shoot · ${counts.post} post`
-                          : 'No days yet'
-                      }
-                    />
-                  )
-                })()}
-              </div>
-              <div className="flex" style={{ gap: 8, padding: '4px 2px 2px' }}>
-                {([
-                  { type: 'pre'  as const, label: 'PREP',  hex: '#e8a020' },
-                  { type: 'prod' as const, label: 'SHOOT', hex: '#6470f3' },
-                  { type: 'post' as const, label: 'POST',  hex: '#00b894' },
-                ]).map(({ type, label, hex }) => {
-                  const count = (shootDays ?? []).filter((d: { type: string }) => d.type === type).length
-                  return (
-                    <div
-                      key={type}
-                      onClick={() => { haptic('light'); router.push(`/projects/${projectId}/schedule`) }}
-                      className="flex flex-col items-center justify-center cursor-pointer active:opacity-80 transition-opacity flex-1"
-                      style={{
-                        height: 60, borderRadius: 14,
-                        background: 'rgba(10,10,18,0.42)',
-                        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-                        border: `1px solid ${count > 0 ? `${hex}40` : 'rgba(255,255,255,0.07)'}`,
-                        gap: 4,
-                      }}
-                    >
-                      <span style={{ color: count > 0 ? hex : '#62627a', fontSize: '1.05rem', fontWeight: 600 }}>{count}</span>
-                      <span
-                        className="font-mono uppercase"
-                        style={{ fontSize: '0.40rem', letterSpacing: '0.08em', color: count > 0 ? '#a0a0b8' : '#62627a' }}
-                      >{label}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
 
           {/* 5. WORKFLOW */}
           <div className="cursor-pointer" style={{ padding: '0 2px' }} onClick={() => router.push(`/projects/${projectId}/workflow`)}>
