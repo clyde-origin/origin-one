@@ -17,8 +17,6 @@ const baseScene = {
   description: 'Bathroom. Marble surfaces, soft window light.',
 }
 
-const tonePrimer = 'Project: Lumière Skincare. Soft window light, marble, amber glass.'
-
 describe('humanizeShotSize', () => {
   it('maps each enum value to a natural-language phrase', () => {
     expect(humanizeShotSize('extreme_close_up')).toBe('extreme close-up')
@@ -36,43 +34,50 @@ describe('humanizeShotSize', () => {
 })
 
 describe('buildStoryboardPrompt', () => {
-  it('contains tone primer, scene description, framing, action, and style suffix', () => {
-    const prompt = buildStoryboardPrompt({
-      shot: baseShot,
-      scene: baseScene,
-      tonePrimer,
-    })
-    expect(prompt).toContain(tonePrimer)
+  it('leads with the pencil-sketch style directive', () => {
+    const prompt = buildStoryboardPrompt({ shot: baseShot, scene: baseScene })
+    expect(prompt.startsWith('A black-and-white pencil storyboard sketch')).toBe(true)
+  })
+
+  it('contains scene description, framing, action, and style tail', () => {
+    const prompt = buildStoryboardPrompt({ shot: baseShot, scene: baseScene })
     expect(prompt).toContain(baseScene.description)
     expect(prompt).toContain('extreme close-up')
     expect(prompt).toContain(baseShot.description)
-    expect(prompt).toContain('pencil storyboard sketch')
+    expect(prompt).toContain('Render as a pencil and ink storyboard sketch')
+  })
+
+  it('explicitly negates photography and color', () => {
+    const prompt = buildStoryboardPrompt({ shot: baseShot, scene: baseScene })
+    expect(prompt).toMatch(/Not a photograph/i)
+    expect(prompt).toMatch(/No color/i)
+  })
+
+  it('does not include the project tone primer', () => {
+    // Recipe v2 drops the tone primer because its photography/color terms
+    // overrode the sketch style on ~half of P1 frames in the visual gate.
+    const prompt = buildStoryboardPrompt({ shot: baseShot, scene: baseScene })
+    expect(prompt).not.toContain('Lumière')
+    expect(prompt).not.toContain('Editorial beauty')
   })
 
   it('omits the framing line when shot.size is undefined', () => {
-    const prompt = buildStoryboardPrompt({
-      shot: { ...baseShot, size: undefined },
-      scene: baseScene,
-      tonePrimer,
-    })
-    expect(prompt).not.toContain('Shot framing:')
+    const prompt = buildStoryboardPrompt({ shot: { ...baseShot, size: undefined }, scene: baseScene })
+    expect(prompt).not.toContain('Framing:')
     expect(prompt).toContain(baseShot.description)
   })
 
-  it('puts sections in the expected order', () => {
-    const prompt = buildStoryboardPrompt({
-      shot: baseShot,
-      scene: baseScene,
-      tonePrimer,
-    })
-    const primerIdx = prompt.indexOf(tonePrimer)
-    const sceneIdx = prompt.indexOf('Scene context:')
-    const framingIdx = prompt.indexOf('Shot framing:')
-    const actionIdx = prompt.indexOf('Action:')
-    const styleIdx = prompt.indexOf('Style:')
-    expect(primerIdx).toBeLessThan(sceneIdx)
+  it('puts sections in the expected order: STYLE_LEAD → Scene → Framing → Action → STYLE_TAIL', () => {
+    const prompt = buildStoryboardPrompt({ shot: baseShot, scene: baseScene })
+    const leadIdx    = prompt.indexOf('A black-and-white pencil storyboard sketch')
+    const sceneIdx   = prompt.indexOf('Scene:')
+    const framingIdx = prompt.indexOf('Framing:')
+    const actionIdx  = prompt.indexOf('Action:')
+    const tailIdx    = prompt.indexOf('Render as a pencil')
+    expect(leadIdx).toBe(0)
+    expect(leadIdx).toBeLessThan(sceneIdx)
     expect(sceneIdx).toBeLessThan(framingIdx)
     expect(framingIdx).toBeLessThan(actionIdx)
-    expect(actionIdx).toBeLessThan(styleIdx)
+    expect(actionIdx).toBeLessThan(tailIdx)
   })
 })

@@ -11,7 +11,6 @@ export type StoryboardEntry = {
   projectKey: SeedProjectKey
   scene: SceneSeedRow
   shot: ShotSeedRow
-  tonePrimer: string
   aspectRatio: string  // raw Project.aspectRatio (e.g. '16:9', '2.39:1')
   // localFilePath = `storyboard/<projectKey>/<sceneNumber>-<shotNumber>.jpg`
   // (relative to seed-images/files/)
@@ -29,7 +28,6 @@ export function listStoryboardEntries(): StoryboardEntry[] {
           projectKey,
           scene,
           shot,
-          tonePrimer: meta.primer,
           aspectRatio: meta.aspectRatio,
           localRelativePath: `storyboard/${projectKey}/${scene.sceneNumber}-${shot.shotNumber}.jpg`,
         })

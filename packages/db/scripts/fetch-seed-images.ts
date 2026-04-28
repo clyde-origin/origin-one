@@ -180,7 +180,6 @@ async function fetchStoryboardEntry(entry: StoryboardEntry, flags: Flags, stats:
   const prompt = buildStoryboardPrompt({
     shot: entry.shot,
     scene: entry.scene,
-    tonePrimer: entry.tonePrimer,
   })
   const aspect = briaAspect(entry.aspectRatio)
 
