@@ -59,3 +59,32 @@ describe('matchesOnly', () => {
     expect(matchesOnly(e({ slug: 'other' }), { projectKey: 'p1', surface: 'cast', slug: 'camille-rousseau' })).toBe(false)
   })
 })
+
+describe('parseOnly — storyboard surface', () => {
+  it('parses storyboard.<projectKey>.<shotNumber>', () => {
+    expect(parseOnly('p1.storyboard.01A')).toEqual({
+      projectKey: 'p1', surface: 'storyboard', slug: '01A',
+    })
+  })
+
+  it('parses surface-only filter "storyboard"', () => {
+    expect(parseOnly('storyboard')).toEqual({ surface: 'storyboard' })
+  })
+
+  it('rejects surface-only filter for non-storyboard surfaces', () => {
+    // Other surfaces are project-scoped today; only storyboard is
+    // cross-project (one entry per shot, ~89 total).
+    expect(() => parseOnly('cast')).toThrow(/projectKey/)
+  })
+})
+
+describe('matchesOnly — storyboard surface', () => {
+  it('matches by surface alone when filter has no projectKey', () => {
+    const e1: ImageEntry = { projectKey: 'p1', surface: 'storyboard', slug: '01A', source: 'ai', matchByName: '' }
+    const e2: ImageEntry = { projectKey: 'p2', surface: 'storyboard', slug: '01A', source: 'ai', matchByName: '' }
+    const e3: ImageEntry = { projectKey: 'p1', surface: 'cast', slug: 'x', source: 'ai', matchByName: '' }
+    expect(matchesOnly(e1, { surface: 'storyboard' })).toBe(true)
+    expect(matchesOnly(e2, { surface: 'storyboard' })).toBe(true)
+    expect(matchesOnly(e3, { surface: 'storyboard' })).toBe(false)
+  })
+})
