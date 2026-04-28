@@ -1108,35 +1108,168 @@ export function HubContent({ projectId }: { projectId: string }) {
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', padding: '18px 16px 140px' }}>
         <div className="flex flex-col gap-6">
 
-          {/* 1. TIMELINE (first) — item 9: no chevron, item 10: Gantt */}
-          <div className="cursor-pointer" onClick={() => router.push(`/projects/${projectId}/timeline`)}>
-            <ModuleHeader name="Timeline" meta={new Date().toLocaleDateString('en-US', { weekday: 'short', month: '2-digit', day: '2-digit' }).replace(',', ' ·')} />
-            {loadingMS ? (
-              <div style={{ ...cardStyle, height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div className="w-4 h-4 rounded-full border border-border2 border-t-accent animate-spin" />
-              </div>
-            ) : allMS.length === 0 ? (
-              <div style={{ ...cardStyle, height: 130, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ padding: '12px 12px 0', display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
-                  {(['Pre', 'Prod', 'Post'] as const).map((label, i) => {
-                    const color = ['#e8a020', '#6470f3', '#00b894'][i]
-                    return (
-                      <div key={label} className="flex items-center gap-1.5">
-                        <span className="font-mono uppercase text-right flex-shrink-0" style={{ fontSize: '0.42rem', color: '#62627a', width: 28, letterSpacing: '0.06em' }}>{label}</span>
-                        <div className="flex-1 rounded-sm" style={{ height: 5, background: `${color}1a`, animation: `pulse 2.4s ease-in-out infinite ${i * 0.3}s` }} />
+          {/* 1. TIMELINE + BUDGET (2-col peers, producer-only Budget).
+              Producer: side-by-side. Non-producer: Timeline goes
+              full-width (Budget col is hidden). PR 14 placement fix. */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isProducer ? '1fr 1fr' : '1fr',
+              gap: 12,
+              alignItems: 'stretch',
+            }}
+          >
+            <div className="cursor-pointer" onClick={() => router.push(`/projects/${projectId}/timeline`)}>
+              <ModuleHeader name="Timeline" meta={new Date().toLocaleDateString('en-US', { weekday: 'short', month: '2-digit', day: '2-digit' }).replace(',', ' ·')} />
+              {loadingMS ? (
+                <div style={{ ...cardStyle, height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div className="w-4 h-4 rounded-full border border-border2 border-t-accent animate-spin" />
+                </div>
+              ) : allMS.length === 0 ? (
+                <div style={{ ...cardStyle, height: 130, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ padding: '12px 12px 0', display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+                    {(['Pre', 'Prod', 'Post'] as const).map((label, i) => {
+                      const color = ['#e8a020', '#6470f3', '#00b894'][i]
+                      return (
+                        <div key={label} className="flex items-center gap-1.5">
+                          <span className="font-mono uppercase text-right flex-shrink-0" style={{ fontSize: '0.42rem', color: '#62627a', width: 28, letterSpacing: '0.06em' }}>{label}</span>
+                          <div className="flex-1 rounded-sm" style={{ height: 5, background: `${color}1a`, animation: `pulse 2.4s ease-in-out infinite ${i * 0.3}s` }} />
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-4">
+                    <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#dddde8', letterSpacing: '-0.01em' }}>The time is now.</div>
+                    <div className="font-mono" style={{ fontSize: '0.47rem', color: '#62627a', letterSpacing: '0.03em', lineHeight: 1.6 }}>No milestones yet.<br />Add milestones to start the clock.</div>
+                  </div>
+                </div>
+              ) : (
+                // item 10: Gantt chart replaces milestone list
+                <div style={{ ...cardStyle, height: 130, display: 'flex', flexDirection: 'column' }}>
+                  <GanttChart milestones={allMS} projectStatus={project.status} />
+                </div>
+              )}
+            </div>
+
+            {/* BUDGET — producer-only (spec Q8). Same data + compute as
+                the Budget page; previews working total + actuals + %
+                spent + variance summary chip. PR 14 moved this up
+                from below to be a peer of Timeline. */}
+            {isProducer && (
+              <div
+                className="cursor-pointer"
+                onClick={() => { haptic('light'); router.push(`/projects/${projectId}/budget`) }}
+              >
+                <ModuleHeader
+                  name="Budget"
+                  meta={
+                    budgetPreview
+                      ? `Working · $${Math.round(budgetPreview.workingTotal).toLocaleString('en-US')}`
+                      : 'Not started'
+                  }
+                />
+                {budgetPreview ? (
+                  <div
+                    style={{
+                      padding: '12px 14px', height: 130,
+                      background: 'rgba(10,10,18,0.42)',
+                      backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+                      border: '1px solid rgba(255,255,255,0.07)',
+                      borderRadius: 14,
+                      display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+                      gap: 12, boxSizing: 'border-box',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        className="font-mono uppercase"
+                        style={{ fontSize: '0.40rem', letterSpacing: '0.1em', color: '#62627a', marginBottom: 4 }}
+                      >Actuals · Working</div>
+                      <div
+                        className="font-mono"
+                        style={{ fontSize: '0.95rem', fontWeight: 600, color: '#9b6ef3' }}
+                      >${Math.round(budgetPreview.actuals).toLocaleString('en-US')}</div>
+                      {budgetPreview.workingTotal > 0 && (
+                        <div className="font-mono" style={{ fontSize: '0.5rem', color: '#a0a0b8', marginTop: 4 }}>
+                          {Math.round((budgetPreview.actuals / budgetPreview.workingTotal) * 100)}% spent
+                          <div
+                            style={{
+                              marginTop: 4, width: '100%', maxWidth: 100, height: 3, borderRadius: 2, overflow: 'hidden',
+                              background: 'rgba(255,255,255,0.06)', position: 'relative',
+                            }}
+                          >
+                            <div
+                              style={{
+                                position: 'absolute', inset: 0,
+                                width: `${Math.min(100, Math.round((budgetPreview.actuals / budgetPreview.workingTotal) * 100))}%`,
+                                background: '#9b6ef3', borderRadius: 2,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {/* Variance summary chip — over-budget tally if any. */}
+                      <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                        {budgetPreview.overCount > 0 ? (
+                          <span
+                            className="font-mono uppercase"
+                            style={{
+                              fontSize: '0.40rem', letterSpacing: '0.08em',
+                              padding: '3px 8px', borderRadius: 999,
+                              background: 'rgba(232,86,74,0.10)',
+                              border: '1px solid rgba(232,86,74,0.30)',
+                              color: '#e8564a',
+                            }}
+                          >
+                            ⚠ {budgetPreview.overCount} {budgetPreview.overCount === 1 ? 'line' : 'lines'} over budget
+                          </span>
+                        ) : budgetPreview.lineCount > 0 ? (
+                          <span
+                            className="font-mono uppercase"
+                            style={{
+                              fontSize: '0.40rem', letterSpacing: '0.08em',
+                              padding: '3px 8px', borderRadius: 999,
+                              background: 'rgba(0,184,148,0.08)',
+                              border: '1px solid rgba(0,184,148,0.28)',
+                              color: '#00b894',
+                            }}
+                          >On budget</span>
+                        ) : null}
+                        {budgetPreview.underCount > 0 && (
+                          <span
+                            className="font-mono uppercase"
+                            style={{
+                              fontSize: '0.40rem', letterSpacing: '0.08em',
+                              padding: '3px 8px', borderRadius: 999,
+                              background: 'rgba(0,184,148,0.08)',
+                              border: '1px solid rgba(0,184,148,0.28)',
+                              color: '#00b894',
+                            }}
+                          >↓ {budgetPreview.underCount} under</span>
+                        )}
                       </div>
-                    )
-                  })}
-                </div>
-                <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-4">
-                  <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#dddde8', letterSpacing: '-0.01em' }}>The time is now.</div>
-                  <div className="font-mono" style={{ fontSize: '0.47rem', color: '#62627a', letterSpacing: '0.03em', lineHeight: 1.6 }}>No milestones yet.<br />Add milestones to start the clock.</div>
-                </div>
-              </div>
-            ) : (
-              // item 10: Gantt chart replaces milestone list
-              <div style={{ ...cardStyle, height: 130, display: 'flex', flexDirection: 'column' }}>
-                <GanttChart milestones={allMS} projectStatus={project.status} />
+                    </div>
+                    <div
+                      style={{ color: '#62627a', fontSize: '1rem', flexShrink: 0 }}
+                    >›</div>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      padding: '14px', height: 130,
+                      background: 'rgba(10,10,18,0.42)',
+                      backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+                      border: '1px dashed rgba(155,110,243,0.28)',
+                      borderRadius: 14,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'rgba(196,90,220,0.75)',
+                      fontFamily: 'monospace', fontSize: '0.5rem', letterSpacing: '0.08em', textTransform: 'uppercase',
+                      boxSizing: 'border-box', textAlign: 'center',
+                    }}
+                  >
+                    Start budget →
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1481,131 +1614,6 @@ export function HubContent({ projectId }: { projectId: string }) {
                   )
                 })}
               </div>
-            </div>
-          )}
-
-          {/* BUDGET — producer-only (spec Q8). PR 8: simple working total +
-              actuals + % spent. Fancier topsheet variants land in PR 10. */}
-          {isProducer && (
-            <div style={{ padding: '0 2px' }}>
-              <div
-                className="cursor-pointer"
-                onClick={() => router.push(`/projects/${projectId}/budget`)}
-              >
-                <ModuleHeader
-                  name="Budget"
-                  meta={
-                    budgetPreview
-                      ? `Working · $${Math.round(budgetPreview.workingTotal).toLocaleString('en-US')}`
-                      : 'Not started'
-                  }
-                />
-              </div>
-              {budgetPreview ? (
-                <div
-                  onClick={() => { haptic('light'); router.push(`/projects/${projectId}/budget`) }}
-                  className="cursor-pointer active:opacity-80 transition-opacity"
-                  style={{
-                    padding: '12px 14px',
-                    background: 'rgba(10,10,18,0.42)',
-                    backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-                    border: '1px solid rgba(255,255,255,0.07)',
-                    borderRadius: 14,
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    gap: 16,
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      className="font-mono uppercase"
-                      style={{ fontSize: '0.40rem', letterSpacing: '0.1em', color: '#62627a', marginBottom: 4 }}
-                    >Actuals · Working</div>
-                    <div
-                      className="font-mono"
-                      style={{ fontSize: '0.95rem', fontWeight: 600, color: '#9b6ef3' }}
-                    >${Math.round(budgetPreview.actuals).toLocaleString('en-US')}</div>
-                    {budgetPreview.workingTotal > 0 && (
-                      <div className="font-mono" style={{ fontSize: '0.5rem', color: '#a0a0b8', marginTop: 4 }}>
-                        {Math.round((budgetPreview.actuals / budgetPreview.workingTotal) * 100)}% spent
-                        <div
-                          style={{
-                            marginTop: 4, width: 100, height: 3, borderRadius: 2, overflow: 'hidden',
-                            background: 'rgba(255,255,255,0.06)', position: 'relative',
-                          }}
-                        >
-                          <div
-                            style={{
-                              position: 'absolute', inset: 0,
-                              width: `${Math.min(100, Math.round((budgetPreview.actuals / budgetPreview.workingTotal) * 100))}%`,
-                              background: '#9b6ef3', borderRadius: 2,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    {/* Variance summary chip — over-budget tally if any. */}
-                    <div className="flex" style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                      {budgetPreview.overCount > 0 ? (
-                        <span
-                          className="font-mono uppercase"
-                          style={{
-                            fontSize: '0.40rem', letterSpacing: '0.08em',
-                            padding: '3px 8px', borderRadius: 999,
-                            background: 'rgba(232,86,74,0.10)',
-                            border: '1px solid rgba(232,86,74,0.30)',
-                            color: '#e8564a',
-                          }}
-                        >
-                          ⚠ {budgetPreview.overCount} {budgetPreview.overCount === 1 ? 'line' : 'lines'} over budget
-                        </span>
-                      ) : budgetPreview.lineCount > 0 ? (
-                        <span
-                          className="font-mono uppercase"
-                          style={{
-                            fontSize: '0.40rem', letterSpacing: '0.08em',
-                            padding: '3px 8px', borderRadius: 999,
-                            background: 'rgba(0,184,148,0.08)',
-                            border: '1px solid rgba(0,184,148,0.28)',
-                            color: '#00b894',
-                          }}
-                        >On budget</span>
-                      ) : null}
-                      {budgetPreview.underCount > 0 && (
-                        <span
-                          className="font-mono uppercase"
-                          style={{
-                            fontSize: '0.40rem', letterSpacing: '0.08em',
-                            padding: '3px 8px', borderRadius: 999,
-                            background: 'rgba(0,184,148,0.08)',
-                            border: '1px solid rgba(0,184,148,0.28)',
-                            color: '#00b894',
-                          }}
-                        >↓ {budgetPreview.underCount} under</span>
-                      )}
-                    </div>
-                  </div>
-                  <div
-                    style={{ color: '#62627a', fontSize: '1rem', alignSelf: 'flex-start', paddingTop: 4 }}
-                  >›</div>
-                </div>
-              ) : (
-                <div
-                  onClick={() => { haptic('light'); router.push(`/projects/${projectId}/budget`) }}
-                  className="cursor-pointer active:opacity-80 transition-opacity"
-                  style={{
-                    padding: '14px',
-                    background: 'rgba(10,10,18,0.42)',
-                    backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-                    border: '1px dashed rgba(155,110,243,0.28)',
-                    borderRadius: 14,
-                    textAlign: 'center',
-                    color: 'rgba(196,90,220,0.75)',
-                    fontFamily: 'monospace', fontSize: '0.5rem', letterSpacing: '0.08em', textTransform: 'uppercase',
-                  }}
-                >
-                  Start budget →
-                </div>
-              )}
             </div>
           )}
 
