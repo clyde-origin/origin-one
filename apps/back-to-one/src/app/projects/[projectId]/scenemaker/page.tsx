@@ -1092,7 +1092,10 @@ function BoardCard({ shot, sceneColor, aspectRatio, isDragging, isShifted, onTap
         }}>
         {/* shot image area */}
         <div className="relative" style={{ aspectRatio: aspectRatioToCss(aspectRatio) }}>
-          <div className="w-full h-full" style={{ background: `linear-gradient(135deg, ${sceneColor}15, ${sceneColor}08)` }} />
+          <div className="w-full h-full absolute inset-0" style={{ background: `linear-gradient(135deg, ${sceneColor}15, ${sceneColor}08)` }} />
+          {shot.imageUrl && (
+            <StorageImage url={shot.imageUrl} alt={shot.shotNumber} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+          )}
           <div className="absolute top-1 left-1" style={{
             fontFamily: "'Geist', sans-serif", fontSize: '0.38rem', fontWeight: 700, letterSpacing: '0.04em',
             color: sceneColor, background: 'rgba(4,4,10,0.7)',
