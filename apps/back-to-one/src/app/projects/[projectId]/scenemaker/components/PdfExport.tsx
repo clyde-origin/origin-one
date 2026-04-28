@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import type { Scene, Shot } from '@/types'
+import { aspectRatioToCss } from '@/lib/aspect-ratio'
 
 const SIZE_ABBREV: Record<string, string> = {
   extreme_wide: 'EWS', wide: 'WIDE', full: 'FS', medium: 'MED',
@@ -178,9 +179,9 @@ function ShotlistPage({ shots, orientation, projectName, clientName, version }: 
 }
 
 // ── STORYBOARD PAGE ─────────────────────────────────────────
-function StoryboardPage({ shots, orientation, projectName, clientName, version }: {
+function StoryboardPage({ shots, orientation, projectName, clientName, version, aspectRatio }: {
   shots: Shot[]; orientation: 'portrait' | 'landscape'
-  projectName: string; clientName: string; version: string
+  projectName: string; clientName: string; version: string; aspectRatio?: string | null
 }) {
   return (
     <div className={`paper-page ${orientation}`} style={{
@@ -192,7 +193,7 @@ function StoryboardPage({ shots, orientation, projectName, clientName, version }
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, padding: '2px 0' }}>
           {shots.map((shot, i) => (
             <div key={shot.id} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div style={{ width: '100%', aspectRatio: '16/9', borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ width: '100%', aspectRatio: aspectRatioToCss(aspectRatio), borderRadius: 2, overflow: 'hidden' }}>
                 {shot.imageUrl ? (
                   <img src={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
@@ -215,9 +216,9 @@ function StoryboardPage({ shots, orientation, projectName, clientName, version }
 
 // ── MAIN EXPORT COMPONENT ────────────────────────────────────
 
-export function PdfExport({ scenes, shots, projectName, clientName, onClose }: {
+export function PdfExport({ scenes, shots, projectName, clientName, aspectRatio, onClose }: {
   scenes: Scene[]; shots: Shot[]
-  projectName: string; clientName: string
+  projectName: string; clientName: string; aspectRatio?: string | null
   onClose: () => void
 }) {
   const [includeScript, setIncludeScript] = useState(true)
@@ -242,10 +243,10 @@ export function PdfExport({ scenes, shots, projectName, clientName, onClose }: {
       p.push({ key: 'shotlist', node: <ShotlistPage shots={sortedShots} orientation={orientation} projectName={projectName} clientName={clientName} version={version} /> })
     }
     if (includeStoryboard) {
-      p.push({ key: 'storyboard', node: <StoryboardPage shots={sortedShots} orientation={orientation} projectName={projectName} clientName={clientName} version={version} /> })
+      p.push({ key: 'storyboard', node: <StoryboardPage shots={sortedShots} orientation={orientation} projectName={projectName} clientName={clientName} version={version} aspectRatio={aspectRatio} /> })
     }
     return p
-  }, [includeScript, includeShotlist, includeStoryboard, orientation, version, scenes, sortedShots, projectName, clientName])
+  }, [includeScript, includeShotlist, includeStoryboard, orientation, version, scenes, sortedShots, projectName, clientName, aspectRatio])
 
   const handleShare = () => {
     if (!anySelected) return

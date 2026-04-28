@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { haptic } from '@/lib/utils/haptics'
+import { aspectRatioToCss } from '@/lib/aspect-ratio'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import { TV } from '@/lib/thread-tokens'
 import type { Shot } from '@/types'
@@ -25,10 +26,11 @@ const SHOT_SIZES = [
   { value: 'pov', label: 'POV' },
 ]
 
-export function ShotDetailSheet({ shot, accent, projectId, onClose, onUploadImage, onUpdateShot }: {
+export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose, onUploadImage, onUpdateShot }: {
   shot: Shot | null
   accent: string
   projectId: string
+  aspectRatio?: string | null
   onClose: () => void
   onUploadImage: (shotId: string, file: File) => void
   onUpdateShot: (shotId: string, fields: { description?: string; size?: string | null; notes?: string }) => void
@@ -98,7 +100,7 @@ export function ShotDetailSheet({ shot, accent, projectId, onClose, onUploadImag
           margin: '4px 16px 14px',
           borderRadius: 10,
           overflow: 'hidden',
-          aspectRatio: '16/9',
+          aspectRatio: aspectRatioToCss(aspectRatio),
           background: shot.imageUrl ? 'transparent' : `linear-gradient(135deg, ${accent}12, ${accent}06)`,
           border: shot.imageUrl ? 'none' : `1.5px dashed ${accent}30`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',

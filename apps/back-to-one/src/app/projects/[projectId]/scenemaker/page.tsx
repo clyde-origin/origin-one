@@ -14,6 +14,7 @@ import { haptic } from '@/lib/utils/haptics'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { getProjectColor, getSceneColor, statusHex, statusLabel } from '@/lib/utils/phase'
+import { aspectRatioToCss } from '@/lib/aspect-ratio'
 import { ScriptView, type ScriptViewHandle } from './components/ScriptView'
 import { ShotDetailSheet } from './components/ShotDetailSheet'
 import { EntityDrawer } from './components/EntityDrawer'
@@ -759,8 +760,8 @@ function EmptySceneDropZone({ sceneColor, highlighted }: { sceneColor: string; h
 
 // ── STORYBOARD VIEW ──────────────────────────────────────
 
-function StoryboardView({ scenes, shots, scale, onTapShot, onReorder }: {
-  scenes: Scene[]; shots: Shot[]; scale: StoryboardScale; onTapShot: (s: Shot) => void
+function StoryboardView({ scenes, shots, scale, aspectRatio, onTapShot, onReorder }: {
+  scenes: Scene[]; shots: Shot[]; scale: StoryboardScale; aspectRatio?: string | null; onTapShot: (s: Shot) => void
   onReorder: (shotId: string, newIndex: number) => void
 }) {
   const totalScenes = scenes.length
@@ -823,7 +824,7 @@ function StoryboardView({ scenes, shots, scale, onTapShot, onReorder }: {
         return (
           <div key={shot.id} className="cursor-pointer" onClick={() => onTapShot(shot)}
             style={{ background: 'rgba(10,10,18,0.42)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, overflow: 'hidden' }}>
-            <div className="relative" style={{ aspectRatio: '16/9' }}>
+            <div className="relative" style={{ aspectRatio: aspectRatioToCss(aspectRatio) }}>
               {shot.imageUrl ? (
                 <img src={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
@@ -862,7 +863,7 @@ function StoryboardView({ scenes, shots, scale, onTapShot, onReorder }: {
             return (
               <div key={slot}
                 style={{
-                  aspectRatio: '16/9', borderRadius: 10, overflow: 'hidden', position: 'relative',
+                  aspectRatio: aspectRatioToCss(aspectRatio), borderRadius: 10, overflow: 'hidden', position: 'relative',
                   background: shot ? `linear-gradient(135deg, ${sc}15, ${sc}08)` : 'rgba(255,255,255,0.03)',
                   border: `2px solid ${slotColor}60`,
                   boxShadow: `0 0 12px ${slotColor}15`,
@@ -904,7 +905,7 @@ function StoryboardView({ scenes, shots, scale, onTapShot, onReorder }: {
                       transition: 'border 0.15s, opacity 0.15s',
                     }}
                       onClick={() => { haptic('light'); setSlotId[slot](shot.id) }}>
-                      <div style={{ aspectRatio: '16/9', background: `linear-gradient(135deg, ${sc}15, ${sc}08)` }}>
+                      <div style={{ aspectRatio: aspectRatioToCss(aspectRatio), background: `linear-gradient(135deg, ${sc}15, ${sc}08)` }}>
                         {shot.imageUrl && <img src={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                       </div>
                       <div style={{ padding: '2px 4px', fontSize: '0.3rem', fontWeight: 700, color: isSelected ? slotColor : sc, textAlign: 'center' }}>{shot.shotNumber}</div>
@@ -931,7 +932,7 @@ function StoryboardView({ scenes, shots, scale, onTapShot, onReorder }: {
           return (
             <div key={shot.id} className="cursor-pointer" onClick={() => onTapShot(shot)}
               style={{ borderRadius: 4, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)', position: 'relative' }}>
-              <div style={{ aspectRatio: '16/9', background: `linear-gradient(135deg, ${sc}12, ${sc}06)` }}>
+              <div style={{ aspectRatio: aspectRatioToCss(aspectRatio), background: `linear-gradient(135deg, ${sc}12, ${sc}06)` }}>
                 {shot.imageUrl && <img src={shot.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
               </div>
               <div className="absolute bottom-0 left-0 right-0" style={{
@@ -953,7 +954,7 @@ function StoryboardView({ scenes, shots, scale, onTapShot, onReorder }: {
         const state = getBoardDragState(shot.id)
 
         return (
-          <BoardCard key={shot.id} shot={shot} sceneColor={sceneColor}
+          <BoardCard key={shot.id} shot={shot} sceneColor={sceneColor} aspectRatio={aspectRatio}
             isDragging={state === 'dragging'}
             isShifted={state === 'shift'}
             onTap={() => onTapShot(shot)}
@@ -1014,8 +1015,8 @@ function StoryboardView({ scenes, shots, scale, onTapShot, onReorder }: {
   )
 }
 
-function BoardCard({ shot, sceneColor, isDragging, isShifted, onTap, onDragStart, onDragMove, onDragEnd }: {
-  shot: Shot; sceneColor: string; isDragging: boolean; isShifted: boolean
+function BoardCard({ shot, sceneColor, aspectRatio, isDragging, isShifted, onTap, onDragStart, onDragMove, onDragEnd }: {
+  shot: Shot; sceneColor: string; aspectRatio?: string | null; isDragging: boolean; isShifted: boolean
   onTap: () => void; onDragStart: (x: number, y: number, el: HTMLDivElement | null) => void; onDragMove: (x: number, y: number) => void; onDragEnd: () => void
 }) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1088,8 +1089,8 @@ function BoardCard({ shot, sceneColor, isDragging, isShifted, onTap, onDragStart
             transform: isShifted ? 'scale(0.95)' : 'scale(1)',
           }),
         }}>
-        {/* 16:9 image area */}
-        <div className="relative" style={{ aspectRatio: '16/9' }}>
+        {/* shot image area */}
+        <div className="relative" style={{ aspectRatio: aspectRatioToCss(aspectRatio) }}>
           <div className="w-full h-full" style={{ background: `linear-gradient(135deg, ${sceneColor}15, ${sceneColor}08)` }} />
           <div className="absolute top-1 left-1" style={{
             fontFamily: "'Geist', sans-serif", fontSize: '0.38rem', fontWeight: 700, letterSpacing: '0.04em',
@@ -1917,7 +1918,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
               {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} onUpdateScene={handleUpdateScene} />}
               {mode === 'shotlist' && !previewVersion && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} sortMode={shotOrder} threadByShotId={threadByShotId} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onReorderToScene={handleReorderToScene} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} onUpdateShot={(shotId, fields) => { updateShot(shotId, fields).then(() => qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })).catch(err => console.error('Failed to update shot:', err)) }} onShootReorder={handleShootReorder} />}
               {mode === 'shotlist' && previewVersion && <ShotlistView scenes={displayScenes} shots={displayShots} accent={accent} sortMode={shotOrder} onTapShot={() => {}} onTapThumbnail={() => {}} onInsert={() => {}} onReorder={() => {}} onReorderToScene={() => {}} onRenameScene={() => {}} onDeleteScene={() => {}} onUpdateShot={() => {}} />}
-              {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} scale={boardScale} onTapShot={setSelectedShot} onReorder={handleReorder} />}
+              {mode === 'storyboard' && <StoryboardView scenes={allScenes} shots={allShots} scale={boardScale} aspectRatio={project?.aspectRatio} onTapShot={setSelectedShot} onReorder={handleReorder} />}
             </>
           )}
         </div>
@@ -1944,7 +1945,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
       {/* Shot detail sheet */}
       <Sheet open={!!selectedShot} onClose={() => setSelectedShot(null)} maxHeight="95vh">
-        <ShotDetailSheet shot={selectedShot} accent={accent} projectId={projectId} onClose={() => setSelectedShot(null)} onUploadImage={handleUploadImage}
+        <ShotDetailSheet shot={selectedShot} accent={accent} projectId={projectId} aspectRatio={project?.aspectRatio} onClose={() => setSelectedShot(null)} onUploadImage={handleUploadImage}
           onUpdateShot={(shotId, fields) => {
             updateShot(shotId, fields).then(() => {
               qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
@@ -1992,6 +1993,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
             shots={allShots}
             projectName={project?.name ?? 'Untitled'}
             clientName={project?.client ?? ''}
+            aspectRatio={project?.aspectRatio}
             onClose={() => setShowExport(false)}
           />
         )}
