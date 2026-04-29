@@ -1,7 +1,7 @@
 # Back to One — Build Status
 Update this file at the end of every Claude Code session. This is the single source of truth for where the build actually is.
 
-Last updated: April 27, 2026 (post PR #60 merge — Crew Profile v2 UI #22 closed; **all of Crew Profile v2 done end-to-end**)
+Last updated: April 28, 2026 (Auth Day complete — full bundle live; Tyler/Kelly/Christian on Origin Point; Matt Forrest first external producer on Cloud Forest team with demo clones)
 
 ---
 
@@ -94,20 +94,31 @@ Each row is a complete PR (schema or UI). Strict order — next row doesn't star
 | 21 | `avatars` bucket + helper | ✅ | PR #58 (Apr 27). Migration `20260427020000` adds `avatars` bucket (5MB, png/jpeg/webp) with **permissive RLS** matching the `entity-attachments` precedent — DECISIONS "Avatars storage" entry justifies the deviation from auth-check-from-day-one. `uploadAvatar(file, userId)` helper handles upload + atomic `User.avatarUrl` update + best-effort cleanup of the old avatar object. `removeAvatar(userId)` for clearing. Both buckets (`entity-attachments` + `avatars`) tightened on Auth day in #24's RLS pass. |
 | 22 | Crew Profile v2 UI | ✅ | PR #60 (Apr 27). Augments existing `CrewDetailSheet` in HubContent.tsx (no new sheet, no new route). Tap-to-upload avatar (renders `User.avatarUrl` or falls back to initials-based `CrewAvatar`); editable phone with `tel:` autoComplete; skills chips with × remove + Enter-to-add; notes textarea (project-scoped, auto-save on blur). Mutations route to `User` for phone/avatar and `ProjectMember` for notes/skills per the global-vs-role split from DECISIONS. Reference HTML rule waived: existing sheet already exists, additive UI follows in-codebase patterns (chips from threads, textarea from action items, avatar pattern fresh). |
 
-### Auth
+### Auth — ✅ Shipped Apr 28, 2026
+
+Full bundle live. 17 PRs. Producers (Clyde, Tyler, Kelly, Christian) signed in on Origin Point; first external producer (Matt Forrest, Cloud Forest team) onboarded with cloned demos.
 
 | # | Feature | Status | Notes |
 |---|---|---|---|
-| 23 | Supabase Auth wiring + session management | ⬜ | |
-| 24 | RLS policies across all tables + tighten existing moodboard/storyboard policies | ⬜ | Scope grows with every table added above |
-| 25 | Replace viewer shim in CrewPanel with real Auth session | ⬜ | Single-spot `useMemo` swap |
-| 26 | Vercel deploy + fresh-login smoke test across all surfaces | ⬜ | |
+| 23 | Supabase Auth wiring + session management | ✅ | PR #84 (auth-006). `@supabase/ssr` middleware, `/login`, `/auth/callback`, `/auth/setup-password`, `/auth/error`, `useSupabaseSession`, `useViewerRole`, `useMyTeam`. Login restored to immersive design (PR #96). |
+| 24 | RLS policies across all tables + storage tightening | ✅ | PR #81 (auth-004) policies; PR #82 (auth-005) storage; PR #88 (auth-008) User recursion fix; PR #95 (auth-014) `(select auth.uid())` perf wrap + 45 FK indices. 93 policies live. |
+| 25 | Replace viewer shim in CrewPanel with real Auth session | ✅ | PR #84. `useMeId()` body swapped to authId-driven; `viewerIdentity.ts` deleted; HubContent id-vs-userId fix bundled. |
+| 26 | Vercel deploy + smoke test | ✅ | Apr 28. Dogfood active. |
+| — | In-app crew invite + add-role | ✅ | PR #85 (auth-006a). Producer-only. |
+| — | Founding-team rebind + signed URLs | ✅ | Live. Storage path: signed URLs for moodboard/storyboard/entity-attachments; avatars stays public. |
 
-### Dogfood
+**Auth follow-ups (queued, not blocking):**
+- **Auto-binding handler in middleware** — password sign-in skips `/auth/callback`, so password-only users with no User row hit `incomplete-invite` (Christian's experience). Move bind logic into middleware so any first-authenticated request triggers it. ~30 lines, single PR.
+- **In-app new-team flow** — currently SQL-only path for onboarding new producers / new teams (used for Matt). Build UI when 3rd external tester arrives.
+- **Demo cloning UI** — manual SQL clone done for Cloud Forest (Matt). UI ships with new-team flow.
+- **Multi-team header** — `useMyTeam` shows the first team. Edge case when one user is on multiple teams.
+- **Orphan storage buckets** — `project-locations` (12 obj) and `project-moodboards` (18 obj) unused. Drop after content audit.
+
+### Dogfood — ✅ Active
 
 | # | Feature | Status | Notes |
 |---|---|---|---|
-| — | Tyler + Kelly first-production run | ⬜ | Ships when every surface above is honest and the data is real enough to think with |
+| — | Tyler + Kelly first-production run | 🟡 In progress | Auth shipped Apr 28; Tyler/Kelly accounts active. Real-production usage begins. |
 
 ---
 
