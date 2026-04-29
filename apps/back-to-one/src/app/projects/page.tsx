@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   useProjects, useCrew, useArchiveProject, useDeleteProject, useUpdateProject,
-  useMeId, useUserProjectFolders, useUserProjectPlacements,
+  useMeId, useMyTeam, useUserProjectFolders, useUserProjectPlacements,
   useCreateUserProjectFolder, useUpdateUserProjectFolder, useDeleteUserProjectFolder,
   useUpsertUserProjectPlacement, useArchivedProjects, useRestoreProject,
   useArchivedUserProjectFolders, useArchiveUserProjectFolder, useRestoreUserProjectFolder,
@@ -398,6 +398,7 @@ export default function ProjectsPage() {
   // by the corresponding bar buttons. All three sheets share visual style
   // and z-stacking, with mutual exclusion against fan/panel below.
   const meId = useMeId()
+  const myTeam = useMyTeam()
   const { data: folders } = useUserProjectFolders()
   const { data: placements } = useUserProjectPlacements()
   const allFolders = folders ?? []
@@ -685,7 +686,7 @@ export default function ProjectsPage() {
         <div style={{ position: 'relative', padding: '0 20px 18px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' as const }}>
             <p className="font-mono uppercase" style={{ fontSize: '0.4rem', color: '#62627a', letterSpacing: '0.12em', marginBottom: 3 }}>Back to One</p>
-            <h1 className="font-sans" style={{ fontWeight: 800, fontSize: '1.6rem', color: '#dddde8', letterSpacing: '-0.03em', lineHeight: 1 }}>Origin Point</h1>
+            <h1 className="font-sans" style={{ fontWeight: 800, fontSize: '1.6rem', color: '#dddde8', letterSpacing: '-0.03em', lineHeight: 1 }}>{myTeam?.name ?? 'Projects'}</h1>
             <p className="font-sans" style={{ fontSize: '0.88rem', fontWeight: 500, color: '#62627a', marginTop: 10 }}>Select a Project</p>
           </div>
           <button onClick={handleLogout} className="active:opacity-60 transition-opacity" style={{
