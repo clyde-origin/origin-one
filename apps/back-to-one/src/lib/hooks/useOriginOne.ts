@@ -469,6 +469,33 @@ export function useMeId(): string | null {
   return data ?? null
 }
 
+/**
+ * Returns the current viewer's team name (the first TeamMember row's Team).
+ * For crew-only users (no TeamMember rows), returns null. Producer/director
+ * accounts get their team's name shown in the projects page header.
+ */
+export function useMyTeam(): { id: string; name: string } | null {
+  const session = useSupabaseSession()
+  const authId = session?.user.id ?? null
+  const { data } = useQuery({
+    queryKey: ['myTeam', authId],
+    queryFn: async () => {
+      if (!authId) return null
+      const supa = createBrowserAuthClient()
+      const { data } = await supa
+        .from('TeamMember')
+        .select('Team!inner(id, name), User!inner(authId)')
+        .eq('User.authId', authId)
+        .limit(1)
+        .maybeSingle()
+      const team = (data as { Team?: { id: string; name: string } } | null)?.Team
+      return team ?? null
+    },
+    enabled: !!authId,
+  })
+  return data ?? null
+}
+
 export function useThreads(projectId: string) {
   const meId = useMeId()
   return useQuery({
