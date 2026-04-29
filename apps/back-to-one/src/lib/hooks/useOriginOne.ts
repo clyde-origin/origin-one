@@ -33,6 +33,7 @@ export const keys = {
   castRoles:      (projectId: string) => ['castRoles', projectId] as const,
   artItems:       (projectId: string) => ['artItems', projectId] as const,
   threads:        (projectId: string, meId: string | null) => ['threads', projectId, meId ?? ''] as const,
+  threadPreviews: (projectId: string, meId: string | null) => ['threadPreviews', projectId, meId ?? ''] as const,
   folders:        (projectId: string) => ['folders', projectId] as const,
   resources:      (projectId: string) => ['resources', projectId] as const,
   workflowNodes:  (projectId: string) => ['workflowNodes', projectId] as const,
@@ -505,6 +506,19 @@ export function useThreads(projectId: string) {
   })
 }
 
+// Lighter twin of useThreads — same shape, but message rows omit the
+// `content` body. Use everywhere the consumer only needs unread badges and
+// message counts (Hub, useThreadsByEntity, scenemaker). Reserves the full
+// fetch for the threads page itself.
+export function useThreadPreviews(projectId: string) {
+  const meId = useMeId()
+  return useQuery({
+    queryKey: keys.threadPreviews(projectId, meId),
+    queryFn:  () => db.getThreadPreviews(projectId, meId),
+    enabled:  !!projectId,
+  })
+}
+
 export function useCreateThread(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
@@ -519,6 +533,7 @@ export function useCreateThread(projectId: string) {
     }) => db.createThread(projectId, attachedToType, attachedToId, createdBy),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['threads', projectId] })
+      qc.invalidateQueries({ queryKey: ['threadPreviews', projectId] })
       qc.invalidateQueries({ queryKey: ['allThreads'] })
     },
   })
@@ -538,6 +553,7 @@ export function usePostMessage(projectId: string) {
     }) => db.postMessage(threadId, createdBy, content),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['threads', projectId] })
+      qc.invalidateQueries({ queryKey: ['threadPreviews', projectId] })
       qc.invalidateQueries({ queryKey: ['allThreads'] })
     },
   })
@@ -558,6 +574,7 @@ export function useMarkThreadRead(projectId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['threads', projectId] })
+      qc.invalidateQueries({ queryKey: ['threadPreviews', projectId] })
       qc.invalidateQueries({ queryKey: ['allThreads'] })
     },
   })

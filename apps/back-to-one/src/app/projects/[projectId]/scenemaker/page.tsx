@@ -5,7 +5,7 @@ import { AnimatePresence } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { useProject, useScenes, useShotlistVersions, useCreateShotlistVersion, useUpdateShotlistVersionLabel, useThreads } from '@/lib/hooks/useOriginOne'
+import { useProject, useScenes, useShotlistVersions, useCreateShotlistVersion, useUpdateShotlistVersionLabel, useThreadPreviews } from '@/lib/hooks/useOriginOne'
 import { getShotsByProject, updateShotOrder, updateShootOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene, deleteScene } from '@/lib/db/queries'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -1247,7 +1247,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const initialMode = (searchParams.get('mode') as SceneMakerMode) || 'shotlist'
   const [mode, setMode] = useState<SceneMakerMode>(initialMode)
   const [selectedShot, setSelectedShot] = useState<Shot | null>(null)
-  const { data: threadsData } = useThreads(projectId)
+  const { data: threadsData } = useThreadPreviews(projectId)
   const threadByShotId = useMemo(() => {
     const map = new Map<string, { count: number; unread: boolean }>()
     for (const t of (threadsData ?? [])) {
