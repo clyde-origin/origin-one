@@ -888,6 +888,20 @@ export function HubContent({ projectId }: { projectId: string }) {
   const { data: shootDays } = useShootDays(projectId)
   const { data: budgetData } = useBudget(projectId)
 
+  // Warm Next.js's route cache for every subpage the Hub can navigate to.
+  // The Hub uses router.push() (not <Link>), so without this every first
+  // click pays for a fresh route compile + JS chunk fetch. Prefetching once
+  // on mount makes subsequent navigation feel instant.
+  useEffect(() => {
+    if (!projectId) return
+    const targets = [
+      'timeline', 'budget', 'action-items', 'inventory', 'workflow',
+      'scenemaker', 'moodboard', 'locations', 'art', 'casting',
+      'crew', 'threads', 'chat', 'resources',
+    ]
+    for (const t of targets) router.prefetch(`/projects/${projectId}/${t}`)
+  }, [projectId, router])
+
   // Hub Budget preview rollup — same compute pipeline the budget page uses.
   // PR 8 keeps the card simple (working total + actuals + % spent); the
   // fancier topsheet card (variance flags etc.) lands in PR 10.
