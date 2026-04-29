@@ -13,6 +13,7 @@ import {
 } from '@/lib/hooks/useOriginOne'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { StorageImage } from '@/components/ui/StorageImage'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
@@ -659,7 +660,7 @@ export default function CastingPage({ params }: { params: { projectId: string } 
     <div className="screen">
       <PageHeader projectId={projectId} title="Casting" meta={project ? (
         <div className="flex flex-col items-center gap-1.5">
-          <span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span>
+          <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
           <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>
             {statusLabel(project.status)}
           </span>

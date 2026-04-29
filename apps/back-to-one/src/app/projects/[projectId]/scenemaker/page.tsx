@@ -9,6 +9,7 @@ import { useProject, useScenes, useShotlistVersions, useCreateShotlistVersion, u
 import { getShotsByProject, updateShotOrder, updateShootOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene, deleteScene } from '@/lib/db/queries'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { StorageImage } from '@/components/ui/StorageImage'
 import { Sheet } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
@@ -1755,7 +1756,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           meta={project ? (
             <div className="flex flex-col items-center gap-1.5">
               <span className="font-mono uppercase" style={{ fontSize: 11, letterSpacing: '0.12em', color: accent }}>One Arc</span>
-              <span className="text-text leading-none" style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em' }}>{project.name}</span>
+              <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="hub" />
               <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span>
             </div>
           ) : ''}
