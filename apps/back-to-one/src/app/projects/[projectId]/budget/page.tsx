@@ -743,12 +743,14 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
   const router = useRouter()
 
   // Producer-only page (auth-004 RLS guarantees no Budget data leaks; this
-  // redirect just keeps crew from landing on a hard-empty page).
+  // redirect just keeps crew from landing on a hard-empty page). The render
+  // gate sits after all hooks (see end of component) — early-returning here
+  // breaks the rules of hooks, since the body below has ~30 more hooks whose
+  // call count must stay stable across renders as `role` resolves.
   const role = useViewerRole(projectId)
   useEffect(() => {
     if (role === 'crew') router.replace(`/projects/${projectId}`)
   }, [role, router, projectId])
-  if (role !== 'producer') return null
 
   const { data: project } = useProject(projectId)
   const { data: budgetRaw, isLoading } = useBudget(projectId)
@@ -1076,9 +1078,8 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
     [budget?.id, accountsSorted.length],
   )
 
-  // Resolving / non-producer: render nothing (early return at top of
-  // component already handled most of this, but this guard remains for
-  // late-arriving role changes).
+  // Render gate: nothing for unresolved role / non-producers. All hooks
+  // above run unconditionally; only the JSX below is gated.
   if (role !== 'producer') return null
 
   const activeLine = activeLineId && budget
