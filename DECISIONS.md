@@ -3,7 +3,7 @@
 Every significant architectural or strategic decision lives here.
 Before relitigating any call, read this file first.
 
-Last updated: April 26, 2026
+Last updated: April 28, 2026
 
 ---
 
@@ -579,3 +579,89 @@ The `thread-context.ts` file now contains six explicit-enumeration sites for eac
 
 **Revisit trigger:**
 - Auth (#23) ships. Replace `readStoredViewerRole()` with the Supabase session role-claim across all three sites in a single PR. Add a `useViewerRole()` hook in `@origin-one/auth` so future producer-only sites have one entry point.
+
+---
+
+### Auth — shipped April 28, 2026
+
+**Decision:** Auth Day cutover landed across 17 PRs. Supabase native auth, multi-tenant Team boundary, three-tier writes (producer / high-trust / operational), signed-URL storage reads, demo cloning per team. Closes the Auth-day triggers above (storage tightening, viewer-shim consolidation, RLS pass).
+
+**Date:** April 28, 2026
+
+**Shape:**
+- **Tenancy:** `Team` is the tenant boundary. `TeamMember` (producer-tier) grants org-wide read across all team projects. `ProjectMember` (crew/partner) grants project-scoped read. Writes flow through three RLS predicates: `has_producer_access` (TeamMember + producer role on the project's team), `has_high_trust_write` (producer OR ProjectMember.canEdit), and `is_project_member` for operational rows (timecards, threads, attachments).
+- **Roles:** Producer | Crew | Partner enum on `User`. `partner` accepted in schema but not yet onboardable (login screen shows "Coming soon"). `canEdit` flag on ProjectMember promotes a crew member to high-trust writer on a single project — used for trusted contributors who shouldn't see the whole team's project list.
+- **Demo cloning:** Each new team gets its own copy of the 6 seed projects with `Project.is_demo=true`. Cloning is currently manual SQL (see `scripts/auth-day/`). Storage RLS allows any authenticated user to read content from `is_demo=true` projects so we don't have to copy the ~200 seed files per team.
+- **Storage reads:** Buckets stay `public=false` post-Auth. Reads go through `useStorageImage()` / `<StorageImage>` which calls `createSignedUrl` (1h expiry). Migrated all `<img src={publicUrl}>` and `backgroundImage` sites to the wrapper. Schema columns (`Shot.imageUrl`, `Location.imageUrl`, `Talent.imageUrl`, `MoodboardRef.imageUrl`, `User.avatarUrl`) keep storing the public URL form; the hook strips the prefix to derive the bucket+path before signing.
+
+**Rationale:**
+- Multi-tier writes match how productions actually delegate: a producer wants their AD to edit the schedule on a specific show without granting access to every project on the team. canEdit is the smallest predicate that buys that without inventing a "lieutenant" role.
+- Per-team demo clones (vs. shared demo projects) keep RLS simple — every project belongs to exactly one team, no special-cased "shared" rows. The is_demo storage carve-out absorbs the duplication cost.
+- Signed URLs over public buckets keep the door closed on accidental enumeration as we add external producers (Cloud Forest is the first non-Origin Point team).
+
+**Tradeoffs:**
+- Demo cloning is manual SQL, not a UI flow. We'll dogfood with the script and revisit when adding the 3rd or 4th team becomes painful (see follow-ups).
+- `auth.uid()` is wrapped as `(select auth.uid())` in every policy for init-plan caching (45 FK indices added in the same migration to support the policy joins). This reads weird but is the documented Supabase perf pattern; do not unwrap when editing policies.
+- Five public storage buckets pre-Auth flipped to `public=false` simultaneously — every existing public URL reference broke and had to be migrated to StorageImage. Hub Art preview, BoardCard 3-up, Art page, Scenemaker all needed touch-ups to match.
+
+**Revisit trigger:**
+- 3rd or 4th team onboarded → build a `cloneSeedForTeam()` admin endpoint and a "create new team" UI.
+- First partner role activated → wire the `partner` Role and a partner-scoped read predicate (currently the role exists but no policy references it).
+- Latency regression on a list query → check whether a missing FK index has been introduced; the Apr 28 perf migration covered the policies as-of that date but new policies need new indices.
+
+---
+
+### Auth — auto-binding User ↔ auth.users deferred
+
+**Decision:** A Supabase `auth.users` row is bound to a domain `User` row in two ways today: (A) email rebind — `bindAuthUser` in `apps/back-to-one/src/lib/auth/binding.ts` looks up the `User` by email and stamps `User.authId`; (B) explicit creation from `auth.users.app_metadata`. Both paths run only inside `/auth/callback` (the OTP/magic-link redirect handler). **Password sign-in bypasses `/auth/callback`**, which means a brand-new producer who signs in with a password never gets bound. We're aware of this and onboarding via manual SQL UPDATE per user instead of fixing it.
+
+**Date:** April 28, 2026
+
+**Rationale:**
+- The dogfood team is small enough (Clyde + Tyler + Kelly + Christian + Matt) that manual binding is faster than building the right fix. The right fix routes binding through middleware on every authenticated request and short-circuits when `User.authId` is already set.
+- We want to feel the manual onboarding pain a few times before deciding the shape — onboarding-via-admin-API already creates the `auth.users` row server-side, which means the missing `User` row is also server-side, which suggests an admin onboarding action that does both writes in one step is the actual right answer (not middleware auto-binding).
+
+**Tradeoffs:**
+- Every new producer requires manual SQL: insert `User` row (with explicit NOW() for `updatedAt`), insert TeamMember on their team, insert ProjectMembers on demo projects. ~4 statements, ~2 minutes per onboard.
+- Password sign-in works the moment the auth.users row exists; if we forget the SQL, the user logs in but sees an empty app. No explicit error — the queries return zero rows because RLS doesn't match an unbound caller.
+
+**Revisit trigger:**
+- 6th producer onboarded → either build the admin onboarding action or fall back to middleware auto-binding. Whichever shape we pick, the binding logic in `apps/back-to-one/src/lib/auth/binding.ts` is already factored to be called from anywhere; the change is purely about *when* it runs.
+
+---
+
+### Auth — `current_user_id()` SECURITY DEFINER helper
+
+**Decision:** Policies that need `User.id` (rather than `auth.uid()`) call a `current_user_id()` SECURITY DEFINER function instead of subselecting from `User`. The function bypasses User RLS to look up `User.id WHERE authId = auth.uid()` and returns it.
+
+**Date:** April 28, 2026 (PR #88, fixed 42P17 infinite recursion)
+
+**Rationale:**
+- The original `User` SELECT policy joined `User` itself ("can read User rows for users on my team") which created infinite recursion through the same policy on the joined row. SECURITY DEFINER is the standard Postgres escape hatch for this exact pattern.
+- All other policies that need to talk about *the calling user's domain id* (TeamMember lookups, ProjectMember lookups, has_producer_access) go through this helper. Saves repeating the User join in every policy.
+
+**Tradeoffs:**
+- SECURITY DEFINER bypasses RLS — the helper is small and read-only, but any future change to its body needs the same scrutiny as a policy change.
+- One extra function call per policy evaluation. The init-plan wrap from the perf migration covers this — the function memoizes within the query.
+
+**Revisit trigger:**
+- Any change to the `User` SELECT policy or `User.authId` semantics. The helper is the choke point — touch it, retest every policy that calls it.
+
+---
+
+### Auth — storyboard RLS supports both projectId-first and shotId-first paths
+
+**Decision:** Storyboard storage RLS allows reads/writes when the path matches **either** `<projectId>/<shotId>/<filename>` (the in-app upload helper convention) **or** `<shotId>/<filename>` (the bria seed-images pipeline convention). Both predicates are OR'd in the policy, walking Shot → Scene → Project to verify ProjectMember in the second case.
+
+**Date:** April 28, 2026 (PR #90)
+
+**Rationale:**
+- The seed-images pipeline ran before Auth Day and uses a shotId-first convention. Migrating ~200 existing files to a new path would have required an admin storage move + every `Shot.imageUrl` row update. The dual-predicate policy is cheaper and the Shot → Project chain works.
+- New uploads from the app continue to use `<projectId>/<shotId>/<filename>` so RLS can verify project membership directly without the join.
+
+**Tradeoffs:**
+- Two predicates per storyboard policy. The Shot lookup adds a join on every signed-URL request for a seed image — measured fine at current size, but worth watching if we crack 10k storyboard files per project.
+- Future imports must pick a convention or the policy permanently carries both shapes.
+
+**Revisit trigger:**
+- New bulk-import pipeline added — pick one convention. If the seed-images data is ever rebuilt, write it under the projectId-first convention and drop the shotId-first branch.
