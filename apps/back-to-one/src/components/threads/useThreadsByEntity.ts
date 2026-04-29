@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useThreads } from '@/lib/hooks/useOriginOne'
+import { useThreadPreviews } from '@/lib/hooks/useOriginOne'
 import type { ThreadAttachmentType } from '@/types'
 import type { ThreadRowBadgeEntry } from './ThreadRowBadge'
 
@@ -27,7 +27,7 @@ export function useThreadsByEntity(
   projectId: string,
   attachedToType: ThreadAttachmentType,
 ): Map<string, ThreadRowBadgeEntry> {
-  const { data: threads } = useThreads(projectId)
+  const { data: threads } = useThreadPreviews(projectId)
   return useMemo(() => {
     const map = new Map<string, ThreadRowBadgeEntry>()
     for (const t of (threads ?? [])) {

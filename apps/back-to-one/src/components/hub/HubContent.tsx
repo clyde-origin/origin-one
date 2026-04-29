@@ -9,7 +9,7 @@ import { getShotsByProject } from '@/lib/db/queries'
 import { EntityAttachmentCover } from '@/components/attachments/EntityAttachmentGallery'
 import {
   useProject, useActionItems, useToggleActionItem, useCreateActionItem, useMilestones, useCreateMilestone, useCrew,
-  useScenes, useMoodboard, useThreads,
+  useScenes, useMoodboard, useThreadPreviews,
   useLocations, useArtItems, useCastRoles, useWorkflowNodes, useInventoryItems, useShootDays, useBudget,
   useUpdateUserPhone, useUpdateProjectMemberProfile, useUploadAvatar,
 } from '@/lib/hooks/useOriginOne'
@@ -879,7 +879,7 @@ export function HubContent({ projectId }: { projectId: string }) {
     enabled: !!projectId,
   })
   const { data: moodRefs } = useMoodboard(projectId)
-  const { data: threads } = useThreads(projectId)
+  const { data: threads } = useThreadPreviews(projectId)
   const { data: locations } = useLocations(projectId)
   const { data: artItems } = useArtItems(projectId)
   const { data: castRoles } = useCastRoles(projectId)

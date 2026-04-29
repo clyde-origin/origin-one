@@ -897,6 +897,33 @@ export async function getThreads(projectId: string, meId: string | null = null) 
   })
 }
 
+// Lightweight thread fetch for surfaces that only need badge/count state
+// (Hub, useThreadsByEntity, scenemaker shotlist column). Drops the message
+// `content` body — by far the biggest column on ThreadMessage — but keeps
+// every other field so deriveUnreadCount and `messages.length` still work.
+// Use getThreads (full payload) only when you actually render message bodies
+// (the /threads page detail view).
+export async function getThreadPreviews(projectId: string, meId: string | null = null) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Thread')
+    .select('*, ThreadMessage(id, threadId, createdBy, createdAt), ThreadRead(*)')
+    .eq('projectId', projectId)
+    .order('updatedAt', { ascending: false })
+  if (error) throw error
+  return data.map((t: any) => {
+    const messages = t.ThreadMessage ?? []
+    const reads = t.ThreadRead ?? []
+    const unreadCount = deriveUnreadCount(messages, reads, meId)
+    return {
+      ...t,
+      messages,
+      unreadCount,
+      unread: unreadCount > 0,
+    }
+  })
+}
+
 export async function createThread(
   projectId: string,
   attachedToType: string,
