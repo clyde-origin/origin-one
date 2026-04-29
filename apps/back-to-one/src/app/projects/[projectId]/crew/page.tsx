@@ -6,6 +6,7 @@ import { useProject, useCrew, useAddCrewMember, useUpdateCrewMember, useAllCrew 
 
 import { CrewAvatar } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
@@ -275,7 +276,7 @@ export default function CrewPage({ params }: { params: { projectId: string } }) 
 
   return (
     <div className="screen" style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: '#04040a' }}>
-      <PageHeader projectId={projectId} title="Crew" meta={project ? (<div className="flex flex-col items-center gap-1.5"><span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''} />
+      <PageHeader projectId={projectId} title="Crew" meta={project ? (<div className="flex flex-col items-center gap-1.5"><ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" /><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''} />
       <RoleTabs active={tab} onChange={setTab} />
 
       <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 200 }}>

@@ -17,6 +17,7 @@ import { uploadMoodboardImage } from '@/lib/db/queries'
 import { LoadingState } from '@/components/ui'
 import { EmptyCTA } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { StorageImage } from '@/components/ui/StorageImage'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
@@ -620,7 +621,7 @@ export default function MoodboardPage({ params }: { params: { projectId: string 
         title="Moodboard"
         meta={project ? (
           <div className="flex flex-col items-center gap-1.5">
-            <span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span>
+            <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
             <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>
               {statusLabel(project.status)}
             </span>

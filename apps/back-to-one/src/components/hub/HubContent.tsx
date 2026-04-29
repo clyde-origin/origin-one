@@ -8,11 +8,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { getShotsByProject } from '@/lib/db/queries'
 import { EntityAttachmentCover } from '@/components/attachments/EntityAttachmentGallery'
 import {
-  useProjects, useProject, useActionItems, useToggleActionItem, useCreateActionItem, useMilestones, useCreateMilestone, useCrew,
+  useProject, useActionItems, useToggleActionItem, useCreateActionItem, useMilestones, useCreateMilestone, useCrew,
   useScenes, useMoodboard, useThreads,
   useLocations, useArtItems, useCastRoles, useWorkflowNodes, useInventoryItems, useShootDays, useBudget,
   useUpdateUserPhone, useUpdateProjectMemberProfile, useUploadAvatar,
 } from '@/lib/hooks/useOriginOne'
+import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { buildEvalContext, rollUpBudget } from '@/lib/budget/compute'
 import type {
   Budget, BudgetVersion, BudgetAccount, BudgetLine, BudgetLineAmount,
@@ -996,20 +997,9 @@ export function HubContent({ projectId }: { projectId: string }) {
   const [selectedCrew, setSelectedCrew] = useState<CrewMember | null>(null)
   const [crewPanelOpen, setCrewPanelOpen] = useState(false)
 
-  // Swipe between projects
-  const { data: allProjectsList } = useProjects()
-  const projectIds = (allProjectsList ?? []).map(p => p.id)
-  const currentIdx = projectIds.indexOf(projectId)
-  const swipeStartX = useRef<number | null>(null)
-  const handleHubTouchStart = (e: React.TouchEvent) => { swipeStartX.current = e.touches[0].clientX }
-  const handleHubTouchEnd = (e: React.TouchEvent) => {
-    if (swipeStartX.current === null) return
-    const dx = e.changedTouches[0].clientX - swipeStartX.current
-    swipeStartX.current = null
-    if (Math.abs(dx) < 80) return
-    if (dx < 0 && currentIdx < projectIds.length - 1) router.push(`/projects/${projectIds[currentIdx + 1]}`)
-    if (dx > 0 && currentIdx > 0) router.push(`/projects/${projectIds[currentIdx - 1]}`)
-  }
+  // Project switcher lives in <ProjectSwitcher>; replaces the old
+  // swipe-between-projects gesture and is also wired into every subpage's
+  // PageHeader meta slot.
 
   const allItems = actionItems ?? [], allMS = milestones ?? [], allCrew = crew ?? []
   const allScenes = scenes ?? []
@@ -1045,7 +1035,7 @@ export function HubContent({ projectId }: { projectId: string }) {
   const cardStyle = { background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' as const }
 
   return (
-    <div className="screen" onTouchStart={handleHubTouchStart} onTouchEnd={handleHubTouchEnd}>
+    <div className="screen">
       {/* ══ CENTER GLOW — 3 stacked radial ellipses ══ */}
       <div style={{
         position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
@@ -1080,10 +1070,13 @@ export function HubContent({ projectId }: { projectId: string }) {
           </span>
         )}
 
-        {/* Project name — item 7: largest text element */}
-        <span className="text-text leading-none text-center" style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
-          {project.name}
-        </span>
+        {/* Project name + slide-down switcher panel. */}
+        <ProjectSwitcher
+          projectId={projectId}
+          projectName={project.name}
+          accentColor={projectColor}
+          variant="hub"
+        />
 
         {/* Type + Status pill — centered */}
         <div className="flex items-center justify-center gap-2" style={{ marginTop: 4 }}>

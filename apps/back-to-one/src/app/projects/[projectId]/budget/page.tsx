@@ -8,6 +8,7 @@ import {
   useDuplicateBudgetVersion, useDeleteBudgetVersion,
 } from '@/lib/hooks/useOriginOne'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { getProjectColor, statusHex, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { useViewerRole } from '@/lib/auth/useViewerRole'
@@ -1093,7 +1094,7 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
         title="Budget"
         meta={project ? (
           <div className="flex flex-col items-center gap-1.5">
-            <span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span>
+            <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
             <span
               className="font-mono uppercase"
               style={{

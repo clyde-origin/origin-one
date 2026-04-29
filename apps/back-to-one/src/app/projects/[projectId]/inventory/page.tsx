@@ -7,6 +7,7 @@ import {
   useCreateInventoryItem, useUpdateInventoryItem, useDeleteInventoryItem,
 } from '@/lib/hooks/useOriginOne'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { haptic } from '@/lib/utils/haptics'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { DEPARTMENTS, getProjectColor, statusHex, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
@@ -650,7 +651,7 @@ export default function InventoryPage({ params }: { params: { projectId: string 
         title="Inventory"
         meta={project ? (
           <div className="flex flex-col items-center gap-1.5">
-            <span style={{ color: accent, fontSize: '0.50rem', letterSpacing: '0.06em' }}>{project.name}</span>
+            <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
             <span
               className="font-mono uppercase"
               style={{
