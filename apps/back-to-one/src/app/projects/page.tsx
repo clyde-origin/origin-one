@@ -11,11 +11,11 @@ import {
   useUpsertUserProjectPlacement, useArchivedProjects, useRestoreProject,
   useArchivedUserProjectFolders, useArchiveUserProjectFolder, useRestoreUserProjectFolder,
 } from '@/lib/hooks/useOriginOne'
-import { SkeletonLine, CrewAvatar } from '@/components/ui'
+import { SkeletonLine } from '@/components/ui'
 import { useRootFab } from '@/components/ui/ActionBarRoot'
-import { getProjectColor, statusHex, STATUS_LABELS_SHORT } from '@/lib/utils/phase'
+import { getProjectColor } from '@/lib/utils/phase'
 import { haptic } from '@/lib/utils/haptics'
-import { SlateCard, WiggleStyle, hexToRgba } from '@/components/projects/SlateCard'
+import { SlateCard, WiggleStyle } from '@/components/projects/SlateCard'
 import { ProjectActionSheet } from '@/components/projects/ProjectActionSheet'
 import { FolderCard } from '@/components/projects/FolderCard'
 import { OpenFolderSheet } from '@/components/projects/OpenFolderSheet'
