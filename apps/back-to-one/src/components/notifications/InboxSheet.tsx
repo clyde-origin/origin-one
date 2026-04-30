@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/lib/hooks/useOriginOne'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import type { NotificationRow } from '@/lib/db/queries'
+import { EnablePushPrompt } from './EnablePushPrompt'
 
 export function InboxSheet({ open, onClose, projectId }: { open: boolean; onClose: () => void; projectId: string | null }) {
   const { data: notifications = [] } = useNotifications(projectId)
@@ -37,6 +38,7 @@ export function InboxSheet({ open, onClose, projectId }: { open: boolean; onClos
         }
       />
       <SheetBody>
+        <EnablePushPrompt />
         {notifications.length === 0 && (
           <div style={{ padding: 32, textAlign: 'center', color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>
             Nothing new.
