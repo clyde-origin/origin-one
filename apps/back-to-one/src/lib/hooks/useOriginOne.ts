@@ -49,6 +49,8 @@ export const keys = {
   notifications:  (meId: string, projectId: string | null) => ['notifications', meId, projectId] as const,
   unreadCount:    (meId: string, projectId: string | null) => ['notifications', meId, projectId, 'unread'] as const,
   mentionRoster:  (projectId: string | null, meId: string | null) => ['mentionRoster', projectId, meId ?? ''] as const,
+  scheduleBlocks: (shootDayId: string) => ['scheduleBlocks', shootDayId] as const,
+  projectTalent:  (projectId: string) => ['projectTalent', projectId] as const,
 }
 
 // ── PROJECTS ───────────────────────────────────────────────
@@ -824,6 +826,49 @@ export function useDeleteShootDay(projectId: string) {
   return useMutation({
     mutationFn: db.deleteShootDay,
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.shootDays(projectId) }),
+  })
+}
+
+// ── SCHEDULE BLOCKS (Arc A) ────────────────────────────────
+
+export function useScheduleBlocks(shootDayId: string | null) {
+  return useQuery({
+    queryKey: keys.scheduleBlocks(shootDayId ?? ''),
+    queryFn:  () => db.getScheduleBlocks(shootDayId!),
+    enabled:  !!shootDayId,
+    staleTime: 30_000,
+  })
+}
+
+export function useCreateScheduleBlock(shootDayId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createScheduleBlock,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.scheduleBlocks(shootDayId) }),
+  })
+}
+
+export function useUpdateScheduleBlock(shootDayId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.updateScheduleBlock,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.scheduleBlocks(shootDayId) }),
+  })
+}
+
+export function useDeleteScheduleBlock(shootDayId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteScheduleBlock,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.scheduleBlocks(shootDayId) }),
+  })
+}
+
+export function useProjectTalent(projectId: string) {
+  return useQuery({
+    queryKey: keys.projectTalent(projectId),
+    queryFn:  () => db.getProjectTalent(projectId),
+    enabled:  !!projectId,
   })
 }
 

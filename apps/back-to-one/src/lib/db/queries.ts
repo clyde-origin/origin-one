@@ -1800,6 +1800,124 @@ export async function deleteShootDay(id: string): Promise<void> {
   if (error) { console.error('deleteShootDay failed:', error); throw error }
 }
 
+// ── SCHEDULE BLOCKS (Arc A) ──────────────────────────────
+
+export async function getScheduleBlocks(shootDayId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ScheduleBlock')
+    .select('*')
+    .eq('shootDayId', shootDayId)
+    .order('startTime', { ascending: true })
+    .order('sortOrder', { ascending: true })
+  if (error) { console.error('getScheduleBlocks failed:', error); throw error }
+  return data ?? []
+}
+
+export async function createScheduleBlock(input: {
+  projectId: string
+  shootDayId: string
+  track: 'main' | 'secondary' | 'tertiary'
+  kind:
+    | 'work'
+    | 'load_in'
+    | 'talent_call'
+    | 'lunch'
+    | 'wrap'
+    | 'tail_lights'
+    | 'meal_break'
+    | 'custom'
+  startTime: string
+  endTime?: string | null
+  description: string
+  customLabel?: string | null
+  locationId?: string | null
+  talentIds?: string[]
+  crewMemberIds?: string[]
+  sceneIds?: string[]
+}) {
+  const db = createClient()
+  const now = new Date().toISOString()
+  const { data, error } = await db
+    .from('ScheduleBlock')
+    .insert({
+      projectId: input.projectId,
+      shootDayId: input.shootDayId,
+      track: input.track,
+      kind: input.kind,
+      startTime: input.startTime,
+      endTime: input.endTime ?? null,
+      description: input.description,
+      customLabel: input.customLabel ?? null,
+      locationId: input.locationId ?? null,
+      talentIds: input.talentIds ?? [],
+      crewMemberIds: input.crewMemberIds ?? [],
+      sceneIds: input.sceneIds ?? [],
+      sortOrder: 0,
+      updatedAt: now,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createScheduleBlock failed:', error); throw error }
+  return data
+}
+
+export async function updateScheduleBlock({
+  id,
+  fields,
+}: {
+  id: string
+  fields: {
+    track?: 'main' | 'secondary' | 'tertiary'
+    kind?:
+      | 'work'
+      | 'load_in'
+      | 'talent_call'
+      | 'lunch'
+      | 'wrap'
+      | 'tail_lights'
+      | 'meal_break'
+      | 'custom'
+    startTime?: string
+    endTime?: string | null
+    description?: string
+    customLabel?: string | null
+    locationId?: string | null
+    talentIds?: string[]
+    crewMemberIds?: string[]
+    sceneIds?: string[]
+    sortOrder?: number
+  }
+}): Promise<void> {
+  const db = createClient()
+  const { error } = await db
+    .from('ScheduleBlock')
+    .update({ ...fields, updatedAt: new Date().toISOString() })
+    .eq('id', id)
+  if (error) { console.error('updateScheduleBlock failed:', error); throw error }
+}
+
+export async function deleteScheduleBlock(id: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('ScheduleBlock').delete().eq('id', id)
+  if (error) { console.error('deleteScheduleBlock failed:', error); throw error }
+}
+
+// Flat list of Talent on a project — used by the schedule editor + call sheets.
+// Different from getCastRoles, which joins through Entity(type='character'); this
+// returns Talent rows directly so the AD can pick anyone, including talent that
+// hasn't been assigned to a character yet.
+export async function getProjectTalent(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Talent')
+    .select('id, projectId, name, role, email, phone, imageUrl')
+    .eq('projectId', projectId)
+    .order('name', { ascending: true })
+  if (error) { console.error('getProjectTalent failed:', error); throw error }
+  return data ?? []
+}
+
 // ── BUDGET ───────────────────────────────────────────────
 
 // One nested query for the entire budget tree + expenses. The page
