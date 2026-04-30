@@ -19,6 +19,22 @@
 import type { ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
 import { ActionBarRoot, RootFabProvider } from '@/components/ui/ActionBarRoot'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
+import { useNotificationsSubscription } from '@/lib/hooks/useOriginOne'
+
+function GlobalBellOverlay() {
+  useNotificationsSubscription()
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 'calc(var(--safe-top, 0px) + 14px)',
+      right: 16,
+      zIndex: 25,
+    }}>
+      <NotificationBell projectId={null} />
+    </div>
+  )
+}
 
 export default function ProjectsRootLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? ''
@@ -32,6 +48,7 @@ export default function ProjectsRootLayout({ children }: { children: ReactNode }
     <RootFabProvider>
       {children}
       {isRootRoute && <ActionBarRoot />}
+      {isRootRoute && <GlobalBellOverlay />}
     </RootFabProvider>
   )
 }
