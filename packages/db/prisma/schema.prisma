@@ -47,8 +47,11 @@ enum ShotStatus {
 enum ShotSize {
   extreme_wide
   wide
+  cowboy
   full
   medium
+  two_shot
+  over_the_shoulder
   medium_close_up
   close_up
   extreme_close_up
