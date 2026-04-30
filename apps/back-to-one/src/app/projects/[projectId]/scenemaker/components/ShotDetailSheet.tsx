@@ -27,7 +27,7 @@ const SHOT_SIZES = [
   { value: 'pov', label: 'POV' },
 ]
 
-export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose, onUploadImage, onUpdateShot }: {
+export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose, onUploadImage, onUpdateShot, onOpenImageMenu }: {
   shot: Shot | null
   accent: string
   projectId: string
@@ -35,6 +35,10 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
   onClose: () => void
   onUploadImage: (shotId: string, file: File) => void
   onUpdateShot: (shotId: string, fields: { description?: string; size?: string | null; notes?: string }) => void
+  // When provided, tapping the hero image area opens the storyboard image
+  // menu (Upload / Create image) instead of the bare native file picker.
+  // The detail sheet closes itself first so the menu isn't stacked on top.
+  onOpenImageMenu?: (shotId: string) => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [editingDesc, setEditingDesc] = useState(false)
@@ -94,7 +98,10 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
         </div>
       </div>
 
-      {/* Hero image area */}
+      {/* Hero image area — taps open the storyboard image menu (Upload /
+          Create image) when onOpenImageMenu is wired; falls back to the
+          native file picker if not. The detail sheet closes itself before
+          the menu opens so we don't stack two sheets. */}
       <div
         className="cursor-pointer"
         style={{
@@ -107,7 +114,14 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           position: 'relative',
         }}
-        onClick={() => fileRef.current?.click()}
+        onClick={() => {
+          if (onOpenImageMenu) {
+            onClose()
+            onOpenImageMenu(shot.id)
+          } else {
+            fileRef.current?.click()
+          }
+        }}
       >
         {shot.imageUrl ? (
           <StorageImage url={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -118,7 +132,7 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
               <path d="M12 10v4M10 12h4" stroke={accent} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
             </svg>
             <span className="font-mono uppercase" style={{ fontSize: '0.4rem', letterSpacing: '0.08em', color: accent, opacity: 0.6 }}>
-              Tap to upload
+              {onOpenImageMenu ? 'Tap to add image' : 'Tap to upload'}
             </span>
           </div>
         )}

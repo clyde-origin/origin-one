@@ -842,6 +842,11 @@ export async function createShot(shot: {
   sortOrder: number
 }) {
   const db = createClient()
+  const now = new Date().toISOString()
+  // Shot.updatedAt is NOT NULL with no SQL default — Prisma's @updatedAt
+  // decorator only fires when Prisma is the writer, so the Supabase REST
+  // client must set this explicitly. Matches the pattern in createScene
+  // and createMoodboardRef. Without this, the insert silently 500s.
   const { data, error } = await db
     .from('Shot')
     .insert({
@@ -852,6 +857,8 @@ export async function createShot(shot: {
       description: shot.description ?? '',
       status: shot.status ?? 'planned',
       sortOrder: shot.sortOrder,
+      createdAt: now,
+      updatedAt: now,
     })
     .select()
     .single()
