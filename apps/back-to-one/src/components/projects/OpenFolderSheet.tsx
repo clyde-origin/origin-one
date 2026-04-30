@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation'
 import { getProjectColor } from '@/lib/utils/phase'
 import { haptic } from '@/lib/utils/haptics'
 import { useLongPress } from '@/lib/hooks/useLongPress'
+import { SlateCard, hexToRgba } from '@/components/projects/SlateCard'
 import type { Project } from '@/types'
 
 type FolderRef = { id: string; name: string; color: string | null }
@@ -44,45 +45,6 @@ interface OpenFolderSheetProps {
   // so it scales out from where the user tapped (the folder card or the
   // archive icon) instead of scaling around its own center.
   originPoint?: { x: number; y: number } | null
-}
-
-// Per-project button — extracted so each instance can register its own
-// useLongPress hook without violating rules-of-hooks.
-function ProjectTile({
-  project, onClick, onLongPress,
-}: { project: Project; onClick: () => void; onLongPress?: () => void }) {
-  const longPressHandlers = useLongPress(onLongPress ?? (() => {}), 500)
-  const color = project.color || getProjectColor(project.id)
-  return (
-    <button
-      onClick={onClick}
-      {...(onLongPress ? longPressHandlers : {})}
-      className="active:scale-[0.96] active:brightness-[0.85]"
-      style={{
-        aspectRatio: '4 / 3',
-        borderRadius: 14, overflow: 'hidden', cursor: 'pointer',
-        border: '1px solid rgba(255,255,255,0.06)',
-        background: 'rgba(10,10,18,0.6)',
-        padding: 0, textAlign: 'left',
-        userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
-      }}
-    >
-      <div style={{
-        height: 18,
-        backgroundColor: color,
-        backgroundImage:
-          `linear-gradient(rgba(255,255,255,0.28), rgba(255,255,255,0.28)) 0 1px / 100% 1px no-repeat,
-           linear-gradient(rgba(255,255,255,0.15), rgba(255,255,255,0.15)) 0 4px / 100% 1px no-repeat,
-           linear-gradient(rgba(255,255,255,0.07), rgba(255,255,255,0.07)) 0 7px / 100% 1px no-repeat`,
-      }} />
-      <div style={{ padding: '9px 10px 11px' }}>
-        <div style={{ fontWeight: 800, fontSize: 13, color: '#dddde8', letterSpacing: '-0.02em' }}>{project.name}</div>
-        <div className="font-mono" style={{ fontSize: 9, color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>
-          {project.client || ''}
-        </div>
-      </div>
-    </button>
-  )
 }
 
 // Compact folder tile — visual cue (folder icon + count) in the same 4:3 slot
@@ -129,13 +91,6 @@ function FolderTile({
       </div>
     </button>
   )
-}
-
-function hexToRgba(hex: string, a: number) {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  return `rgba(${r},${g},${b},${a})`
 }
 
 export function OpenFolderSheet({
@@ -229,12 +184,18 @@ export function OpenFolderSheet({
                     onLongPress={onFolderLongPress ? () => onFolderLongPress(f) : undefined}
                   />
                 ))}
-                {projects.map(p => (
-                  <ProjectTile
+                {projects.map((p, i) => (
+                  <SlateCard
                     key={p.id}
                     project={p}
+                    color={p.color || '#6470f3'}
+                    dimmed={false}
+                    editMode={false}
+                    isGhost={false}
+                    isDragging={false}
+                    wiggleDelay={i * 0.08}
                     onClick={() => handleClick(p)}
-                    onLongPress={onProjectLongPress ? () => onProjectLongPress(p) : undefined}
+                    onLongPress={onProjectLongPress ? () => onProjectLongPress(p) : (() => {})}
                   />
                 ))}
               </div>
