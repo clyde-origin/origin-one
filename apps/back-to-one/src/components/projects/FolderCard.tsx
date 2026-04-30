@@ -56,7 +56,7 @@ export function FolderCard({
   folder, projects, editMode, isGhost, isDragging, isDropTarget, dimmed, wiggleDelay,
   onLongPress, onClick,
 }: FolderCardProps) {
-  const longPressHandlers = useLongPress(onLongPress, 500)
+  const longPressHandlers = useLongPress(onLongPress, 500, 8, onClick)
   const accent = folder.color ?? '#6470f3'
   const layout = tileLayout(projects.length)
   const overflowCount = layout.overflow ? projects.length - layout.visible : 0
@@ -89,7 +89,6 @@ export function FolderCard({
   return (
     <div
       data-folder-id={folder.id}
-      onClick={editMode ? undefined : onClick}
       {...(editMode ? {} : longPressHandlers)}
       style={{
         position: 'relative',

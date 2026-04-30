@@ -70,7 +70,7 @@ export function SlateCard({
   const phaseColor = statusHex(project.status)
   const { data: crew } = useCrew(project.id)
   const allCrew = crew ?? []
-  const longPressHandlers = useLongPress(onLongPress, 500)
+  const longPressHandlers = useLongPress(onLongPress, 500, 8, onClick)
 
   if (isGhost) {
     return (
@@ -94,7 +94,6 @@ export function SlateCard({
 
   return (
     <div
-      onClick={onClick}
       {...longPressHandlers}
       data-project-id={project.id}
       style={{

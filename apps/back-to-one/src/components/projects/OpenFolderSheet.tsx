@@ -67,13 +67,12 @@ interface OpenFolderSheetProps {
 function FolderTile({
   folder, onClick, onLongPress,
 }: { folder: FolderWithCount; onClick: () => void; onLongPress?: () => void }) {
-  const longPressHandlers = useLongPress(onLongPress ?? (() => {}), 500)
+  const longPressHandlers = useLongPress(onLongPress ?? (() => {}), 500, 8, onClick)
   const accent = folder.color ?? '#6470f3'
   return (
     <button
       data-folder-id={folder.id}
-      onClick={onClick}
-      {...(onLongPress ? longPressHandlers : {})}
+      {...longPressHandlers}
       className="active:scale-[0.96] active:brightness-[0.85]"
       style={{
         aspectRatio: '4 / 3',
