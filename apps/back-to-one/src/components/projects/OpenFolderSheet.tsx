@@ -53,6 +53,12 @@ interface OpenFolderSheetProps {
   archivedCount?: number                 // number of archived projects (for ArchiveIcon label)
   onProjectTouchStart?: (e: React.TouchEvent, projectId: string) => void
   onArchiveTap?: () => void              // tap on in-sheet ArchiveIcon → swap to Archive variant
+
+  // Color resolver — mirrors page.tsx's `getColor`, which combines
+  // session colorOverrides with the project's stored color and a
+  // deterministic per-id hash fallback. Defaults to a fixed indigo
+  // when the parent doesn't pass one (e.g. archive variant).
+  getColor?: (projectId: string) => string
 }
 
 // Compact folder tile — visual cue (folder icon + count) in the same 4:3 slot
@@ -107,6 +113,7 @@ export function OpenFolderSheet({
   folders, onFolderClick, onFolderLongPress,
   originPoint,
   editMode, draggingProjectId, dragTargetId, archivedCount, onProjectTouchStart, onArchiveTap,
+  getColor,
 }: OpenFolderSheetProps) {
   const router = useRouter()
   const accent = folder?.color ?? '#6470f3'
@@ -211,7 +218,7 @@ export function OpenFolderSheet({
                     >
                       <SlateCard
                         project={p}
-                        color={p.color || '#6470f3'}
+                        color={getColor ? getColor(p.id) : (p.color || '#6470f3')}
                         dimmed={!!draggingProjectId && !isDragging}
                         editMode={editMode ?? false}
                         isGhost={isDragging}

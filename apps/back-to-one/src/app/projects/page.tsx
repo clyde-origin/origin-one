@@ -1074,6 +1074,7 @@ export default function ProjectsPage() {
         archivedCount={allArchivedProjects.length}
         onProjectTouchStart={(e, id) => handleTouchStart(e, id, 'project')}
         onArchiveTap={() => { haptic('light'); openFolder(ARCHIVE_FOLDER_ID) }}
+        getColor={getColor}
       />
 
       {/* Restore confirm — appears when tapping a project inside the Archive folder */}
