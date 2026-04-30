@@ -665,3 +665,25 @@ The `thread-context.ts` file now contains six explicit-enumeration sites for eac
 
 **Revisit trigger:**
 - New bulk-import pipeline added — pick one convention. If the seed-images data is ever rebuilt, write it under the projectId-first convention and drop the shotId-first branch.
+
+---
+
+### Auth — storyboard RLS drift repair + seed convention switch
+
+**Decision:** Re-assert the canonical `storyboard_select` policy from source (it had drifted in production via a hand-edit that introduced a typo: `(storage.foldername(p.name))[1]` referencing the Project NAME column instead of the storage object's name). Switch the seed to write storyboard images under the projectId-first convention going forward. Defer the storage-path migration of the legacy 85 shotId-first objects until the Bria image-generation API integration arc.
+
+**Date:** April 29, 2026
+
+**Rationale:**
+- Drift symptom: every seeded shot tile rendered the colored gradient placeholder because `useStorageImage` returned null when `createSignedUrl` was rejected by the broken policy fallback. The bug existed since the perf-wrap migration (Apr 28) but only surfaced this week during navigation testing.
+- Re-applying the source-of-truth predicate via a defensive migration both fixes prod and ensures any future env regen lands correctly. Captured as `20260429203913_storyboard_select_drift_repair`.
+- Switching the seed now (rather than later) means new re-seeds converge on the single projectId-first convention; legacy data stays addressable via the dual policy.
+- Migration of the 85 legacy storyboard objects is bundled with the Bria integration arc — that work refactors the upload helper to add a "Create image (Bria)" action alongside Upload, which is the natural moment to enforce one storage-path scheme and drop the shotId-first OR branch.
+
+**Tradeoffs:**
+- The dual-predicate policy stays in place until the Bria arc ships. One extra Shot/Scene join per storyboard signed-URL request for legacy objects — negligible at current scale, captured in the prior decision's "Revisit trigger."
+- Anyone running the seed against an existing DB with pre-Apr-29 storyboard images will have those images orphaned (still readable via the legacy branch, but new seed runs upload to a new path). Acceptable because re-seeds typically follow a `clearBucket` pass anyway (`seed.ts:524`).
+
+**Revisit trigger:**
+- Bria integration arc lands → run the storage-path migration (B) for the legacy objects, drop the shotId-first OR branch, and update this entry to mark the dual policy retired.
+- Any future hand-edit of a storage policy in prod → mandate a follow-up migration the same day to re-anchor source as truth.
