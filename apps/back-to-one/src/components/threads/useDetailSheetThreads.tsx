@@ -80,7 +80,14 @@ export function useDetailSheetThreads({
       { attachedToType, attachedToId, createdBy: meId },
       {
         onSuccess: (created) => {
-          postMessage.mutate({ threadId: created.id, createdBy: meId, content: firstMessage })
+          postMessage.mutate({
+            threadId: created.id,
+            createdBy: meId,
+            content: firstMessage,
+            projectId,
+            mentions: [],
+            contextLabel: subjectLabel,
+          })
         },
       },
     )
@@ -249,7 +256,13 @@ function ThreadZone({
 
   const handleSend = () => {
     if (!reply.trim() || !meId) return
-    postMessage.mutate({ threadId: thread.id, createdBy: meId, content: reply.trim() })
+    postMessage.mutate({
+      threadId: thread.id,
+      createdBy: meId,
+      content: reply.trim(),
+      projectId,
+      mentions: [],
+    })
     setReply('')
   }
 
