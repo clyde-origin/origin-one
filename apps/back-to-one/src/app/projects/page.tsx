@@ -321,6 +321,14 @@ export default function ProjectsPage() {
   // Looks up the rect by data-folder-id / data-archive-target, both already
   // present on the home grid and on archived-folder tiles inside the sheet.
   const openFolder = useCallback((id: string) => {
+    // If the sheet is already open, this is a swap (e.g. tap Archive
+    // while another folder is open). Don't recompute the origin —
+    // we want the close-back-into-source-tile gesture to still target
+    // the original tile. Just swap the openFolderId.
+    if (openFolderId) {
+      setOpenFolderId(id)
+      return
+    }
     const selector = id === '__archive__'
       ? '[data-archive-target]'
       : `[data-folder-id="${id}"]`
@@ -332,7 +340,7 @@ export default function ProjectsPage() {
       setOpenFolderOrigin(null)
     }
     setOpenFolderId(id)
-  }, [setOpenFolderId])
+  }, [openFolderId, setOpenFolderId])
 
   // ── Merged home-grid items ────────────────────────────────────
   type HomeItem =
