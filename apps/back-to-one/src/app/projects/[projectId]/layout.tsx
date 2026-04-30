@@ -6,6 +6,22 @@ import { HubContent } from '@/components/hub/HubContent'
 import { SubPageOverlay } from '@/components/ui/SubPageOverlay'
 import { ActionBar } from '@/components/ui/ActionBar'
 import { FabActionProvider } from '@/lib/contexts/FabActionContext'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
+import { useNotificationsSubscription } from '@/lib/hooks/useOriginOne'
+
+function BellOverlay({ projectId }: { projectId: string }) {
+  useNotificationsSubscription()
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 'calc(var(--safe-top, 0px) + 14px)',
+      right: 16,
+      zIndex: 25,
+    }}>
+      <NotificationBell projectId={projectId} />
+    </div>
+  )
+}
 
 export default function ProjectLayout({
   children,
@@ -29,6 +45,7 @@ export default function ProjectLayout({
           </SubPageOverlay>
         )}
       </AnimatePresence>
+      <BellOverlay projectId={params.projectId} />
       <ActionBar />
     </FabActionProvider>
   )

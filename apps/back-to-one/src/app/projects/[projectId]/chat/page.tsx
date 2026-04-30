@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   useProject,
   useCrew,
@@ -11,7 +11,10 @@ import {
   useDMList,
   useDMMessages,
   useChatSubscription,
+  useMentionRoster,
 } from '@/lib/hooks/useOriginOne'
+import { MentionInput } from '@/components/ui/MentionInput'
+import { MentionText } from '@/components/ui/MentionText'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
@@ -50,34 +53,13 @@ function sameDay(a: string, b: string) {
   return new Date(a).toDateString() === new Date(b).toDateString()
 }
 
-// Parse @mentions — returns array of { text, mention? }
-function parseMessage(content: string, members: any[]) {
-  const parts: { text: string; mention?: boolean }[] = []
-  const re = /@([A-Za-z][A-Za-z.' -]{0,40})/g
-  let last = 0
-  let m: RegExpExecArray | null
-  const names = new Set(members.map(mb => (mb.User?.name ?? '').toLowerCase()))
-  while ((m = re.exec(content))) {
-    const full = m[0]
-    const name = m[1].trim()
-    const isMatch = names.has(name.toLowerCase())
-    if (!isMatch) continue
-    if (m.index > last) parts.push({ text: content.slice(last, m.index) })
-    parts.push({ text: full, mention: true })
-    last = m.index + full.length
-  }
-  if (last < content.length) parts.push({ text: content.slice(last) })
-  return parts.length ? parts : [{ text: content }]
-}
-
 // ── Message Bubble ─────────────────────────────────────────
 
 function MessageBubble({
-  msg, isSelf, accent, crew, showAvatar, showName,
-}: { msg: any; isSelf: boolean; accent: string; crew: any[]; showAvatar: boolean; showName: boolean }) {
+  msg, isSelf, accent, showAvatar, showName,
+}: { msg: any; isSelf: boolean; accent: string; showAvatar: boolean; showName: boolean }) {
   const senderName = msg.sender?.name ?? ''
   const color = isSelf ? accent : stableColor(senderName)
-  const parts = useMemo(() => parseMessage(msg.content ?? '', crew), [msg.content, crew])
 
   return (
     <div style={{ display: 'flex', gap: 9, alignItems: 'flex-end', flexDirection: isSelf ? 'row-reverse' : 'row' }}>
@@ -111,10 +93,7 @@ function MessageBubble({
           borderBottomRightRadius: isSelf ? 4 : 14,
           wordBreak: 'break-word',
         }}>
-          {parts.map((p, i) => p.mention
-            ? <span key={i} style={{ fontWeight: 700, color: isSelf ? '#fff' : accent }}>{p.text}</span>
-            : <span key={i}>{p.text}</span>
-          )}
+          <MentionText text={msg.content ?? ''} accent={isSelf ? '#ffffff' : accent} />
         </div>
         <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 8, color: 'rgba(255,255,255,0.2)' }}>
           {timeOf(msg.createdAt)}
@@ -126,7 +105,7 @@ function MessageBubble({
 
 // ── Message List w/ date separators ────────────────────────
 
-function MessageList({ messages, meId, accent, crew }: { messages: any[]; meId: string | null; accent: string; crew: any[] }) {
+function MessageList({ messages, meId, accent }: { messages: any[]; meId: string | null; accent: string }) {
   const bottomRef = useRef<HTMLDivElement>(null)
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }) }, [messages.length])
 
@@ -153,7 +132,6 @@ function MessageList({ messages, meId, accent, crew }: { messages: any[]; meId: 
         msg={m}
         isSelf={isSelf}
         accent={accent}
-        crew={crew}
         showAvatar={!prevSameSender}
         showName={!prevSameSender}
       />,
@@ -167,87 +145,36 @@ function MessageList({ messages, meId, accent, crew }: { messages: any[]; meId: 
   )
 }
 
-// ── Mention picker ────────────────────────────────────────
-
-function MentionPicker({ crew, query, onPick }: { crew: any[]; query: string; onPick: (name: string) => void }) {
-  const q = query.toLowerCase()
-  const filtered = crew
-    .filter(m => m.User?.name?.toLowerCase().includes(q))
-    .slice(0, 5)
-  if (filtered.length === 0) return null
-  return (
-    <div style={{
-      position: 'absolute', bottom: 68, left: 14, right: 14,
-      background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)',
-      borderRadius: 12, overflow: 'hidden', zIndex: 10,
-    }}>
-      {filtered.map((m, i) => {
-        const u = m.User
-        const c = stableColor(u?.name ?? '')
-        return (
-          <div key={m.id}
-            onClick={() => onPick(u.name)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '9px 12px', cursor: 'pointer',
-              borderBottom: i < filtered.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
-            }}>
-            <div style={{ width: 24, height: 24, borderRadius: '50%', background: `${c}22`, border: `1px solid ${c}44`, color: c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>
-              {initials(u?.name ?? '')}
-            </div>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>{u?.name}</span>
-            {m.role && (
-              <span style={{ marginLeft: 'auto', fontFamily: "'Geist Mono', monospace", fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                {m.role}
-              </span>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 // ── Input bar ─────────────────────────────────────────────
 
 function InputBar({
-  accent, placeholder, crew, onSend,
-}: { accent: string; placeholder: string; crew: any[]; onSend: (text: string) => void }) {
+  projectId, accent, placeholder, onSend,
+}: { projectId: string; accent: string; placeholder: string; onSend: (text: string, mentions: string[]) => void }) {
   const [value, setValue] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  // detect @ query
-  const mentionQuery = (() => {
-    const match = value.match(/@([A-Za-z][A-Za-z.' -]*)?$/)
-    return match ? (match[1] ?? '') : null
-  })()
-
-  const pickMention = (name: string) => {
-    const newVal = value.replace(/@([A-Za-z][A-Za-z.' -]*)?$/, `@${name} `)
-    setValue(newVal)
-    inputRef.current?.focus()
-  }
+  const [mentions, setMentions] = useState<string[]>([])
+  const { data: roster = [] } = useMentionRoster(projectId)
 
   const submit = () => {
     const v = value.trim()
     if (!v) return
-    onSend(v)
+    onSend(v, mentions)
     setValue('')
+    setMentions([])
   }
 
   const ready = value.trim().length > 0
 
   return (
     <div style={{ flexShrink: 0, padding: '10px 14px 20px', borderTop: '1px solid rgba(255,255,255,0.07)', position: 'relative' }}>
-      {mentionQuery !== null && <MentionPicker crew={crew} query={mentionQuery} onPick={pickMention} />}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 22, padding: '8px 14px' }}>
-        <input
-          ref={inputRef}
+        <MentionInput
           value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
+          mentions={mentions}
+          onChange={(text, m) => { setValue(text); setMentions(m) }}
+          roster={roster}
           placeholder={placeholder}
-          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontFamily: "'Geist', sans-serif", fontSize: 13, color: '#fff' }}
+          accent={accent}
+          onSubmit={submit}
         />
         <span
           onClick={submit}
@@ -362,7 +289,7 @@ function DMListView({ projectId, meId, accent, crew, onOpen }: { projectId: stri
   )
 }
 
-function DMConversation({ projectId, meId, partner, accent, crew, onBack }: { projectId: string; meId: string; partner: any; accent: string; crew: any[]; onBack: () => void }) {
+function DMConversation({ projectId, meId, partner, accent, onBack }: { projectId: string; meId: string; partner: any; accent: string; onBack: () => void }) {
   const { data: messages } = useDMMessages(projectId, meId, partner.userId)
   useChatSubscription({ projectId, channelId: null, meId, partnerId: partner.userId })
   const sendMsg = useSendChatMessage(projectId)
@@ -378,12 +305,20 @@ function DMConversation({ projectId, meId, partner, accent, crew, onBack }: { pr
         </div>
         <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', flex: 1 }}>{user?.name}</div>
       </div>
-      <MessageList messages={messages ?? []} meId={meId} accent={accent} crew={crew} />
+      <MessageList messages={messages ?? []} meId={meId} accent={accent} />
       <InputBar
+        projectId={projectId}
         accent={accent}
         placeholder={`Message ${(user?.name ?? '').split(' ')[0]}…`}
-        crew={crew}
-        onSend={(text) => { sendMsg.mutate({ projectId, channelId: null, senderId: meId, recipientId: partner.userId, content: text }) }}
+        onSend={(text, mentions) => sendMsg.mutate({
+          projectId,
+          channelId: null,
+          senderId: meId as string,
+          recipientId: partner.userId,
+          content: text,
+          mentions,
+          contextLabel: `Chat · DM with ${user?.name ?? 'teammate'}`,
+        })}
       />
     </>
   )
@@ -426,10 +361,18 @@ export default function ChatPage({ params }: { params: { projectId: string } }) 
   const createChannel = useCreateChatChannel(projectId)
   const sendMsg = useSendChatMessage(projectId)
 
-  const handleSendTeam = useCallback((text: string) => {
+  const handleSendTeam = useCallback((text: string, mentions: string[]) => {
     if (!meId || !activeChannelId) return
-    sendMsg.mutate({ projectId, channelId: activeChannelId, senderId: meId, content: text })
-  }, [meId, activeChannelId, projectId, sendMsg])
+    const activeChannelName = activeChannels.find(c => c.id === activeChannelId)?.name
+    sendMsg.mutate({
+      projectId,
+      channelId: activeChannelId,
+      senderId: meId as string,
+      content: text,
+      mentions,
+      contextLabel: `Chat · ${activeChannelName ?? 'Team'}`,
+    })
+  }, [meId, activeChannelId, activeChannels, projectId, sendMsg])
 
   const dmPartner = dmPartnerId ? crew.find(m => m.userId === dmPartnerId) : null
 
@@ -511,8 +454,8 @@ export default function ChatPage({ params }: { params: { projectId: string } }) 
 
           {channelsLoading ? <LoadingState /> : (
             <>
-              <MessageList messages={channelMessages ?? []} meId={meId} accent={accent} crew={crew} />
-              <InputBar accent={accent} placeholder="Message the team…" crew={crew} onSend={handleSendTeam} />
+              <MessageList messages={channelMessages ?? []} meId={meId} accent={accent} />
+              <InputBar projectId={projectId} accent={accent} placeholder="Message the team…" onSend={handleSendTeam} />
             </>
           )}
         </>
@@ -523,7 +466,6 @@ export default function ChatPage({ params }: { params: { projectId: string } }) 
             meId={meId}
             partner={dmPartner}
             accent={accent}
-            crew={crew}
             onBack={() => setDmPartnerId(null)}
           />
         ) : (
