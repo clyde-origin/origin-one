@@ -94,7 +94,7 @@ export function StoryboardImageSheet({
   return (
     <Sheet open={open} onClose={pending ? () => {} : onClose} maxHeight="60vh">
       <SheetHeader
-        title={mode === 'menu' ? 'Storyboard image' : 'Generate with Bria'}
+        title={mode === 'menu' ? 'Storyboard image' : 'Create image'}
         onClose={pending ? () => {} : onClose}
       />
       <SheetBody>
@@ -117,8 +117,8 @@ export function StoryboardImageSheet({
                 icon={<UploadIcon />}
               />
               <ActionRow
-                label="Generate with Bria"
-                helper="Describe the shot and let AI render a draft frame."
+                label="Create image"
+                helper="Describe the shot and we'll render a draft frame."
                 onClick={() => { haptic('light'); setMode('bria') }}
                 accentColor={accentColor}
                 disabled={pending}
@@ -203,7 +203,7 @@ export function StoryboardImageSheet({
               </div>
               {pending && (
                 <span className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a', letterSpacing: '0.06em', textAlign: 'center' }}>
-                  Bria takes about 30–60 seconds. Don't close this sheet.
+                  Image generation takes about 30–60 seconds. Don't close this sheet.
                 </span>
               )}
               {error && <ErrorRow message={error} />}

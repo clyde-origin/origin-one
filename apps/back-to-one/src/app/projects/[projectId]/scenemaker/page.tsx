@@ -85,7 +85,10 @@ const SIZE_ABBREV: Record<string, string> = {
 
 function NewShotSheet({ autoId, accent, onSave, onClose }: {
   autoId: string; accent: string
-  onSave: (data: { description: string; size: string }) => void
+  // andCreateImage signals the parent to open the storyboard image menu for
+  // the freshly-created shot — saves an extra tap when the user wants to
+  // pair description + image at create time.
+  onSave: (data: { description: string; size: string }, andCreateImage: boolean) => void
   onClose: () => void
 }) {
   const [description, setDescription] = useState('')
@@ -108,16 +111,26 @@ function NewShotSheet({ autoId, accent, onSave, onClose }: {
         </div>
         <PillSelector label="Size" options={SHOT_SIZES} value={size} onChange={setSize} accent={accent} />
       </div>
-      <div style={{ padding: '14px 20px 0', display: 'flex', gap: 10 }}>
-        <button className="flex-1 font-bold cursor-pointer transition-all"
-          style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: `${accent}1f`, border: `1px solid ${accent}40`, color: accent }}
-          onClick={() => { haptic('medium'); onSave({ description, size }) }}>
-          Save
-        </button>
-        <button className="flex-1 font-bold cursor-pointer transition-all"
-          style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', color: '#a0a0b8' }}
-          onClick={onClose}>
-          Cancel
+      <div style={{ padding: '14px 20px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="flex-1 font-bold cursor-pointer transition-all"
+            style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: `${accent}1f`, border: `1px solid ${accent}40`, color: accent }}
+            onClick={() => { haptic('medium'); onSave({ description, size }, false) }}>
+            Save
+          </button>
+          <button className="flex-1 font-bold cursor-pointer transition-all"
+            style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', color: '#a0a0b8' }}
+            onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+        <button className="font-bold cursor-pointer transition-all flex items-center justify-center gap-2"
+          style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: accent, border: `1px solid ${accent}`, color: '#04040a' }}
+          onClick={() => { haptic('medium'); onSave({ description, size }, true) }}>
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <path d="M7 1.5l1.4 3.6L12 6.5l-3.6 1.4L7 11.5l-1.4-3.6L2 6.5l3.6-1.4L7 1.5z" fill="currentColor" />
+          </svg>
+          Save and add image
         </button>
       </div>
     </>
@@ -1955,7 +1968,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
       {/* Shot detail sheet */}
       <Sheet open={!!selectedShot} onClose={() => setSelectedShot(null)} maxHeight="95vh">
-        <ShotDetailSheet shot={selectedShot} accent={accent} projectId={projectId} aspectRatio={project?.aspectRatio} onClose={() => setSelectedShot(null)} onUploadImage={handleUploadImage}
+        <ShotDetailSheet shot={selectedShot} accent={accent} projectId={projectId} aspectRatio={project?.aspectRatio} onClose={() => setSelectedShot(null)} onUploadImage={handleUploadImage} onOpenImageMenu={(shotId) => setImageMenuShotId(shotId)}
           onUpdateShot={(shotId, fields) => {
             updateShot(shotId, fields).then(() => {
               qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
@@ -1970,7 +1983,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         <NewShotSheet
           autoId={newShotAt ? nextShotNumber(newShotAt.sceneId) : ''}
           accent={accent}
-          onSave={(data) => {
+          onSave={(data, andCreateImage) => {
             if (!newShotAt) return
             const shotNumber = nextShotNumber(newShotAt.sceneId)
             const sortOrder = allShots.length + 1
@@ -1981,8 +1994,14 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
               description: data.description,
               status: 'planned',
               sortOrder,
-            }).then(() => {
+            }).then((created) => {
               qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
+              // "Save and add image" path: chain straight into the storyboard
+              // image menu for the row we just created. Plain Save closes
+              // the sheet without opening the image flow.
+              if (andCreateImage && created?.id) {
+                setImageMenuShotId(created.id as string)
+              }
             }).catch(err => console.error('Failed to create shot:', err))
             setNewShotAt(null)
           }}
