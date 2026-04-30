@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { useProject, useThreads, usePostMessage, useCrew, useMarkThreadRead, useMeId } from '@/lib/hooks/useOriginOne'
+import { useProject, useThreads, usePostMessage, useCrew, useMarkThreadRead, useMeId, useMentionRoster } from '@/lib/hooks/useOriginOne'
 import { useThreadContexts, type ThreadContext } from '@/lib/thread-context'
 import { Sheet } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
 import { TV, TA } from '@/lib/thread-tokens'
+import { MentionInput } from '@/components/ui/MentionInput'
+import { MentionText } from '@/components/ui/MentionText'
 import type { Thread, ThreadMessage, TeamMember } from '@/types'
 
 function initialsOf(name: string): string {
@@ -290,8 +292,10 @@ function ThreadDetailSheet({
   onClose: () => void
 }) {
   const [reply, setReply] = useState('')
+  const [replyMentions, setReplyMentions] = useState<string[]>([])
   const postMessage = usePostMessage(projectId)
   const markRead = useMarkThreadRead(projectId)
+  const { data: roster = [] } = useMentionRoster(projectId)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Sheet here IS the message zone — open = user sees messages. Clear badge.
@@ -308,8 +312,16 @@ function ThreadDetailSheet({
 
   const handleSend = () => {
     if (!reply.trim() || !meId) return
-    postMessage.mutate({ threadId: thread.id, createdBy: meId, content: reply.trim() })
+    postMessage.mutate({
+      threadId: thread.id,
+      createdBy: meId,
+      content: reply.trim(),
+      projectId,
+      mentions: replyMentions,
+      contextLabel: `Threads · ${thread.attachedToType ?? ''}`,
+    })
     setReply('')
+    setReplyMentions([])
   }
 
   const meMember = meId ? crew.find(c => c.userId === meId) : null
@@ -373,7 +385,7 @@ function ThreadDetailSheet({
                       {name}{role ? ` · ${role}` : ''}
                     </div>
                     <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.55 }}>
-                      {msg.content}
+                      <MentionText text={msg.content ?? ''} accent={TV} />
                     </div>
                     <div className="font-mono" style={{ fontSize: 9, color: 'rgba(255,255,255,0.22)', marginTop: 4 }}>
                       {timeStamp(msg.createdAt)}
@@ -400,15 +412,14 @@ function ThreadDetailSheet({
               ...avatarStyle(meName),
             }}>{initialsOf(meName)}</div>
           )}
-          <input
+          <MentionInput
             value={reply}
-            onChange={e => setReply(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSend() } }}
+            mentions={replyMentions}
+            onChange={(text, m) => { setReply(text); setReplyMentions(m) }}
+            roster={roster}
             placeholder="Reply…"
-            style={{
-              flex: 1, background: 'transparent', border: 'none', outline: 'none',
-              fontSize: 13, color: '#fff',
-            }}
+            accent={TV}
+            onSubmit={handleSend}
           />
           <button
             onClick={handleSend}

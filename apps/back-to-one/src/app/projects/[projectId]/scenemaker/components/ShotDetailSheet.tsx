@@ -7,27 +7,13 @@ import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThread
 import { TV } from '@/lib/thread-tokens'
 import { StorageImage } from '@/components/ui/StorageImage'
 import type { Shot } from '@/types'
+// Single source of truth for ShotSize lives in @/lib/shot-sizes — keeps the
+// pill list, the schema enum, and the badge abbreviations in lockstep.
+// `aerial` / `pov` were previously listed here but aren't in the DB enum;
+// selecting them 500'd updates with `invalid input value for enum`.
+import { SHOT_SIZE_OPTIONS as SHOT_SIZES, SHOT_SIZE_ABBREV as SIZE_ABBREV } from '@/lib/shot-sizes'
 
-const SIZE_ABBREV: Record<string, string> = {
-  extreme_wide: 'EWS', wide: 'WIDE', full: 'FS', medium: 'MED',
-  medium_close_up: 'MCU', close_up: 'CU', extreme_close_up: 'ECU', insert: 'INS',
-  aerial: 'AERIAL', pov: 'POV',
-}
-
-const SHOT_SIZES = [
-  { value: 'extreme_wide', label: 'Extreme Wide' },
-  { value: 'wide', label: 'Wide' },
-  { value: 'full', label: 'Full' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'medium_close_up', label: 'Med Close-Up' },
-  { value: 'close_up', label: 'Close-Up' },
-  { value: 'extreme_close_up', label: 'Extreme CU' },
-  { value: 'insert', label: 'Insert' },
-  { value: 'aerial', label: 'Aerial' },
-  { value: 'pov', label: 'POV' },
-]
-
-export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose, onUploadImage, onUpdateShot }: {
+export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose, onUploadImage, onUpdateShot, onOpenImageMenu }: {
   shot: Shot | null
   accent: string
   projectId: string
@@ -35,6 +21,10 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
   onClose: () => void
   onUploadImage: (shotId: string, file: File) => void
   onUpdateShot: (shotId: string, fields: { description?: string; size?: string | null; notes?: string }) => void
+  // When provided, tapping the hero image area opens the storyboard image
+  // menu (Upload / Create image) instead of the bare native file picker.
+  // The detail sheet closes itself first so the menu isn't stacked on top.
+  onOpenImageMenu?: (shotId: string) => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [editingDesc, setEditingDesc] = useState(false)
@@ -94,7 +84,10 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
         </div>
       </div>
 
-      {/* Hero image area */}
+      {/* Hero image area — taps open the storyboard image menu (Upload /
+          Create image) when onOpenImageMenu is wired; falls back to the
+          native file picker if not. The detail sheet closes itself before
+          the menu opens so we don't stack two sheets. */}
       <div
         className="cursor-pointer"
         style={{
@@ -107,7 +100,14 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           position: 'relative',
         }}
-        onClick={() => fileRef.current?.click()}
+        onClick={() => {
+          if (onOpenImageMenu) {
+            onClose()
+            onOpenImageMenu(shot.id)
+          } else {
+            fileRef.current?.click()
+          }
+        }}
       >
         {shot.imageUrl ? (
           <StorageImage url={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -118,7 +118,7 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
               <path d="M12 10v4M10 12h4" stroke={accent} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
             </svg>
             <span className="font-mono uppercase" style={{ fontSize: '0.4rem', letterSpacing: '0.08em', color: accent, opacity: 0.6 }}>
-              Tap to upload
+              {onOpenImageMenu ? 'Tap to add image' : 'Tap to upload'}
             </span>
           </div>
         )}
@@ -171,18 +171,26 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
         )}
       </div>
 
-      {/* Framing / Shot Size selector */}
+      {/* Frame size selector — single horizontal-scroll row matches the
+          New Shot sheet so the same pill list reads identically across
+          surfaces. */}
       <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 8 }}>Framing</span>
-        <div className="flex flex-wrap" style={{ gap: 5 }}>
+        <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 8 }}>Frame size</span>
+        <div
+          className="flex no-scrollbar"
+          style={{ gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 2 }}
+        >
           {SHOT_SIZES.map(s => (
             <button key={s.value}
-              className="font-mono cursor-pointer select-none transition-all"
+              type="button"
+              className="font-mono cursor-pointer select-none transition-all flex-shrink-0"
               style={{
-                fontSize: '0.42rem', letterSpacing: '0.04em', padding: '4px 9px', borderRadius: 16,
-                background: shot.size === s.value ? `${accent}1f` : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${shot.size === s.value ? `${accent}4d` : 'rgba(255,255,255,0.05)'}`,
-                color: shot.size === s.value ? accent : '#62627a',
+                fontSize: '0.62rem', letterSpacing: '0.04em', padding: '8px 14px', borderRadius: 18,
+                background: shot.size === s.value ? `${accent}28` : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${shot.size === s.value ? `${accent}66` : 'rgba(255,255,255,0.06)'}`,
+                color: shot.size === s.value ? accent : '#a8a8b8',
+                fontWeight: shot.size === s.value ? 600 : 500,
+                whiteSpace: 'nowrap',
               }}
               onClick={() => {
                 haptic('light')

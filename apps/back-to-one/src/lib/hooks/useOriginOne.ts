@@ -46,6 +46,9 @@ export const keys = {
   allCrew:        () => ['allCrew'] as const,
   timecardsByWeek: (projectId: string, weekStartISO: string) =>
     ['timecardsByWeek', projectId, weekStartISO] as const,
+  notifications:  (meId: string, projectId: string | null) => ['notifications', meId, projectId] as const,
+  unreadCount:    (meId: string, projectId: string | null) => ['notifications', meId, projectId, 'unread'] as const,
+  mentionRoster:  (projectId: string | null, meId: string | null) => ['mentionRoster', projectId, meId ?? ''] as const,
 }
 
 // ── PROJECTS ───────────────────────────────────────────────
@@ -349,8 +352,7 @@ export function useCreateActionItem(projectId: string) {
 export function useUpdateActionItem(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: { title?: string; description?: string; assignedTo?: string | null; department?: string | null; dueDate?: string | null; status?: string } }) =>
-      db.updateActionItem(id, fields),
+    mutationFn: db.updateActionItem,
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.actionItems(projectId) }),
   })
 }
@@ -376,8 +378,7 @@ export function useCreateMilestone(projectId: string) {
 export function useUpdateMilestone(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: { title?: string; date?: string; status?: string; notes?: string } }) =>
-      db.updateMilestone(id, fields),
+    mutationFn: db.updateMilestone,
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.milestones(projectId) }),
   })
 }
@@ -551,15 +552,7 @@ export function useCreateThread(projectId: string) {
 export function usePostMessage(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({
-      threadId,
-      createdBy,
-      content,
-    }: {
-      threadId: string
-      createdBy: string
-      content: string
-    }) => db.postMessage(threadId, createdBy, content),
+    mutationFn: db.postMessage,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['threads', projectId] })
       qc.invalidateQueries({ queryKey: ['threadPreviews', projectId] })
@@ -821,8 +814,7 @@ export function useCreateShootDay(projectId: string) {
 export function useUpdateShootDay(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: Parameters<typeof db.updateShootDay>[1] }) =>
-      db.updateShootDay(id, fields),
+    mutationFn: db.updateShootDay,
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.shootDays(projectId) }),
   })
 }
@@ -1410,5 +1402,64 @@ export function useBulkReorderHomeGrid() {
     mutationFn: (items: { type: 'folder' | 'project'; id: string; sortOrder: number }[]) =>
       db.bulkReorderHomeGrid(meId!, items),
     onSuccess:  () => invalidateFolders(qc),
+  })
+}
+
+// ── NOTIFICATIONS ─────────────────────────────────────────
+
+export function useNotifications(projectId: string | null) {
+  const meId = useMeId()
+  return useQuery({
+    queryKey: keys.notifications(meId ?? '', projectId),
+    queryFn:  () => db.getNotifications(meId as string, projectId),
+    enabled:  !!meId,
+  })
+}
+
+export function useUnreadCount(projectId: string | null) {
+  const meId = useMeId()
+  return useQuery({
+    queryKey: keys.unreadCount(meId ?? '', projectId),
+    queryFn:  () => db.getUnreadCount(meId as string, projectId),
+    enabled:  !!meId,
+  })
+}
+
+export function useMarkNotificationRead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.markNotificationRead,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+  })
+}
+
+export function useMarkAllNotificationsRead(projectId: string | null) {
+  const qc = useQueryClient()
+  const meId = useMeId()
+  return useMutation({
+    mutationFn: () => db.markAllNotificationsRead(meId as string, projectId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+  })
+}
+
+export function useNotificationsSubscription() {
+  const meId = useMeId()
+  const qc = useQueryClient()
+  useEffect(() => {
+    if (!meId) return
+    return db.subscribeToNotifications(meId, () => {
+      qc.invalidateQueries({ queryKey: ['notifications'] })
+    })
+  }, [meId, qc])
+}
+
+export function useMentionRoster(projectId: string | null) {
+  const meId = useMeId()
+  return useQuery({
+    queryKey: keys.mentionRoster(projectId, meId),
+    queryFn:  () => projectId
+      ? db.getProjectMentionRoster(projectId)
+      : db.getCrossProjectMentionRoster(meId as string),
+    enabled:  projectId !== null || !!meId,
   })
 }

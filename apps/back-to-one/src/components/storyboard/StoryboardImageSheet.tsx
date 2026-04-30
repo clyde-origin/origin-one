@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { uploadStoryboardImage } from '@/lib/db/queries'
 import { haptic } from '@/lib/utils/haptics'
+import { STORYBOARD_STYLES, DEFAULT_STORYBOARD_STYLE, type StoryboardStyle } from '@/lib/bria/style'
 
 type Mode = 'menu' | 'bria'
 
@@ -22,6 +23,7 @@ export function StoryboardImageSheet({
   shotId,
   projectId,
   accentColor,
+  initialPrompt,
   onClose,
   onComplete,
 }: {
@@ -29,11 +31,15 @@ export function StoryboardImageSheet({
   shotId: string | null
   projectId: string
   accentColor: string
+  // Pre-populates the Create-image prompt so the user can iterate from the
+  // shot description rather than retyping it. Empty string is fine.
+  initialPrompt?: string
   onClose: () => void
   onComplete: (imageUrl: string) => void
 }) {
   const [mode, setMode] = useState<Mode>('menu')
   const [prompt, setPrompt] = useState('')
+  const [style, setStyle] = useState<StoryboardStyle>(DEFAULT_STORYBOARD_STYLE)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -42,11 +48,12 @@ export function StoryboardImageSheet({
   useEffect(() => {
     if (open) {
       setMode('menu')
-      setPrompt('')
+      setPrompt(initialPrompt ?? '')
+      setStyle(DEFAULT_STORYBOARD_STYLE)
       setPending(false)
       setError(null)
     }
-  }, [open, shotId])
+  }, [open, shotId, initialPrompt])
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -74,7 +81,7 @@ export function StoryboardImageSheet({
       const res = await fetch('/api/storyboard/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, shotId, prompt: prompt.trim() }),
+        body: JSON.stringify({ projectId, shotId, prompt: prompt.trim(), style }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -94,7 +101,7 @@ export function StoryboardImageSheet({
   return (
     <Sheet open={open} onClose={pending ? () => {} : onClose} maxHeight="60vh">
       <SheetHeader
-        title={mode === 'menu' ? 'Storyboard image' : 'Generate with Bria'}
+        title={mode === 'menu' ? 'Storyboard image' : 'Create image'}
         onClose={pending ? () => {} : onClose}
       />
       <SheetBody>
@@ -106,7 +113,8 @@ export function StoryboardImageSheet({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18 }}
-              className="flex flex-col gap-3 pb-2"
+              className="flex flex-col gap-3"
+              style={{ paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))' }}
             >
               <ActionRow
                 label="Upload from device"
@@ -117,8 +125,8 @@ export function StoryboardImageSheet({
                 icon={<UploadIcon />}
               />
               <ActionRow
-                label="Generate with Bria"
-                helper="Describe the shot and let AI render a draft frame."
+                label="Create image"
+                helper="Describe the shot and we'll render a draft frame."
                 onClick={() => { haptic('light'); setMode('bria') }}
                 accentColor={accentColor}
                 disabled={pending}
@@ -133,13 +141,14 @@ export function StoryboardImageSheet({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18 }}
-              className="flex flex-col gap-3 pb-2"
+              className="flex flex-col gap-3"
+              style={{ paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))' }}
             >
               <textarea
                 value={prompt}
                 onChange={e => setPrompt(e.target.value)}
                 disabled={pending}
-                placeholder="Wide medium shot, golden hour, two characters silhouetted against an open field…"
+                placeholder="describe your shot"
                 rows={5}
                 style={{
                   background: 'rgba(255,255,255,0.04)',
@@ -154,6 +163,7 @@ export function StoryboardImageSheet({
                   fontFamily: 'inherit',
                 }}
               />
+              <StylePicker value={style} onChange={setStyle} accentColor={accentColor} disabled={pending} />
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -203,7 +213,7 @@ export function StoryboardImageSheet({
               </div>
               {pending && (
                 <span className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a', letterSpacing: '0.06em', textAlign: 'center' }}>
-                  Bria takes about 30–60 seconds. Don't close this sheet.
+                  Image generation takes about 30–60 seconds. Don't close this sheet.
                 </span>
               )}
               {error && <ErrorRow message={error} />}
@@ -260,6 +270,48 @@ function ActionRow({
         <span style={{ fontSize: '0.62rem', color: '#62627a', marginTop: 2 }}>{helper}</span>
       </span>
     </button>
+  )
+}
+
+function StylePicker({
+  value, onChange, accentColor, disabled,
+}: {
+  value: StoryboardStyle
+  onChange: (s: StoryboardStyle) => void
+  accentColor: string
+  disabled?: boolean
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="font-mono uppercase" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em' }}>Style</span>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {STORYBOARD_STYLES.map(({ value: v, label }) => {
+          const active = v === value
+          return (
+            <button
+              key={v}
+              type="button"
+              disabled={disabled}
+              onClick={() => { haptic('light'); onChange(v) }}
+              className="font-mono uppercase flex-1"
+              style={{
+                background: active ? `${accentColor}28` : 'rgba(255,255,255,0.03)',
+                border: `1px solid ${active ? `${accentColor}66` : 'rgba(255,255,255,0.06)'}`,
+                borderRadius: 7,
+                padding: '8px 6px',
+                color: active ? accentColor : '#a8a8b8',
+                fontSize: '0.46rem',
+                letterSpacing: '0.08em',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                opacity: disabled ? 0.5 : 1,
+              }}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 

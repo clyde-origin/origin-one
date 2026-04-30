@@ -2,6 +2,12 @@ import { createBrowserAuthClient as createClient } from '@origin-one/auth'
 import { DEFAULT_AICP_ACCOUNTS } from '@origin-one/schema'
 import { initials } from '@/lib/utils/formatting'
 import { syncExpenseFromTimecard, deleteExpenseForTimecard } from '@/lib/budget/timecard-to-expense'
+import type { MentionRosterEntry } from '@/lib/mentions/types'
+import { computeMentionDelta } from '@/lib/mentions/delta'
+import { buildExcerpt } from '@/lib/mentions/excerpt'
+import { dispatchPush } from '@/lib/push/dispatch'
+
+export type { MentionRosterEntry } from '@/lib/mentions/types'
 
 // ── STORAGE ───────────────────────────────────────────────
 
@@ -580,20 +586,40 @@ export async function toggleActionItem(id: string, done: boolean): Promise<void>
   if (error) { console.error('toggleActionItem failed:', error); throw error }
 }
 
-export async function updateActionItem(
-  id: string,
-  fields: { title?: string; description?: string; assignedTo?: string | null; department?: string | null; dueDate?: string | null; status?: string }
-): Promise<void> {
+export async function updateActionItem({
+  id,
+  actorId,
+  fields,
+  contextLabel,
+}: {
+  id: string
+  actorId: string
+  fields: { title?: string; description?: string; assignedTo?: string | null; department?: string | null; dueDate?: string | null; status?: string; mentions?: string[] }
+  contextLabel?: string
+}): Promise<void> {
   const db = createClient()
-  const { error } = await db
+  const { data, error } = await db
     .from('ActionItem')
     .update(fields)
     .eq('id', id)
+    .select('title, projectId')
+    .single()
   if (error) { console.error('updateActionItem failed:', error); throw error }
+  if (fields.description !== undefined && fields.mentions && fields.mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'actionItem',
+      sourceId: id,
+      projectId: data.projectId,
+      actorId,
+      newMentions: fields.mentions,
+      text: fields.description ?? '',
+      contextLabel: contextLabel ?? `Action Item · ${data.title}`,
+    })
+  }
 }
 
 export async function createActionItem(
-  item: { projectId: string; title: string; description?: string; assignedTo?: string | null; department?: string | null; dueDate?: string | null }
+  item: { projectId: string; title: string; description?: string; assignedTo?: string | null; department?: string | null; dueDate?: string | null; actorId: string; mentions?: string[]; contextLabel?: string }
 ) {
   const db = createClient()
   const { data, error } = await db
@@ -606,10 +632,22 @@ export async function createActionItem(
       assignedTo: item.assignedTo ?? null,
       department: item.department ?? null,
       dueDate: item.dueDate ?? null,
+      mentions: item.mentions ?? [],
     })
     .select()
     .single()
   if (error) { console.error('createActionItem failed:', error); throw error }
+  if (item.mentions && item.mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'actionItem',
+      sourceId: data.id,
+      projectId: item.projectId,
+      actorId: item.actorId,
+      newMentions: item.mentions,
+      text: item.description ?? '',
+      contextLabel: item.contextLabel ?? `Action Item · ${item.title}`,
+    })
+  }
   return data
 }
 
@@ -629,16 +667,36 @@ export async function getMilestones(projectId: string) {
   }))
 }
 
-export async function updateMilestone(
-  id: string,
-  fields: { title?: string; date?: string; status?: string; notes?: string }
-): Promise<void> {
+export async function updateMilestone({
+  id,
+  actorId,
+  fields,
+  contextLabel,
+}: {
+  id: string
+  actorId: string
+  fields: { title?: string; date?: string; status?: string; notes?: string; mentions?: string[] }
+  contextLabel?: string
+}): Promise<void> {
   const db = createClient()
-  const { error } = await db
+  const { data, error } = await db
     .from('Milestone')
     .update(fields)
     .eq('id', id)
+    .select('title, projectId')
+    .single()
   if (error) { console.error('updateMilestone failed:', error); throw error }
+  if (fields.notes !== undefined && fields.mentions && fields.mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'milestone',
+      sourceId: id,
+      projectId: data.projectId,
+      actorId,
+      newMentions: fields.mentions,
+      text: fields.notes ?? '',
+      contextLabel: contextLabel ?? `Milestone · ${data.title}`,
+    })
+  }
 }
 
 export async function addMilestonePerson(milestoneId: string, userId: string): Promise<void> {
@@ -654,10 +712,10 @@ export async function removeMilestonePerson(milestoneId: string, userId: string)
 }
 
 export async function createMilestone(
-  milestone: { projectId: string; title: string; date: string; status?: string; notes?: string; people?: string[] }
+  milestone: { projectId: string; title: string; date: string; status?: string; notes?: string; people?: string[]; actorId: string; mentions?: string[]; contextLabel?: string }
 ) {
   const db = createClient()
-  const { people = [], ...fields } = milestone
+  const { people = [], actorId, mentions, contextLabel, ...fields } = milestone
   const { data, error } = await db
     .from('Milestone')
     .insert({
@@ -667,6 +725,7 @@ export async function createMilestone(
       date: fields.date,
       status: fields.status ?? 'upcoming',
       notes: fields.notes ?? null,
+      mentions: mentions ?? [],
     })
     .select()
     .single()
@@ -676,6 +735,17 @@ export async function createMilestone(
       .from('MilestonePerson')
       .insert(people.map(userId => ({ milestoneId: data.id, userId })))
     if (pErr) { console.error('createMilestone people failed:', pErr); throw pErr }
+  }
+  if (mentions && mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'milestone',
+      sourceId: data.id,
+      projectId: fields.projectId,
+      actorId,
+      newMentions: mentions,
+      text: fields.notes ?? '',
+      contextLabel: contextLabel ?? `Milestone · ${fields.title}`,
+    })
   }
   return { ...data, people }
 }
@@ -842,6 +912,11 @@ export async function createShot(shot: {
   sortOrder: number
 }) {
   const db = createClient()
+  const now = new Date().toISOString()
+  // Shot.updatedAt is NOT NULL with no SQL default — Prisma's @updatedAt
+  // decorator only fires when Prisma is the writer, so the Supabase REST
+  // client must set this explicitly. Matches the pattern in createScene
+  // and createMoodboardRef. Without this, the insert silently 500s.
   const { data, error } = await db
     .from('Shot')
     .insert({
@@ -852,6 +927,8 @@ export async function createShot(shot: {
       description: shot.description ?? '',
       status: shot.status ?? 'planned',
       sortOrder: shot.sortOrder,
+      createdAt: now,
+      updatedAt: now,
     })
     .select()
     .single()
@@ -940,18 +1017,38 @@ export async function createThread(
   return { ...data, messages: [], unreadCount: 0, unread: false }
 }
 
-export async function postMessage(
-  threadId: string,
-  createdBy: string,
-  content: string,
-) {
+export async function postMessage(input: {
+  threadId: string
+  createdBy: string
+  content: string
+  projectId: string
+  mentions?: string[]
+  contextLabel?: string
+}) {
   const db = createClient()
   const { data, error } = await db
     .from('ThreadMessage')
-    .insert({ id: crypto.randomUUID(), threadId, createdBy, content })
+    .insert({
+      id: crypto.randomUUID(),
+      threadId: input.threadId,
+      createdBy: input.createdBy,
+      content: input.content,
+      mentions: input.mentions ?? [],
+    })
     .select()
     .single()
   if (error) throw error
+  if (input.mentions && input.mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'threadMessage',
+      sourceId: data.id,
+      projectId: input.projectId,
+      actorId: input.createdBy,
+      newMentions: input.mentions,
+      text: input.content,
+      contextLabel: input.contextLabel ?? 'Thread',
+    })
+  }
   return data
 }
 
@@ -1629,6 +1726,9 @@ export async function createShootDay(input: {
   notes?: string | null
   locationId?: string | null
   sortOrder?: number
+  actorId: string
+  mentions?: string[]
+  contextLabel?: string
 }) {
   const db = createClient()
   const { data, error } = await db
@@ -1641,26 +1741,57 @@ export async function createShootDay(input: {
       notes: input.notes ?? null,
       locationId: input.locationId ?? null,
       sortOrder: input.sortOrder ?? 0,
+      mentions: input.mentions ?? [],
     })
     .select()
     .single()
   if (error) { console.error('createShootDay failed:', error); throw error }
+  if (input.mentions && input.mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'shootDay',
+      sourceId: data.id,
+      projectId: input.projectId,
+      actorId: input.actorId,
+      newMentions: input.mentions,
+      text: input.notes ?? '',
+      contextLabel: input.contextLabel ?? `Shoot Day · ${new Date(input.date).toLocaleDateString()}`,
+    })
+  }
   return data
 }
 
-export async function updateShootDay(
-  id: string,
+export async function updateShootDay({
+  id,
+  actorId,
+  fields,
+  contextLabel,
+}: {
+  id: string
+  actorId: string
   fields: {
     date?: string
     type?: 'pre' | 'prod' | 'post'
     notes?: string | null
     locationId?: string | null
     sortOrder?: number
+    mentions?: string[]
   }
-): Promise<void> {
+  contextLabel?: string
+}): Promise<void> {
   const db = createClient()
-  const { error } = await db.from('ShootDay').update(fields).eq('id', id)
+  const { data, error } = await db.from('ShootDay').update(fields).eq('id', id).select('date, projectId').single()
   if (error) { console.error('updateShootDay failed:', error); throw error }
+  if (fields.notes !== undefined && fields.mentions && fields.mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'shootDay',
+      sourceId: id,
+      projectId: data.projectId,
+      actorId,
+      newMentions: fields.mentions,
+      text: fields.notes ?? '',
+      contextLabel: contextLabel ?? `Shoot Day · ${new Date(data.date).toLocaleDateString()}`,
+    })
+  }
 }
 
 export async function deleteShootDay(id: string): Promise<void> {
@@ -3032,6 +3163,8 @@ export async function sendChatMessage(input: {
   senderId: string
   recipientId?: string | null
   content: string
+  mentions?: string[]
+  contextLabel?: string
 }) {
   const db = createClient()
   const { data, error } = await db
@@ -3043,10 +3176,22 @@ export async function sendChatMessage(input: {
       senderId: input.senderId,
       recipientId: input.recipientId ?? null,
       content: input.content,
+      mentions: input.mentions ?? [],
     })
     .select()
     .single()
   if (error) { console.error('sendChatMessage failed:', error); throw error }
+  if (input.mentions && input.mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'chatMessage',
+      sourceId: data.id,
+      projectId: input.projectId,
+      actorId: input.senderId,
+      newMentions: input.mentions,
+      text: input.content,
+      contextLabel: input.contextLabel ?? 'Chat',
+    })
+  }
   return data
 }
 
@@ -3317,4 +3462,175 @@ export async function updateTeamName(teamId: string, name: string) {
     .update({ name, updatedAt: new Date().toISOString() })
     .eq('id', teamId)
   if (error) { console.error('updateTeamName failed:', error); throw error }
+}
+
+// ── NOTIFICATIONS ─────────────────────────────────────────
+
+export interface NotificationRow {
+  id: string
+  userId: string
+  projectId: string
+  sourceType: string
+  sourceId: string
+  actorId: string
+  excerpt: string
+  contextLabel: string
+  readAt: string | null
+  createdAt: string
+  actor?: { id: string; name: string; avatarUrl: string | null }
+  project?: { id: string; name: string; color: string | null }
+}
+
+export async function getNotifications(meId: string, projectId: string | null): Promise<NotificationRow[]> {
+  const db = createClient()
+  let q = db
+    .from('Notification')
+    .select('*, actor:User!Notification_actorId_fkey(id,name,avatarUrl), project:Project(id,name,color)')
+    .eq('userId', meId)
+    .order('createdAt', { ascending: false })
+    .limit(100)
+  if (projectId) q = q.eq('projectId', projectId)
+  const { data, error } = await q
+  if (error) { console.error('getNotifications failed:', error); throw error }
+  return (data ?? []) as NotificationRow[]
+}
+
+export async function getUnreadCount(meId: string, projectId: string | null): Promise<number> {
+  const db = createClient()
+  let q = db
+    .from('Notification')
+    .select('id', { count: 'exact', head: true })
+    .eq('userId', meId)
+    .is('readAt', null)
+  if (projectId) q = q.eq('projectId', projectId)
+  const { count, error } = await q
+  if (error) { console.error('getUnreadCount failed:', error); throw error }
+  return count ?? 0
+}
+
+export async function markNotificationRead(id: string) {
+  const db = createClient()
+  const { error } = await db.from('Notification').update({ readAt: new Date().toISOString() }).eq('id', id)
+  if (error) { console.error('markNotificationRead failed:', error); throw error }
+}
+
+export async function markAllNotificationsRead(meId: string, projectId: string | null) {
+  const db = createClient()
+  let q = db.from('Notification').update({ readAt: new Date().toISOString() }).eq('userId', meId).is('readAt', null)
+  if (projectId) q = q.eq('projectId', projectId)
+  const { error } = await q
+  if (error) { console.error('markAllNotificationsRead failed:', error); throw error }
+}
+
+export function subscribeToNotifications(meId: string, onInsert: (row: NotificationRow) => void) {
+  const db = createClient()
+  const channelName = `notifications-${meId}-${crypto.randomUUID()}`
+  const ch = db.channel(channelName)
+  ch.on(
+    'postgres_changes',
+    { event: 'INSERT', schema: 'public', table: 'Notification', filter: `userId=eq.${meId}` },
+    (payload) => onInsert(payload.new as NotificationRow),
+  )
+  ch.subscribe()
+  return () => { db.removeChannel(ch) }
+}
+
+// ── MENTION ROSTER ────────────────────────────────────────
+
+export async function getProjectMentionRoster(projectId: string): Promise<MentionRosterEntry[]> {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ProjectMember')
+    .select('role, user:User!ProjectMember_userId_fkey(id,name,avatarUrl)')
+    .eq('projectId', projectId)
+  if (error) { console.error('getProjectMentionRoster failed:', error); throw error }
+  return (data ?? [])
+    .filter((m: any) => m.user)
+    .map((m: any) => ({
+      userId: m.user.id,
+      name: m.user.name,
+      role: m.role ?? null,
+      avatarUrl: m.user.avatarUrl ?? null,
+    }))
+}
+
+export async function getCrossProjectMentionRoster(meId: string): Promise<MentionRosterEntry[]> {
+  const db = createClient()
+  const { data: myProjects, error: pErr } = await db
+    .from('ProjectMember')
+    .select('projectId')
+    .eq('userId', meId)
+  if (pErr) { console.error('getCrossProjectMentionRoster (myProjects) failed:', pErr); throw pErr }
+  const projectIds = (myProjects ?? []).map((p: any) => p.projectId)
+  if (projectIds.length === 0) return []
+  const { data, error } = await db
+    .from('ProjectMember')
+    .select('role, user:User!ProjectMember_userId_fkey(id,name,avatarUrl)')
+    .in('projectId', projectIds)
+  if (error) { console.error('getCrossProjectMentionRoster failed:', error); throw error }
+  const dedup = new Map<string, MentionRosterEntry>()
+  for (const m of data ?? []) {
+    const u: any = (m as any).user
+    if (!u || u.id === meId) continue
+    if (!dedup.has(u.id)) {
+      dedup.set(u.id, {
+        userId: u.id,
+        name: u.name,
+        role: (m as any).role ?? null,
+        avatarUrl: u.avatarUrl ?? null,
+      })
+    }
+  }
+  return Array.from(dedup.values())
+}
+
+// ── MENTION FAN-OUT (used by send mutations) ──────────────
+
+interface FanoutInput {
+  sourceType: 'chatMessage' | 'threadMessage' | 'actionItem' | 'milestone' | 'shootDay'
+  sourceId: string
+  projectId: string
+  actorId: string
+  newMentions: string[]
+  text: string
+  contextLabel: string
+}
+
+async function fanoutMentions(input: FanoutInput) {
+  if (input.newMentions.length === 0) return
+  const db = createClient()
+  const { data: existing } = await db
+    .from('Notification')
+    .select('userId')
+    .eq('sourceType', input.sourceType)
+    .eq('sourceId', input.sourceId)
+  const alreadyNotified = (existing ?? []).map((r: any) => r.userId)
+  const delta = computeMentionDelta({
+    newMentions: input.newMentions,
+    alreadyNotified,
+    actorId: input.actorId,
+  })
+  if (delta.length === 0) return
+  const excerpt = buildExcerpt(input.text)
+  const rows = delta.map((userId) => ({
+    id: crypto.randomUUID(),
+    userId,
+    projectId: input.projectId,
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    actorId: input.actorId,
+    excerpt,
+    contextLabel: input.contextLabel,
+    readAt: null,
+  }))
+  const { data: inserted, error } = await db.from('Notification').insert(rows).select('id')
+  if (error) {
+    console.error('fanoutMentions failed:', error)
+    return
+  }
+  const insertedIds = (inserted ?? []).map((r) => r.id)
+  if (insertedIds.length > 0) {
+    // Fire-and-forget — push delivery is best-effort.
+    void dispatchPush(insertedIds)
+  }
 }

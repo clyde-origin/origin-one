@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useProject, useActionItems, useToggleActionItem, useCreateActionItem, useUpdateActionItem, useCrew } from '@/lib/hooks/useOriginOne'
+import { useProject, useActionItems, useToggleActionItem, useCreateActionItem, useUpdateActionItem, useCrew, useMentionRoster, useMeId } from '@/lib/hooks/useOriginOne'
+import { MentionInput } from '@/components/ui/MentionInput'
+import { MentionText } from '@/components/ui/MentionText'
 import { LoadingState, EmptyState, CrewAvatar, SkeletonLine } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
@@ -104,10 +106,13 @@ function TaskDetailSheet({ item, crew, accent, projectId, onClose, onToggle }: {
   item: ActionItem | null; crew: TeamMember[]; accent: string; projectId: string; onClose: () => void; onToggle: () => void
 }) {
   const updateItem = useUpdateActionItem(projectId)
+  const meId = useMeId()
   const [editDue, setEditDue] = useState(false)
   const [editAssignee, setEditAssignee] = useState(false)
   const [dueValue, setDueValue] = useState(item?.dueDate?.split('T')[0] ?? '')
   const [notes, setNotes] = useState(item?.description ?? '')
+  const [notesMentions, setNotesMentions] = useState<string[]>((item as any)?.mentions ?? [])
+  const { data: roster = [] } = useMentionRoster(projectId)
 
   const { TriggerIcon, PreviewRow, MessageZone, StartSheetOverlay } = useDetailSheetThreads({
     projectId,
@@ -125,14 +130,14 @@ function TaskDetailSheet({ item, crew, accent, projectId, onClose, onToggle }: {
   const saveDue = (val: string) => {
     setEditDue(false)
     if (val !== (item.dueDate?.split('T')[0] ?? '')) {
-      updateItem.mutate({ id: item.id, fields: { dueDate: val || null } })
+      updateItem.mutate({ id: item.id, actorId: meId as string, fields: { dueDate: val || null } })
     }
   }
 
   const saveAssignee = (userId: string | null) => {
     setEditAssignee(false)
     if (userId !== item.assignedTo) {
-      updateItem.mutate({ id: item.id, fields: { assignedTo: userId } })
+      updateItem.mutate({ id: item.id, actorId: meId as string, fields: { assignedTo: userId } })
     }
   }
 
@@ -210,22 +215,32 @@ function TaskDetailSheet({ item, crew, accent, projectId, onClose, onToggle }: {
           </div>
         </div>
 
-        {/* Notes — editable textarea */}
+        {/* Notes — editable MentionInput */}
         <div className="flex items-start gap-3">
           <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.46rem', color: '#62627a', letterSpacing: '0.08em', width: 68, paddingTop: 1 }}>Notes</span>
-          <textarea
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
+          <div
+            style={{ flex: 1, fontSize: '0.72rem', color: '#a0a0b8', lineHeight: 1.55, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 6, padding: '10px 12px' }}
             onBlur={() => {
-              if (notes !== (item.description ?? '')) {
-                updateItem.mutate({ id: item.id, fields: { description: notes || undefined } })
+              if (notes !== (item.description ?? '') || notesMentions.join(',') !== ((item as any).mentions ?? []).join(',')) {
+                updateItem.mutate({
+                  id: item.id,
+                  actorId: meId as string,
+                  fields: { description: notes || undefined, mentions: notesMentions },
+                  contextLabel: `Action Item · ${item.title}`,
+                })
               }
             }}
-            placeholder="Add notes..."
-            rows={3}
-            className="outline-none resize-none"
-            style={{ flex: 1, fontSize: '0.72rem', color: '#a0a0b8', lineHeight: 1.55, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 6, padding: '10px 12px', fontFamily: 'inherit' }}
-          />
+          >
+            <MentionInput
+              value={notes}
+              mentions={notesMentions}
+              onChange={(text, m) => { setNotes(text); setNotesMentions(m) }}
+              roster={roster}
+              placeholder="Add notes…"
+              multiline
+              accent={accent}
+            />
+          </div>
         </div>
       </div>
 

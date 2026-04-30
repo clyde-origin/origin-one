@@ -16,6 +16,7 @@ import { cookies } from 'next/headers'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { generateStoryboard } from '@/lib/bria/client'
 import { briaAspect } from '@/lib/bria/aspect'
+import { buildStyledPrompt, DEFAULT_STORYBOARD_STYLE, type StoryboardStyle } from '@/lib/bria/style'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -40,7 +41,10 @@ type GenerateBody = {
   projectId?: string
   shotId?: string
   prompt?: string
+  style?: StoryboardStyle
 }
+
+const VALID_STYLES: ReadonlySet<StoryboardStyle> = new Set<StoryboardStyle>(['hand-drawn', 'colored', 'photo-real'])
 
 export async function POST(req: Request) {
   let body: GenerateBody
@@ -49,7 +53,7 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: 'invalid_body' }, { status: 400 })
   }
-  const { projectId, shotId, prompt } = body
+  const { projectId, shotId, prompt, style } = body
   if (!projectId || !shotId || !prompt?.trim()) {
     return NextResponse.json({ error: 'missing_fields' }, { status: 400 })
   }
@@ -57,6 +61,10 @@ export async function POST(req: Request) {
   if (trimmedPrompt.length > 2000) {
     return NextResponse.json({ error: 'prompt_too_long' }, { status: 400 })
   }
+  // Unknown style values fall back to the default rather than 400ing — the
+  // server is the source of truth for the preamble, the client just picks a
+  // label. New styles can land in the picker before clients update.
+  const resolvedStyle: StoryboardStyle = style && VALID_STYLES.has(style) ? style : DEFAULT_STORYBOARD_STYLE
 
   const supabase = makeServerClient()
 
@@ -90,7 +98,8 @@ export async function POST(req: Request) {
 
   let bytes: Buffer
   try {
-    const result = await generateStoryboard({ prompt: trimmedPrompt, aspectRatio: aspect.request })
+    const styledPrompt = buildStyledPrompt(resolvedStyle, trimmedPrompt)
+    const result = await generateStoryboard({ prompt: styledPrompt, aspectRatio: aspect.request })
     bytes = result.bytes
   } catch (err) {
     console.error('[storyboard/generate] Bria failed:', err)
