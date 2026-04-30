@@ -22,6 +22,7 @@ import { ShotDetailSheet } from './components/ShotDetailSheet'
 import { EntityDrawer } from './components/EntityDrawer'
 import { PdfExport } from './components/PdfExport'
 import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
+import { StoryboardImageSheet } from '@/components/storyboard/StoryboardImageSheet'
 import { Toast, type ToastSpec } from '@/components/ui/Toast'
 import {
   DndContext,
@@ -1268,8 +1269,9 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   // existing one; no queue.
   const [toast, setToast] = useState<ToastSpec | null>(null)
   const scriptRef = useRef<ScriptViewHandle>(null)
-  const thumbFileRef = useRef<HTMLInputElement>(null)
-  const pendingUploadShotRef = useRef<string | null>(null)
+  // Storyboard upload-or-generate sheet — opens when an empty thumbnail
+  // is tapped. The sheet itself owns the file picker + Bria call.
+  const [imageMenuShotId, setImageMenuShotId] = useState<string | null>(null)
 
   const qc = useQueryClient()
   const { data: shotlistVersions } = useShotlistVersions(projectId)
@@ -1631,20 +1633,14 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
     if (shot.imageUrl) {
       setSelectedShot(shot)
     } else {
-      pendingUploadShotRef.current = shot.id
-      thumbFileRef.current?.click()
+      setImageMenuShotId(shot.id)
     }
   }, [])
 
-  const handleThumbFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    const shotId = pendingUploadShotRef.current
-    if (file && shotId) {
-      handleUploadImage(shotId, file)
-    }
-    pendingUploadShotRef.current = null
-    e.target.value = ''
-  }, [handleUploadImage])
+  const handleImageGenerated = useCallback((shotId: string, url: string) => {
+    qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
+    setSelectedShot(prev => prev?.id === shotId ? { ...prev, imageUrl: url } : prev)
+  }, [projectId, qc])
 
   // ── SAVE SHOTLIST VERSION ──────────────────────────────────
   const handleSaveVersion = useCallback(() => {
@@ -1945,8 +1941,17 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
       {/* FAB cluster lifted to global ActionBar; branches registered via useFabAction above. */}
 
-      {/* Hidden file input for thumbnail uploads */}
-      <input ref={thumbFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleThumbFileChange} />
+      {/* Storyboard image sheet (Upload from device + Generate with Bria) */}
+      <StoryboardImageSheet
+        open={imageMenuShotId !== null}
+        shotId={imageMenuShotId}
+        projectId={projectId}
+        accentColor={accent}
+        onClose={() => setImageMenuShotId(null)}
+        onComplete={(url) => {
+          if (imageMenuShotId) handleImageGenerated(imageMenuShotId, url)
+        }}
+      />
 
       {/* Shot detail sheet */}
       <Sheet open={!!selectedShot} onClose={() => setSelectedShot(null)} maxHeight="95vh">
