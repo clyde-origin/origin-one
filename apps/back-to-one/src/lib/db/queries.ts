@@ -3383,6 +3383,34 @@ export async function upsertUserProjectPlacement(input: {
   return data
 }
 
+/**
+ * Move a project out of its folder back to the home grid root for a
+ * specific viewer. Clears UserProjectPlacement.folderId; assigns a
+ * sortOrder that places the project at the bottom of the root-grid
+ * order. Wraps upsertUserProjectPlacement.
+ */
+export async function moveProjectToRoot(input: {
+  userId: string
+  projectId: string
+}) {
+  const db = createClient()
+  const { data: rows, error: readErr } = await db
+    .from('UserProjectPlacement')
+    .select('sortOrder')
+    .eq('userId', input.userId)
+    .is('folderId', null)
+    .order('sortOrder', { ascending: false })
+    .limit(1)
+  if (readErr) { console.error('moveProjectToRoot read failed:', readErr); throw readErr }
+  const maxSortOrder = rows && rows.length > 0 ? rows[0].sortOrder : 0
+  return upsertUserProjectPlacement({
+    userId: input.userId,
+    projectId: input.projectId,
+    folderId: null,
+    sortOrder: maxSortOrder + 1024,
+  })
+}
+
 /** Bulk reorder for a single home-grid pass (all top-level items). */
 export async function bulkReorderHomeGrid(
   meId: string,
@@ -3421,6 +3449,19 @@ export async function bulkReorderHomeGrid(
     const err = results.find(r => r.error)?.error
     if (err) { console.error('bulkReorderHomeGrid placements failed:', err); throw err }
   }
+}
+
+/**
+ * Update the team's name. RLS enforces the viewer must be a TeamMember
+ * (policy `team_update` in migration 20260428005845_rls_helpers_and_policies).
+ */
+export async function updateTeamName(teamId: string, name: string) {
+  const db = createClient()
+  const { error } = await db
+    .from('Team')
+    .update({ name, updatedAt: new Date().toISOString() })
+    .eq('id', teamId)
+  if (error) { console.error('updateTeamName failed:', error); throw error }
 }
 
 // ── NOTIFICATIONS ─────────────────────────────────────────

@@ -5,22 +5,26 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  useProjects, useCrew, useArchiveProject, useDeleteProject, useUpdateProject,
+  useProjects, useArchiveProject, useDeleteProject, useUpdateProject,
   useMeId, useMyTeam, useUserProjectFolders, useUserProjectPlacements,
   useCreateUserProjectFolder, useUpdateUserProjectFolder, useDeleteUserProjectFolder,
   useUpsertUserProjectPlacement, useArchivedProjects, useRestoreProject,
   useArchivedUserProjectFolders, useArchiveUserProjectFolder, useRestoreUserProjectFolder,
+  useMoveProjectToRoot,
+  useUpdateTeamName,
 } from '@/lib/hooks/useOriginOne'
-import { SkeletonLine, CrewAvatar } from '@/components/ui'
+import { SkeletonLine } from '@/components/ui'
 import { useRootFab } from '@/components/ui/ActionBarRoot'
-import { getProjectColor, statusHex, STATUS_LABELS_SHORT } from '@/lib/utils/phase'
+import { getProjectColor } from '@/lib/utils/phase'
 import { haptic } from '@/lib/utils/haptics'
-import { useLongPress } from '@/lib/hooks/useLongPress'
+import { SlateCard, WiggleStyle } from '@/components/projects/SlateCard'
+import { ArchiveIcon, ARCHIVE_FOLDER_ID, MOVE_OUT_TARGET_ID } from '@/components/projects/ArchiveIcon'
 import { ProjectActionSheet } from '@/components/projects/ProjectActionSheet'
 import { FolderCard } from '@/components/projects/FolderCard'
 import { OpenFolderSheet } from '@/components/projects/OpenFolderSheet'
 import { FolderActionSheet } from '@/components/projects/FolderActionSheet'
 import { NewFolderSheet } from '@/components/projects/NewFolderSheet'
+import { TeamNameSheet } from '@/components/projects/TeamNameSheet'
 import { GlobalPanels, type PanelId } from '@/components/projects/GlobalPanels'
 import { ThreadsSheet } from '@/components/projects/ThreadsSheet'
 import { ChatSheet } from '@/components/projects/ChatSheet'
@@ -30,38 +34,23 @@ import type { Project } from '@/types'
 
 // ── HELPERS ──────────────────────────────────────────────────
 
-function hexToRgba(hex: string | null | undefined, a: number) {
-  const h = hex || '#444444'
-  const r = parseInt(h.slice(1, 3), 16)
-  const g = parseInt(h.slice(3, 5), 16)
-  const b = parseInt(h.slice(5, 7), 16)
-  return `rgba(${r},${g},${b},${a})`
-}
+// ── POINTER EVENT NORMALIZATION ──────────────────────────────────────────
+// Both touch and mouse are pointer-like; the drag handlers care only about
+// (clientX, clientY). Helpers below normalize either event shape.
 
-function slateBodyBg(color: string | null | undefined): string {
-  const c = color || '#444444'
-  const r = parseInt(c.slice(1, 3), 16)
-  const g = parseInt(c.slice(3, 5), 16)
-  const b = parseInt(c.slice(5, 7), 16)
-  const dr = Math.round(r * 0.07)
-  const dg = Math.round(g * 0.07)
-  const db = Math.round(b * 0.07)
-  const c1 = `rgb(${dr + 4},${dg + 4},${db + 4})`
-  const c2 = `rgb(${Math.round(dr * 0.7) + 2},${Math.round(dg * 0.7) + 2},${Math.round(db * 0.7) + 2})`
-  return `linear-gradient(135deg,${c1},${c2})`
-}
+type AnyPointerEvent =
+  | React.TouchEvent | React.MouseEvent | TouchEvent | MouseEvent
 
-// ── COLORED LINES (replaces clapper SVG) ─────────────────────
-
-function SlateLines({ color }: { color: string }) {
-  const opacities = [0.28, 0, 0.15, 0, 0.07, 0]
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 18, overflow: 'hidden' }}>
-      {opacities.map((o, i) => (
-        <div key={i} style={{ flex: 1, background: o > 0 ? hexToRgba(color, o) : 'transparent' }} />
-      ))}
-    </div>
-  )
+function pointerCoords(e: AnyPointerEvent): { x: number; y: number } {
+  if ('touches' in e) {
+    if (e.touches.length > 0) return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    // touchend has no `touches` entries; fall through to changedTouches
+    if ('changedTouches' in e && e.changedTouches.length > 0) {
+      return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY }
+    }
+  }
+  // MouseEvent
+  return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY }
 }
 
 // ── SPACE BACKGROUND ─────────────────────────────────────────
@@ -96,112 +85,6 @@ function SpaceBg() {
   )
 }
 
-// ── SLATE CARD ───────────────────────────────────────────────
-
-function SlateCard({ project, color, dimmed, editMode, isGhost, isDragging, wiggleDelay, onLongPress, onClick }: {
-  project: Project; color: string; dimmed: boolean
-  editMode: boolean; isGhost: boolean; isDragging: boolean; wiggleDelay?: number
-  onLongPress: () => void; onClick: () => void
-}) {
-  const phaseColor = statusHex(project.status)
-  const { data: crew } = useCrew(project.id)
-  const allCrew = crew ?? []
-  const longPressHandlers = useLongPress(onLongPress, 500)
-
-  if (isGhost) {
-    return (
-      <div style={{ borderRadius: 14, border: '1px dashed rgba(255,255,255,0.1)', opacity: 0.18, overflow: 'hidden' }}>
-        <div style={{ height: 18 }} />
-        <div style={{ height: 90 }} />
-      </div>
-    )
-  }
-
-  const wiggleStyle = editMode && !isDragging ? {
-    animation: 'wiggle 0.5s ease-in-out infinite',
-    animationDelay: `${wiggleDelay ?? 0}s`,
-  } : {}
-
-  const dragStyle = isDragging ? {
-    transform: 'scale(1.06) rotate(1.5deg)',
-    boxShadow: '0 16px 48px rgba(0,0,0,0.7), 0 0 0 1.5px rgba(255,255,255,0.12)',
-    zIndex: 50, opacity: 0.95,
-  } : {}
-
-  return (
-    <div
-      onClick={onClick}
-      {...longPressHandlers}
-      data-project-id={project.id}
-      style={{
-        borderRadius: 14, overflow: 'hidden', position: 'relative', cursor: 'pointer',
-        display: 'flex', flexDirection: 'column',
-        border: `1px solid rgba(255,255,255,${editMode ? '0.1' : '0.06'})`,
-        background: 'rgba(10,10,18,0.6)',
-        transition: isDragging ? 'none' : 'transform 0.12s ease, opacity 0.25s, filter 0.25s',
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
-        WebkitTouchCallout: 'none',
-        opacity: dimmed ? 0.35 : 1,
-        filter: dimmed ? 'blur(1px)' : 'none',
-        ...wiggleStyle,
-        ...dragStyle,
-      }}
-      className={editMode || isDragging ? '' : 'active:scale-[0.96] active:brightness-[0.85]'}
-    >
-      <SlateLines color={color} />
-      <div style={{
-        flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-        padding: '9px 10px 11px', position: 'relative', overflow: 'hidden',
-        background: slateBodyBg(color),
-        minHeight: 90,
-      }}>
-        {/* Top: type left, phase pill right */}
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-            <div className="font-mono uppercase" style={{ fontSize: '0.42rem', letterSpacing: '0.08em', color: hexToRgba(color, 0.55) }}>{project.type}</div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 7px', borderRadius: 20, background: hexToRgba(phaseColor, 0.12), border: `1px solid ${hexToRgba(phaseColor, 0.2)}`, flexShrink: 0 }}>
-              <div style={{ width: 3, height: 3, borderRadius: '50%', background: phaseColor, boxShadow: `0 0 3px ${phaseColor}` }} />
-              <span className="font-mono uppercase" style={{ fontSize: '0.34rem', letterSpacing: '0.04em', color: phaseColor }}>{STATUS_LABELS_SHORT[project.status] ?? project.status}</span>
-            </div>
-          </div>
-          <div style={{ fontWeight: 800, fontSize: '0.82rem', color: '#dddde8', letterSpacing: '-0.02em', lineHeight: 1.1 }}>{project.name}</div>
-          {project.client && <div className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.06em', marginTop: 3 }}>{project.client}</div>}
-        </div>
-        {/* Bottom: crew avatars spread across */}
-        <div style={{ position: 'relative', zIndex: 1, marginTop: 7 }}>
-          {!editMode && allCrew.length > 0 && (
-            <div style={{ display: 'flex' }}>
-              {allCrew.slice(0, 5).map((c, i) => (
-                <div key={c.id} style={{ marginLeft: i === 0 ? 0 : -3, position: 'relative', zIndex: 5 - i }}>
-                  <CrewAvatar name={c.User?.name ?? 'Unknown'} size={20} avatarUrl={c.User?.avatarUrl} />
-                </div>
-              ))}
-              {allCrew.length > 5 && (
-                <div style={{ width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.32rem', fontWeight: 600, border: '1px solid rgba(0,0,0,0.5)', marginLeft: -3, fontFamily: 'var(--font-geist-mono)', background: hexToRgba(color, 0.12), color: '#62627a' }}>+{allCrew.length - 5}</div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── WIGGLE KEYFRAMES (injected once) ─────────────────────────
-
-function WiggleStyle() {
-  return (
-    <style>{`
-      @keyframes wiggle {
-        0%   { transform: rotate(0deg); }
-        25%  { transform: rotate(-1.5deg); }
-        75%  { transform: rotate(1.5deg); }
-        100% { transform: rotate(0deg); }
-      }
-    `}</style>
-  )
-}
 
 // ── MAIN PAGE ────────────────────────────────────────────────
 
@@ -238,6 +121,9 @@ export default function ProjectsPage() {
   const dragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingDragRef = useRef<{ projectId: string; x: number; y: number; elX: number; elY: number; w: number } | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  // Folder id at drag start; null = drag started on the home grid.
+  // Drives the drop-target routing in handleTouchEnd.
+  const dragSourceFolderIdRef = useRef<string | null>(null)
 
   const sortedProjects = [...allProjects]
 
@@ -288,21 +174,30 @@ export default function ProjectsPage() {
     haptic('medium')
   }, [])
 
-  const handleTouchStart = useCallback((e: React.TouchEvent, id: string, kind: 'project' | 'folder' = 'project') => {
+  const handleTouchStart = useCallback((e: React.TouchEvent | React.MouseEvent, id: string, kind: 'project' | 'folder' = 'project') => {
     if (!editMode) return
-    const touch = e.touches[0]
+    const { x, y } = pointerCoords(e)
     const el = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const elX = touch.clientX - el.left
-    const elY = touch.clientY - el.top
-    pendingDragRef.current = { projectId: id, x: touch.clientX, y: touch.clientY, elX, elY, w: el.width }
+    const elX = x - el.left
+    const elY = y - el.top
+    pendingDragRef.current = { projectId: id, x, y, elX, elY, w: el.width }
     dragKindRef.current = kind
     // No hold timer in wiggle mode — drag activates on the first movement
     // > MOVE_THRESHOLD (handled in handleTouchMove). A pure tap (no move)
     // falls through to the inner card's onClick → opens the action sheet.
+
+    // If a folder is open, the drag started inside that folder. Capture
+    // the source folder id so handleTouchEnd can route correctly. If no
+    // folder is open, source is the home grid (null). Archive variant
+    // doesn't allow drag-out (no in-sheet folder context to track).
+    const currentFolderId = openFolderIdRef.current
+    dragSourceFolderIdRef.current = currentFolderId && currentFolderId !== ARCHIVE_FOLDER_ID
+      ? currentFolderId
+      : null
   }, [editMode])
 
-  const handleTouchMove = useCallback((e: TouchEvent) => {
-    const touch = e.touches[0]
+  const handleTouchMove = useCallback((e: TouchEvent | MouseEvent) => {
+    const { x: touchX, y: touchY } = pointerCoords(e)
 
     // Promote pending → active drag once movement crosses MOVE_THRESHOLD.
     // Below the threshold, the touch is treated as a tap (so onClick on
@@ -310,8 +205,8 @@ export default function ProjectsPage() {
     const MOVE_THRESHOLD = 5
     if (pendingDragRef.current && !dragProjectIdRef.current) {
       const pd = pendingDragRef.current
-      const dx = touch.clientX - pd.x
-      const dy = touch.clientY - pd.y
+      const dx = touchX - pd.x
+      const dy = touchY - pd.y
       if (Math.hypot(dx, dy) > MOVE_THRESHOLD) {
         activateDrag(pd.projectId, pd.x, pd.y, pd.elX, pd.elY, pd.w)
         pendingDragRef.current = null
@@ -322,17 +217,18 @@ export default function ProjectsPage() {
     }
 
     if (!dragProjectIdRef.current || !dragStartRef.current) return
-    e.preventDefault()
+    // preventDefault is iOS-rubber-band suppression — only meaningful on touch.
+    if ('touches' in e) e.preventDefault()
 
     // Direct DOM transform — zero lag
     if (dragElRef.current) {
-      dragElRef.current.style.left = `${touch.clientX - dragStartRef.current.elX}px`
-      dragElRef.current.style.top = `${touch.clientY - dragStartRef.current.elY}px`
+      dragElRef.current.style.left = `${touchX - dragStartRef.current.elX}px`
+      dragElRef.current.style.top = `${touchY - dragStartRef.current.elY}px`
     }
 
     // Dragged card center
-    const cardCx = touch.clientX - dragStartRef.current.elX + dragStartRef.current.w / 2
-    const cardCy = touch.clientY - dragStartRef.current.elY + 54 // approx half card height
+    const cardCx = touchX - dragStartRef.current.elX + dragStartRef.current.w / 2
+    const cardCy = touchY - dragStartRef.current.elY + 54 // approx half card height
 
     // Snapshot slot rects live on every move (grid shifts as items displace).
     // Include both project and folder cards so reorder works for either kind.
@@ -368,20 +264,25 @@ export default function ProjectsPage() {
     const draggingFolder = dragKindRef.current === 'folder'
     const cardSelector = draggingFolder
       ? '[data-archive-target]'
-      : '[data-project-id], [data-folder-id], [data-archive-target]'
+      : '[data-project-id], [data-folder-id], [data-archive-target], [data-move-out-target]'
     const allTargets = document.querySelectorAll<HTMLElement>(cardSelector)
     let snapClosestId: string | null = null
     let snapClosestDist = Infinity
     allTargets.forEach(el => {
-      const id = el.dataset.projectId ?? el.dataset.folderId ?? el.dataset.archiveTarget
+      const id = el.dataset.projectId ?? el.dataset.folderId ?? el.dataset.archiveTarget ?? el.dataset.moveOutTarget
       if (!id || id === dragProjectIdRef.current) return
       const r = el.getBoundingClientRect()
       const cx = r.left + r.width / 2
       const cy = r.top + r.height / 2
       const dist = Math.hypot(cardCx - cx, cardCy - cy)
-      // Archive icon is smaller than a card — give it a more generous radius.
+      // Archive icon and Move-out pill are smaller than a card — give them a more generous radius.
       const isArchive = id === ARCHIVE_FOLDER_ID
-      const radius = isArchive ? 60 : 30
+      const isMoveOut = id === MOVE_OUT_TARGET_ID
+      // Archive / Move-out are smaller pill targets — keep 60.
+      // Folder + project tiles are larger; 30 was tight on a touch device
+      // and very tight with a mouse. 55 makes them forgiving without
+      // overlapping siblings (tile width is ~170px, gap is 8px).
+      const radius = isArchive || isMoveOut ? 60 : 55
       if (dist < snapClosestDist && dist <= radius) { snapClosestDist = dist; snapClosestId = id }
     })
     const newTarget: string | null = snapClosestId
@@ -408,9 +309,12 @@ export default function ProjectsPage() {
   const updateFolderMutation = useUpdateUserProjectFolder()
   const deleteFolderMutation = useDeleteUserProjectFolder()
   const placementMutation = useUpsertUserProjectPlacement()
+  const moveProjectToRootMutation = useMoveProjectToRoot()
 
   const [actionFolder, setActionFolder] = useState<{ id: string; name: string; color: string | null } | null>(null)
   const [creatingFolder, setCreatingFolder] = useState(false)
+  const [renamingTeam, setRenamingTeam] = useState(false)
+  const updateTeamNameMutation = useUpdateTeamName()
   const [restoreProject, setRestoreProject] = useState<Project | null>(null)
   const [restoreFolder, setRestoreFolder] = useState<{ id: string; name: string; color: string | null; count: number } | null>(null)
   const [openFolderOrigin, setOpenFolderOrigin] = useState<{ x: number; y: number } | null>(null)
@@ -426,7 +330,6 @@ export default function ProjectsPage() {
 
   // Synthetic Archive folder — not a real DB row. Sentinel id never collides
   // with a UUID. Pinned at the very end of the home grid (sortOrder = MAX).
-  const ARCHIVE_FOLDER_ID = '__archive__'
   const archiveFolder = { id: ARCHIVE_FOLDER_ID, name: 'Archive', color: '#62627a' }
 
   const {
@@ -436,12 +339,24 @@ export default function ProjectsPage() {
     resourcesOpen, closeResources,
     openFolderId, setOpenFolderId, closeOpenFolder,
   } = useRootFab()
+  // Mirror openFolderId into a ref so handleTouchStart can read it without
+  // needing to be re-created every time a folder opens/closes.
+  const openFolderIdRef = useRef<string | null>(openFolderId)
+  useEffect(() => { openFolderIdRef.current = openFolderId }, [openFolderId])
   const [activePanel, setActivePanel] = useState<PanelId | null>(null)
 
   // Capture the source tile's center so OpenFolderSheet can zoom from it.
   // Looks up the rect by data-folder-id / data-archive-target, both already
   // present on the home grid and on archived-folder tiles inside the sheet.
   const openFolder = useCallback((id: string) => {
+    // If the sheet is already open, this is a swap (e.g. tap Archive
+    // while another folder is open). Don't recompute the origin —
+    // we want the close-back-into-source-tile gesture to still target
+    // the original tile. Just swap the openFolderId.
+    if (openFolderId) {
+      setOpenFolderId(id)
+      return
+    }
     const selector = id === '__archive__'
       ? '[data-archive-target]'
       : `[data-folder-id="${id}"]`
@@ -453,7 +368,7 @@ export default function ProjectsPage() {
       setOpenFolderOrigin(null)
     }
     setOpenFolderId(id)
-  }, [setOpenFolderId])
+  }, [openFolderId, setOpenFolderId])
 
   // ── Merged home-grid items ────────────────────────────────────
   type HomeItem =
@@ -530,7 +445,6 @@ export default function ProjectsPage() {
   }, [allProjects, allArchivedProjects, allFolders, allArchivedFolders, allPlacements, archivedFolderIds, looseArchivedProjects])
 
   const handleTouchEnd = useCallback(() => {
-    // Clear pending drag timer
     if (dragTimerRef.current) {
       clearTimeout(dragTimerRef.current)
       dragTimerRef.current = null
@@ -541,55 +455,105 @@ export default function ProjectsPage() {
     const targetId = dragTargetIdRef.current
     const targetIdx = dragTargetIdxRef.current
     const kind = dragKindRef.current
+    const sourceFolderId = dragSourceFolderIdRef.current
 
     if (draggedId && meId) {
       const targetIsArchive = targetId === ARCHIVE_FOLDER_ID
+      const targetIsMoveOut = targetId === MOVE_OUT_TARGET_ID
       const targetIsFolder = targetId && allFolders.some(f => f.id === targetId)
       const targetIsProject = targetId && allProjects.some(p => p.id === targetId)
 
-      if (targetIsArchive) {
-        // Drop onto Archive icon → archive everything in scope.
-        haptic('medium')
-        if (kind === 'project') {
+      if (sourceFolderId) {
+        // ── Drag started INSIDE an open folder ──
+        if (targetIsArchive) {
+          haptic('medium')
           archiveMutation.mutate(draggedId)
-        } else {
-          // Mark the folder archived; the mutation cascades to all projects
-          // inside so the folder reappears intact in the archive view.
-          archiveFolderMutation.mutate(draggedId)
-        }
-      } else if (kind === 'project' && targetId && targetIsFolder) {
-        // Drop project into existing folder
-        haptic('light')
-        const folderProjList = folderProjects.get(targetId) ?? []
-        placementMutation.mutate({
-          userId: meId,
-          projectId: draggedId,
-          folderId: targetId,
-          sortOrder: folderProjList.length,
-        })
-      } else if (kind === 'project' && targetId && targetIsProject) {
-        // Drop project onto a project → create new folder containing both
-        haptic('medium')
-        const draggedItem = homeItems.find(i => i.kind === 'project' && i.id === draggedId)
-        createFolderMutation.mutate(
-          { userId: meId, name: 'Untitled', color: null, sortOrder: draggedItem?.sortOrder ?? 0 },
-          {
-            onSuccess: (folder) => {
-              placementMutation.mutate({ userId: meId, projectId: draggedId, folderId: folder.id, sortOrder: 0 })
-              placementMutation.mutate({ userId: meId, projectId: targetId,  folderId: folder.id, sortOrder: 1 })
-            },
+        } else if (targetIsMoveOut) {
+          haptic('medium')
+          moveProjectToRootMutation.mutate(draggedId)
+        } else if (kind === 'project' && targetId && targetIsProject) {
+          // Folder-internal reorder — only valid if target is also in the same folder.
+          const folderProjs = folderProjects.get(sourceFolderId) ?? []
+          const tgtPos = folderProjs.findIndex(p => p.id === targetId)
+          const srcPos = folderProjs.findIndex(p => p.id === draggedId)
+          if (tgtPos !== -1 && srcPos !== -1) {
+            haptic('light')
+            // Determine drop side: if dragged was before target, insert AFTER
+            // target; if dragged was after target, insert BEFORE target. This
+            // matches the "swap with neighbor in drag direction" intuition.
+            const insertAfter = srcPos < tgtPos
+            // Look up the placement rows on either side of the insertion point
+            // to compute a midpoint sortOrder.
+            const placementFor = (idx: number) =>
+              idx >= 0 && idx < folderProjs.length
+                ? allPlacements.find(p => p.projectId === folderProjs[idx].id && p.folderId === sourceFolderId)
+                : undefined
+            const tgtPlacement = placementFor(tgtPos)
+            const tgtSO = tgtPlacement?.sortOrder ?? 0
+            let newSO: number
+            if (insertAfter) {
+              const nextPlacement = placementFor(tgtPos + 1)
+              const nextSO = nextPlacement?.sortOrder ?? tgtSO + 1024
+              newSO = Math.floor((tgtSO + nextSO) / 2)
+            } else {
+              const prevPlacement = placementFor(tgtPos - 1)
+              const prevSO = prevPlacement?.sortOrder ?? Math.max(0, tgtSO - 1024)
+              newSO = Math.floor((prevSO + tgtSO) / 2)
+            }
+            // Guard against newSO collapsing to tgtSO (can happen if neighbor
+            // sortOrders are adjacent integers — rare but possible). Bump by 1
+            // when needed; the next reorder will re-spread.
+            if (newSO === tgtSO) newSO = insertAfter ? tgtSO + 1 : Math.max(0, tgtSO - 1)
+            placementMutation.mutate({
+              userId: meId,
+              projectId: draggedId,
+              folderId: sourceFolderId,
+              sortOrder: newSO,
+            })
           }
-        )
-      } else if (targetIdx >= 0) {
-        // Top-level reorder — works for both project and folder drags.
-        const reordered = homeItems.filter(i => i.id !== draggedId)
-        const beforeSO = targetIdx > 0 ? reordered[targetIdx - 1]?.sortOrder ?? 0 : 0
-        const afterSO  = reordered[targetIdx]?.sortOrder ?? beforeSO + 1024
-        const newSO = Math.floor((beforeSO + afterSO) / 2)
-        if (kind === 'project') {
-          placementMutation.mutate({ userId: meId, projectId: draggedId, folderId: null, sortOrder: newSO })
-        } else {
-          updateFolderMutation.mutate({ id: draggedId, fields: { sortOrder: newSO } })
+        }
+        // No top-level reorder, no folder-creation, no folder→folder. Drops
+        // on anything else inside the sheet are no-ops (snap back).
+      } else {
+        // ── Drag started on the home grid — existing behavior ──
+        if (targetIsArchive) {
+          haptic('medium')
+          if (kind === 'project') {
+            archiveMutation.mutate(draggedId)
+          } else {
+            archiveFolderMutation.mutate(draggedId)
+          }
+        } else if (kind === 'project' && targetId && targetIsFolder) {
+          haptic('light')
+          const folderProjList = folderProjects.get(targetId) ?? []
+          placementMutation.mutate({
+            userId: meId,
+            projectId: draggedId,
+            folderId: targetId,
+            sortOrder: folderProjList.length,
+          })
+        } else if (kind === 'project' && targetId && targetIsProject) {
+          haptic('medium')
+          const draggedItem = homeItems.find(i => i.kind === 'project' && i.id === draggedId)
+          createFolderMutation.mutate(
+            { userId: meId, name: 'Untitled', color: null, sortOrder: draggedItem?.sortOrder ?? 0 },
+            {
+              onSuccess: (folder) => {
+                placementMutation.mutate({ userId: meId, projectId: draggedId, folderId: folder.id, sortOrder: 0 })
+                placementMutation.mutate({ userId: meId, projectId: targetId,  folderId: folder.id, sortOrder: 1 })
+              },
+            }
+          )
+        } else if (targetIdx >= 0) {
+          const reordered = homeItems.filter(i => i.id !== draggedId)
+          const beforeSO = targetIdx > 0 ? reordered[targetIdx - 1]?.sortOrder ?? 0 : 0
+          const afterSO  = reordered[targetIdx]?.sortOrder ?? beforeSO + 1024
+          const newSO = Math.floor((beforeSO + afterSO) / 2)
+          if (kind === 'project') {
+            placementMutation.mutate({ userId: meId, projectId: draggedId, folderId: null, sortOrder: newSO })
+          } else {
+            updateFolderMutation.mutate({ id: draggedId, fields: { sortOrder: newSO } })
+          }
         }
       }
     }
@@ -600,19 +564,24 @@ export default function ProjectsPage() {
     dragTargetIdxRef.current = -1
     dragStartRef.current = null
     lastSlotIdxRef.current = -1
+    dragSourceFolderIdRef.current = null
     setDragProjectId(null)
     setDragTargetIdx(-1)
     setDragTargetIdState(null)
-  }, [meId, allProjects, allFolders, folderProjects, homeItems, placementMutation, createFolderMutation, archiveMutation, archiveFolderMutation, deleteFolderMutation, updateFolderMutation])
+  }, [meId, allProjects, allFolders, allPlacements, folderProjects, homeItems, placementMutation, createFolderMutation, archiveMutation, archiveFolderMutation, updateFolderMutation, moveProjectToRootMutation])
 
-  // Global touch listeners for drag
+  // Global touch + mouse listeners for drag
   useEffect(() => {
     if (!editMode) return
     window.addEventListener('touchmove', handleTouchMove, { passive: false })
     window.addEventListener('touchend', handleTouchEnd)
+    window.addEventListener('mousemove', handleTouchMove)
+    window.addEventListener('mouseup', handleTouchEnd)
     return () => {
       window.removeEventListener('touchmove', handleTouchMove)
       window.removeEventListener('touchend', handleTouchEnd)
+      window.removeEventListener('mousemove', handleTouchMove)
+      window.removeEventListener('mouseup', handleTouchEnd)
     }
   }, [editMode, handleTouchMove, handleTouchEnd])
 
@@ -686,7 +655,30 @@ export default function ProjectsPage() {
         <div style={{ position: 'relative', padding: '0 20px 18px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' as const }}>
             <p className="font-mono uppercase" style={{ fontSize: '0.4rem', color: '#62627a', letterSpacing: '0.12em', marginBottom: 3 }}>Back to One</p>
-            <h1 className="font-sans" style={{ fontWeight: 800, fontSize: '1.6rem', color: '#dddde8', letterSpacing: '-0.03em', lineHeight: 1 }}>{myTeam?.name ?? 'Projects'}</h1>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <h1 className="font-sans" style={{ fontWeight: 800, fontSize: '1.6rem', color: '#dddde8', letterSpacing: '-0.03em', lineHeight: 1 }}>
+                {myTeam?.name ?? 'Projects'}
+              </h1>
+              {editMode && myTeam && (
+                <button
+                  onClick={() => { haptic('light'); setRenamingTeam(true) }}
+                  className="active:opacity-60 transition-opacity"
+                  style={{
+                    width: 24, height: 24, borderRadius: '50%',
+                    background: 'rgba(196,90,220,0.12)',
+                    border: '1px solid rgba(196,90,220,0.3)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                  aria-label="Rename team"
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                    <path d="M11.5 1.5l3 3-9 9-3.5.5.5-3.5 9-9z" stroke="#c45adc" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              )}
+            </div>
             <p className="font-sans" style={{ fontSize: '0.88rem', fontWeight: 500, color: '#62627a', marginTop: 10 }}>Select a Project</p>
           </div>
           <button onClick={handleLogout} className="active:opacity-60 transition-opacity" style={{
@@ -748,6 +740,7 @@ export default function ProjectsPage() {
                       layout
                       transition={{ type: 'spring', stiffness: 380, damping: 32 }}
                       onTouchStart={isArchive ? undefined : (e => handleTouchStart(e, it.id, 'folder'))}
+                      onMouseDown={isArchive ? undefined : (e => handleTouchStart(e, it.id, 'folder'))}
                       style={{
                         position: 'relative',
                         touchAction: editMode ? 'none' : 'auto',
@@ -803,6 +796,7 @@ export default function ProjectsPage() {
                     layout
                     transition={{ type: 'spring', stiffness: 380, damping: 32 }}
                     onTouchStart={e => handleTouchStart(e, p.id)}
+                    onMouseDown={e => handleTouchStart(e, p.id)}
                     style={{
                       position: 'relative',
                       touchAction: editMode ? 'none' : 'auto',
@@ -870,49 +864,11 @@ export default function ProjectsPage() {
                 </div>
               )}
 
-              {/* Archive icon — sits below the New Project / New Folder pills.
-                  Tappable (opens the archive sheet) AND a drop target for
-                  drag-to-archive (project or folder). The dashed glow
-                  intensifies when something is being dragged onto it. */}
-              <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'center', padding: '6px 2px 2px' }}>
-                <button
-                  data-archive-target={ARCHIVE_FOLDER_ID}
-                  onClick={() => { haptic('light'); openFolder(ARCHIVE_FOLDER_ID) }}
-                  className="active:opacity-80 transition-all"
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                    padding: '10px 14px',
-                    borderRadius: 14,
-                    border: dragTargetId === ARCHIVE_FOLDER_ID
-                      ? '1.5px solid rgba(232,86,74,0.7)'
-                      : '1px dashed rgba(98,98,122,0.3)',
-                    background: dragTargetId === ARCHIVE_FOLDER_ID
-                      ? 'rgba(232,86,74,0.12)'
-                      : 'rgba(98,98,122,0.04)',
-                    boxShadow: dragTargetId === ARCHIVE_FOLDER_ID
-                      ? '0 0 30px rgba(232,86,74,0.45), inset 0 0 18px rgba(232,86,74,0.15)'
-                      : 'none',
-                    transform: dragTargetId === ARCHIVE_FOLDER_ID ? 'scale(1.06)' : 'scale(1)',
-                    transition: 'all 0.18s ease',
-                    cursor: 'pointer',
-                    color: dragTargetId === ARCHIVE_FOLDER_ID ? '#e8564a' : '#62627a',
-                  }}
-                >
-                  {/* Folder-tab icon (manila/file folder shape) */}
-                  <svg width="22" height="18" viewBox="0 0 22 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                      d="M2 4.5C2 3.4 2.9 2.5 4 2.5H8.5L10.5 4.5H18C19.1 4.5 20 5.4 20 6.5V14.5C20 15.6 19.1 16.5 18 16.5H4C2.9 16.5 2 15.6 2 14.5V4.5Z"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinejoin="round"
-                      fill="none"
-                    />
-                  </svg>
-                  <span className="font-mono uppercase" style={{ fontSize: 9, letterSpacing: '0.1em' }}>
-                    Archive{allArchivedProjects.length > 0 ? ` · ${allArchivedProjects.length}` : ''}
-                  </span>
-                </button>
-              </div>
+              <ArchiveIcon
+                count={allArchivedProjects.length}
+                isDropTarget={dragTargetId === ARCHIVE_FOLDER_ID}
+                onClick={() => { haptic('light'); openFolder(ARCHIVE_FOLDER_ID) }}
+              />
             </>
           )}
         </div>
@@ -1115,7 +1071,7 @@ export default function ProjectsPage() {
           // it's loose in the synthetic Archive or inside an archived folder.
           openFolderId === ARCHIVE_FOLDER_ID || (openFolderId && archivedFolderIds.has(openFolderId))
             ? (p) => { haptic('medium'); setRestoreProject(p) }
-            : undefined
+            : () => { haptic('medium'); if (!editMode) setEditMode(true) }
         }
         folders={
           openFolderId === ARCHIVE_FOLDER_ID
@@ -1142,6 +1098,14 @@ export default function ProjectsPage() {
             : undefined
         }
         onClose={closeOpenFolder}
+        editMode={editMode}
+        draggingProjectId={dragProjectId && dragKindRef.current === 'project' ? dragProjectId : null}
+        dragTargetId={dragTargetId}
+        archivedCount={allArchivedProjects.length}
+        onProjectTouchStart={(e, id) => handleTouchStart(e, id, 'project')}
+        onArchiveTap={() => { haptic('light'); openFolder(ARCHIVE_FOLDER_ID) }}
+        onExitEditMode={() => { setEditMode(false); setDragProjectId(null) }}
+        getColor={getColor}
       />
 
       {/* Restore confirm — appears when tapping a project inside the Archive folder */}
@@ -1261,6 +1225,15 @@ export default function ProjectsPage() {
         onCreate={({ name, color }) => {
           if (!meId) return
           createFolderMutation.mutate({ userId: meId, name, color, sortOrder: 0 })
+        }}
+      />
+      <TeamNameSheet
+        open={renamingTeam}
+        currentName={myTeam?.name ?? ''}
+        onClose={() => setRenamingTeam(false)}
+        onSave={async (name) => {
+          if (!myTeam) return
+          await updateTeamNameMutation.mutateAsync({ teamId: myTeam.id, name })
         }}
       />
     </div>

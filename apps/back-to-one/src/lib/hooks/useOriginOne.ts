@@ -498,6 +498,15 @@ export function useMyTeam(): { id: string; name: string } | null {
   return data ?? null
 }
 
+export function useUpdateTeamName() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ teamId, name }: { teamId: string; name: string }) =>
+      db.updateTeamName(teamId, name),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['myTeam'] }),
+  })
+}
+
 export function useThreads(projectId: string) {
   const meId = useMeId()
   return useQuery({
@@ -1373,6 +1382,15 @@ export function useUpsertUserProjectPlacement() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: db.upsertUserProjectPlacement,
+    onSuccess:  () => invalidateFolders(qc),
+  })
+}
+
+export function useMoveProjectToRoot() {
+  const qc = useQueryClient()
+  const meId = useMeId()
+  return useMutation({
+    mutationFn: (projectId: string) => db.moveProjectToRoot({ userId: meId!, projectId }),
     onSuccess:  () => invalidateFolders(qc),
   })
 }
