@@ -1800,6 +1800,485 @@ export async function deleteShootDay(id: string): Promise<void> {
   if (error) { console.error('deleteShootDay failed:', error); throw error }
 }
 
+// ── SCHEDULE BLOCKS (Arc A) ──────────────────────────────
+
+export async function getScheduleBlocks(shootDayId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ScheduleBlock')
+    .select('*')
+    .eq('shootDayId', shootDayId)
+    .order('startTime', { ascending: true })
+    .order('sortOrder', { ascending: true })
+  if (error) { console.error('getScheduleBlocks failed:', error); throw error }
+  return data ?? []
+}
+
+export async function createScheduleBlock(input: {
+  projectId: string
+  shootDayId: string
+  track: 'main' | 'secondary' | 'tertiary'
+  kind:
+    | 'work'
+    | 'load_in'
+    | 'talent_call'
+    | 'lunch'
+    | 'wrap'
+    | 'tail_lights'
+    | 'meal_break'
+    | 'custom'
+  startTime: string
+  endTime?: string | null
+  description: string
+  customLabel?: string | null
+  locationId?: string | null
+  talentIds?: string[]
+  crewMemberIds?: string[]
+  sceneIds?: string[]
+}) {
+  const db = createClient()
+  const now = new Date().toISOString()
+  const { data, error } = await db
+    .from('ScheduleBlock')
+    .insert({
+      projectId: input.projectId,
+      shootDayId: input.shootDayId,
+      track: input.track,
+      kind: input.kind,
+      startTime: input.startTime,
+      endTime: input.endTime ?? null,
+      description: input.description,
+      customLabel: input.customLabel ?? null,
+      locationId: input.locationId ?? null,
+      talentIds: input.talentIds ?? [],
+      crewMemberIds: input.crewMemberIds ?? [],
+      sceneIds: input.sceneIds ?? [],
+      sortOrder: 0,
+      updatedAt: now,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createScheduleBlock failed:', error); throw error }
+  return data
+}
+
+export async function updateScheduleBlock({
+  id,
+  fields,
+}: {
+  id: string
+  fields: {
+    track?: 'main' | 'secondary' | 'tertiary'
+    kind?:
+      | 'work'
+      | 'load_in'
+      | 'talent_call'
+      | 'lunch'
+      | 'wrap'
+      | 'tail_lights'
+      | 'meal_break'
+      | 'custom'
+    startTime?: string
+    endTime?: string | null
+    description?: string
+    customLabel?: string | null
+    locationId?: string | null
+    talentIds?: string[]
+    crewMemberIds?: string[]
+    sceneIds?: string[]
+    sortOrder?: number
+  }
+}): Promise<void> {
+  const db = createClient()
+  const { error } = await db
+    .from('ScheduleBlock')
+    .update({ ...fields, updatedAt: new Date().toISOString() })
+    .eq('id', id)
+  if (error) { console.error('updateScheduleBlock failed:', error); throw error }
+}
+
+export async function deleteScheduleBlock(id: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('ScheduleBlock').delete().eq('id', id)
+  if (error) { console.error('deleteScheduleBlock failed:', error); throw error }
+}
+
+// Flat list of Talent on a project — used by the schedule editor + call sheets.
+// Different from getCastRoles, which joins through Entity(type='character'); this
+// returns Talent rows directly so the AD can pick anyone, including talent that
+// hasn't been assigned to a character yet.
+export async function getProjectTalent(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('Talent')
+    .select('id, projectId, name, role, email, phone, imageUrl')
+    .eq('projectId', projectId)
+    .order('name', { ascending: true })
+  if (error) { console.error('getProjectTalent failed:', error); throw error }
+  return data ?? []
+}
+
+// ── CALL SHEETS (Arc B) ──────────────────────────────────
+
+const CALL_SHEET_ATTACHMENTS_BUCKET = 'call-sheet-attachments'
+
+export async function getCallSheets(projectId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('CallSheet')
+    .select('*')
+    .eq('projectId', projectId)
+    .order('createdAt', { ascending: false })
+  if (error) { console.error('getCallSheets failed:', error); throw error }
+  return data ?? []
+}
+
+export async function getCallSheet(callSheetId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('CallSheet')
+    .select('*')
+    .eq('id', callSheetId)
+    .single()
+  if (error) { console.error('getCallSheet failed:', error); throw error }
+  return data
+}
+
+export async function getCallSheetByShootDay(shootDayId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('CallSheet')
+    .select('*')
+    .eq('shootDayId', shootDayId)
+    .maybeSingle()
+  if (error) { console.error('getCallSheetByShootDay failed:', error); throw error }
+  return data
+}
+
+export async function createCallSheet(input: {
+  projectId: string
+  shootDayId: string
+  title?: string | null
+  subtitle?: string | null
+}) {
+  const db = createClient()
+  const now = new Date().toISOString()
+  const { data: cs, error } = await db
+    .from('CallSheet')
+    .insert({
+      projectId: input.projectId,
+      shootDayId: input.shootDayId,
+      title: input.title ?? null,
+      subtitle: input.subtitle ?? null,
+      includeSchedule: true,
+      attachmentPaths: [],
+      updatedAt: now,
+    })
+    .select()
+    .single()
+  if (error) { console.error('createCallSheet failed:', error); throw error }
+
+  // Auto-seed recipients from project Talent + non-post ProjectMembers.
+  // We import lazily to avoid pulling buildDefaultRecipients into the
+  // call-sheet-list query path.
+  try {
+    const [{ buildDefaultRecipients }, talentRows, memberRows] = await Promise.all([
+      import('@/lib/call-sheet/seed-recipients'),
+      db.from('Talent').select('id, email, phone').eq('projectId', input.projectId),
+      db.from('ProjectMember').select('id, department, User(email, phone)').eq('projectId', input.projectId),
+    ])
+    const seeds = buildDefaultRecipients({
+      callSheetId: cs.id,
+      talent: (talentRows.data ?? []).map((t: any) => ({ id: t.id, email: t.email, phone: t.phone })),
+      members: (memberRows.data ?? []).map((m: any) => ({
+        id: m.id,
+        department: m.department,
+        email: m.User?.email ?? null,
+        phone: m.User?.phone ?? null,
+      })),
+    })
+    if (seeds.length > 0) {
+      const payload = seeds.map(s => ({
+        ...s,
+        excluded: false,
+        updatedAt: now,
+      }))
+      await db.from('CallSheetRecipient').insert(payload)
+    }
+  } catch (seedErr) {
+    console.error('createCallSheet seed recipients failed (non-fatal):', seedErr)
+  }
+
+  return cs
+}
+
+export async function updateCallSheet({
+  id,
+  fields,
+}: {
+  id: string
+  fields: Partial<{
+    title: string | null
+    subtitle: string | null
+    episodeOrEvent: string | null
+    generalCallTime: string | null
+    crewCallTime: string | null
+    shootingCallTime: string | null
+    lunchTime: string | null
+    estWrapTime: string | null
+    weatherTempHigh: number | null
+    weatherTempLow: number | null
+    weatherCondition: string | null
+    sunriseTime: string | null
+    sunsetTime: string | null
+    nearestHospitalName: string | null
+    nearestHospitalAddress: string | null
+    nearestHospitalPhone: string | null
+    productionNotes: string | null
+    parkingNotes: string | null
+    includeSchedule: boolean
+    replyToEmail: string | null
+    customFromName: string | null
+    customFromEmail: string | null
+    attachmentPaths: string[]
+    status: 'draft' | 'sent'
+    publishedAt: string | null
+  }>
+}) {
+  const db = createClient()
+  const { error } = await db
+    .from('CallSheet')
+    .update({ ...fields, updatedAt: new Date().toISOString() })
+    .eq('id', id)
+  if (error) { console.error('updateCallSheet failed:', error); throw error }
+}
+
+export async function deleteCallSheet(id: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('CallSheet').delete().eq('id', id)
+  if (error) { console.error('deleteCallSheet failed:', error); throw error }
+}
+
+export async function uploadCallSheetAttachment({
+  callSheetId,
+  file,
+}: {
+  callSheetId: string
+  file: File
+}): Promise<string> {
+  const db = createClient()
+  const ext = file.name.split('.').pop() ?? 'bin'
+  const path = `${callSheetId}/${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${ext}`
+  const { error: upErr } = await db.storage
+    .from(CALL_SHEET_ATTACHMENTS_BUCKET)
+    .upload(path, file, { contentType: file.type })
+  if (upErr) { console.error('uploadCallSheetAttachment failed:', upErr); throw upErr }
+
+  // Append to attachmentPaths
+  const { data: cs } = await db.from('CallSheet').select('attachmentPaths').eq('id', callSheetId).single()
+  const next = [...((cs?.attachmentPaths as string[]) ?? []), path]
+  const { error: updErr } = await db
+    .from('CallSheet')
+    .update({ attachmentPaths: next, updatedAt: new Date().toISOString() })
+    .eq('id', callSheetId)
+  if (updErr) { console.error('uploadCallSheetAttachment update failed:', updErr); throw updErr }
+  return path
+}
+
+export async function deleteCallSheetAttachment({
+  callSheetId,
+  path,
+}: {
+  callSheetId: string
+  path: string
+}): Promise<void> {
+  const db = createClient()
+  await db.storage.from(CALL_SHEET_ATTACHMENTS_BUCKET).remove([path]).catch(() => null)
+
+  const { data: cs } = await db.from('CallSheet').select('attachmentPaths').eq('id', callSheetId).single()
+  const next = ((cs?.attachmentPaths as string[]) ?? []).filter(p => p !== path)
+  const { error: updErr } = await db
+    .from('CallSheet')
+    .update({ attachmentPaths: next, updatedAt: new Date().toISOString() })
+    .eq('id', callSheetId)
+  if (updErr) { console.error('deleteCallSheetAttachment update failed:', updErr); throw updErr }
+}
+
+export async function getCallSheetAttachmentSignedUrl(path: string): Promise<string | null> {
+  const db = createClient()
+  const { data, error } = await db.storage
+    .from(CALL_SHEET_ATTACHMENTS_BUCKET)
+    .createSignedUrl(path, 60 * 60)
+  if (error) return null
+  return data?.signedUrl ?? null
+}
+
+// ── CALL SHEET RECIPIENTS (Arc C) ───────────────────────
+
+export async function getCallSheetRecipients(callSheetId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('CallSheetRecipient')
+    .select('*')
+    .eq('callSheetId', callSheetId)
+    .order('createdAt', { ascending: true })
+  if (error) { console.error('getCallSheetRecipients failed:', error); throw error }
+  return data ?? []
+}
+
+export async function addCallSheetRecipient(input: {
+  callSheetId: string
+  kind: 'talent' | 'crew' | 'client' | 'freeform'
+  talentId?: string | null
+  projectMemberId?: string | null
+  freeformName?: string | null
+  freeformEmail?: string | null
+  freeformPhone?: string | null
+  freeformRole?: string | null
+  callTimeOverride?: string | null
+  sendEmail?: boolean
+  sendSms?: boolean
+}) {
+  const db = createClient()
+  const now = new Date().toISOString()
+  const { data, error } = await db
+    .from('CallSheetRecipient')
+    .insert({
+      callSheetId: input.callSheetId,
+      kind: input.kind,
+      talentId: input.talentId ?? null,
+      projectMemberId: input.projectMemberId ?? null,
+      freeformName: input.freeformName ?? null,
+      freeformEmail: input.freeformEmail ?? null,
+      freeformPhone: input.freeformPhone ?? null,
+      freeformRole: input.freeformRole ?? null,
+      callTimeOverride: input.callTimeOverride ?? null,
+      sendEmail: input.sendEmail ?? true,
+      sendSms: input.sendSms ?? false,
+      excluded: false,
+      updatedAt: now,
+    })
+    .select()
+    .single()
+  if (error) { console.error('addCallSheetRecipient failed:', error); throw error }
+  return data
+}
+
+export async function bulkInsertCallSheetRecipients(
+  rows: Array<{
+    callSheetId: string
+    kind: 'talent' | 'crew' | 'client' | 'freeform'
+    talentId?: string | null
+    projectMemberId?: string | null
+    sendEmail?: boolean
+    sendSms?: boolean
+  }>,
+): Promise<void> {
+  if (rows.length === 0) return
+  const db = createClient()
+  const now = new Date().toISOString()
+  const payload = rows.map(r => ({
+    callSheetId: r.callSheetId,
+    kind: r.kind,
+    talentId: r.talentId ?? null,
+    projectMemberId: r.projectMemberId ?? null,
+    sendEmail: r.sendEmail ?? true,
+    sendSms: r.sendSms ?? false,
+    excluded: false,
+    updatedAt: now,
+  }))
+  const { error } = await db.from('CallSheetRecipient').insert(payload)
+  if (error) { console.error('bulkInsertCallSheetRecipients failed:', error); throw error }
+}
+
+export async function updateCallSheetRecipient({
+  id,
+  fields,
+}: {
+  id: string
+  fields: Partial<{
+    callTimeOverride: string | null
+    sendEmail: boolean
+    sendSms: boolean
+    excluded: boolean
+    freeformName: string | null
+    freeformEmail: string | null
+    freeformPhone: string | null
+    freeformRole: string | null
+  }>
+}) {
+  const db = createClient()
+  const { error } = await db
+    .from('CallSheetRecipient')
+    .update({ ...fields, updatedAt: new Date().toISOString() })
+    .eq('id', id)
+  if (error) { console.error('updateCallSheetRecipient failed:', error); throw error }
+}
+
+export async function deleteCallSheetRecipient(id: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db.from('CallSheetRecipient').delete().eq('id', id)
+  if (error) { console.error('deleteCallSheetRecipient failed:', error); throw error }
+}
+
+// ── CALL SHEET DELIVERIES (Arc C + D) ───────────────────
+
+export async function getCallSheetDeliveries(callSheetId: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('CallSheetDelivery')
+    .select('*, CallSheetRecipient!inner(callSheetId)')
+    .eq('CallSheetRecipient.callSheetId', callSheetId)
+    .order('createdAt', { ascending: false })
+  if (error) { console.error('getCallSheetDeliveries failed:', error); throw error }
+  // Strip nested relation field for the type
+  return (data ?? []).map((d: any) => {
+    const { CallSheetRecipient: _r, ...rest } = d
+    return rest
+  })
+}
+
+export async function getDeliveryByConfirmToken(token: string) {
+  const db = createClient()
+  const { data, error } = await db
+    .from('CallSheetDelivery')
+    .select('*')
+    .eq('confirmToken', token)
+    .maybeSingle()
+  if (error) { console.error('getDeliveryByConfirmToken failed:', error); throw error }
+  return data
+}
+
+export async function markDeliveryOpenedByToken(token: string): Promise<void> {
+  const db = createClient()
+  const { error } = await db
+    .from('CallSheetDelivery')
+    .update({ openedAt: new Date().toISOString(), status: 'opened', updatedAt: new Date().toISOString() })
+    .eq('confirmToken', token)
+    .is('openedAt', null)
+  if (error) console.error('markDeliveryOpenedByToken failed:', error)
+}
+
+export async function markDeliveryConfirmedByToken(token: string): Promise<void> {
+  const db = createClient()
+  const now = new Date().toISOString()
+  const { error } = await db
+    .from('CallSheetDelivery')
+    .update({ confirmedAt: now, declinedAt: null, clickedAt: now, updatedAt: now })
+    .eq('confirmToken', token)
+  if (error) console.error('markDeliveryConfirmedByToken failed:', error)
+}
+
+export async function markDeliveryDeclinedByToken(token: string): Promise<void> {
+  const db = createClient()
+  const now = new Date().toISOString()
+  const { error } = await db
+    .from('CallSheetDelivery')
+    .update({ declinedAt: now, confirmedAt: null, clickedAt: now, updatedAt: now })
+    .eq('confirmToken', token)
+  if (error) console.error('markDeliveryDeclinedByToken failed:', error)
+}
+
 // ── BUDGET ───────────────────────────────────────────────
 
 // One nested query for the entire budget tree + expenses. The page

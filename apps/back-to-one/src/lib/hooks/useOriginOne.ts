@@ -49,6 +49,13 @@ export const keys = {
   notifications:  (meId: string, projectId: string | null) => ['notifications', meId, projectId] as const,
   unreadCount:    (meId: string, projectId: string | null) => ['notifications', meId, projectId, 'unread'] as const,
   mentionRoster:  (projectId: string | null, meId: string | null) => ['mentionRoster', projectId, meId ?? ''] as const,
+  scheduleBlocks: (shootDayId: string) => ['scheduleBlocks', shootDayId] as const,
+  projectTalent:  (projectId: string) => ['projectTalent', projectId] as const,
+  callSheets:     (projectId: string) => ['callSheets', projectId] as const,
+  callSheet:      (id: string) => ['callSheet', id] as const,
+  callSheetByShootDay: (shootDayId: string) => ['callSheetByShootDay', shootDayId] as const,
+  callSheetRecipients: (callSheetId: string) => ['callSheetRecipients', callSheetId] as const,
+  callSheetDeliveries: (callSheetId: string) => ['callSheetDeliveries', callSheetId] as const,
 }
 
 // ── PROJECTS ───────────────────────────────────────────────
@@ -824,6 +831,174 @@ export function useDeleteShootDay(projectId: string) {
   return useMutation({
     mutationFn: db.deleteShootDay,
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.shootDays(projectId) }),
+  })
+}
+
+// ── SCHEDULE BLOCKS (Arc A) ────────────────────────────────
+
+export function useScheduleBlocks(shootDayId: string | null) {
+  return useQuery({
+    queryKey: keys.scheduleBlocks(shootDayId ?? ''),
+    queryFn:  () => db.getScheduleBlocks(shootDayId!),
+    enabled:  !!shootDayId,
+    staleTime: 30_000,
+  })
+}
+
+export function useCreateScheduleBlock(shootDayId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createScheduleBlock,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.scheduleBlocks(shootDayId) }),
+  })
+}
+
+export function useUpdateScheduleBlock(shootDayId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.updateScheduleBlock,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.scheduleBlocks(shootDayId) }),
+  })
+}
+
+export function useDeleteScheduleBlock(shootDayId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteScheduleBlock,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.scheduleBlocks(shootDayId) }),
+  })
+}
+
+export function useProjectTalent(projectId: string) {
+  return useQuery({
+    queryKey: keys.projectTalent(projectId),
+    queryFn:  () => db.getProjectTalent(projectId),
+    enabled:  !!projectId,
+  })
+}
+
+// ── CALL SHEETS (Arcs B/C/D) ───────────────────────────────
+
+export function useCallSheets(projectId: string) {
+  return useQuery({
+    queryKey: keys.callSheets(projectId),
+    queryFn:  () => db.getCallSheets(projectId),
+    enabled:  !!projectId,
+  })
+}
+
+export function useCallSheet(callSheetId: string | null) {
+  return useQuery({
+    queryKey: keys.callSheet(callSheetId ?? ''),
+    queryFn:  () => db.getCallSheet(callSheetId!),
+    enabled:  !!callSheetId,
+  })
+}
+
+export function useCallSheetByShootDay(shootDayId: string | null) {
+  return useQuery({
+    queryKey: keys.callSheetByShootDay(shootDayId ?? ''),
+    queryFn:  () => db.getCallSheetByShootDay(shootDayId!),
+    enabled:  !!shootDayId,
+  })
+}
+
+export function useCreateCallSheet(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createCallSheet,
+    onSuccess: (cs) => {
+      qc.invalidateQueries({ queryKey: keys.callSheets(projectId) })
+      if (cs?.shootDayId) {
+        qc.invalidateQueries({ queryKey: keys.callSheetByShootDay(cs.shootDayId) })
+      }
+    },
+  })
+}
+
+export function useUpdateCallSheet(callSheetId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: Parameters<typeof db.updateCallSheet>[0]) => {
+      await db.updateCallSheet(input)
+      // Fire-and-forget delta detection — flags any deliveries whose
+      // personalized data now differs (call time, location, schedule
+      // blocks, lunch). Recipient table reflects the change next poll.
+      try {
+        await fetch(`/api/call-sheets/${input.id}/refresh-deltas`, { method: 'POST' })
+      } catch {
+        // non-fatal — UI still updates from the regular update
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.callSheet(callSheetId) })
+      qc.invalidateQueries({ queryKey: keys.callSheetDeliveries(callSheetId) })
+    },
+  })
+}
+
+export function useDeleteCallSheet(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteCallSheet,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.callSheets(projectId) }),
+  })
+}
+
+export function useUploadCallSheetAttachment(callSheetId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.uploadCallSheetAttachment,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.callSheet(callSheetId) }),
+  })
+}
+
+export function useDeleteCallSheetAttachment(callSheetId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteCallSheetAttachment,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.callSheet(callSheetId) }),
+  })
+}
+
+export function useCallSheetRecipients(callSheetId: string | null) {
+  return useQuery({
+    queryKey: keys.callSheetRecipients(callSheetId ?? ''),
+    queryFn:  () => db.getCallSheetRecipients(callSheetId!),
+    enabled:  !!callSheetId,
+  })
+}
+
+export function useAddCallSheetRecipient(callSheetId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.addCallSheetRecipient,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.callSheetRecipients(callSheetId) }),
+  })
+}
+
+export function useUpdateCallSheetRecipient(callSheetId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.updateCallSheetRecipient,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.callSheetRecipients(callSheetId) }),
+  })
+}
+
+export function useDeleteCallSheetRecipient(callSheetId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteCallSheetRecipient,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.callSheetRecipients(callSheetId) }),
+  })
+}
+
+export function useCallSheetDeliveries(callSheetId: string | null) {
+  return useQuery({
+    queryKey: keys.callSheetDeliveries(callSheetId ?? ''),
+    queryFn:  () => db.getCallSheetDeliveries(callSheetId!),
+    enabled:  !!callSheetId,
+    refetchInterval: 10_000,
   })
 }
 

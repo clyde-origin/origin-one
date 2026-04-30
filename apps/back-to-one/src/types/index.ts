@@ -326,6 +326,145 @@ export interface ShootDay {
   updatedAt: string
 }
 
+// ── SCHEDULE BLOCK (Arc A) ─────────────────────────────────
+
+export type ScheduleBlockTrack = 'main' | 'secondary' | 'tertiary'
+
+export type ScheduleBlockKind =
+  | 'work'
+  | 'load_in'
+  | 'talent_call'
+  | 'lunch'
+  | 'wrap'
+  | 'tail_lights'
+  | 'meal_break'
+  | 'custom'
+
+export interface ScheduleBlock {
+  id: string
+  projectId: string
+  shootDayId: string
+  track: ScheduleBlockTrack
+  kind: ScheduleBlockKind
+  startTime: string             // 'HH:MM' 24h
+  endTime: string | null
+  description: string
+  customLabel: string | null
+  locationId: string | null
+  talentIds: string[]
+  crewMemberIds: string[]
+  sceneIds: string[]
+  sortOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+// ── CALL SHEET (Arc B) ─────────────────────────────────────
+
+export type CallSheetStatus = 'draft' | 'sent'
+
+export interface CallSheet {
+  id: string
+  projectId: string
+  shootDayId: string
+  status: CallSheetStatus
+  publishedAt: string | null
+  title: string | null
+  subtitle: string | null
+  episodeOrEvent: string | null
+  generalCallTime: string | null
+  crewCallTime: string | null
+  shootingCallTime: string | null
+  lunchTime: string | null
+  estWrapTime: string | null
+  weatherTempHigh: number | null
+  weatherTempLow: number | null
+  weatherCondition: string | null
+  sunriseTime: string | null
+  sunsetTime: string | null
+  nearestHospitalName: string | null
+  nearestHospitalAddress: string | null
+  nearestHospitalPhone: string | null
+  productionNotes: string | null
+  parkingNotes: string | null
+  includeSchedule: boolean
+  replyToEmail: string | null
+  customFromName: string | null
+  customFromEmail: string | null
+  attachmentPaths: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+// ── CALL SHEET RECIPIENT (Arc C) ───────────────────────────
+
+export type CallSheetRecipientKind = 'talent' | 'crew' | 'client' | 'freeform'
+
+export interface CallSheetRecipient {
+  id: string
+  callSheetId: string
+  kind: CallSheetRecipientKind
+  talentId: string | null
+  projectMemberId: string | null
+  freeformName: string | null
+  freeformEmail: string | null
+  freeformPhone: string | null
+  freeformRole: string | null
+  callTimeOverride: string | null
+  sendEmail: boolean
+  sendSms: boolean
+  excluded: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+// ── CALL SHEET DELIVERY (Arc C + D) ────────────────────────
+
+export type CallSheetDeliveryChannel = 'email' | 'sms'
+export type CallSheetDeliveryProvider = 'resend' | 'twilio' | 'stub'
+export type CallSheetDeliveryStatus =
+  | 'queued'
+  | 'sent'
+  | 'delivered'
+  | 'opened'
+  | 'bounced'
+  | 'failed'
+
+export interface CallSheetDelivery {
+  id: string
+  recipientId: string
+  channel: CallSheetDeliveryChannel
+  provider: CallSheetDeliveryProvider
+  status: CallSheetDeliveryStatus
+  scheduledFor: string | null
+  sentAt: string | null
+  deliveredAt: string | null
+  bouncedAt: string | null
+  failedReason: string | null
+  externalId: string | null
+  confirmToken: string
+  openedAt: string | null
+  clickedAt: string | null
+  confirmedAt: string | null
+  declinedAt: string | null
+  outdatedAt: string | null
+  personalizedSnapshot: Record<string, unknown> | null
+  createdAt: string
+  updatedAt: string
+}
+
+// ── PROJECT TALENT (flat list) ─────────────────────────────
+
+export interface ProjectTalent {
+  id: string
+  projectId: string
+  name: string
+  role: string | null
+  email: string | null
+  phone: string | null
+  imageUrl: string | null
+}
+
 export interface CastRole {
   id: string
   projectId: string
