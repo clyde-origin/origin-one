@@ -45,7 +45,7 @@ Key reference files:
 - `crew-timecards-schema-v2.prisma` — Timecards schema reference
 - `crew-timecards-seed-v2.md` — Timecards seed reference
 - `scenemaker-script.html`, `scenemaker-shotlist.html`, `scenemaker-storyboard.html` — One Arc modules
-- `hub-full-preview.html` — Hub layout
+- `hub-full-preview-v2.html` — Hub layout (canonical Cinema Glass language; read the banner before porting — visual-only refresh, no copy/control changes)
 - `crew-panel.html` — Crew module
 - `chat.html` — Chat
 - `threads-full.html` — Threads full page
