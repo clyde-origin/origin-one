@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -100,38 +100,91 @@ function Spinner({ color }: { color: string }) {
   )
 }
 
-type ImageMode = 'none' | 'upload' | 'create'
+// Image source: Upload (file picker) OR Create (Bria-generated preview).
+// Both paths produce a Blob held in NewShotSheet state and displayed in
+// the hero area until the user taps Save (which createShot's, then uploads).
+type ImageMode = 'upload' | 'create'
+
 type NewShotSaveData = {
   description: string
   size: string
-  imageMode: ImageMode
-  file: File | null
-  prompt: string
-  style: StoryboardStyle
+  // Final blob to attach. Same shape regardless of source — by the time we
+  // hit Save, Upload-file and Bria-preview both look like bytes.
+  imageBlob: Blob | null
 }
 
-function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
-  autoId: string; accent: string
+function NewShotSheet({ autoId, projectId, accent, aspectRatio, pending, onSave, onClose }: {
+  autoId: string
+  projectId: string
+  accent: string
+  aspectRatio?: string | null
   pending: boolean
-  // The parent owns createShot + image attach so it can invalidate React
-  // Query and pop the right toast on failure. The sheet just hands back
-  // everything needed to drive that flow.
   onSave: (data: NewShotSaveData) => void
   onClose: () => void
 }) {
   const [description, setDescription] = useState('')
   const [size, setSize] = useState('')
-  const [imageMode, setImageMode] = useState<ImageMode>('none')
-  const [file, setFile] = useState<File | null>(null)
+  const [imageMode, setImageMode] = useState<ImageMode>('create')
   const [prompt, setPrompt] = useState('')
   const [style, setStyle] = useState<StoryboardStyle>(DEFAULT_STORYBOARD_STYLE)
+  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const canSave = !pending && (
-    imageMode === 'none' ||
-    (imageMode === 'upload' && !!file) ||
-    (imageMode === 'create' && !!prompt.trim())
-  )
+  // Object-URL housekeeping — revoke on swap or unmount so we don't leak
+  // blobs while the user iterates. The setter fires once per assignment;
+  // the cleanup for the *previous* URL runs from inside setPreview.
+  function setPreview(blob: Blob | null) {
+    setPreviewBlob(blob)
+    setPreviewUrl(prev => {
+      if (prev) URL.revokeObjectURL(prev)
+      return blob ? URL.createObjectURL(blob) : null
+    })
+  }
+
+  useEffect(() => {
+    return () => {
+      // Revoke whatever URL is in flight when the component unmounts.
+      // setPreviewUrl's setter runs once via the closure to do the cleanup.
+      setPreviewUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
+    }
+  }, [])
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (f) setPreview(f)
+  }
+
+  async function handleGenerate() {
+    if (!prompt.trim() || generating) return
+    setGenerating(true)
+    setGenerateError(null)
+    try {
+      const res = await fetch('/api/storyboard/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, prompt: prompt.trim(), style }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.detail || body?.error || `Generation failed (${res.status})`)
+      }
+      const blob = await res.blob()
+      haptic('success')
+      setPreview(blob)
+    } catch (err) {
+      console.error('Bria preview failed:', err)
+      setGenerateError((err as Error).message ?? 'Generation failed')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const busy = pending || generating
+  const canSave = !busy
 
   return (
     <>
@@ -140,30 +193,82 @@ function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
         <div style={{ fontFamily: "'Geist', sans-serif", fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8' }}>New Shot</div>
         <span className="font-mono" style={{ fontSize: '0.62rem', fontWeight: 700, color: accent }}>{autoId}</span>
       </div>
-      <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '55vh', overflowY: 'auto' }}>
+      <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '70vh', overflowY: 'auto' }}>
+
+        {/* Hero image area — mirrors ShotDetailSheet's hero block. Empty
+            shows the dashed placeholder; populated shows the held blob via
+            an object URL. Tap-to-upload only fires when no preview yet. */}
+        <div
+          className={previewBlob || imageMode !== 'upload' ? '' : 'cursor-pointer'}
+          style={{
+            borderRadius: 10,
+            overflow: 'hidden',
+            aspectRatio: aspectRatioToCss(aspectRatio),
+            background: previewUrl ? 'transparent' : `linear-gradient(135deg, ${accent}12, ${accent}06)`,
+            border: previewUrl ? 'none' : `1.5px dashed ${accent}30`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'relative',
+          }}
+          onClick={() => {
+            if (previewBlob || imageMode !== 'upload' || busy) return
+            fileInputRef.current?.click()
+          }}
+        >
+          {previewUrl ? (
+            <img src={previewUrl} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="5" width="18" height="14" rx="2" stroke={accent} strokeWidth="1.5" opacity="0.5" />
+                <path d="M12 10v4M10 12h4" stroke={accent} strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+              </svg>
+              <span className="font-mono uppercase" style={{ fontSize: '0.4rem', letterSpacing: '0.08em', color: accent, opacity: 0.6 }}>
+                {generating ? 'Generating…' : imageMode === 'upload' ? 'Tap to upload' : 'No image yet'}
+              </span>
+            </div>
+          )}
+          {generating && (
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(4,4,10,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Spinner color={accent} />
+            </div>
+          )}
+          {previewBlob && !busy && (
+            <button
+              type="button"
+              onClick={() => setPreview(null)}
+              className="absolute top-2 right-2"
+              style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(4,4,10,0.7)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.15)', color: '#dddde8', fontSize: '0.7rem', cursor: 'pointer' }}
+              aria-label="Remove image"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
         <div>
           <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Description</span>
-          <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Shot description..."
+          <input value={description} onChange={e => setDescription(e.target.value)} placeholder="describe your shot"
             autoFocus
-            disabled={pending}
+            disabled={busy}
             className="w-full outline-none focus:border-white/20"
             style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '8px 12px', fontSize: '0.76rem', color: '#dddde8' }} />
         </div>
         <PillSelector label="Size" options={SHOT_SIZE_OPTIONS} value={size} onChange={setSize} accent={accent} />
 
-        {/* Inline image picker — three modes on one sheet, no second-page hop. */}
+        {/* Image source — Upload OR Create. Default is Create so the
+            Generate button is one tap away. */}
         <div>
-          <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Image (optional)</span>
+          <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Image source</span>
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-            {(['none', 'upload', 'create'] as ImageMode[]).map(m => {
+            {(['create', 'upload'] as ImageMode[]).map(m => {
               const active = imageMode === m
-              const label = m === 'none' ? 'None' : m === 'upload' ? 'Upload' : 'Create image'
+              const label = m === 'upload' ? 'Upload' : 'Create image'
               return (
                 <button
                   key={m}
                   type="button"
-                  disabled={pending}
-                  onClick={() => { haptic('light'); setImageMode(m); if (m !== 'upload') setFile(null) }}
+                  disabled={busy}
+                  onClick={() => { haptic('light'); setImageMode(m); setPreview(null); setGenerateError(null) }}
                   className="font-mono uppercase flex-1"
                   style={{
                     background: active ? `${accent}28` : 'rgba(255,255,255,0.03)',
@@ -173,7 +278,7 @@ function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
                     color: active ? accent : '#a8a8b8',
                     fontSize: '0.46rem',
                     letterSpacing: '0.08em',
-                    cursor: pending ? 'not-allowed' : 'pointer',
+                    cursor: busy ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {label}
@@ -183,37 +288,13 @@ function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
           </div>
 
           {imageMode === 'upload' && (
-            <div>
-              {file ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }}>
-                  <span style={{ fontSize: '0.7rem', color: '#dddde8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
-                    style={{ background: 'none', border: 'none', color: '#62627a', fontSize: '0.7rem', cursor: pending ? 'not-allowed' : 'pointer', padding: 4 }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => { haptic('light'); fileInputRef.current?.click() }}
-                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.12)', borderRadius: 8, color: '#a8a8b8', fontSize: '0.7rem', cursor: pending ? 'not-allowed' : 'pointer' }}
-                >
-                  Choose a file…
-                </button>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={e => setFile(e.target.files?.[0] ?? null)}
-              />
-            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleFileChange}
+            />
           )}
 
           {imageMode === 'create' && (
@@ -221,7 +302,7 @@ function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
               <textarea
                 value={prompt}
                 onChange={e => setPrompt(e.target.value)}
-                disabled={pending}
+                disabled={busy}
                 placeholder="describe your shot"
                 rows={3}
                 style={{
@@ -241,10 +322,10 @@ function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
               {description.trim() && !prompt.trim() && (
                 <button
                   type="button"
-                  disabled={pending}
+                  disabled={busy}
                   onClick={() => { haptic('light'); setPrompt(description) }}
                   className="font-mono uppercase"
-                  style={{ marginTop: 6, background: 'none', border: 'none', color: accent, fontSize: '0.46rem', letterSpacing: '0.08em', cursor: pending ? 'not-allowed' : 'pointer', padding: 0 }}
+                  style={{ marginTop: 6, background: 'none', border: 'none', color: accent, fontSize: '0.46rem', letterSpacing: '0.08em', cursor: busy ? 'not-allowed' : 'pointer', padding: 0 }}
                 >
                   Use shot description ↓
                 </button>
@@ -258,7 +339,7 @@ function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
                       <button
                         key={v}
                         type="button"
-                        disabled={pending}
+                        disabled={busy}
                         onClick={() => { haptic('light'); setStyle(v) }}
                         className="font-mono uppercase flex-1"
                         style={{
@@ -269,8 +350,8 @@ function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
                           color: active ? accent : '#a8a8b8',
                           fontSize: '0.46rem',
                           letterSpacing: '0.08em',
-                          cursor: pending ? 'not-allowed' : 'pointer',
-                          opacity: pending ? 0.5 : 1,
+                          cursor: busy ? 'not-allowed' : 'pointer',
+                          opacity: busy ? 0.5 : 1,
                         }}
                       >
                         {label}
@@ -279,9 +360,35 @@ function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
                   })}
                 </div>
               </div>
-              <span className="font-mono block" style={{ marginTop: 6, fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em' }}>
-                Image generation takes 30–60 seconds after save.
+
+              {/* Generate / Regenerate — its own button, distinct from Save.
+                  User can iterate until happy, then commit with Save. */}
+              <button
+                type="button"
+                disabled={busy || !prompt.trim()}
+                onClick={handleGenerate}
+                className="font-bold cursor-pointer transition-all flex items-center justify-center gap-2"
+                style={{
+                  marginTop: 10,
+                  width: '100%',
+                  padding: 11, borderRadius: 8, fontSize: '0.74rem',
+                  background: busy || !prompt.trim() ? 'rgba(255,255,255,0.04)' : accent,
+                  border: `1px solid ${busy || !prompt.trim() ? 'rgba(255,255,255,0.06)' : accent}`,
+                  color: busy || !prompt.trim() ? '#62627a' : '#04040a',
+                  cursor: busy || !prompt.trim() ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {generating && <Spinner color="#62627a" />}
+                {generating ? 'Generating…' : previewBlob ? 'Regenerate' : 'Generate'}
+              </button>
+              <span className="font-mono block" style={{ marginTop: 6, fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em', textAlign: 'center' }}>
+                Image generation takes 30–60 seconds.
               </span>
+              {generateError && (
+                <span style={{ marginTop: 8, display: 'block', fontSize: '0.62rem', color: '#ff7b7b', background: 'rgba(255,123,123,0.06)', border: '1px solid rgba(255,123,123,0.15)', borderRadius: 6, padding: '8px 10px' }}>
+                  {generateError}
+                </span>
+              )}
             </>
           )}
         </div>
@@ -296,13 +403,13 @@ function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
             color: canSave ? accent : '#62627a',
             cursor: canSave ? 'pointer' : 'not-allowed',
           }}
-          onClick={() => { haptic('medium'); onSave({ description, size, imageMode, file, prompt: prompt.trim(), style }) }}>
+          onClick={() => { haptic('medium'); onSave({ description, size, imageBlob: previewBlob }) }}>
           {pending && <Spinner color={accent} />}
-          {pending ? (imageMode === 'create' ? 'Generating…' : 'Saving…') : 'Save'}
+          {pending ? 'Saving…' : 'Save'}
         </button>
         <button className="flex-1 font-bold cursor-pointer transition-all"
-          disabled={pending}
-          style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', color: '#a0a0b8', opacity: pending ? 0.5 : 1, cursor: pending ? 'not-allowed' : 'pointer' }}
+          disabled={busy}
+          style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', color: '#a0a0b8', opacity: busy ? 0.5 : 1, cursor: busy ? 'not-allowed' : 'pointer' }}
           onClick={onClose}>
           Cancel
         </button>
@@ -2159,13 +2266,17 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           }} />
       </Sheet>
 
-      {/* New shot sheet — description + size + optional image (Upload OR
-          Create image) all on one page. The Create-image branch reuses the
-          /api/storyboard/generate route built for StoryboardImageSheet. */}
+      {/* New shot sheet — hero image area + description/size + optional
+          Upload-or-Create image flow with its own Generate/Regenerate
+          button. The sheet preview uses /api/storyboard/preview (returns
+          raw bytes, no shot row needed); Save here just creates the shot
+          and uploads whatever blob is held. */}
       <Sheet open={!!newShotAt} onClose={() => { if (!newShotPending) setNewShotAt(null) }}>
         <NewShotSheet
           autoId={newShotAt ? nextShotNumber(newShotAt.sceneId) : ''}
+          projectId={projectId}
           accent={accent}
+          aspectRatio={project?.aspectRatio}
           pending={newShotPending}
           onSave={async (data) => {
             if (!newShotAt) return
@@ -2182,19 +2293,13 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
                 sortOrder,
               })
               const newShotId = (created as { id?: string } | null)?.id
-              if (data.imageMode === 'upload' && data.file && newShotId) {
-                const url = await uploadStoryboardImage(data.file, projectId, newShotId)
+              if (data.imageBlob && newShotId) {
+                // Both Upload and Create-image paths produce a Blob; wrap as
+                // File so the existing uploadStoryboardImage helper signature
+                // (which expects File) keeps working unchanged.
+                const file = new File([data.imageBlob], `${newShotId}.jpg`, { type: data.imageBlob.type || 'image/jpeg' })
+                const url = await uploadStoryboardImage(file, projectId, newShotId)
                 await updateShot(newShotId, { imageUrl: url })
-              } else if (data.imageMode === 'create' && data.prompt && newShotId) {
-                const res = await fetch('/api/storyboard/generate', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ projectId, shotId: newShotId, prompt: data.prompt, style: data.style }),
-                })
-                if (!res.ok) {
-                  const body = await res.json().catch(() => ({}))
-                  throw new Error(body?.detail || body?.error || `Generate failed (${res.status})`)
-                }
               }
               qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
               setNewShotAt(null)
