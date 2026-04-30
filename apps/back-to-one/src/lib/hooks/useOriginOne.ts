@@ -352,8 +352,7 @@ export function useCreateActionItem(projectId: string) {
 export function useUpdateActionItem(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: { title?: string; description?: string; assignedTo?: string | null; department?: string | null; dueDate?: string | null; status?: string } }) =>
-      db.updateActionItem(id, fields),
+    mutationFn: db.updateActionItem,
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.actionItems(projectId) }),
   })
 }
@@ -379,8 +378,7 @@ export function useCreateMilestone(projectId: string) {
 export function useUpdateMilestone(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: { title?: string; date?: string; status?: string; notes?: string } }) =>
-      db.updateMilestone(id, fields),
+    mutationFn: db.updateMilestone,
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.milestones(projectId) }),
   })
 }
@@ -545,15 +543,7 @@ export function useCreateThread(projectId: string) {
 export function usePostMessage(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({
-      threadId,
-      createdBy,
-      content,
-    }: {
-      threadId: string
-      createdBy: string
-      content: string
-    }) => db.postMessage(threadId, createdBy, content),
+    mutationFn: db.postMessage,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['threads', projectId] })
       qc.invalidateQueries({ queryKey: ['threadPreviews', projectId] })
@@ -815,8 +805,7 @@ export function useCreateShootDay(projectId: string) {
 export function useUpdateShootDay(projectId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: Parameters<typeof db.updateShootDay>[1] }) =>
-      db.updateShootDay(id, fields),
+    mutationFn: db.updateShootDay,
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.shootDays(projectId) }),
   })
 }
