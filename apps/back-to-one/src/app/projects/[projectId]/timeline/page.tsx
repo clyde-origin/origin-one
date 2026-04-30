@@ -996,19 +996,34 @@ function ShootDayEditSheet({
       </div>
 
       {mode === 'edit' && day && (
-        <button
-          type="button"
-          onClick={() => { haptic('light'); router.push(`/projects/${projectId}/timeline/${day.id}`) }}
-          className="font-mono uppercase flex items-center justify-between"
-          style={{
-            padding: '12px 14px', borderRadius: 12,
-            background: 'rgba(100,112,243,0.10)', border: '1px solid rgba(100,112,243,0.30)',
-            color: '#9ba6ff', fontSize: '0.55rem', letterSpacing: '0.1em',
-          }}
-        >
-          <span>Open Daily Schedule</span>
-          <span aria-hidden>→</span>
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={() => { haptic('light'); router.push(`/projects/${projectId}/timeline/${day.id}`) }}
+            className="font-mono uppercase flex items-center justify-between"
+            style={{
+              padding: '12px 14px', borderRadius: 12,
+              background: 'rgba(100,112,243,0.10)', border: '1px solid rgba(100,112,243,0.30)',
+              color: '#9ba6ff', fontSize: '0.55rem', letterSpacing: '0.1em',
+            }}
+          >
+            <span>Open Daily Schedule</span>
+            <span aria-hidden>→</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { haptic('light'); router.push(`/projects/${projectId}/call-sheets`) }}
+            className="font-mono uppercase flex items-center justify-between"
+            style={{
+              padding: '12px 14px', borderRadius: 12,
+              background: 'rgba(0,184,148,0.10)', border: '1px solid rgba(0,184,148,0.30)',
+              color: '#00b894', fontSize: '0.55rem', letterSpacing: '0.1em',
+            }}
+          >
+            <span>Open Call Sheets</span>
+            <span aria-hidden>→</span>
+          </button>
+        </>
       )}
 
       <div className="flex items-center" style={{ gap: 10, marginTop: 4 }}>
