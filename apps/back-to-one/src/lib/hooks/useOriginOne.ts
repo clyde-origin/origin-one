@@ -497,6 +497,15 @@ export function useMyTeam(): { id: string; name: string } | null {
   return data ?? null
 }
 
+export function useUpdateTeamName() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ teamId, name }: { teamId: string; name: string }) =>
+      db.updateTeamName(teamId, name),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['myTeam'] }),
+  })
+}
+
 export function useThreads(projectId: string) {
   const meId = useMeId()
   return useQuery({

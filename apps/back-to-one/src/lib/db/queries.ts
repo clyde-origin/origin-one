@@ -3305,3 +3305,16 @@ export async function bulkReorderHomeGrid(
     if (err) { console.error('bulkReorderHomeGrid placements failed:', err); throw err }
   }
 }
+
+/**
+ * Update the team's name. RLS enforces the viewer must be a TeamMember
+ * (policy `team_update` in migration 20260428005845_rls_helpers_and_policies).
+ */
+export async function updateTeamName(teamId: string, name: string) {
+  const db = createClient()
+  const { error } = await db
+    .from('Team')
+    .update({ name, updatedAt: new Date().toISOString() })
+    .eq('id', teamId)
+  if (error) { console.error('updateTeamName failed:', error); throw error }
+}
