@@ -1385,6 +1385,15 @@ export function useUpsertUserProjectPlacement() {
   })
 }
 
+export function useMoveProjectToRoot() {
+  const qc = useQueryClient()
+  const meId = useMeId()
+  return useMutation({
+    mutationFn: (projectId: string) => db.moveProjectToRoot({ userId: meId!, projectId }),
+    onSuccess:  () => invalidateFolders(qc),
+  })
+}
+
 export function useBulkReorderHomeGrid() {
   const qc = useQueryClient()
   const meId = useMeId()

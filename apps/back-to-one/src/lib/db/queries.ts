@@ -3238,6 +3238,34 @@ export async function upsertUserProjectPlacement(input: {
   return data
 }
 
+/**
+ * Move a project out of its folder back to the home grid root for a
+ * specific viewer. Clears UserProjectPlacement.folderId; assigns a
+ * sortOrder that places the project at the bottom of the root-grid
+ * order. Wraps upsertUserProjectPlacement.
+ */
+export async function moveProjectToRoot(input: {
+  userId: string
+  projectId: string
+}) {
+  const db = createClient()
+  const { data: rows, error: readErr } = await db
+    .from('UserProjectPlacement')
+    .select('sortOrder')
+    .eq('userId', input.userId)
+    .is('folderId', null)
+    .order('sortOrder', { ascending: false })
+    .limit(1)
+  if (readErr) { console.error('moveProjectToRoot read failed:', readErr); throw readErr }
+  const maxSortOrder = rows && rows.length > 0 ? rows[0].sortOrder : 0
+  return upsertUserProjectPlacement({
+    userId: input.userId,
+    projectId: input.projectId,
+    folderId: null,
+    sortOrder: maxSortOrder + 1024,
+  })
+}
+
 /** Bulk reorder for a single home-grid pass (all top-level items). */
 export async function bulkReorderHomeGrid(
   meId: string,
