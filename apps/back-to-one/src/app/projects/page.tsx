@@ -278,7 +278,11 @@ export default function ProjectsPage() {
       // Archive icon and Move-out pill are smaller than a card — give them a more generous radius.
       const isArchive = id === ARCHIVE_FOLDER_ID
       const isMoveOut = id === MOVE_OUT_TARGET_ID
-      const radius = isArchive || isMoveOut ? 60 : 30
+      // Archive / Move-out are smaller pill targets — keep 60.
+      // Folder + project tiles are larger; 30 was tight on a touch device
+      // and very tight with a mouse. 55 makes them forgiving without
+      // overlapping siblings (tile width is ~170px, gap is 8px).
+      const radius = isArchive || isMoveOut ? 60 : 55
       if (dist < snapClosestDist && dist <= radius) { snapClosestDist = dist; snapClosestId = id }
     })
     const newTarget: string | null = snapClosestId
@@ -1067,7 +1071,7 @@ export default function ProjectsPage() {
           // it's loose in the synthetic Archive or inside an archived folder.
           openFolderId === ARCHIVE_FOLDER_ID || (openFolderId && archivedFolderIds.has(openFolderId))
             ? (p) => { haptic('medium'); setRestoreProject(p) }
-            : undefined
+            : () => { haptic('medium'); if (!editMode) setEditMode(true) }
         }
         folders={
           openFolderId === ARCHIVE_FOLDER_ID
