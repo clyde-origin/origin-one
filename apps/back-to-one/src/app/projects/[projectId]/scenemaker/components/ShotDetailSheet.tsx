@@ -171,18 +171,26 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
         )}
       </div>
 
-      {/* Framing / Shot Size selector */}
+      {/* Frame size selector — single horizontal-scroll row matches the
+          New Shot sheet so the same pill list reads identically across
+          surfaces. */}
       <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 8 }}>Framing</span>
-        <div className="flex flex-wrap" style={{ gap: 5 }}>
+        <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 8 }}>Frame size</span>
+        <div
+          className="flex no-scrollbar"
+          style={{ gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 2 }}
+        >
           {SHOT_SIZES.map(s => (
             <button key={s.value}
-              className="font-mono cursor-pointer select-none transition-all"
+              type="button"
+              className="font-mono cursor-pointer select-none transition-all flex-shrink-0"
               style={{
-                fontSize: '0.42rem', letterSpacing: '0.04em', padding: '4px 9px', borderRadius: 16,
-                background: shot.size === s.value ? `${accent}1f` : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${shot.size === s.value ? `${accent}4d` : 'rgba(255,255,255,0.05)'}`,
-                color: shot.size === s.value ? accent : '#62627a',
+                fontSize: '0.62rem', letterSpacing: '0.04em', padding: '8px 14px', borderRadius: 18,
+                background: shot.size === s.value ? `${accent}28` : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${shot.size === s.value ? `${accent}66` : 'rgba(255,255,255,0.06)'}`,
+                color: shot.size === s.value ? accent : '#a8a8b8',
+                fontWeight: shot.size === s.value ? 600 : 500,
+                whiteSpace: 'nowrap',
               }}
               onClick={() => {
                 haptic('light')
