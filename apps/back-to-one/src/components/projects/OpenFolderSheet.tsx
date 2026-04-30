@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation'
 import { haptic } from '@/lib/utils/haptics'
 import { useLongPress } from '@/lib/hooks/useLongPress'
 import { SlateCard, hexToRgba } from '@/components/projects/SlateCard'
+import { ArchiveIcon, ARCHIVE_FOLDER_ID } from '@/components/projects/ArchiveIcon'
 import type { Project } from '@/types'
 
 type FolderRef = { id: string; name: string; color: string | null }
@@ -44,6 +45,14 @@ interface OpenFolderSheetProps {
   // so it scales out from where the user tapped (the folder card or the
   // archive icon) instead of scaling around its own center.
   originPoint?: { x: number; y: number } | null
+
+  // NEW — wiggle / drag wiring
+  editMode?: boolean
+  draggingProjectId?: string | null      // viewport-active drag's project id (for ghost styling)
+  dragTargetId?: string | null           // current drag target id (for archive/move-out highlights)
+  archivedCount?: number                 // number of archived projects (for ArchiveIcon label)
+  onProjectTouchStart?: (e: React.TouchEvent, projectId: string) => void
+  onArchiveTap?: () => void              // tap on in-sheet ArchiveIcon → swap to Archive variant
 }
 
 // Compact folder tile — visual cue (folder icon + count) in the same 4:3 slot
@@ -97,6 +106,7 @@ export function OpenFolderSheet({
   onProjectClick, onProjectLongPress,
   folders, onFolderClick, onFolderLongPress,
   originPoint,
+  editMode, draggingProjectId, dragTargetId, archivedCount, onProjectTouchStart, onArchiveTap,
 }: OpenFolderSheetProps) {
   const router = useRouter()
   const accent = folder?.color ?? '#6470f3'
@@ -183,20 +193,83 @@ export function OpenFolderSheet({
                     onLongPress={onFolderLongPress ? () => onFolderLongPress(f) : undefined}
                   />
                 ))}
-                {projects.map((p, i) => (
-                  <SlateCard
-                    key={p.id}
-                    project={p}
-                    color={p.color || '#6470f3'}
-                    dimmed={false}
-                    editMode={false}
-                    isGhost={false}
-                    isDragging={false}
-                    wiggleDelay={i * 0.08}
-                    onClick={() => handleClick(p)}
-                    onLongPress={onProjectLongPress ? () => onProjectLongPress(p) : (() => {})}
-                  />
-                ))}
+                {projects.map((p, i) => {
+                  const isDragging = draggingProjectId === p.id
+                  return (
+                    <motion.div
+                      key={p.id}
+                      layout
+                      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                      onTouchStart={onProjectTouchStart ? (e => onProjectTouchStart(e, p.id)) : undefined}
+                      style={{
+                        position: 'relative',
+                        touchAction: editMode ? 'none' : 'auto',
+                        userSelect: 'none',
+                        WebkitUserSelect: 'none',
+                        WebkitTouchCallout: 'none',
+                      }}
+                    >
+                      <SlateCard
+                        project={p}
+                        color={p.color || '#6470f3'}
+                        dimmed={!!draggingProjectId && !isDragging}
+                        editMode={editMode ?? false}
+                        isGhost={isDragging}
+                        isDragging={false}
+                        wiggleDelay={i * 0.08}
+                        onClick={() => handleClick(p)}
+                        onLongPress={onProjectLongPress ? () => onProjectLongPress(p) : (() => {})}
+                      />
+                    </motion.div>
+                  )
+                })}
+
+                {editMode && folder?.id !== ARCHIVE_FOLDER_ID && (
+                  <>
+                    {/* Move-out pill — only visible while dragging a project. */}
+                    {draggingProjectId && (
+                      <div
+                        data-move-out-target="__move_out__"
+                        style={{
+                          gridColumn: 'span 2',
+                          display: 'flex',
+                          justifyContent: 'center',
+                          padding: '6px 2px 2px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 7,
+                            padding: '8px 16px',
+                            borderRadius: 20,
+                            border: dragTargetId === '__move_out__'
+                              ? `1.5px solid ${hexToRgba(accent, 0.7)}`
+                              : `1px dashed ${hexToRgba(accent, 0.4)}`,
+                            background: dragTargetId === '__move_out__'
+                              ? hexToRgba(accent, 0.18)
+                              : hexToRgba(accent, 0.04),
+                            transform: dragTargetId === '__move_out__' ? 'scale(1.06)' : 'scale(1)',
+                            transition: 'all 0.18s ease',
+                            color: dragTargetId === '__move_out__' ? '#dddde8' : hexToRgba(accent, 0.7),
+                          }}
+                        >
+                          <span style={{ fontSize: 13 }}>←</span>
+                          <span className="font-mono uppercase" style={{ fontSize: 10, letterSpacing: '0.1em' }}>
+                            Move out
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* In-sheet Archive icon — drop target during drag, tap to
+                        swap sheet contents to the Archive variant. */}
+                    <ArchiveIcon
+                      count={archivedCount ?? 0}
+                      isDropTarget={dragTargetId === ARCHIVE_FOLDER_ID}
+                      onClick={onArchiveTap ?? (() => {})}
+                    />
+                  </>
+                )}
               </div>
             )}
           </div>

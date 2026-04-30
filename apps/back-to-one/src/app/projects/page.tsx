@@ -964,6 +964,12 @@ export default function ProjectsPage() {
             : undefined
         }
         onClose={closeOpenFolder}
+        editMode={editMode}
+        draggingProjectId={dragProjectId && dragKindRef.current === 'project' ? dragProjectId : null}
+        dragTargetId={dragTargetId}
+        archivedCount={allArchivedProjects.length}
+        onProjectTouchStart={(e, id) => handleTouchStart(e, id, 'project')}
+        onArchiveTap={() => { haptic('light'); openFolder(ARCHIVE_FOLDER_ID) }}
       />
 
       {/* Restore confirm — appears when tapping a project inside the Archive folder */}
