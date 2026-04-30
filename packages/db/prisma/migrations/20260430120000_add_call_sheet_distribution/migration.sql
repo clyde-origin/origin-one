@@ -77,3 +77,6 @@ ALTER TABLE "CallSheetDelivery"
 CREATE INDEX "CallSheetDelivery_recipientId_idx" ON "CallSheetDelivery"("recipientId");
 CREATE INDEX "CallSheetDelivery_scheduledFor_sentAt_idx" ON "CallSheetDelivery"("scheduledFor", "sentAt");
 CREATE INDEX "CallSheetDelivery_confirmToken_idx" ON "CallSheetDelivery"("confirmToken");
+
+GRANT ALL ON TABLE "CallSheetRecipient" TO anon, authenticated, service_role;
+GRANT ALL ON TABLE "CallSheetDelivery" TO anon, authenticated, service_role;

@@ -50,6 +50,8 @@ ALTER TABLE "CallSheet"
 CREATE INDEX "CallSheet_projectId_idx" ON "CallSheet"("projectId");
 CREATE INDEX "CallSheet_projectId_status_idx" ON "CallSheet"("projectId", "status");
 
+GRANT ALL ON TABLE "CallSheet" TO anon, authenticated, service_role;
+
 -- Storage bucket: call-sheet-attachments (5MB cap, MIME allowlist)
 -- Permissive RLS pre-Auth (tightens on Auth Day in #24 RLS pass)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

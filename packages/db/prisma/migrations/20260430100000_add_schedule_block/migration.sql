@@ -52,3 +52,5 @@ ALTER TABLE "ScheduleBlock"
 CREATE INDEX "ScheduleBlock_projectId_idx" ON "ScheduleBlock"("projectId");
 CREATE INDEX "ScheduleBlock_shootDayId_startTime_idx" ON "ScheduleBlock"("shootDayId", "startTime");
 CREATE INDEX "ScheduleBlock_shootDayId_track_sortOrder_idx" ON "ScheduleBlock"("shootDayId", "track", "sortOrder");
+
+GRANT ALL ON TABLE "ScheduleBlock" TO anon, authenticated, service_role;
