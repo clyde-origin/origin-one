@@ -22,6 +22,7 @@ export function StoryboardImageSheet({
   shotId,
   projectId,
   accentColor,
+  initialPrompt,
   onClose,
   onComplete,
 }: {
@@ -29,6 +30,9 @@ export function StoryboardImageSheet({
   shotId: string | null
   projectId: string
   accentColor: string
+  // Pre-populates the Create-image prompt so the user can iterate from the
+  // shot description rather than retyping it. Empty string is fine.
+  initialPrompt?: string
   onClose: () => void
   onComplete: (imageUrl: string) => void
 }) {
@@ -42,11 +46,11 @@ export function StoryboardImageSheet({
   useEffect(() => {
     if (open) {
       setMode('menu')
-      setPrompt('')
+      setPrompt(initialPrompt ?? '')
       setPending(false)
       setError(null)
     }
-  }, [open, shotId])
+  }, [open, shotId, initialPrompt])
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -106,7 +110,8 @@ export function StoryboardImageSheet({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18 }}
-              className="flex flex-col gap-3 pb-2"
+              className="flex flex-col gap-3"
+              style={{ paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))' }}
             >
               <ActionRow
                 label="Upload from device"
@@ -133,7 +138,8 @@ export function StoryboardImageSheet({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18 }}
-              className="flex flex-col gap-3 pb-2"
+              className="flex flex-col gap-3"
+              style={{ paddingBottom: 'calc(96px + env(safe-area-inset-bottom, 0px))' }}
             >
               <textarea
                 value={prompt}

@@ -83,16 +83,46 @@ const SIZE_ABBREV: Record<string, string> = {
   medium_close_up: 'MCU', close_up: 'CU', extreme_close_up: 'ECU', insert: 'INS',
 }
 
-function NewShotSheet({ autoId, accent, onSave, onClose }: {
+function Spinner({ color }: { color: string }) {
+  return (
+    <span
+      className="rounded-full border animate-spin inline-block"
+      style={{ width: 12, height: 12, borderColor: 'rgba(255,255,255,0.18)', borderTopColor: color }}
+      aria-label="Loading"
+    />
+  )
+}
+
+type ImageMode = 'none' | 'upload' | 'create'
+type NewShotSaveData = {
+  description: string
+  size: string
+  imageMode: ImageMode
+  file: File | null
+  prompt: string
+}
+
+function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
   autoId: string; accent: string
-  // andCreateImage signals the parent to open the storyboard image menu for
-  // the freshly-created shot — saves an extra tap when the user wants to
-  // pair description + image at create time.
-  onSave: (data: { description: string; size: string }, andCreateImage: boolean) => void
+  pending: boolean
+  // The parent owns createShot + image attach so it can invalidate React
+  // Query and pop the right toast on failure. The sheet just hands back
+  // everything needed to drive that flow.
+  onSave: (data: NewShotSaveData) => void
   onClose: () => void
 }) {
   const [description, setDescription] = useState('')
   const [size, setSize] = useState('')
+  const [imageMode, setImageMode] = useState<ImageMode>('none')
+  const [file, setFile] = useState<File | null>(null)
+  const [prompt, setPrompt] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const canSave = !pending && (
+    imageMode === 'none' ||
+    (imageMode === 'upload' && !!file) ||
+    (imageMode === 'create' && !!prompt.trim())
+  )
 
   return (
     <>
@@ -101,36 +131,141 @@ function NewShotSheet({ autoId, accent, onSave, onClose }: {
         <div style={{ fontFamily: "'Geist', sans-serif", fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8' }}>New Shot</div>
         <span className="font-mono" style={{ fontSize: '0.62rem', fontWeight: 700, color: accent }}>{autoId}</span>
       </div>
-      <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '60vh', overflowY: 'auto' }}>
+      <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '55vh', overflowY: 'auto' }}>
         <div>
           <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Description</span>
           <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Shot description..."
             autoFocus
+            disabled={pending}
             className="w-full outline-none focus:border-white/20"
             style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '8px 12px', fontSize: '0.76rem', color: '#dddde8' }} />
         </div>
         <PillSelector label="Size" options={SHOT_SIZES} value={size} onChange={setSize} accent={accent} />
-      </div>
-      <div style={{ padding: '14px 20px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="flex-1 font-bold cursor-pointer transition-all"
-            style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: `${accent}1f`, border: `1px solid ${accent}40`, color: accent }}
-            onClick={() => { haptic('medium'); onSave({ description, size }, false) }}>
-            Save
-          </button>
-          <button className="flex-1 font-bold cursor-pointer transition-all"
-            style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', color: '#a0a0b8' }}
-            onClick={onClose}>
-            Cancel
-          </button>
+
+        {/* Inline image picker — three modes on one sheet, no second-page hop. */}
+        <div>
+          <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Image (optional)</span>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            {(['none', 'upload', 'create'] as ImageMode[]).map(m => {
+              const active = imageMode === m
+              const label = m === 'none' ? 'None' : m === 'upload' ? 'Upload' : 'Create image'
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={pending}
+                  onClick={() => { haptic('light'); setImageMode(m); if (m !== 'upload') setFile(null) }}
+                  className="font-mono uppercase flex-1"
+                  style={{
+                    background: active ? `${accent}28` : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${active ? `${accent}66` : 'rgba(255,255,255,0.06)'}`,
+                    borderRadius: 7,
+                    padding: '8px 6px',
+                    color: active ? accent : '#a8a8b8',
+                    fontSize: '0.46rem',
+                    letterSpacing: '0.08em',
+                    cursor: pending ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+
+          {imageMode === 'upload' && (
+            <div>
+              {file ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8 }}>
+                  <span style={{ fontSize: '0.7rem', color: '#dddde8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                    style={{ background: 'none', border: 'none', color: '#62627a', fontSize: '0.7rem', cursor: pending ? 'not-allowed' : 'pointer', padding: 4 }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => { haptic('light'); fileInputRef.current?.click() }}
+                  style={{ width: '100%', padding: '10px 12px', background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.12)', borderRadius: 8, color: '#a8a8b8', fontSize: '0.7rem', cursor: pending ? 'not-allowed' : 'pointer' }}
+                >
+                  Choose a file…
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={e => setFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+          )}
+
+          {imageMode === 'create' && (
+            <>
+              <textarea
+                value={prompt}
+                onChange={e => setPrompt(e.target.value)}
+                disabled={pending}
+                placeholder={description.trim() || 'Describe the shot — tone, subject, lighting…'}
+                rows={3}
+                style={{
+                  width: '100%',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  color: '#dddde8',
+                  fontSize: '0.76rem',
+                  lineHeight: 1.5,
+                  resize: 'none',
+                  outline: 'none',
+                  fontFamily: 'inherit',
+                }}
+              />
+              {description.trim() && !prompt.trim() && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => { haptic('light'); setPrompt(description) }}
+                  className="font-mono uppercase"
+                  style={{ marginTop: 6, background: 'none', border: 'none', color: accent, fontSize: '0.46rem', letterSpacing: '0.08em', cursor: pending ? 'not-allowed' : 'pointer', padding: 0 }}
+                >
+                  Use shot description ↓
+                </button>
+              )}
+              <span className="font-mono block" style={{ marginTop: 6, fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em' }}>
+                Image generation takes 30–60 seconds after save.
+              </span>
+            </>
+          )}
         </div>
-        <button className="font-bold cursor-pointer transition-all flex items-center justify-center gap-2"
-          style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: accent, border: `1px solid ${accent}`, color: '#04040a' }}
-          onClick={() => { haptic('medium'); onSave({ description, size }, true) }}>
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-            <path d="M7 1.5l1.4 3.6L12 6.5l-3.6 1.4L7 11.5l-1.4-3.6L2 6.5l3.6-1.4L7 1.5z" fill="currentColor" />
-          </svg>
-          Save and add image
+      </div>
+      <div style={{ padding: '14px 20px 0', display: 'flex', gap: 10 }}>
+        <button className="flex-1 font-bold transition-all flex items-center justify-center gap-2"
+          disabled={!canSave}
+          style={{
+            padding: 13, borderRadius: 8, fontSize: '0.78rem',
+            background: canSave ? `${accent}1f` : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${canSave ? `${accent}40` : 'rgba(255,255,255,0.06)'}`,
+            color: canSave ? accent : '#62627a',
+            cursor: canSave ? 'pointer' : 'not-allowed',
+          }}
+          onClick={() => { haptic('medium'); onSave({ description, size, imageMode, file, prompt: prompt.trim() }) }}>
+          {pending && <Spinner color={accent} />}
+          {pending ? (imageMode === 'create' ? 'Generating…' : 'Saving…') : 'Save'}
+        </button>
+        <button className="flex-1 font-bold cursor-pointer transition-all"
+          disabled={pending}
+          style={{ padding: 13, borderRadius: 8, fontSize: '0.78rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', color: '#a0a0b8', opacity: pending ? 0.5 : 1, cursor: pending ? 'not-allowed' : 'pointer' }}
+          onClick={onClose}>
+          Cancel
         </button>
       </div>
     </>
@@ -1285,6 +1420,10 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   // Storyboard upload-or-generate sheet — opens when an empty thumbnail
   // is tapped. The sheet itself owns the file picker + Bria call.
   const [imageMenuShotId, setImageMenuShotId] = useState<string | null>(null)
+  // Loading state for the New Shot sheet's save → optional image attach flow.
+  // Lives here (not inside NewShotSheet) so the sheet stays open and disabled
+  // during the async work.
+  const [newShotPending, setNewShotPending] = useState(false)
 
   const qc = useQueryClient()
   const { data: shotlistVersions } = useShotlistVersions(projectId)
@@ -1954,12 +2093,15 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
       {/* FAB cluster lifted to global ActionBar; branches registered via useFabAction above. */}
 
-      {/* Storyboard image sheet (Upload from device + Generate with Bria) */}
+      {/* Storyboard image sheet — Upload + Create image. Pre-fills the
+          Create-image prompt with the shot's description so the user can
+          iterate from the existing copy rather than retyping. */}
       <StoryboardImageSheet
         open={imageMenuShotId !== null}
         shotId={imageMenuShotId}
         projectId={projectId}
         accentColor={accent}
+        initialPrompt={imageMenuShotId ? (allShots.find(s => s.id === imageMenuShotId)?.description ?? '') : ''}
         onClose={() => setImageMenuShotId(null)}
         onComplete={(url) => {
           if (imageMenuShotId) handleImageGenerated(imageMenuShotId, url)
@@ -1978,34 +2120,53 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           }} />
       </Sheet>
 
-      {/* New shot sheet */}
-      <Sheet open={!!newShotAt} onClose={() => setNewShotAt(null)}>
+      {/* New shot sheet — description + size + optional image (Upload OR
+          Create image) all on one page. The Create-image branch reuses the
+          /api/storyboard/generate route built for StoryboardImageSheet. */}
+      <Sheet open={!!newShotAt} onClose={() => { if (!newShotPending) setNewShotAt(null) }}>
         <NewShotSheet
           autoId={newShotAt ? nextShotNumber(newShotAt.sceneId) : ''}
           accent={accent}
-          onSave={(data, andCreateImage) => {
+          pending={newShotPending}
+          onSave={async (data) => {
             if (!newShotAt) return
             const shotNumber = nextShotNumber(newShotAt.sceneId)
             const sortOrder = allShots.length + 1
-            createShot({
-              sceneId: newShotAt.sceneId,
-              shotNumber,
-              size: data.size || null,
-              description: data.description,
-              status: 'planned',
-              sortOrder,
-            }).then((created) => {
-              qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
-              // "Save and add image" path: chain straight into the storyboard
-              // image menu for the row we just created. Plain Save closes
-              // the sheet without opening the image flow.
-              if (andCreateImage && created?.id) {
-                setImageMenuShotId(created.id as string)
+            setNewShotPending(true)
+            try {
+              const created = await createShot({
+                sceneId: newShotAt.sceneId,
+                shotNumber,
+                size: data.size || null,
+                description: data.description,
+                status: 'planned',
+                sortOrder,
+              })
+              const newShotId = (created as { id?: string } | null)?.id
+              if (data.imageMode === 'upload' && data.file && newShotId) {
+                const url = await uploadStoryboardImage(data.file, projectId, newShotId)
+                await updateShot(newShotId, { imageUrl: url })
+              } else if (data.imageMode === 'create' && data.prompt && newShotId) {
+                const res = await fetch('/api/storyboard/generate', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ projectId, shotId: newShotId, prompt: data.prompt }),
+                })
+                if (!res.ok) {
+                  const body = await res.json().catch(() => ({}))
+                  throw new Error(body?.detail || body?.error || `Generate failed (${res.status})`)
+                }
               }
-            }).catch(err => console.error('Failed to create shot:', err))
-            setNewShotAt(null)
+              qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
+              setNewShotAt(null)
+            } catch (err) {
+              console.error('Failed to create shot or attach image:', err)
+              alert(`Couldn't save shot: ${(err as Error).message}`)
+            } finally {
+              setNewShotPending(false)
+            }
           }}
-          onClose={() => setNewShotAt(null)}
+          onClose={() => { if (!newShotPending) setNewShotAt(null) }}
         />
       </Sheet>
 
