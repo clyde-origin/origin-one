@@ -51,6 +51,11 @@ export const keys = {
   mentionRoster:  (projectId: string | null, meId: string | null) => ['mentionRoster', projectId, meId ?? ''] as const,
   scheduleBlocks: (shootDayId: string) => ['scheduleBlocks', shootDayId] as const,
   projectTalent:  (projectId: string) => ['projectTalent', projectId] as const,
+  callSheets:     (projectId: string) => ['callSheets', projectId] as const,
+  callSheet:      (id: string) => ['callSheet', id] as const,
+  callSheetByShootDay: (shootDayId: string) => ['callSheetByShootDay', shootDayId] as const,
+  callSheetRecipients: (callSheetId: string) => ['callSheetRecipients', callSheetId] as const,
+  callSheetDeliveries: (callSheetId: string) => ['callSheetDeliveries', callSheetId] as const,
 }
 
 // ── PROJECTS ───────────────────────────────────────────────
@@ -869,6 +874,121 @@ export function useProjectTalent(projectId: string) {
     queryKey: keys.projectTalent(projectId),
     queryFn:  () => db.getProjectTalent(projectId),
     enabled:  !!projectId,
+  })
+}
+
+// ── CALL SHEETS (Arcs B/C/D) ───────────────────────────────
+
+export function useCallSheets(projectId: string) {
+  return useQuery({
+    queryKey: keys.callSheets(projectId),
+    queryFn:  () => db.getCallSheets(projectId),
+    enabled:  !!projectId,
+  })
+}
+
+export function useCallSheet(callSheetId: string | null) {
+  return useQuery({
+    queryKey: keys.callSheet(callSheetId ?? ''),
+    queryFn:  () => db.getCallSheet(callSheetId!),
+    enabled:  !!callSheetId,
+  })
+}
+
+export function useCallSheetByShootDay(shootDayId: string | null) {
+  return useQuery({
+    queryKey: keys.callSheetByShootDay(shootDayId ?? ''),
+    queryFn:  () => db.getCallSheetByShootDay(shootDayId!),
+    enabled:  !!shootDayId,
+  })
+}
+
+export function useCreateCallSheet(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.createCallSheet,
+    onSuccess: (cs) => {
+      qc.invalidateQueries({ queryKey: keys.callSheets(projectId) })
+      if (cs?.shootDayId) {
+        qc.invalidateQueries({ queryKey: keys.callSheetByShootDay(cs.shootDayId) })
+      }
+    },
+  })
+}
+
+export function useUpdateCallSheet(callSheetId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.updateCallSheet,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.callSheet(callSheetId) })
+      qc.invalidateQueries({ queryKey: keys.callSheets('') }) // brute-force list refetch
+    },
+  })
+}
+
+export function useDeleteCallSheet(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteCallSheet,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.callSheets(projectId) }),
+  })
+}
+
+export function useUploadCallSheetAttachment(callSheetId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.uploadCallSheetAttachment,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.callSheet(callSheetId) }),
+  })
+}
+
+export function useDeleteCallSheetAttachment(callSheetId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteCallSheetAttachment,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.callSheet(callSheetId) }),
+  })
+}
+
+export function useCallSheetRecipients(callSheetId: string | null) {
+  return useQuery({
+    queryKey: keys.callSheetRecipients(callSheetId ?? ''),
+    queryFn:  () => db.getCallSheetRecipients(callSheetId!),
+    enabled:  !!callSheetId,
+  })
+}
+
+export function useAddCallSheetRecipient(callSheetId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.addCallSheetRecipient,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.callSheetRecipients(callSheetId) }),
+  })
+}
+
+export function useUpdateCallSheetRecipient(callSheetId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.updateCallSheetRecipient,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.callSheetRecipients(callSheetId) }),
+  })
+}
+
+export function useDeleteCallSheetRecipient(callSheetId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: db.deleteCallSheetRecipient,
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.callSheetRecipients(callSheetId) }),
+  })
+}
+
+export function useCallSheetDeliveries(callSheetId: string | null) {
+  return useQuery({
+    queryKey: keys.callSheetDeliveries(callSheetId ?? ''),
+    queryFn:  () => db.getCallSheetDeliveries(callSheetId!),
+    enabled:  !!callSheetId,
+    refetchInterval: 10_000,
   })
 }
 
