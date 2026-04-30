@@ -1,6 +1,7 @@
 'use client'
 
 export const ARCHIVE_FOLDER_ID = '__archive__'
+export const MOVE_OUT_TARGET_ID = '__move_out__'
 
 type ArchiveIconProps = {
   count: number            // archived projects count to show in label

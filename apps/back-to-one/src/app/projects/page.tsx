@@ -10,13 +10,14 @@ import {
   useCreateUserProjectFolder, useUpdateUserProjectFolder, useDeleteUserProjectFolder,
   useUpsertUserProjectPlacement, useArchivedProjects, useRestoreProject,
   useArchivedUserProjectFolders, useArchiveUserProjectFolder, useRestoreUserProjectFolder,
+  useMoveProjectToRoot,
 } from '@/lib/hooks/useOriginOne'
 import { SkeletonLine } from '@/components/ui'
 import { useRootFab } from '@/components/ui/ActionBarRoot'
 import { getProjectColor } from '@/lib/utils/phase'
 import { haptic } from '@/lib/utils/haptics'
 import { SlateCard, WiggleStyle } from '@/components/projects/SlateCard'
-import { ArchiveIcon, ARCHIVE_FOLDER_ID } from '@/components/projects/ArchiveIcon'
+import { ArchiveIcon, ARCHIVE_FOLDER_ID, MOVE_OUT_TARGET_ID } from '@/components/projects/ArchiveIcon'
 import { ProjectActionSheet } from '@/components/projects/ProjectActionSheet'
 import { FolderCard } from '@/components/projects/FolderCard'
 import { OpenFolderSheet } from '@/components/projects/OpenFolderSheet'
@@ -99,6 +100,9 @@ export default function ProjectsPage() {
   const dragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingDragRef = useRef<{ projectId: string; x: number; y: number; elX: number; elY: number; w: number } | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  // Folder id at drag start; null = drag started on the home grid.
+  // Drives the drop-target routing in handleTouchEnd.
+  const dragSourceFolderIdRef = useRef<string | null>(null)
 
   const sortedProjects = [...allProjects]
 
@@ -160,6 +164,15 @@ export default function ProjectsPage() {
     // No hold timer in wiggle mode — drag activates on the first movement
     // > MOVE_THRESHOLD (handled in handleTouchMove). A pure tap (no move)
     // falls through to the inner card's onClick → opens the action sheet.
+
+    // If a folder is open, the drag started inside that folder. Capture
+    // the source folder id so handleTouchEnd can route correctly. If no
+    // folder is open, source is the home grid (null). Archive variant
+    // doesn't allow drag-out (no in-sheet folder context to track).
+    const currentFolderId = openFolderIdRef.current
+    dragSourceFolderIdRef.current = currentFolderId && currentFolderId !== ARCHIVE_FOLDER_ID
+      ? currentFolderId
+      : null
   }, [editMode])
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
@@ -229,20 +242,21 @@ export default function ProjectsPage() {
     const draggingFolder = dragKindRef.current === 'folder'
     const cardSelector = draggingFolder
       ? '[data-archive-target]'
-      : '[data-project-id], [data-folder-id], [data-archive-target]'
+      : '[data-project-id], [data-folder-id], [data-archive-target], [data-move-out-target]'
     const allTargets = document.querySelectorAll<HTMLElement>(cardSelector)
     let snapClosestId: string | null = null
     let snapClosestDist = Infinity
     allTargets.forEach(el => {
-      const id = el.dataset.projectId ?? el.dataset.folderId ?? el.dataset.archiveTarget
+      const id = el.dataset.projectId ?? el.dataset.folderId ?? el.dataset.archiveTarget ?? el.dataset.moveOutTarget
       if (!id || id === dragProjectIdRef.current) return
       const r = el.getBoundingClientRect()
       const cx = r.left + r.width / 2
       const cy = r.top + r.height / 2
       const dist = Math.hypot(cardCx - cx, cardCy - cy)
-      // Archive icon is smaller than a card — give it a more generous radius.
+      // Archive icon and Move-out pill are smaller than a card — give them a more generous radius.
       const isArchive = id === ARCHIVE_FOLDER_ID
-      const radius = isArchive ? 60 : 30
+      const isMoveOut = id === MOVE_OUT_TARGET_ID
+      const radius = isArchive || isMoveOut ? 60 : 30
       if (dist < snapClosestDist && dist <= radius) { snapClosestDist = dist; snapClosestId = id }
     })
     const newTarget: string | null = snapClosestId
@@ -269,6 +283,7 @@ export default function ProjectsPage() {
   const updateFolderMutation = useUpdateUserProjectFolder()
   const deleteFolderMutation = useDeleteUserProjectFolder()
   const placementMutation = useUpsertUserProjectPlacement()
+  const moveProjectToRootMutation = useMoveProjectToRoot()
 
   const [actionFolder, setActionFolder] = useState<{ id: string; name: string; color: string | null } | null>(null)
   const [creatingFolder, setCreatingFolder] = useState(false)
@@ -296,6 +311,10 @@ export default function ProjectsPage() {
     resourcesOpen, closeResources,
     openFolderId, setOpenFolderId, closeOpenFolder,
   } = useRootFab()
+  // Mirror openFolderId into a ref so handleTouchStart can read it without
+  // needing to be re-created every time a folder opens/closes.
+  const openFolderIdRef = useRef<string | null>(openFolderId)
+  useEffect(() => { openFolderIdRef.current = openFolderId }, [openFolderId])
   const [activePanel, setActivePanel] = useState<PanelId | null>(null)
 
   // Capture the source tile's center so OpenFolderSheet can zoom from it.
@@ -390,7 +409,6 @@ export default function ProjectsPage() {
   }, [allProjects, allArchivedProjects, allFolders, allArchivedFolders, allPlacements, archivedFolderIds, looseArchivedProjects])
 
   const handleTouchEnd = useCallback(() => {
-    // Clear pending drag timer
     if (dragTimerRef.current) {
       clearTimeout(dragTimerRef.current)
       dragTimerRef.current = null
@@ -401,55 +419,86 @@ export default function ProjectsPage() {
     const targetId = dragTargetIdRef.current
     const targetIdx = dragTargetIdxRef.current
     const kind = dragKindRef.current
+    const sourceFolderId = dragSourceFolderIdRef.current
 
     if (draggedId && meId) {
       const targetIsArchive = targetId === ARCHIVE_FOLDER_ID
+      const targetIsMoveOut = targetId === MOVE_OUT_TARGET_ID
       const targetIsFolder = targetId && allFolders.some(f => f.id === targetId)
       const targetIsProject = targetId && allProjects.some(p => p.id === targetId)
 
-      if (targetIsArchive) {
-        // Drop onto Archive icon → archive everything in scope.
-        haptic('medium')
-        if (kind === 'project') {
+      if (sourceFolderId) {
+        // ── Drag started INSIDE an open folder ──
+        if (targetIsArchive) {
+          haptic('medium')
           archiveMutation.mutate(draggedId)
-        } else {
-          // Mark the folder archived; the mutation cascades to all projects
-          // inside so the folder reappears intact in the archive view.
-          archiveFolderMutation.mutate(draggedId)
-        }
-      } else if (kind === 'project' && targetId && targetIsFolder) {
-        // Drop project into existing folder
-        haptic('light')
-        const folderProjList = folderProjects.get(targetId) ?? []
-        placementMutation.mutate({
-          userId: meId,
-          projectId: draggedId,
-          folderId: targetId,
-          sortOrder: folderProjList.length,
-        })
-      } else if (kind === 'project' && targetId && targetIsProject) {
-        // Drop project onto a project → create new folder containing both
-        haptic('medium')
-        const draggedItem = homeItems.find(i => i.kind === 'project' && i.id === draggedId)
-        createFolderMutation.mutate(
-          { userId: meId, name: 'Untitled', color: null, sortOrder: draggedItem?.sortOrder ?? 0 },
-          {
-            onSuccess: (folder) => {
-              placementMutation.mutate({ userId: meId, projectId: draggedId, folderId: folder.id, sortOrder: 0 })
-              placementMutation.mutate({ userId: meId, projectId: targetId,  folderId: folder.id, sortOrder: 1 })
-            },
+        } else if (targetIsMoveOut) {
+          haptic('medium')
+          moveProjectToRootMutation.mutate(draggedId)
+        } else if (kind === 'project' && targetId && targetIsProject) {
+          // Folder-internal reorder — only valid if target is also in the same folder.
+          const folderProjs = folderProjects.get(sourceFolderId) ?? []
+          const targetInSameFolder = folderProjs.some(p => p.id === targetId)
+          if (targetInSameFolder) {
+            haptic('light')
+            const filtered = folderProjs.filter(p => p.id !== draggedId)
+            const beforeIdx = Math.max(0, targetIdx - 1)
+            const afterIdx = Math.min(filtered.length - 1, targetIdx)
+            const beforePlacement = allPlacements.find(p => p.projectId === filtered[beforeIdx]?.id && p.folderId === sourceFolderId)
+            const afterPlacement  = allPlacements.find(p => p.projectId === filtered[afterIdx]?.id && p.folderId === sourceFolderId)
+            const beforeSO = beforePlacement?.sortOrder ?? 0
+            const afterSO  = afterPlacement?.sortOrder ?? beforeSO + 1024
+            const newSO = Math.floor((beforeSO + afterSO) / 2)
+            placementMutation.mutate({
+              userId: meId,
+              projectId: draggedId,
+              folderId: sourceFolderId,
+              sortOrder: newSO,
+            })
           }
-        )
-      } else if (targetIdx >= 0) {
-        // Top-level reorder — works for both project and folder drags.
-        const reordered = homeItems.filter(i => i.id !== draggedId)
-        const beforeSO = targetIdx > 0 ? reordered[targetIdx - 1]?.sortOrder ?? 0 : 0
-        const afterSO  = reordered[targetIdx]?.sortOrder ?? beforeSO + 1024
-        const newSO = Math.floor((beforeSO + afterSO) / 2)
-        if (kind === 'project') {
-          placementMutation.mutate({ userId: meId, projectId: draggedId, folderId: null, sortOrder: newSO })
-        } else {
-          updateFolderMutation.mutate({ id: draggedId, fields: { sortOrder: newSO } })
+        }
+        // No top-level reorder, no folder-creation, no folder→folder. Drops
+        // on anything else inside the sheet are no-ops (snap back).
+      } else {
+        // ── Drag started on the home grid — existing behavior ──
+        if (targetIsArchive) {
+          haptic('medium')
+          if (kind === 'project') {
+            archiveMutation.mutate(draggedId)
+          } else {
+            archiveFolderMutation.mutate(draggedId)
+          }
+        } else if (kind === 'project' && targetId && targetIsFolder) {
+          haptic('light')
+          const folderProjList = folderProjects.get(targetId) ?? []
+          placementMutation.mutate({
+            userId: meId,
+            projectId: draggedId,
+            folderId: targetId,
+            sortOrder: folderProjList.length,
+          })
+        } else if (kind === 'project' && targetId && targetIsProject) {
+          haptic('medium')
+          const draggedItem = homeItems.find(i => i.kind === 'project' && i.id === draggedId)
+          createFolderMutation.mutate(
+            { userId: meId, name: 'Untitled', color: null, sortOrder: draggedItem?.sortOrder ?? 0 },
+            {
+              onSuccess: (folder) => {
+                placementMutation.mutate({ userId: meId, projectId: draggedId, folderId: folder.id, sortOrder: 0 })
+                placementMutation.mutate({ userId: meId, projectId: targetId,  folderId: folder.id, sortOrder: 1 })
+              },
+            }
+          )
+        } else if (targetIdx >= 0) {
+          const reordered = homeItems.filter(i => i.id !== draggedId)
+          const beforeSO = targetIdx > 0 ? reordered[targetIdx - 1]?.sortOrder ?? 0 : 0
+          const afterSO  = reordered[targetIdx]?.sortOrder ?? beforeSO + 1024
+          const newSO = Math.floor((beforeSO + afterSO) / 2)
+          if (kind === 'project') {
+            placementMutation.mutate({ userId: meId, projectId: draggedId, folderId: null, sortOrder: newSO })
+          } else {
+            updateFolderMutation.mutate({ id: draggedId, fields: { sortOrder: newSO } })
+          }
         }
       }
     }
@@ -460,10 +509,11 @@ export default function ProjectsPage() {
     dragTargetIdxRef.current = -1
     dragStartRef.current = null
     lastSlotIdxRef.current = -1
+    dragSourceFolderIdRef.current = null
     setDragProjectId(null)
     setDragTargetIdx(-1)
     setDragTargetIdState(null)
-  }, [meId, allProjects, allFolders, folderProjects, homeItems, placementMutation, createFolderMutation, archiveMutation, archiveFolderMutation, deleteFolderMutation, updateFolderMutation])
+  }, [meId, allProjects, allFolders, allPlacements, folderProjects, homeItems, placementMutation, createFolderMutation, archiveMutation, archiveFolderMutation, updateFolderMutation, moveProjectToRootMutation])
 
   // Global touch listeners for drag
   useEffect(() => {

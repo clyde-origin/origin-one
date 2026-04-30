@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation'
 import { haptic } from '@/lib/utils/haptics'
 import { useLongPress } from '@/lib/hooks/useLongPress'
 import { SlateCard, hexToRgba } from '@/components/projects/SlateCard'
-import { ArchiveIcon, ARCHIVE_FOLDER_ID } from '@/components/projects/ArchiveIcon'
+import { ArchiveIcon, ARCHIVE_FOLDER_ID, MOVE_OUT_TARGET_ID } from '@/components/projects/ArchiveIcon'
 import type { Project } from '@/types'
 
 type FolderRef = { id: string; name: string; color: string | null }
@@ -229,7 +229,7 @@ export function OpenFolderSheet({
                     {/* Move-out pill — only visible while dragging a project. */}
                     {draggingProjectId && (
                       <div
-                        data-move-out-target="__move_out__"
+                        data-move-out-target={MOVE_OUT_TARGET_ID}
                         style={{
                           gridColumn: 'span 2',
                           display: 'flex',
@@ -242,15 +242,15 @@ export function OpenFolderSheet({
                             display: 'flex', alignItems: 'center', gap: 7,
                             padding: '8px 16px',
                             borderRadius: 20,
-                            border: dragTargetId === '__move_out__'
+                            border: dragTargetId === MOVE_OUT_TARGET_ID
                               ? `1.5px solid ${hexToRgba(accent, 0.7)}`
                               : `1px dashed ${hexToRgba(accent, 0.4)}`,
-                            background: dragTargetId === '__move_out__'
+                            background: dragTargetId === MOVE_OUT_TARGET_ID
                               ? hexToRgba(accent, 0.18)
                               : hexToRgba(accent, 0.04),
-                            transform: dragTargetId === '__move_out__' ? 'scale(1.06)' : 'scale(1)',
+                            transform: dragTargetId === MOVE_OUT_TARGET_ID ? 'scale(1.06)' : 'scale(1)',
                             transition: 'all 0.18s ease',
-                            color: dragTargetId === '__move_out__' ? '#dddde8' : hexToRgba(accent, 0.7),
+                            color: dragTargetId === MOVE_OUT_TARGET_ID ? '#dddde8' : hexToRgba(accent, 0.7),
                           }}
                         >
                           <span style={{ fontSize: 13 }}>←</span>
