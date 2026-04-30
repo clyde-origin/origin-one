@@ -7,25 +7,11 @@ import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThread
 import { TV } from '@/lib/thread-tokens'
 import { StorageImage } from '@/components/ui/StorageImage'
 import type { Shot } from '@/types'
-
-const SIZE_ABBREV: Record<string, string> = {
-  extreme_wide: 'EWS', wide: 'WIDE', full: 'FS', medium: 'MED',
-  medium_close_up: 'MCU', close_up: 'CU', extreme_close_up: 'ECU', insert: 'INS',
-  aerial: 'AERIAL', pov: 'POV',
-}
-
-const SHOT_SIZES = [
-  { value: 'extreme_wide', label: 'Extreme Wide' },
-  { value: 'wide', label: 'Wide' },
-  { value: 'full', label: 'Full' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'medium_close_up', label: 'Med Close-Up' },
-  { value: 'close_up', label: 'Close-Up' },
-  { value: 'extreme_close_up', label: 'Extreme CU' },
-  { value: 'insert', label: 'Insert' },
-  { value: 'aerial', label: 'Aerial' },
-  { value: 'pov', label: 'POV' },
-]
+// Single source of truth for ShotSize lives in @/lib/shot-sizes — keeps the
+// pill list, the schema enum, and the badge abbreviations in lockstep.
+// `aerial` / `pov` were previously listed here but aren't in the DB enum;
+// selecting them 500'd updates with `invalid input value for enum`.
+import { SHOT_SIZE_OPTIONS as SHOT_SIZES, SHOT_SIZE_ABBREV as SIZE_ABBREV } from '@/lib/shot-sizes'
 
 export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose, onUploadImage, onUpdateShot, onOpenImageMenu }: {
   shot: Shot | null
