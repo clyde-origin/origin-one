@@ -58,6 +58,11 @@ type ScriptPanel = 'characters' | 'locations' | 'props' | null
 // `value` — so the DB receives the schema enum value, not the human label.
 // The previous string[] shape sent UI labels (e.g. "ECU") straight into the
 // ShotSize enum and 500'd with `invalid input value for enum`.
+// PillSelector renders pills with a friendly `label` and emits the underlying
+// `value`. The pill row is a single horizontal-scroll lane so 10+ options
+// (Frame size has 10) stay one row on phone widths instead of wrapping into
+// a tall grid. Selected pill gets a contrasting accent fill so it's findable
+// even when scrolled off-screen and snapped back.
 function PillSelector({ label, options, value, onChange, accent }: {
   label: string
   options: { value: string; label: string }[]
@@ -68,14 +73,30 @@ function PillSelector({ label, options, value, onChange, accent }: {
   return (
     <div>
       <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>{label}</span>
-      <div className="flex flex-wrap" style={{ gap: 5 }}>
+      <div
+        className="flex no-scrollbar"
+        style={{
+          gap: 6,
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          paddingBottom: 2,
+        }}
+      >
         {options.map(o => (
-          <button key={o.value} className="font-mono cursor-pointer select-none transition-all"
-            style={{ fontSize: '0.46rem', letterSpacing: '0.04em', padding: '4px 9px', borderRadius: 16,
-              background: value === o.value ? `${accent}1f` : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${value === o.value ? `${accent}4d` : 'rgba(255,255,255,0.05)'}`,
-              color: value === o.value ? accent : '#62627a' }}
-            onClick={() => onChange(o.value)}>
+          <button
+            key={o.value}
+            type="button"
+            className="font-mono cursor-pointer select-none transition-all flex-shrink-0"
+            style={{
+              fontSize: '0.62rem', letterSpacing: '0.04em', padding: '8px 14px', borderRadius: 18,
+              background: value === o.value ? `${accent}28` : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${value === o.value ? `${accent}66` : 'rgba(255,255,255,0.06)'}`,
+              color: value === o.value ? accent : '#a8a8b8',
+              fontWeight: value === o.value ? 600 : 500,
+              whiteSpace: 'nowrap',
+            }}
+            onClick={() => onChange(o.value)}
+          >
             {o.label}
           </button>
         ))}
@@ -253,7 +274,7 @@ function NewShotSheet({ autoId, projectId, accent, aspectRatio, pending, onSave,
             className="w-full outline-none focus:border-white/20"
             style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '8px 12px', fontSize: '0.76rem', color: '#dddde8' }} />
         </div>
-        <PillSelector label="Size" options={SHOT_SIZE_OPTIONS} value={size} onChange={setSize} accent={accent} />
+        <PillSelector label="Frame size" options={SHOT_SIZE_OPTIONS} value={size} onChange={setSize} accent={accent} />
 
         {/* Image source — Upload OR Create. Default is Create so the
             Generate button is one tap away. */}
