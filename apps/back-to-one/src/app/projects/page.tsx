@@ -438,17 +438,36 @@ export default function ProjectsPage() {
         } else if (kind === 'project' && targetId && targetIsProject) {
           // Folder-internal reorder — only valid if target is also in the same folder.
           const folderProjs = folderProjects.get(sourceFolderId) ?? []
-          const targetInSameFolder = folderProjs.some(p => p.id === targetId)
-          if (targetInSameFolder) {
+          const tgtPos = folderProjs.findIndex(p => p.id === targetId)
+          const srcPos = folderProjs.findIndex(p => p.id === draggedId)
+          if (tgtPos !== -1 && srcPos !== -1) {
             haptic('light')
-            const filtered = folderProjs.filter(p => p.id !== draggedId)
-            const beforeIdx = Math.max(0, targetIdx - 1)
-            const afterIdx = Math.min(filtered.length - 1, targetIdx)
-            const beforePlacement = allPlacements.find(p => p.projectId === filtered[beforeIdx]?.id && p.folderId === sourceFolderId)
-            const afterPlacement  = allPlacements.find(p => p.projectId === filtered[afterIdx]?.id && p.folderId === sourceFolderId)
-            const beforeSO = beforePlacement?.sortOrder ?? 0
-            const afterSO  = afterPlacement?.sortOrder ?? beforeSO + 1024
-            const newSO = Math.floor((beforeSO + afterSO) / 2)
+            // Determine drop side: if dragged was before target, insert AFTER
+            // target; if dragged was after target, insert BEFORE target. This
+            // matches the "swap with neighbor in drag direction" intuition.
+            const insertAfter = srcPos < tgtPos
+            // Look up the placement rows on either side of the insertion point
+            // to compute a midpoint sortOrder.
+            const placementFor = (idx: number) =>
+              idx >= 0 && idx < folderProjs.length
+                ? allPlacements.find(p => p.projectId === folderProjs[idx].id && p.folderId === sourceFolderId)
+                : undefined
+            const tgtPlacement = placementFor(tgtPos)
+            const tgtSO = tgtPlacement?.sortOrder ?? 0
+            let newSO: number
+            if (insertAfter) {
+              const nextPlacement = placementFor(tgtPos + 1)
+              const nextSO = nextPlacement?.sortOrder ?? tgtSO + 1024
+              newSO = Math.floor((tgtSO + nextSO) / 2)
+            } else {
+              const prevPlacement = placementFor(tgtPos - 1)
+              const prevSO = prevPlacement?.sortOrder ?? Math.max(0, tgtSO - 1024)
+              newSO = Math.floor((prevSO + tgtSO) / 2)
+            }
+            // Guard against newSO collapsing to tgtSO (can happen if neighbor
+            // sortOrders are adjacent integers — rare but possible). Bump by 1
+            // when needed; the next reorder will re-spread.
+            if (newSO === tgtSO) newSO = insertAfter ? tgtSO + 1 : Math.max(0, tgtSO - 1)
             placementMutation.mutate({
               userId: meId,
               projectId: draggedId,
