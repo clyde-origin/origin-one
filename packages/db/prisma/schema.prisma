@@ -246,6 +246,7 @@ model ProjectMember {
   approvedTimecards      CrewTimecard[]  @relation("TimecardApprover")
   reopenedTimecards      CrewTimecard[]  @relation("TimecardReopener")
   inventoryItemsAssigned InventoryItem[]
+  callSheetRecipients    CallSheetRecipient[] @relation("CallSheetRecipientCrew")
 
   // Budget arc — pre-filled line for crew timecard → expense conversion (Q2 hybrid).
   // Approver can override per-timecard via CrewTimecard.lineItemId.
@@ -356,6 +357,8 @@ model Project {
   propSourced       PropSourced[]
   wardrobeSourced   WardrobeSourced[]
   notifications     Notification[]
+  scheduleBlocks    ScheduleBlock[]
+  callSheets        CallSheet[]
 }
 
 // ─── Scenes, Shots, Entities ─────────────────────────────────────────────────
@@ -623,9 +626,10 @@ model Location {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  entity    Entity?    @relation(fields: [entityId], references: [id])
-  shootDays ShootDay[]
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  entity         Entity?         @relation(fields: [entityId], references: [id])
+  shootDays      ShootDay[]
+  scheduleBlocks ScheduleBlock[]
 
   @@index([entityId])
 }
@@ -766,8 +770,9 @@ model Talent {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignments TalentAssignment[]
+  project              Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignments          TalentAssignment[]
+  callSheetRecipients  CallSheetRecipient[]
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -931,8 +936,10 @@ model ShootDay {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  location       Location?       @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  scheduleBlocks ScheduleBlock[]
+  callSheet      CallSheet?
 
   @@unique([projectId, date])
   @@index([projectId])
@@ -943,6 +950,208 @@ enum ShootDayType {
   pre
   prod
   post
+}
+
+// ─── ScheduleBlock (Arc A — Daily Schedule) ──────────────────────────────────
+
+enum ScheduleBlockTrack {
+  main
+  secondary
+  tertiary
+}
+
+enum ScheduleBlockKind {
+  work
+  load_in
+  talent_call
+  lunch
+  wrap
+  tail_lights
+  meal_break
+  custom
+}
+
+model ScheduleBlock {
+  id            String              @id @default(dbgenerated("gen_random_uuid()"))
+  projectId     String
+  shootDayId    String
+  track         ScheduleBlockTrack  @default(main)
+  kind          ScheduleBlockKind   @default(work)
+
+  startTime     String              @db.VarChar(5)
+  endTime       String?             @db.VarChar(5)
+  description   String              @db.Text
+  customLabel   String?
+
+  locationId    String?
+  talentIds     String[]            @default([])
+  crewMemberIds String[]            @default([])
+  sceneIds      String[]            @default([])
+
+  sortOrder     Int                 @default(0)
+
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shootDay  ShootDay  @relation(fields: [shootDayId], references: [id], onDelete: Cascade)
+  location  Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([shootDayId, startTime])
+  @@index([shootDayId, track, sortOrder])
+}
+
+// ─── CallSheet (Arc B) ───────────────────────────────────────────────────────
+
+enum CallSheetStatus {
+  draft
+  sent
+}
+
+model CallSheet {
+  id              String           @id @default(dbgenerated("gen_random_uuid()"))
+  projectId       String
+  shootDayId      String           @unique
+  status          CallSheetStatus  @default(draft)
+  publishedAt     DateTime?
+
+  title           String?
+  subtitle        String?
+  episodeOrEvent  String?
+
+  generalCallTime  String?
+  crewCallTime     String?
+  shootingCallTime String?
+  lunchTime        String?
+  estWrapTime      String?
+
+  weatherTempHigh  Int?
+  weatherTempLow   Int?
+  weatherCondition String?
+  sunriseTime      String?
+  sunsetTime       String?
+
+  nearestHospitalName    String?
+  nearestHospitalAddress String?
+  nearestHospitalPhone   String?
+
+  productionNotes  String?         @db.Text
+  parkingNotes     String?         @db.Text
+
+  includeSchedule  Boolean         @default(true)
+
+  replyToEmail     String?
+  customFromName   String?
+  customFromEmail  String?
+
+  attachmentPaths  String[]        @default([])
+
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  project    Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shootDay   ShootDay             @relation(fields: [shootDayId], references: [id], onDelete: Cascade)
+  recipients CallSheetRecipient[]
+
+  @@index([projectId])
+  @@index([projectId, status])
+}
+
+// ─── CallSheetRecipient + CallSheetDelivery (Arc C + D) ──────────────────────
+
+enum CallSheetRecipientKind {
+  talent
+  crew
+  client
+  freeform
+}
+
+model CallSheetRecipient {
+  id               String                 @id @default(dbgenerated("gen_random_uuid()"))
+  callSheetId      String
+  kind             CallSheetRecipientKind
+
+  talentId         String?
+  projectMemberId  String?
+
+  freeformName     String?
+  freeformEmail    String?
+  freeformPhone    String?
+  freeformRole     String?
+
+  callTimeOverride String?
+
+  sendEmail        Boolean                @default(true)
+  sendSms          Boolean                @default(false)
+
+  excluded         Boolean                @default(false)
+
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  callSheet     CallSheet           @relation(fields: [callSheetId], references: [id], onDelete: Cascade)
+  talent        Talent?             @relation(fields: [talentId], references: [id], onDelete: SetNull)
+  projectMember ProjectMember?      @relation("CallSheetRecipientCrew", fields: [projectMemberId], references: [id], onDelete: SetNull)
+  deliveries    CallSheetDelivery[]
+
+  @@index([callSheetId])
+  @@index([callSheetId, excluded])
+}
+
+enum CallSheetDeliveryChannel {
+  email
+  sms
+}
+
+enum CallSheetDeliveryProvider {
+  resend
+  twilio
+  stub
+}
+
+enum CallSheetDeliveryStatus {
+  queued
+  sent
+  delivered
+  opened
+  bounced
+  failed
+}
+
+model CallSheetDelivery {
+  id              String                    @id @default(dbgenerated("gen_random_uuid()"))
+  recipientId     String
+  channel         CallSheetDeliveryChannel
+  provider        CallSheetDeliveryProvider
+  status          CallSheetDeliveryStatus   @default(queued)
+
+  scheduledFor    DateTime?
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  bouncedAt       DateTime?
+  failedReason    String?
+
+  externalId      String?
+
+  confirmToken    String                    @unique @default(dbgenerated("gen_random_uuid()"))
+
+  openedAt        DateTime?
+  clickedAt       DateTime?
+  confirmedAt     DateTime?
+  declinedAt      DateTime?
+  outdatedAt      DateTime?
+
+  personalizedSnapshot Json?
+
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  recipient       CallSheetRecipient        @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId])
+  @@index([scheduledFor, sentAt])
+  @@index([confirmToken])
 }
 
 // ─── Project-selection folders (per-user) ────────────────────────────────────
