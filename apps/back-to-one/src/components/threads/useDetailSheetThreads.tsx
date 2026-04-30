@@ -8,9 +8,11 @@ import {
   useCrew,
   useMarkThreadRead,
   useMeId,
+  useMentionRoster,
 } from '@/lib/hooks/useOriginOne'
 import { TV, TA } from '@/lib/thread-tokens'
 import { haptic } from '@/lib/utils/haptics'
+import { MentionInput } from '@/components/ui/MentionInput'
 import type { Thread, ThreadAttachmentType, TeamMember } from '@/types'
 
 // Shared thread surface for every detail sheet. Returns the four pieces each
@@ -74,7 +76,7 @@ export function useDetailSheetThreads({
     }
   }
 
-  const handlePostFirstMessage = (firstMessage: string) => {
+  const handlePostFirstMessage = (firstMessage: string, mentions: string[]) => {
     if (!meId || !attachedToId) return
     createThread.mutate(
       { attachedToType, attachedToId, createdBy: meId },
@@ -85,7 +87,7 @@ export function useDetailSheetThreads({
             createdBy: meId,
             content: firstMessage,
             projectId,
-            mentions: [],
+            mentions,
             contextLabel: subjectLabel,
           })
         },
@@ -120,6 +122,7 @@ export function useDetailSheetThreads({
 
   const StartSheetOverlay = starting ? (
     <StartThreadSheet
+      projectId={projectId}
       subjectLabel={subjectLabel}
       meName={meName}
       onCancel={() => setStarting(false)}
@@ -371,14 +374,17 @@ function ThreadZone({
 // ── Start thread overlay ────────────────────────────────────
 
 function StartThreadSheet({
-  subjectLabel, meName, onCancel, onPost,
+  projectId, subjectLabel, meName, onCancel, onPost,
 }: {
+  projectId: string
   subjectLabel: string
   meName: string
   onCancel: () => void
-  onPost: (firstMessage: string) => void
+  onPost: (firstMessage: string, mentions: string[]) => void
 }) {
   const [text, setText] = useState('')
+  const [mentions, setMentions] = useState<string[]>([])
+  const { data: roster = [] } = useMentionRoster(projectId)
   const av = avatarStyle(meName || 'Me')
 
   return (
@@ -440,18 +446,17 @@ function StartThreadSheet({
             background: av.bg, color: av.color,
             border: `1px solid ${av.color}30`,
           }}>{initialsOf(meName || 'Me')}</div>
-          <textarea
-            value={text}
-            onChange={e => setText(e.target.value)}
-            autoFocus
-            placeholder="Start a discussion…"
-            style={{
-              flex: 1, background: 'transparent', border: 'none', outline: 'none',
-              borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 8,
-              fontSize: 14, color: '#fff', minHeight: 70, resize: 'none',
-              lineHeight: 1.55, fontFamily: "'Geist', sans-serif",
-            }}
-          />
+          <div style={{ flex: 1, borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: 8 }}>
+            <MentionInput
+              value={text}
+              mentions={mentions}
+              onChange={(t, m) => { setText(t); setMentions(m) }}
+              roster={roster}
+              placeholder="Start a discussion…"
+              accent={TV}
+              multiline
+            />
+          </div>
         </div>
 
         <div style={{
@@ -459,7 +464,7 @@ function StartThreadSheet({
           padding: '10px 20px 0',
         }}>
           <button
-            onClick={() => { if (text.trim()) { haptic('medium'); onPost(text.trim()) } }}
+            onClick={() => { if (text.trim()) { haptic('medium'); onPost(text.trim(), mentions) } }}
             disabled={!text.trim()}
             className="font-mono uppercase"
             style={{
