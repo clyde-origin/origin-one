@@ -3604,8 +3604,13 @@ FADE TO BLACK.`,
       continue
     }
 
-    const filename = `${entry.scene.sceneNumber}-${entry.shot.shotNumber}.jpg`
-    const storagePath2 = `${shotRow.id}/${filename}`
+    // Match the in-app uploadStoryboardImage convention: <projectId>/<shotId>.<ext>.
+    // Older runs of the seed wrote <shotId>/<sceneNumber>-<shotNumber>.jpg; the
+    // storyboard_select RLS policy still accepts that legacy shape (see the
+    // 20260429203913_storyboard_select_drift_repair migration), but new runs
+    // should converge on the canonical projectId-first scheme so the dual
+    // predicate can be retired during the deferred storage-path migration B.
+    const storagePath2 = `${sceneRow.projectId}/${shotRow.id}.jpg`
     await uploadSeedImage({
       localRelativePath: entry.localRelativePath,
       bucket: bucketForSurface('storyboard'),
