@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   useProject, useMilestones, useCreateMilestone, useUpdateMilestone,
@@ -9,6 +9,7 @@ import {
   useShootDays, useLocations,
   useCreateShootDay, useUpdateShootDay, useDeleteShootDay,
   useMentionRoster, useMeId,
+  useCallSheets, useCreateCallSheet,
 } from '@/lib/hooks/useOriginOne'
 import { MentionInput } from '@/components/ui/MentionInput'
 import { MentionText } from '@/components/ui/MentionText'
@@ -32,6 +33,8 @@ const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 const DOW = ['Su','Mo','Tu','We','Th','Fr','Sa']
 
 type Mode = 'project' | 'master' | 'days'
+type TopTab = 'milestones' | 'schedule'
+type ScheduleSub = 'days' | 'callsheet'
 
 // PR 15 — Days tab is producer-only because day counts drive budget
 // formula globals (prepDays / shootDays / postDays). Same shim pattern
@@ -399,32 +402,52 @@ export default function TimelinePage({ params }: { params: { projectId: string }
   const [editingDay, setEditingDay] = useState<ShootDay | null>(null)
   const [showCreateDay, setShowCreateDay] = useState(false)
 
-  const [mode, setMode] = useState<Mode>('project')
-  // If a non-producer somehow lands on `mode='days'` (e.g., role flips
-  // mid-session), bounce back to project view. Only fires once role resolves.
+  const search = useSearchParams()
+  const initialTopTab = (search?.get('tab') === 'schedule' ? 'schedule' : 'milestones') as TopTab
+  const initialScheduleSub = (search?.get('sub') === 'callsheet' ? 'callsheet' : 'days') as ScheduleSub
+
+  const [topTab, setTopTab] = useState<TopTab>(initialTopTab)
+  const [scheduleSub, setScheduleSub] = useState<ScheduleSub>(initialScheduleSub)
+  const [mode, setMode] = useState<Mode>(initialTopTab === 'schedule' ? 'days' : 'project')
+
+  // Sync the legacy `mode` to the new tab+sub state so the existing
+  // body conditionals and FAB switch continue to work.
   useEffect(() => {
-    if (mode === 'days' && role !== null && !isProducer) setMode('project')
-  }, [mode, role, isProducer])
+    if (topTab === 'schedule' && scheduleSub === 'days') setMode('days')
+    else if (topTab === 'milestones' && mode === 'days') setMode('project')
+  }, [topTab, scheduleSub])
+
+  // Bounce non-producers off the Callsheet sub-tab — Schedule > Days
+  // is visible to everyone; Schedule > Callsheet is producer-only.
+  useEffect(() => {
+    if (topTab === 'schedule' && scheduleSub === 'callsheet' && role !== null && !isProducer) {
+      setScheduleSub('days')
+    }
+  }, [topTab, scheduleSub, role, isProducer])
   const [month, setMonth] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedMS, setSelectedMS] = useState<Milestone | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
+  const [showCreateCallSheet, setShowCreateCallSheet] = useState(false)
   // Register the + handler with the global ActionBar. The handler
-  // switches based on active tab — milestone create on Project/Master,
-  // shoot-day create on Days. ActionBar shows one + at a time per
-  // codebase convention, so this single registration is the right
-  // shape.
+  // switches based on active tab — milestone create on Milestones,
+  // shoot-day create on Schedule>Days, call-sheet create on
+  // Schedule>Callsheet.
   useFabAction(
     {
       onPress: () => {
         haptic('light')
-        if (mode === 'days') setShowCreateDay(true)
+        if (topTab === 'schedule' && scheduleSub === 'callsheet') setShowCreateCallSheet(true)
+        else if (topTab === 'schedule') setShowCreateDay(true)
         else setShowAdd(true)
       },
-      label: mode === 'days' ? 'Add shoot day' : undefined,
+      label:
+        topTab === 'schedule' && scheduleSub === 'callsheet' ? 'New call sheet'
+        : topTab === 'schedule' ? 'Add shoot day'
+        : undefined,
     },
-    [mode],
+    [topTab, scheduleSub],
   )
   const createMilestone = useCreateMilestone(projectId)
 
@@ -473,7 +496,9 @@ export default function TimelinePage({ params }: { params: { projectId: string }
 
   return (
     <div className="screen" style={{ overflow: 'hidden' }}>
-      {/* Header */}
+      {/* Header — title + status pill. Primary tabs (Milestones | Schedule)
+          render below the header. Secondary toggle on the right of the
+          header switches inside whichever primary tab is active. */}
       <PageHeader
         projectId={projectId}
         title="Timeline"
@@ -483,52 +508,74 @@ export default function TimelinePage({ params }: { params: { projectId: string }
             <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{projectStatusLabel}</span>
           </div>
         ) : ''}
-        left={
-          // Days button — producer-only, opposite the Project/Master
-          // pills on the right. Tap toggles in/out of Days view; tapping
-          // a Project/Master pill on the right also exits Days as a
-          // side effect. Connects to budget formula globals
-          // (prepDays/shootDays/postDays). Auth day swap site (one of
-          // three — see DECISIONS "Producer-only swap sites").
-          isProducer ? (
-            <button
-              onClick={() => {
-                haptic('light')
-                setMode(mode === 'days' ? 'project' : 'days')
-                setSelectedDate(null)
-              }}
-              className="font-mono uppercase cursor-pointer select-none whitespace-nowrap flex items-center"
-              style={{
-                fontSize: '0.44rem', letterSpacing: '0.05em',
-                padding: '5px 10px', borderRadius: 16, transition: 'all 0.18s',
-                ...(mode === 'days'
-                  ? { background: `${accent}2e`, color: accent, border: `1px solid ${accent}4d` }
-                  : { background: 'rgba(255,255,255,0.05)', color: '#62627a', border: '1px solid rgba(255,255,255,0.05)' }),
-              }}
-            >
-              Days
-            </button>
-          ) : null
-        }
         right={
-          <div className="flex items-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 20, padding: 3, gap: 2 }}>
-            <button onClick={() => setMode('project')} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
-              style={{ fontSize: '0.44rem', letterSpacing: '0.05em', padding: '4px 9px', borderRadius: 16, transition: 'all 0.18s',
-                ...(mode === 'project' ? { background: `${accent}2e`, color: accent, border: `1px solid ${accent}4d` } : { color: '#62627a', border: '1px solid transparent' }) }}>
-              Project
-            </button>
-            <button onClick={() => { setMode('master'); setSelectedDate(null) }} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
-              style={{ fontSize: '0.44rem', letterSpacing: '0.05em', padding: '4px 9px', borderRadius: 16, transition: 'all 0.18s',
-                ...(mode === 'master' ? { background: 'rgba(255,255,255,0.08)', color: '#dddde8' } : { color: '#62627a', border: '1px solid transparent' }) }}>
-              Master
-            </button>
-          </div>
+          topTab === 'milestones' ? (
+            <div className="flex items-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 20, padding: 3, gap: 2 }}>
+              <button onClick={() => setMode('project')} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
+                style={{ fontSize: '0.44rem', letterSpacing: '0.05em', padding: '4px 9px', borderRadius: 16, transition: 'all 0.18s',
+                  ...(mode === 'project' ? { background: `${accent}2e`, color: accent, border: `1px solid ${accent}4d` } : { color: '#62627a', border: '1px solid transparent' }) }}>
+                Project
+              </button>
+              <button onClick={() => { setMode('master'); setSelectedDate(null) }} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
+                style={{ fontSize: '0.44rem', letterSpacing: '0.05em', padding: '4px 9px', borderRadius: 16, transition: 'all 0.18s',
+                  ...(mode === 'master' ? { background: 'rgba(255,255,255,0.08)', color: '#dddde8' } : { color: '#62627a', border: '1px solid transparent' }) }}>
+                Master
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 20, padding: 3, gap: 2 }}>
+              <button onClick={() => { haptic('light'); setScheduleSub('days') }} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
+                style={{ fontSize: '0.44rem', letterSpacing: '0.05em', padding: '4px 9px', borderRadius: 16, transition: 'all 0.18s',
+                  ...(scheduleSub === 'days' ? { background: `${accent}2e`, color: accent, border: `1px solid ${accent}4d` } : { color: '#62627a', border: '1px solid transparent' }) }}>
+                Days
+              </button>
+              {isProducer && (
+                <button onClick={() => { haptic('light'); setScheduleSub('callsheet') }} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
+                  style={{ fontSize: '0.44rem', letterSpacing: '0.05em', padding: '4px 9px', borderRadius: 16, transition: 'all 0.18s',
+                    ...(scheduleSub === 'callsheet' ? { background: 'rgba(0,184,148,0.18)', color: '#00b894', border: '1px solid rgba(0,184,148,0.45)' } : { color: '#62627a', border: '1px solid transparent' }) }}>
+                  Callsheet
+                </button>
+              )}
+            </div>
+          )
         }
       />
 
-      {/* Days tab — producer-only schedule UI; lifts the standalone
-          /schedule page contents. Replaces calendar + milestone list. */}
-      {mode === 'days' ? (
+      {/* Primary tab strip — Milestones | Schedule. Visible to everyone;
+          Callsheet sub-tab is gated to producers (right slot). */}
+      <div className="flex items-center justify-center gap-2 px-4 pb-3 pt-2 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        {(['milestones', 'schedule'] as TopTab[]).map(t => {
+          const active = topTab === t
+          return (
+            <button
+              key={t}
+              onClick={() => { haptic('light'); setTopTab(t) }}
+              className="font-mono uppercase cursor-pointer select-none"
+              style={{
+                fontSize: '0.5rem', letterSpacing: '0.1em',
+                padding: '6px 14px', borderRadius: 18, transition: 'all 0.18s',
+                ...(active
+                  ? { background: 'rgba(255,255,255,0.10)', color: '#dddde8', border: '1px solid rgba(255,255,255,0.20)' }
+                  : { background: 'transparent', color: '#62627a', border: '1px solid transparent' }),
+              }}
+            >
+              {t}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Schedule > Callsheet — producer-only inline list of project call sheets.
+          Detail (Compose / Recipients / Tracking) lives at /call-sheets/[id]. */}
+      {topTab === 'schedule' && scheduleSub === 'callsheet' && isProducer ? (
+        <CallsheetTabContent
+          projectId={projectId}
+          accent={accent}
+          shootDays={days}
+          showCreate={showCreateCallSheet}
+          setShowCreate={setShowCreateCallSheet}
+        />
+      ) : topTab === 'schedule' && scheduleSub === 'days' ? (
         <DaysTabContent
           projectId={projectId}
           accent={accent}
@@ -996,34 +1043,19 @@ function ShootDayEditSheet({
       </div>
 
       {mode === 'edit' && day && (
-        <>
-          <button
-            type="button"
-            onClick={() => { haptic('light'); router.push(`/projects/${projectId}/timeline/${day.id}`) }}
-            className="font-mono uppercase flex items-center justify-between"
-            style={{
-              padding: '12px 14px', borderRadius: 12,
-              background: 'rgba(100,112,243,0.10)', border: '1px solid rgba(100,112,243,0.30)',
-              color: '#9ba6ff', fontSize: '0.55rem', letterSpacing: '0.1em',
-            }}
-          >
-            <span>Open Daily Schedule</span>
-            <span aria-hidden>→</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => { haptic('light'); router.push(`/projects/${projectId}/call-sheets`) }}
-            className="font-mono uppercase flex items-center justify-between"
-            style={{
-              padding: '12px 14px', borderRadius: 12,
-              background: 'rgba(0,184,148,0.10)', border: '1px solid rgba(0,184,148,0.30)',
-              color: '#00b894', fontSize: '0.55rem', letterSpacing: '0.1em',
-            }}
-          >
-            <span>Open Call Sheets</span>
-            <span aria-hidden>→</span>
-          </button>
-        </>
+        <button
+          type="button"
+          onClick={() => { haptic('light'); router.push(`/projects/${projectId}/timeline/${day.id}`) }}
+          className="font-mono uppercase flex items-center justify-between"
+          style={{
+            padding: '12px 14px', borderRadius: 12,
+            background: 'rgba(100,112,243,0.10)', border: '1px solid rgba(100,112,243,0.30)',
+            color: '#9ba6ff', fontSize: '0.55rem', letterSpacing: '0.1em',
+          }}
+        >
+          <span>Open Daily Schedule</span>
+          <span aria-hidden>→</span>
+        </button>
       )}
 
       <div className="flex items-center" style={{ gap: 10, marginTop: 4 }}>
@@ -1061,6 +1093,168 @@ function ShootDayEditSheet({
             cursor: date ? 'pointer' : 'not-allowed',
           }}
         >{mode === 'create' ? 'Add' : 'Save'}</button>
+      </div>
+    </motion.div>
+  )
+}
+
+// ── CALLSHEET TAB CONTENT ─────────────────────────────────
+// Producer-only sub-tab inside Schedule. Lists call sheets in the project
+// and lets the AD spin one up bound to a shoot day. Tapping a row goes
+// to /call-sheets/[id] (Compose / Recipients / Tracking tabs).
+
+function CallsheetTabContent({
+  projectId, accent, shootDays, showCreate, setShowCreate,
+}: {
+  projectId: string
+  accent: string
+  shootDays: ShootDay[]
+  showCreate: boolean
+  setShowCreate: (v: boolean) => void
+}) {
+  const router = useRouter()
+  const { data: callSheets = [], isLoading } = useCallSheets(projectId)
+  const shootDayById = useMemo(() => new Map(shootDays.map(d => [d.id, d])), [shootDays])
+
+  if (isLoading) return <div className="flex-1 flex items-center justify-center"><LoadingState /></div>
+
+  return (
+    <div className="flex-1 overflow-y-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch', padding: '16px 16px 100px' }}>
+      {callSheets.length === 0 ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-12 text-center text-white/40">
+          No call sheets yet. Tap + to create one.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2 max-w-2xl mx-auto">
+          {callSheets.map(cs => {
+            const sd = shootDayById.get(cs.shootDayId)
+            const phaseHex = sd ? PHASE_HEX[sd.type] : '#62627a'
+            const statusColor = cs.status === 'sent' ? '#34d399' : '#62627a'
+            return (
+              <button
+                key={cs.id}
+                onClick={() => { haptic('light'); router.push(`/projects/${projectId}/call-sheets/${cs.id}`) }}
+                className="text-left bg-white/[0.04] border border-white/10 rounded-2xl p-4 active:bg-white/[0.08]"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium text-white">{cs.title || 'Untitled call sheet'}</div>
+                    <div className="font-mono uppercase tracking-wider text-[10px] text-white/50 mt-0.5">
+                      {sd ? shootDayFormatDate(sd.date) : 'No shoot day'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {sd && (
+                      <span className="font-mono uppercase text-[9px] tracking-widest px-2 py-0.5 rounded-full"
+                        style={{ background: `${phaseHex}1a`, color: phaseHex, border: `1px solid ${phaseHex}33` }}>
+                        {PHASE_LABEL[sd.type]}
+                      </span>
+                    )}
+                    <span className="font-mono uppercase text-[9px] tracking-widest px-2 py-0.5 rounded-full"
+                      style={{ background: `${statusColor}1a`, color: statusColor, border: `1px solid ${statusColor}33` }}>
+                      {cs.status}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      <AnimatePresence>
+        {showCreate && (
+          <CreateCallSheetSheet
+            projectId={projectId}
+            shootDays={shootDays}
+            usedShootDayIds={new Set(callSheets.map(cs => cs.shootDayId))}
+            onClose={() => setShowCreate(false)}
+            onCreated={(id) => { setShowCreate(false); router.push(`/projects/${projectId}/call-sheets/${id}`) }}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function CreateCallSheetSheet({
+  projectId, shootDays, usedShootDayIds, onClose, onCreated,
+}: {
+  projectId: string
+  shootDays: ShootDay[]
+  usedShootDayIds: Set<string>
+  onClose: () => void
+  onCreated: (id: string) => void
+}) {
+  const createMut = useCreateCallSheet(projectId)
+  const [shootDayId, setShootDayId] = useState<string>('')
+  const [title, setTitle] = useState<string>('')
+
+  const eligible = shootDays.filter(d => !usedShootDayIds.has(d.id) && d.type !== 'post')
+
+  async function submit() {
+    if (!shootDayId) return
+    const cs = await createMut.mutateAsync({ projectId, shootDayId, title: title.trim() || null })
+    if (cs?.id) onCreated(cs.id)
+  }
+
+  return (
+    <motion.div
+      initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+      transition={{ type: 'spring', damping: 30, stiffness: 280 }}
+      className="fixed inset-x-0 bottom-0 z-50"
+      style={{
+        background: 'rgba(8,8,14,0.96)',
+        backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
+        borderTop: '1px solid rgba(255,255,255,0.08)',
+        borderTopLeftRadius: 20, borderTopRightRadius: 20,
+        padding: '20px 18px calc(env(safe-area-inset-bottom, 0px) + 24px)',
+        display: 'flex', flexDirection: 'column', gap: 14,
+      }}
+    >
+      <div className="self-center" style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)' }} />
+      <div className="font-mono uppercase" style={{ fontSize: '0.50rem', letterSpacing: '0.1em', color: '#00b894' }}>
+        New call sheet
+      </div>
+
+      <label className="flex flex-col" style={{ gap: 6 }}>
+        <span className="font-mono uppercase" style={{ fontSize: '0.42rem', letterSpacing: '0.1em', color: '#62627a' }}>Shoot Day</span>
+        <select
+          value={shootDayId}
+          onChange={e => setShootDayId(e.target.value)}
+          className="font-mono"
+          style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#e8e8f0', fontSize: '0.78rem' }}
+        >
+          <option value="">Select a shoot day…</option>
+          {eligible.map(d => (
+            <option key={d.id} value={d.id}>{shootDayFormatDate(d.date)} — {PHASE_LABEL[d.type]}</option>
+          ))}
+        </select>
+        {eligible.length === 0 && (
+          <span className="text-xs text-white/40">All eligible shoot days already have call sheets.</span>
+        )}
+      </label>
+
+      <label className="flex flex-col" style={{ gap: 6 }}>
+        <span className="font-mono uppercase" style={{ fontSize: '0.42rem', letterSpacing: '0.1em', color: '#62627a' }}>Title (optional)</span>
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="e.g. Gibbon Slackboard"
+          className="font-mono"
+          style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#e8e8f0', fontSize: '0.78rem' }}
+        />
+      </label>
+
+      <div className="flex items-center" style={{ gap: 10, marginTop: 4 }}>
+        <button type="button" onClick={onClose} className="font-mono uppercase"
+          style={{ padding: '10px 14px', borderRadius: 20, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#a0a0b8', fontSize: '0.5rem', letterSpacing: '0.1em', marginLeft: 'auto' }}>
+          Cancel
+        </button>
+        <button type="button" onClick={submit} disabled={!shootDayId || createMut.isPending} className="font-mono uppercase"
+          style={{ padding: '10px 18px', borderRadius: 20, background: shootDayId ? 'rgba(0,184,148,0.16)' : 'rgba(255,255,255,0.04)', border: shootDayId ? '1px solid rgba(0,184,148,0.45)' : '1px solid rgba(255,255,255,0.06)', color: shootDayId ? '#00b894' : 'rgba(255,255,255,0.3)', fontSize: '0.5rem', letterSpacing: '0.1em', cursor: shootDayId ? 'pointer' : 'not-allowed' }}>
+          {createMut.isPending ? 'Creating…' : 'Create'}
+        </button>
       </div>
     </motion.div>
   )

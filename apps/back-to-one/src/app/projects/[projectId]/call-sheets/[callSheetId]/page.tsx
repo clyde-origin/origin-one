@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -16,6 +16,7 @@ import {
   useCrew,
   useLocations,
 } from '@/lib/hooks/useOriginOne'
+import { useViewerRole } from '@/lib/auth/useViewerRole'
 
 type Tab = 'compose' | 'recipients' | 'tracking'
 
@@ -36,7 +37,13 @@ export default function CallSheetDetailPage() {
   const { data: crew = [] } = useCrew(projectId)
   const { data: locations = [] } = useLocations(projectId)
 
-  if (isLoading || !callSheet || !project) return <LoadingState />
+  // Producer-only.
+  const role = useViewerRole(projectId)
+  useEffect(() => {
+    if (role === 'crew') router.replace(`/projects/${projectId}/timeline?tab=schedule&sub=days`)
+  }, [role, projectId, router])
+
+  if (isLoading || !callSheet || !project || role === null || role === 'crew') return <LoadingState />
 
   const shootDay = shootDays.find(d => d.id === callSheet.shootDayId)
 
@@ -59,7 +66,7 @@ export default function CallSheetDetailPage() {
         meta={callSheet.title || 'Untitled'}
         left={
           <button
-            onClick={() => router.push(`/projects/${projectId}/call-sheets`)}
+            onClick={() => router.push(`/projects/${projectId}/timeline?tab=schedule&sub=callsheet`)}
             className="text-white/60 text-sm font-medium px-2 py-1"
           >
             ← All

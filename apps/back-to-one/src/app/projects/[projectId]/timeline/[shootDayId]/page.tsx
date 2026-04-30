@@ -9,6 +9,7 @@ import { ScheduleCardStack } from '@/components/schedule/ScheduleCardStack'
 import { AddScheduleBlockSheet } from '@/components/schedule/AddScheduleBlockSheet'
 import { useScheduleBlocks, useShootDays, useProject, useCallSheetByShootDay, useCreateCallSheet } from '@/lib/hooks/useOriginOne'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
+import { useViewerRole } from '@/lib/auth/useViewerRole'
 import type { ScheduleBlock } from '@/types'
 
 const SHORT_MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -46,24 +47,35 @@ export default function ShootDaySchedulePage() {
   const createCallSheet = useCreateCallSheet(projectId)
   const shootDay = shootDays.find(d => d.id === shootDayId) ?? null
 
+  // Edit gate — crew can view but not modify; producer/owner can edit.
+  // Call sheet visibility (the green "Create / Open call sheet" button)
+  // is gated identically.
+  const role = useViewerRole(projectId)
+  const canEdit = role === 'producer'
+
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingBlock, setEditingBlock] = useState<ScheduleBlock | null>(null)
 
   function openAdd() {
+    if (!canEdit) return
     setEditingBlock(null)
     setSheetOpen(true)
   }
 
   function openEdit(block: ScheduleBlock) {
+    if (!canEdit) return
     setEditingBlock(block)
     setSheetOpen(true)
   }
 
-  // FAB — "+ Add Block"
-  useFabAction({
-    onPress: openAdd,
-    label: 'Add Block',
-  })
+  // FAB — "+ Add Block" only for editors. Hooks must be unconditional;
+  // we register a no-op when read-only so the FAB slot stays hidden.
+  useFabAction(
+    canEdit
+      ? { onPress: openAdd, label: 'Add Block' }
+      : {},
+    [canEdit],
+  )
 
   if (blocksLoading || !shootDay || !project) {
     return (
@@ -109,36 +121,38 @@ export default function ShootDaySchedulePage() {
       />
 
       <div className="flex-1 px-4 pb-32 pt-4 overflow-y-auto">
-        {/* Call sheet link */}
-        <div className="max-w-2xl mx-auto mb-4">
-          {callSheetForDay ? (
-            <button
-              onClick={() => router.push(`/projects/${projectId}/call-sheets/${callSheetForDay.id}`)}
-              className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border"
-              style={{ background: 'rgba(0,184,148,0.08)', borderColor: 'rgba(0,184,148,0.3)', color: '#00b894' }}
-            >
-              <span className="text-sm font-medium">Open call sheet for this day</span>
-              <span className="text-xs">→</span>
-            </button>
-          ) : (
-            <button
-              onClick={async () => {
-                const cs = await createCallSheet.mutateAsync({
-                  projectId,
-                  shootDayId,
-                  title: project.name,
-                })
-                if (cs?.id) router.push(`/projects/${projectId}/call-sheets/${cs.id}`)
-              }}
-              disabled={createCallSheet.isPending}
-              className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border"
-              style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)', color: '#dddde8' }}
-            >
-              <span className="text-sm">+ Create call sheet for this day</span>
-              <span className="text-xs text-white/40">→</span>
-            </button>
-          )}
-        </div>
+        {/* Call sheet link — producer-only */}
+        {canEdit && (
+          <div className="max-w-2xl mx-auto mb-4">
+            {callSheetForDay ? (
+              <button
+                onClick={() => router.push(`/projects/${projectId}/call-sheets/${callSheetForDay.id}`)}
+                className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border"
+                style={{ background: 'rgba(0,184,148,0.08)', borderColor: 'rgba(0,184,148,0.3)', color: '#00b894' }}
+              >
+                <span className="text-sm font-medium">Open call sheet for this day</span>
+                <span className="text-xs">→</span>
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  const cs = await createCallSheet.mutateAsync({
+                    projectId,
+                    shootDayId,
+                    title: project.name,
+                  })
+                  if (cs?.id) router.push(`/projects/${projectId}/call-sheets/${cs.id}`)
+                }}
+                disabled={createCallSheet.isPending}
+                className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border"
+                style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)', color: '#dddde8' }}
+              >
+                <span className="text-sm">+ Create call sheet for this day</span>
+                <span className="text-xs text-white/40">→</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Desktop grid */}
         <div className="hidden md:block">

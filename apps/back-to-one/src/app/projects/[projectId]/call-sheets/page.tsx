@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { useCallSheets, useShootDays, useProject, useCreateCallSheet } from '@/lib/hooks/useOriginOne'
+import { useViewerRole } from '@/lib/auth/useViewerRole'
 import { haptic } from '@/lib/utils/haptics'
 import type { ShootDay } from '@/types'
 
@@ -32,11 +33,17 @@ export default function CallSheetsListPage() {
   const { data: callSheets = [], isLoading } = useCallSheets(projectId)
   const { data: shootDays = [] } = useShootDays(projectId)
 
+  // Producer-only — crew lands on Schedule>Days, never sees call sheets.
+  const role = useViewerRole(projectId)
+  useEffect(() => {
+    if (role === 'crew') router.replace(`/projects/${projectId}/timeline?tab=schedule&sub=days`)
+  }, [role, projectId, router])
+
   const [createOpen, setCreateOpen] = useState(false)
 
   useFabAction({ onPress: () => setCreateOpen(true), label: 'New Call Sheet' })
 
-  if (isLoading || !project) return <LoadingState />
+  if (isLoading || !project || role === null || role === 'crew') return <LoadingState />
 
   const shootDayById = new Map((shootDays as ShootDay[]).map(d => [d.id, d]))
 
