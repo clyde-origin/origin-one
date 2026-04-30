@@ -5,6 +5,7 @@ import { syncExpenseFromTimecard, deleteExpenseForTimecard } from '@/lib/budget/
 import type { MentionRosterEntry } from '@/lib/mentions/types'
 import { computeMentionDelta } from '@/lib/mentions/delta'
 import { buildExcerpt } from '@/lib/mentions/excerpt'
+import { dispatchPush } from '@/lib/push/dispatch'
 
 export type { MentionRosterEntry } from '@/lib/mentions/types'
 
@@ -3463,6 +3464,14 @@ async function fanoutMentions(input: FanoutInput) {
     contextLabel: input.contextLabel,
     readAt: null,
   }))
-  const { error } = await db.from('Notification').insert(rows)
-  if (error) console.error('fanoutMentions failed:', error)
+  const { data: inserted, error } = await db.from('Notification').insert(rows).select('id')
+  if (error) {
+    console.error('fanoutMentions failed:', error)
+    return
+  }
+  const insertedIds = (inserted ?? []).map((r) => r.id)
+  if (insertedIds.length > 0) {
+    // Fire-and-forget — push delivery is best-effort.
+    void dispatchPush(insertedIds)
+  }
 }
