@@ -919,10 +919,20 @@ export function useCreateCallSheet(projectId: string) {
 export function useUpdateCallSheet(callSheetId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: db.updateCallSheet,
+    mutationFn: async (input: Parameters<typeof db.updateCallSheet>[0]) => {
+      await db.updateCallSheet(input)
+      // Fire-and-forget delta detection — flags any deliveries whose
+      // personalized data now differs (call time, location, schedule
+      // blocks, lunch). Recipient table reflects the change next poll.
+      try {
+        await fetch(`/api/call-sheets/${input.id}/refresh-deltas`, { method: 'POST' })
+      } catch {
+        // non-fatal — UI still updates from the regular update
+      }
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.callSheet(callSheetId) })
-      qc.invalidateQueries({ queryKey: keys.callSheets('') }) // brute-force list refetch
+      qc.invalidateQueries({ queryKey: keys.callSheetDeliveries(callSheetId) })
     },
   })
 }
