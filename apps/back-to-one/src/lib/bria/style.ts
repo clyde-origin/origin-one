@@ -19,9 +19,9 @@ export const STORYBOARD_STYLES: { value: StoryboardStyle; label: string }[] = [
 
 const PREAMBLE: Record<StoryboardStyle, string> = {
   'hand-drawn':
-    'Black and white pencil storyboard sketch, rough hand-drawn lines, minimal shading, traditional film storyboard look. Subject: ',
+    'Hand-drawn black and white pencil storyboard sketch on white paper. Rough graphite lines, visible construction lines, minimal shading, no color, NO photorealism, NO 3D rendering, NO digital painting. Looks like a film storyboard artist drew it quickly with a pencil. Illustrated, not rendered. Subject: ',
   'colored':
-    'Colored storyboard illustration, marker and watercolor wash over hand-drawn line art, soft saturation, presentation-ready board panel. Subject: ',
+    'Hand-drawn storyboard panel with loose colored marker fills over visible pencil line art. Sketchy and illustrated — NOT photorealistic, NOT a 3D render, NOT a digital painting, NOT a photograph. Looks like a film board artist drew it with markers and pencils on paper: flat color washes, simple shading, visible pencil construction lines. Subject: ',
   'photo-real':
     'Photorealistic cinematic film still, natural lighting, in-camera framing, shallow depth of field. Subject: ',
 }
