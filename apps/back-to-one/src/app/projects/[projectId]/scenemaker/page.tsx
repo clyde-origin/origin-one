@@ -18,6 +18,7 @@ import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { getProjectColor, getSceneColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { aspectRatioToCss } from '@/lib/aspect-ratio'
 import { STORYBOARD_STYLES, DEFAULT_STORYBOARD_STYLE, type StoryboardStyle } from '@/lib/bria/style'
+import { SHOT_SIZE_OPTIONS, SHOT_SIZE_ABBREV } from '@/lib/shot-sizes'
 import { ScriptView, type ScriptViewHandle } from './components/ScriptView'
 import { ShotDetailSheet } from './components/ShotDetailSheet'
 import { EntityDrawer } from './components/EntityDrawer'
@@ -53,21 +54,29 @@ type ScriptPanel = 'characters' | 'locations' | 'props' | null
 
 // ── PILL SELECTOR ─────────────────────────────────────────
 
+// PillSelector renders pills with a friendly `label` and emits the underlying
+// `value` — so the DB receives the schema enum value, not the human label.
+// The previous string[] shape sent UI labels (e.g. "ECU") straight into the
+// ShotSize enum and 500'd with `invalid input value for enum`.
 function PillSelector({ label, options, value, onChange, accent }: {
-  label: string; options: string[]; value: string; onChange: (v: string) => void; accent: string
+  label: string
+  options: { value: string; label: string }[]
+  value: string
+  onChange: (v: string) => void
+  accent: string
 }) {
   return (
     <div>
       <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>{label}</span>
       <div className="flex flex-wrap" style={{ gap: 5 }}>
         {options.map(o => (
-          <button key={o} className="font-mono cursor-pointer select-none transition-all"
+          <button key={o.value} className="font-mono cursor-pointer select-none transition-all"
             style={{ fontSize: '0.46rem', letterSpacing: '0.04em', padding: '4px 9px', borderRadius: 16,
-              background: value === o ? `${accent}1f` : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${value === o ? `${accent}4d` : 'rgba(255,255,255,0.05)'}`,
-              color: value === o ? accent : '#62627a' }}
-            onClick={() => onChange(o)}>
-            {o}
+              background: value === o.value ? `${accent}1f` : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${value === o.value ? `${accent}4d` : 'rgba(255,255,255,0.05)'}`,
+              color: value === o.value ? accent : '#62627a' }}
+            onClick={() => onChange(o.value)}>
+            {o.label}
           </button>
         ))}
       </div>
@@ -77,12 +86,9 @@ function PillSelector({ label, options, value, onChange, accent }: {
 
 // ── NEW SHOT SHEET ────────────────────────────────────────
 
-const SHOT_SIZES = ['CU', 'MS', 'WS', 'ECU', 'POV', 'MCU']
-
-const SIZE_ABBREV: Record<string, string> = {
-  extreme_wide: 'EWS', wide: 'WIDE', full: 'FS', medium: 'MED',
-  medium_close_up: 'MCU', close_up: 'CU', extreme_close_up: 'ECU', insert: 'INS',
-}
+// SIZE_ABBREV is the compact-badge map for hub/shotlist surfaces; the
+// canonical schema values + UI options live in @/lib/shot-sizes.
+const SIZE_ABBREV = SHOT_SIZE_ABBREV
 
 function Spinner({ color }: { color: string }) {
   return (
@@ -143,7 +149,7 @@ function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
             className="w-full outline-none focus:border-white/20"
             style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '8px 12px', fontSize: '0.76rem', color: '#dddde8' }} />
         </div>
-        <PillSelector label="Size" options={SHOT_SIZES} value={size} onChange={setSize} accent={accent} />
+        <PillSelector label="Size" options={SHOT_SIZE_OPTIONS} value={size} onChange={setSize} accent={accent} />
 
         {/* Inline image picker — three modes on one sheet, no second-page hop. */}
         <div>
