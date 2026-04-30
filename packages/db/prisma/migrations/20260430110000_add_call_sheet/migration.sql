@@ -4,9 +4,9 @@
 CREATE TYPE "CallSheetStatus" AS ENUM ('draft', 'sent');
 
 CREATE TABLE "CallSheet" (
-  "id"                     UUID NOT NULL DEFAULT gen_random_uuid(),
+  "id"                     TEXT NOT NULL DEFAULT (gen_random_uuid())::text,
   "projectId"              TEXT NOT NULL,
-  "shootDayId"             UUID NOT NULL,
+  "shootDayId"             TEXT NOT NULL,
   "status"                 "CallSheetStatus" NOT NULL DEFAULT 'draft',
   "publishedAt"            TIMESTAMP(3),
   "title"                  TEXT,

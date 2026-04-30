@@ -11,8 +11,8 @@ CREATE TYPE "CallSheetDeliveryStatus" AS ENUM (
 );
 
 CREATE TABLE "CallSheetRecipient" (
-  "id"               UUID NOT NULL DEFAULT gen_random_uuid(),
-  "callSheetId"      UUID NOT NULL,
+  "id"               TEXT NOT NULL DEFAULT (gen_random_uuid())::text,
+  "callSheetId"      TEXT NOT NULL,
   "kind"             "CallSheetRecipientKind" NOT NULL,
   "talentId"         TEXT,
   "projectMemberId"  TEXT,
@@ -45,8 +45,8 @@ CREATE INDEX "CallSheetRecipient_callSheetId_idx" ON "CallSheetRecipient"("callS
 CREATE INDEX "CallSheetRecipient_callSheetId_excluded_idx" ON "CallSheetRecipient"("callSheetId", "excluded");
 
 CREATE TABLE "CallSheetDelivery" (
-  "id"                 UUID NOT NULL DEFAULT gen_random_uuid(),
-  "recipientId"        UUID NOT NULL,
+  "id"                 TEXT NOT NULL DEFAULT (gen_random_uuid())::text,
+  "recipientId"        TEXT NOT NULL,
   "channel"            "CallSheetDeliveryChannel" NOT NULL,
   "provider"           "CallSheetDeliveryProvider" NOT NULL,
   "status"             "CallSheetDeliveryStatus" NOT NULL DEFAULT 'queued',
@@ -56,7 +56,7 @@ CREATE TABLE "CallSheetDelivery" (
   "bouncedAt"          TIMESTAMP(3),
   "failedReason"       TEXT,
   "externalId"         TEXT,
-  "confirmToken"       UUID NOT NULL DEFAULT gen_random_uuid(),
+  "confirmToken"       TEXT NOT NULL DEFAULT (gen_random_uuid())::text,
   "openedAt"           TIMESTAMP(3),
   "clickedAt"          TIMESTAMP(3),
   "confirmedAt"        TIMESTAMP(3),

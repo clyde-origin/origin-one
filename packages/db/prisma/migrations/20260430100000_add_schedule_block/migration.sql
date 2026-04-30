@@ -1,5 +1,8 @@
 -- ScheduleBlock — Arc A of the Daily Schedule + Call Sheets feature.
 -- See docs/superpowers/specs/2026-04-30-daily-schedule-and-call-sheets-design.md
+--
+-- Note: existing tables in this codebase store ids as TEXT with
+-- `(gen_random_uuid())::text` defaults. FK columns must be TEXT to match.
 
 CREATE TYPE "ScheduleBlockTrack" AS ENUM ('main', 'secondary', 'tertiary');
 
@@ -15,9 +18,9 @@ CREATE TYPE "ScheduleBlockKind" AS ENUM (
 );
 
 CREATE TABLE "ScheduleBlock" (
-  "id"            UUID NOT NULL DEFAULT gen_random_uuid(),
+  "id"            TEXT NOT NULL DEFAULT (gen_random_uuid())::text,
   "projectId"     TEXT NOT NULL,
-  "shootDayId"    UUID NOT NULL,
+  "shootDayId"    TEXT NOT NULL,
   "track"         "ScheduleBlockTrack" NOT NULL DEFAULT 'main',
   "kind"          "ScheduleBlockKind" NOT NULL DEFAULT 'work',
   "startTime"     VARCHAR(5) NOT NULL,
