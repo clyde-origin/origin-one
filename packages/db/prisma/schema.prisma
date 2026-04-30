@@ -173,22 +173,25 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  teamMembers       TeamMember[]
-  projectMembers    ProjectMember[]
-  documents         Document[]
-  actionItems       ActionItem[]
-  threads           Thread[]
-  threadMessages    ThreadMessage[]
-  resolvedThreads   Thread[]               @relation("ResolvedBy")
-  threadReads       ThreadRead[]
-  milestonePeople   MilestonePerson[]
-  resources         Resource[]
-  workflowNodes     WorkflowNode[]
-  chatSent          ChatMessage[]          @relation("ChatSender")
-  chatReceived      ChatMessage[]          @relation("ChatRecipient")
-  projectFolders    UserProjectFolder[]
-  projectPlacements UserProjectPlacement[]
-  entityAttachments EntityAttachment[]
+  teamMembers           TeamMember[]
+  projectMembers        ProjectMember[]
+  documents             Document[]
+  actionItems           ActionItem[]
+  threads               Thread[]
+  threadMessages        ThreadMessage[]
+  resolvedThreads       Thread[]               @relation("ResolvedBy")
+  threadReads           ThreadRead[]
+  milestonePeople       MilestonePerson[]
+  resources             Resource[]
+  workflowNodes         WorkflowNode[]
+  chatSent              ChatMessage[]          @relation("ChatSender")
+  chatReceived          ChatMessage[]          @relation("ChatRecipient")
+  projectFolders        UserProjectFolder[]
+  projectPlacements     UserProjectPlacement[]
+  entityAttachments     EntityAttachment[]
+  notifications         Notification[]         @relation("NotificationRecipient")
+  notificationsAuthored Notification[]         @relation("NotificationActor")
+  pushSubscriptions     PushSubscription[]
 }
 
 model Team {
@@ -349,6 +352,7 @@ model Project {
   entityAttachments EntityAttachment[]
   propSourced       PropSourced[]
   wardrobeSourced   WardrobeSourced[]
+  notifications     Notification[]
 }
 
 // ─── Scenes, Shots, Entities ─────────────────────────────────────────────────
@@ -440,6 +444,7 @@ model Milestone {
   date      DateTime
   status    MilestoneStatus @default(upcoming)
   notes     String?
+  mentions  String[]        @default([])
   createdAt DateTime        @default(now())
 
   project Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -468,6 +473,7 @@ model ActionItem {
   assignedTo  String?
   department  String?
   dueDate     DateTime?
+  mentions    String[]         @default([])
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -502,6 +508,7 @@ model ThreadMessage {
   id        String   @id @default(dbgenerated("gen_random_uuid()"))
   threadId  String
   content   String
+  mentions  String[] @default([])
   createdBy String
   createdAt DateTime @default(now())
 
@@ -855,6 +862,7 @@ model ChatMessage {
   senderId    String
   recipientId String?
   content     String
+  mentions    String[] @default([])
   createdAt   DateTime @default(now()) @db.Timestamp(6)
 
   project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -866,6 +874,42 @@ model ChatMessage {
   @@index([projectId, senderId, recipientId, createdAt], map: "ChatMessage_dm_idx")
 }
 
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+model Notification {
+  id           String    @id @default(dbgenerated("gen_random_uuid()"))
+  userId       String
+  projectId    String
+  sourceType   String
+  sourceId     String
+  actorId      String
+  excerpt      String
+  contextLabel String
+  readAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  user    User    @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor   User    @relation("NotificationActor", fields: [actorId], references: [id])
+
+  @@index([userId, projectId, readAt, createdAt])
+  @@index([userId, readAt, createdAt])
+  @@index([sourceType, sourceId])
+}
+
+model PushSubscription {
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
 // ─── ShootDay ────────────────────────────────────────────────────────────────
 
 model ShootDay {
@@ -874,6 +918,7 @@ model ShootDay {
   date       DateTime     @db.Date
   type       ShootDayType
   notes      String?
+  mentions   String[]     @default([])
   locationId String?
   sortOrder  Int
 
