@@ -51,7 +51,7 @@ interface OpenFolderSheetProps {
   draggingProjectId?: string | null      // viewport-active drag's project id (for ghost styling)
   dragTargetId?: string | null           // current drag target id (for archive/move-out highlights)
   archivedCount?: number                 // number of archived projects (for ArchiveIcon label)
-  onProjectTouchStart?: (e: React.TouchEvent, projectId: string) => void
+  onProjectTouchStart?: (e: React.TouchEvent | React.MouseEvent, projectId: string) => void
   onArchiveTap?: () => void              // tap on in-sheet ArchiveIcon → swap to Archive variant
 
   // Color resolver — mirrors page.tsx's `getColor`, which combines
@@ -208,6 +208,7 @@ export function OpenFolderSheet({
                       layout
                       transition={{ type: 'spring', stiffness: 380, damping: 32 }}
                       onTouchStart={onProjectTouchStart ? (e => onProjectTouchStart(e, p.id)) : undefined}
+                      onMouseDown={onProjectTouchStart ? (e => onProjectTouchStart(e, p.id)) : undefined}
                       style={{
                         position: 'relative',
                         touchAction: editMode ? 'none' : 'auto',

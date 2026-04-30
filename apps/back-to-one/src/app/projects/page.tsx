@@ -34,6 +34,25 @@ import type { Project } from '@/types'
 
 // ── HELPERS ──────────────────────────────────────────────────
 
+// ── POINTER EVENT NORMALIZATION ──────────────────────────────────────────
+// Both touch and mouse are pointer-like; the drag handlers care only about
+// (clientX, clientY). Helpers below normalize either event shape.
+
+type AnyPointerEvent =
+  | React.TouchEvent | React.MouseEvent | TouchEvent | MouseEvent
+
+function pointerCoords(e: AnyPointerEvent): { x: number; y: number } {
+  if ('touches' in e) {
+    if (e.touches.length > 0) return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    // touchend has no `touches` entries; fall through to changedTouches
+    if ('changedTouches' in e && e.changedTouches.length > 0) {
+      return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY }
+    }
+  }
+  // MouseEvent
+  return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY }
+}
+
 // ── SPACE BACKGROUND ─────────────────────────────────────────
 
 function SpaceBg() {
@@ -155,13 +174,13 @@ export default function ProjectsPage() {
     haptic('medium')
   }, [])
 
-  const handleTouchStart = useCallback((e: React.TouchEvent, id: string, kind: 'project' | 'folder' = 'project') => {
+  const handleTouchStart = useCallback((e: React.TouchEvent | React.MouseEvent, id: string, kind: 'project' | 'folder' = 'project') => {
     if (!editMode) return
-    const touch = e.touches[0]
+    const { x, y } = pointerCoords(e)
     const el = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const elX = touch.clientX - el.left
-    const elY = touch.clientY - el.top
-    pendingDragRef.current = { projectId: id, x: touch.clientX, y: touch.clientY, elX, elY, w: el.width }
+    const elX = x - el.left
+    const elY = y - el.top
+    pendingDragRef.current = { projectId: id, x, y, elX, elY, w: el.width }
     dragKindRef.current = kind
     // No hold timer in wiggle mode — drag activates on the first movement
     // > MOVE_THRESHOLD (handled in handleTouchMove). A pure tap (no move)
@@ -177,8 +196,8 @@ export default function ProjectsPage() {
       : null
   }, [editMode])
 
-  const handleTouchMove = useCallback((e: TouchEvent) => {
-    const touch = e.touches[0]
+  const handleTouchMove = useCallback((e: TouchEvent | MouseEvent) => {
+    const { x: touchX, y: touchY } = pointerCoords(e)
 
     // Promote pending → active drag once movement crosses MOVE_THRESHOLD.
     // Below the threshold, the touch is treated as a tap (so onClick on
@@ -186,8 +205,8 @@ export default function ProjectsPage() {
     const MOVE_THRESHOLD = 5
     if (pendingDragRef.current && !dragProjectIdRef.current) {
       const pd = pendingDragRef.current
-      const dx = touch.clientX - pd.x
-      const dy = touch.clientY - pd.y
+      const dx = touchX - pd.x
+      const dy = touchY - pd.y
       if (Math.hypot(dx, dy) > MOVE_THRESHOLD) {
         activateDrag(pd.projectId, pd.x, pd.y, pd.elX, pd.elY, pd.w)
         pendingDragRef.current = null
@@ -198,17 +217,18 @@ export default function ProjectsPage() {
     }
 
     if (!dragProjectIdRef.current || !dragStartRef.current) return
-    e.preventDefault()
+    // preventDefault is iOS-rubber-band suppression — only meaningful on touch.
+    if ('touches' in e) e.preventDefault()
 
     // Direct DOM transform — zero lag
     if (dragElRef.current) {
-      dragElRef.current.style.left = `${touch.clientX - dragStartRef.current.elX}px`
-      dragElRef.current.style.top = `${touch.clientY - dragStartRef.current.elY}px`
+      dragElRef.current.style.left = `${touchX - dragStartRef.current.elX}px`
+      dragElRef.current.style.top = `${touchY - dragStartRef.current.elY}px`
     }
 
     // Dragged card center
-    const cardCx = touch.clientX - dragStartRef.current.elX + dragStartRef.current.w / 2
-    const cardCy = touch.clientY - dragStartRef.current.elY + 54 // approx half card height
+    const cardCx = touchX - dragStartRef.current.elX + dragStartRef.current.w / 2
+    const cardCy = touchY - dragStartRef.current.elY + 54 // approx half card height
 
     // Snapshot slot rects live on every move (grid shifts as items displace).
     // Include both project and folder cards so reorder works for either kind.
@@ -546,14 +566,18 @@ export default function ProjectsPage() {
     setDragTargetIdState(null)
   }, [meId, allProjects, allFolders, allPlacements, folderProjects, homeItems, placementMutation, createFolderMutation, archiveMutation, archiveFolderMutation, updateFolderMutation, moveProjectToRootMutation])
 
-  // Global touch listeners for drag
+  // Global touch + mouse listeners for drag
   useEffect(() => {
     if (!editMode) return
     window.addEventListener('touchmove', handleTouchMove, { passive: false })
     window.addEventListener('touchend', handleTouchEnd)
+    window.addEventListener('mousemove', handleTouchMove)
+    window.addEventListener('mouseup', handleTouchEnd)
     return () => {
       window.removeEventListener('touchmove', handleTouchMove)
       window.removeEventListener('touchend', handleTouchEnd)
+      window.removeEventListener('mousemove', handleTouchMove)
+      window.removeEventListener('mouseup', handleTouchEnd)
     }
   }, [editMode, handleTouchMove, handleTouchEnd])
 
@@ -712,6 +736,7 @@ export default function ProjectsPage() {
                       layout
                       transition={{ type: 'spring', stiffness: 380, damping: 32 }}
                       onTouchStart={isArchive ? undefined : (e => handleTouchStart(e, it.id, 'folder'))}
+                      onMouseDown={isArchive ? undefined : (e => handleTouchStart(e, it.id, 'folder'))}
                       style={{
                         position: 'relative',
                         touchAction: editMode ? 'none' : 'auto',
@@ -767,6 +792,7 @@ export default function ProjectsPage() {
                     layout
                     transition={{ type: 'spring', stiffness: 380, damping: 32 }}
                     onTouchStart={e => handleTouchStart(e, p.id)}
+                    onMouseDown={e => handleTouchStart(e, p.id)}
                     style={{
                       position: 'relative',
                       touchAction: editMode ? 'none' : 'auto',
