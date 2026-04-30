@@ -24,6 +24,13 @@ create policy "Notification_select_own"
   on "Notification" for select
   using ("userId" = (select auth.uid()::text));
 
+-- TODO(Auth-day): tighten this insert policy as part of the #24 RLS pass.
+-- Currently any authenticated user can insert a Notification with arbitrary
+-- userId/actorId. Auth-day target: with check (
+--   "actorId"  = (select auth.uid()::text)
+--   AND "userId" <> (select auth.uid()::text)
+--   AND public.is_project_member("projectId", (select auth.uid()))
+-- )
 create policy "Notification_insert_authenticated"
   on "Notification" for insert
   with check ((select auth.role()) = 'authenticated');
