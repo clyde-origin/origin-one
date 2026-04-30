@@ -1963,7 +1963,7 @@ export async function createCallSheet(input: {
 }) {
   const db = createClient()
   const now = new Date().toISOString()
-  const { data, error } = await db
+  const { data: cs, error } = await db
     .from('CallSheet')
     .insert({
       projectId: input.projectId,
@@ -1977,7 +1977,39 @@ export async function createCallSheet(input: {
     .select()
     .single()
   if (error) { console.error('createCallSheet failed:', error); throw error }
-  return data
+
+  // Auto-seed recipients from project Talent + non-post ProjectMembers.
+  // We import lazily to avoid pulling buildDefaultRecipients into the
+  // call-sheet-list query path.
+  try {
+    const [{ buildDefaultRecipients }, talentRows, memberRows] = await Promise.all([
+      import('@/lib/call-sheet/seed-recipients'),
+      db.from('Talent').select('id, email, phone').eq('projectId', input.projectId),
+      db.from('ProjectMember').select('id, department, User(email, phone)').eq('projectId', input.projectId),
+    ])
+    const seeds = buildDefaultRecipients({
+      callSheetId: cs.id,
+      talent: (talentRows.data ?? []).map((t: any) => ({ id: t.id, email: t.email, phone: t.phone })),
+      members: (memberRows.data ?? []).map((m: any) => ({
+        id: m.id,
+        department: m.department,
+        email: m.User?.email ?? null,
+        phone: m.User?.phone ?? null,
+      })),
+    })
+    if (seeds.length > 0) {
+      const payload = seeds.map(s => ({
+        ...s,
+        excluded: false,
+        updatedAt: now,
+      }))
+      await db.from('CallSheetRecipient').insert(payload)
+    }
+  } catch (seedErr) {
+    console.error('createCallSheet seed recipients failed (non-fatal):', seedErr)
+  }
+
+  return cs
 }
 
 export async function updateCallSheet({
