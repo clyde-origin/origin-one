@@ -2,6 +2,11 @@ import { createBrowserAuthClient as createClient } from '@origin-one/auth'
 import { DEFAULT_AICP_ACCOUNTS } from '@origin-one/schema'
 import { initials } from '@/lib/utils/formatting'
 import { syncExpenseFromTimecard, deleteExpenseForTimecard } from '@/lib/budget/timecard-to-expense'
+import type { MentionRosterEntry } from '@/lib/mentions/types'
+import { computeMentionDelta } from '@/lib/mentions/delta'
+import { buildExcerpt } from '@/lib/mentions/excerpt'
+
+export type { MentionRosterEntry } from '@/lib/mentions/types'
 
 // ── STORAGE ───────────────────────────────────────────────
 
@@ -3032,6 +3037,8 @@ export async function sendChatMessage(input: {
   senderId: string
   recipientId?: string | null
   content: string
+  mentions?: string[]
+  contextLabel?: string
 }) {
   const db = createClient()
   const { data, error } = await db
@@ -3043,10 +3050,22 @@ export async function sendChatMessage(input: {
       senderId: input.senderId,
       recipientId: input.recipientId ?? null,
       content: input.content,
+      mentions: input.mentions ?? [],
     })
     .select()
     .single()
   if (error) { console.error('sendChatMessage failed:', error); throw error }
+  if (input.mentions && input.mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'chatMessage',
+      sourceId: data.id,
+      projectId: input.projectId,
+      actorId: input.senderId,
+      newMentions: input.mentions,
+      text: input.content,
+      contextLabel: input.contextLabel ?? 'Chat',
+    })
+  }
   return data
 }
 
@@ -3276,4 +3295,167 @@ export async function bulkReorderHomeGrid(
     const err = results.find(r => r.error)?.error
     if (err) { console.error('bulkReorderHomeGrid placements failed:', err); throw err }
   }
+}
+
+// ── NOTIFICATIONS ─────────────────────────────────────────
+
+export interface NotificationRow {
+  id: string
+  userId: string
+  projectId: string
+  sourceType: string
+  sourceId: string
+  actorId: string
+  excerpt: string
+  contextLabel: string
+  readAt: string | null
+  createdAt: string
+  actor?: { id: string; name: string; avatarUrl: string | null }
+  project?: { id: string; name: string; color: string | null }
+}
+
+export async function getNotifications(meId: string, projectId: string | null): Promise<NotificationRow[]> {
+  const db = createClient()
+  let q = db
+    .from('Notification')
+    .select('*, actor:User!Notification_actorId_fkey(id,name,avatarUrl), project:Project(id,name,color)')
+    .eq('userId', meId)
+    .order('createdAt', { ascending: false })
+    .limit(100)
+  if (projectId) q = q.eq('projectId', projectId)
+  const { data, error } = await q
+  if (error) { console.error('getNotifications failed:', error); throw error }
+  return (data ?? []) as NotificationRow[]
+}
+
+export async function getUnreadCount(meId: string, projectId: string | null): Promise<number> {
+  const db = createClient()
+  let q = db
+    .from('Notification')
+    .select('id', { count: 'exact', head: true })
+    .eq('userId', meId)
+    .is('readAt', null)
+  if (projectId) q = q.eq('projectId', projectId)
+  const { count, error } = await q
+  if (error) { console.error('getUnreadCount failed:', error); throw error }
+  return count ?? 0
+}
+
+export async function markNotificationRead(id: string) {
+  const db = createClient()
+  const { error } = await db.from('Notification').update({ readAt: new Date().toISOString() }).eq('id', id)
+  if (error) { console.error('markNotificationRead failed:', error); throw error }
+}
+
+export async function markAllNotificationsRead(meId: string, projectId: string | null) {
+  const db = createClient()
+  let q = db.from('Notification').update({ readAt: new Date().toISOString() }).eq('userId', meId).is('readAt', null)
+  if (projectId) q = q.eq('projectId', projectId)
+  const { error } = await q
+  if (error) { console.error('markAllNotificationsRead failed:', error); throw error }
+}
+
+export function subscribeToNotifications(meId: string, onInsert: (row: NotificationRow) => void) {
+  const db = createClient()
+  const channelName = `notifications-${meId}-${crypto.randomUUID()}`
+  const ch = db.channel(channelName)
+  ch.on(
+    'postgres_changes',
+    { event: 'INSERT', schema: 'public', table: 'Notification', filter: `userId=eq.${meId}` },
+    (payload) => onInsert(payload.new as NotificationRow),
+  )
+  ch.subscribe()
+  return () => { db.removeChannel(ch) }
+}
+
+// ── MENTION ROSTER ────────────────────────────────────────
+
+export async function getProjectMentionRoster(projectId: string): Promise<MentionRosterEntry[]> {
+  const db = createClient()
+  const { data, error } = await db
+    .from('ProjectMember')
+    .select('role, user:User!ProjectMember_userId_fkey(id,name,avatarUrl)')
+    .eq('projectId', projectId)
+  if (error) { console.error('getProjectMentionRoster failed:', error); throw error }
+  return (data ?? [])
+    .filter((m: any) => m.user)
+    .map((m: any) => ({
+      userId: m.user.id,
+      name: m.user.name,
+      role: m.role ?? null,
+      avatarUrl: m.user.avatarUrl ?? null,
+    }))
+}
+
+export async function getCrossProjectMentionRoster(meId: string): Promise<MentionRosterEntry[]> {
+  const db = createClient()
+  const { data: myProjects, error: pErr } = await db
+    .from('ProjectMember')
+    .select('projectId')
+    .eq('userId', meId)
+  if (pErr) { console.error('getCrossProjectMentionRoster (myProjects) failed:', pErr); throw pErr }
+  const projectIds = (myProjects ?? []).map((p: any) => p.projectId)
+  if (projectIds.length === 0) return []
+  const { data, error } = await db
+    .from('ProjectMember')
+    .select('role, user:User!ProjectMember_userId_fkey(id,name,avatarUrl)')
+    .in('projectId', projectIds)
+  if (error) { console.error('getCrossProjectMentionRoster failed:', error); throw error }
+  const dedup = new Map<string, MentionRosterEntry>()
+  for (const m of data ?? []) {
+    const u: any = (m as any).user
+    if (!u || u.id === meId) continue
+    if (!dedup.has(u.id)) {
+      dedup.set(u.id, {
+        userId: u.id,
+        name: u.name,
+        role: (m as any).role ?? null,
+        avatarUrl: u.avatarUrl ?? null,
+      })
+    }
+  }
+  return Array.from(dedup.values())
+}
+
+// ── MENTION FAN-OUT (used by send mutations) ──────────────
+
+interface FanoutInput {
+  sourceType: 'chatMessage' | 'threadMessage' | 'actionItem' | 'milestone' | 'shootDay'
+  sourceId: string
+  projectId: string
+  actorId: string
+  newMentions: string[]
+  text: string
+  contextLabel: string
+}
+
+async function fanoutMentions(input: FanoutInput) {
+  if (input.newMentions.length === 0) return
+  const db = createClient()
+  const { data: existing } = await db
+    .from('Notification')
+    .select('userId')
+    .eq('sourceType', input.sourceType)
+    .eq('sourceId', input.sourceId)
+  const alreadyNotified = (existing ?? []).map((r: any) => r.userId)
+  const delta = computeMentionDelta({
+    newMentions: input.newMentions,
+    alreadyNotified,
+    actorId: input.actorId,
+  })
+  if (delta.length === 0) return
+  const excerpt = buildExcerpt(input.text)
+  const rows = delta.map((userId) => ({
+    id: crypto.randomUUID(),
+    userId,
+    projectId: input.projectId,
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    actorId: input.actorId,
+    excerpt,
+    contextLabel: input.contextLabel,
+    readAt: null,
+  }))
+  const { error } = await db.from('Notification').insert(rows)
+  if (error) console.error('fanoutMentions failed:', error)
 }
