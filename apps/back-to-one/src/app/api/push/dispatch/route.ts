@@ -56,7 +56,7 @@ export async function POST(req: Request) {
 
   const { data: notifications, error } = await supabase
     .from('Notification')
-    .select('id, userId, projectId, sourceType, sourceId, actorId, excerpt, contextLabel, actor:User!Notification_actorId_fkey(id,name)')
+    .select('id, userId, projectId, sourceType, sourceId, actorId, excerpt, contextLabel, actor:User!Notification_actorId_fkey(id,name), project:Project(id,name)')
     .in('id', ids)
   if (error) {
     console.error('dispatch: notification fetch failed:', error)
@@ -70,9 +70,14 @@ export async function POST(req: Request) {
     if (!subs || subs.length === 0) continue
 
     const actorName = (n as any).actor?.name ?? 'Someone'
+    const projectName = (n as any).project?.name
+    const title = projectName
+      ? `${actorName} mentioned you · ${projectName}`
+      : `${actorName} mentioned you`
+    const body = n.contextLabel ? `${n.contextLabel} — ${n.excerpt}` : n.excerpt
     const payload = JSON.stringify({
-      title: `${actorName} mentioned you`,
-      body: n.excerpt,
+      title,
+      body,
       url: deepLinkFor(n),
       tag: n.id,
     })
