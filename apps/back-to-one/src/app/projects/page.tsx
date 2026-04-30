@@ -11,6 +11,7 @@ import {
   useUpsertUserProjectPlacement, useArchivedProjects, useRestoreProject,
   useArchivedUserProjectFolders, useArchiveUserProjectFolder, useRestoreUserProjectFolder,
   useMoveProjectToRoot,
+  useUpdateTeamName,
 } from '@/lib/hooks/useOriginOne'
 import { SkeletonLine } from '@/components/ui'
 import { useRootFab } from '@/components/ui/ActionBarRoot'
@@ -23,6 +24,7 @@ import { FolderCard } from '@/components/projects/FolderCard'
 import { OpenFolderSheet } from '@/components/projects/OpenFolderSheet'
 import { FolderActionSheet } from '@/components/projects/FolderActionSheet'
 import { NewFolderSheet } from '@/components/projects/NewFolderSheet'
+import { TeamNameSheet } from '@/components/projects/TeamNameSheet'
 import { GlobalPanels, type PanelId } from '@/components/projects/GlobalPanels'
 import { ThreadsSheet } from '@/components/projects/ThreadsSheet'
 import { ChatSheet } from '@/components/projects/ChatSheet'
@@ -287,6 +289,8 @@ export default function ProjectsPage() {
 
   const [actionFolder, setActionFolder] = useState<{ id: string; name: string; color: string | null } | null>(null)
   const [creatingFolder, setCreatingFolder] = useState(false)
+  const [renamingTeam, setRenamingTeam] = useState(false)
+  const updateTeamNameMutation = useUpdateTeamName()
   const [restoreProject, setRestoreProject] = useState<Project | null>(null)
   const [restoreFolder, setRestoreFolder] = useState<{ id: string; name: string; color: string | null; count: number } | null>(null)
   const [openFolderOrigin, setOpenFolderOrigin] = useState<{ x: number; y: number } | null>(null)
@@ -623,7 +627,30 @@ export default function ProjectsPage() {
         <div style={{ position: 'relative', padding: '0 20px 18px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' as const }}>
             <p className="font-mono uppercase" style={{ fontSize: '0.4rem', color: '#62627a', letterSpacing: '0.12em', marginBottom: 3 }}>Back to One</p>
-            <h1 className="font-sans" style={{ fontWeight: 800, fontSize: '1.6rem', color: '#dddde8', letterSpacing: '-0.03em', lineHeight: 1 }}>{myTeam?.name ?? 'Projects'}</h1>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <h1 className="font-sans" style={{ fontWeight: 800, fontSize: '1.6rem', color: '#dddde8', letterSpacing: '-0.03em', lineHeight: 1 }}>
+                {myTeam?.name ?? 'Projects'}
+              </h1>
+              {editMode && myTeam && (
+                <button
+                  onClick={() => { haptic('light'); setRenamingTeam(true) }}
+                  className="active:opacity-60 transition-opacity"
+                  style={{
+                    width: 24, height: 24, borderRadius: '50%',
+                    background: 'rgba(196,90,220,0.12)',
+                    border: '1px solid rgba(196,90,220,0.3)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                  aria-label="Rename team"
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                    <path d="M11.5 1.5l3 3-9 9-3.5.5.5-3.5 9-9z" stroke="#c45adc" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              )}
+            </div>
             <p className="font-sans" style={{ fontSize: '0.88rem', fontWeight: 500, color: '#62627a', marginTop: 10 }}>Select a Project</p>
           </div>
           <button onClick={handleLogout} className="active:opacity-60 transition-opacity" style={{
@@ -1166,6 +1193,15 @@ export default function ProjectsPage() {
         onCreate={({ name, color }) => {
           if (!meId) return
           createFolderMutation.mutate({ userId: meId, name, color, sortOrder: 0 })
+        }}
+      />
+      <TeamNameSheet
+        open={renamingTeam}
+        currentName={myTeam?.name ?? ''}
+        onClose={() => setRenamingTeam(false)}
+        onSave={async (name) => {
+          if (!myTeam) return
+          await updateTeamNameMutation.mutateAsync({ teamId: myTeam.id, name })
         }}
       />
     </div>
