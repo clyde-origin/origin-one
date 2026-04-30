@@ -1104,6 +1104,7 @@ export default function ProjectsPage() {
         archivedCount={allArchivedProjects.length}
         onProjectTouchStart={(e, id) => handleTouchStart(e, id, 'project')}
         onArchiveTap={() => { haptic('light'); openFolder(ARCHIVE_FOLDER_ID) }}
+        onExitEditMode={() => { setEditMode(false); setDragProjectId(null) }}
         getColor={getColor}
       />
 

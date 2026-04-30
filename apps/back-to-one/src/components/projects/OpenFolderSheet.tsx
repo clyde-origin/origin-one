@@ -53,6 +53,9 @@ interface OpenFolderSheetProps {
   archivedCount?: number                 // number of archived projects (for ArchiveIcon label)
   onProjectTouchStart?: (e: React.TouchEvent | React.MouseEvent, projectId: string) => void
   onArchiveTap?: () => void              // tap on in-sheet ArchiveIcon → swap to Archive variant
+  // Called when the in-sheet "Done" pill is tapped — parent should
+  // turn editMode off and clear any drag state.
+  onExitEditMode?: () => void
 
   // Color resolver — mirrors page.tsx's `getColor`, which combines
   // session colorOverrides with the project's stored color and a
@@ -112,6 +115,7 @@ export function OpenFolderSheet({
   folders, onFolderClick, onFolderLongPress,
   originPoint,
   editMode, draggingProjectId, dragTargetId, archivedCount, onProjectTouchStart, onArchiveTap,
+  onExitEditMode,
   getColor,
 }: OpenFolderSheetProps) {
   const router = useRouter()
@@ -199,6 +203,25 @@ export function OpenFolderSheet({
                     onLongPress={onFolderLongPress ? () => onFolderLongPress(f) : undefined}
                   />
                 ))}
+                {editMode && folder?.id !== ARCHIVE_FOLDER_ID && (
+                  <div style={{
+                    gridColumn: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    padding: '8px 14px', background: 'rgba(196,90,220,0.08)', border: '1px solid rgba(196,90,220,0.18)',
+                    borderRadius: 20, marginBottom: 2,
+                  }}>
+                    <span className="font-mono" style={{ fontSize: 10, color: 'rgba(196,90,220,0.6)', letterSpacing: '0.06em' }}>
+                      Hold + drag to move
+                    </span>
+                    <button
+                      className="font-mono"
+                      onClick={() => onExitEditMode?.()}
+                      style={{
+                        fontSize: 10, color: '#c45adc', letterSpacing: '0.06em', padding: '3px 10px', borderRadius: 20,
+                        background: 'rgba(196,90,220,0.12)', border: '1px solid rgba(196,90,220,0.25)', cursor: 'pointer',
+                      }}
+                    >Done</button>
+                  </div>
+                )}
                 {projects.map((p, i) => {
                   const isDragging = draggingProjectId === p.id
                   return (
