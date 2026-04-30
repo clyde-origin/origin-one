@@ -8,7 +8,10 @@ import {
   useAddMilestonePerson, useRemoveMilestonePerson, useCrew,
   useShootDays, useLocations,
   useCreateShootDay, useUpdateShootDay, useDeleteShootDay,
+  useMentionRoster, useMeId,
 } from '@/lib/hooks/useOriginOne'
+import { MentionInput } from '@/components/ui/MentionInput'
+import { MentionText } from '@/components/ui/MentionText'
 import { LoadingState, EmptyState, CrewAvatar, SkeletonLine } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
@@ -186,12 +189,15 @@ function MilestoneDetailSheet({ milestone, crew, accent, projectId, onClose }: {
   milestone: Milestone | null; crew: CrewMember[]; accent: string; projectId: string; onClose: () => void
 }) {
   const updateMs = useUpdateMilestone(projectId)
+  const meId = useMeId()
+  const { data: roster = [] } = useMentionRoster(projectId)
   const [editTitle, setEditTitle] = useState(false)
   const [editDate, setEditDate] = useState(false)
   const [editStatus, setEditStatus] = useState(false)
   const [titleValue, setTitleValue] = useState(milestone?.title ?? '')
   const [dateValue, setDateValue] = useState(milestone?.date?.split('T')[0] ?? '')
   const [notes, setNotes] = useState(milestone?.notes ?? '')
+  const [notesMentions, setNotesMentions] = useState<string[]>((milestone as any)?.mentions ?? [])
   const [showAddCrew, setShowAddCrew] = useState(false)
   const addPerson = useAddMilestonePerson(projectId)
   const removePerson = useRemoveMilestonePerson(projectId)
@@ -209,10 +215,19 @@ function MilestoneDetailSheet({ milestone, crew, accent, projectId, onClose }: {
   const fullDate = `${MONTHS[dateObj.getMonth()]} ${dateObj.getDate()}, ${dateObj.getFullYear()}`
   const dayName = DAYS[dateObj.getDay()]
 
-  const saveTitle = () => { setEditTitle(false); if (titleValue.trim() && titleValue !== milestone.title) updateMs.mutate({ id: milestone.id, fields: { title: titleValue.trim() } }) }
-  const saveDate = (val: string) => { setEditDate(false); if (val && val !== milestone.date?.split('T')[0]) updateMs.mutate({ id: milestone.id, fields: { date: val } }) }
-  const saveStatus = (s: string) => { setEditStatus(false); if (s !== milestone.status) updateMs.mutate({ id: milestone.id, fields: { status: s } }) }
-  const saveNotes = () => { if (notes !== (milestone.notes ?? '')) updateMs.mutate({ id: milestone.id, fields: { notes: notes || undefined } }) }
+  const saveTitle = () => { setEditTitle(false); if (titleValue.trim() && titleValue !== milestone.title) updateMs.mutate({ id: milestone.id, actorId: meId as string, fields: { title: titleValue.trim() } }) }
+  const saveDate = (val: string) => { setEditDate(false); if (val && val !== milestone.date?.split('T')[0]) updateMs.mutate({ id: milestone.id, actorId: meId as string, fields: { date: val } }) }
+  const saveStatus = (s: string) => { setEditStatus(false); if (s !== milestone.status) updateMs.mutate({ id: milestone.id, actorId: meId as string, fields: { status: s } }) }
+  const saveNotes = () => {
+    if (notes !== (milestone.notes ?? '') || notesMentions.join(',') !== ((milestone as any).mentions ?? []).join(',')) {
+      updateMs.mutate({
+        id: milestone.id,
+        actorId: meId as string,
+        fields: { notes: notes || undefined, mentions: notesMentions },
+        contextLabel: `Milestone · ${milestone.title}`,
+      })
+    }
+  }
   const assignedCrew = (milestone.people ?? []).map(id => crew.find(c => c.userId === id)).filter(Boolean) as CrewMember[]
   const unassignedCrew = crew.filter(c => !(milestone.people ?? []).includes(c.userId))
 
@@ -274,12 +289,23 @@ function MilestoneDetailSheet({ milestone, crew, accent, projectId, onClose }: {
           )}
         </div>
 
-        {/* Notes — always editable */}
+        {/* Notes — always editable MentionInput */}
         <div className="flex items-start gap-3">
           <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.46rem', color: '#62627a', letterSpacing: '0.08em', width: 68, paddingTop: 1 }}>Notes</span>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} onBlur={saveNotes}
-            placeholder="Add notes..." rows={3} className="outline-none resize-none"
-            style={{ flex: 1, fontSize: '0.72rem', color: '#a0a0b8', lineHeight: 1.55, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 6, padding: '10px 12px', fontFamily: 'inherit' }} />
+          <div
+            style={{ flex: 1, fontSize: '0.72rem', color: '#a0a0b8', lineHeight: 1.55, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 6, padding: '10px 12px' }}
+            onBlur={saveNotes}
+          >
+            <MentionInput
+              value={notes}
+              mentions={notesMentions}
+              onChange={(text, m) => { setNotes(text); setNotesMentions(m) }}
+              roster={roster}
+              placeholder="Add notes…"
+              multiline
+              accent={accent}
+            />
+          </div>
         </div>
       </div>
 
@@ -807,7 +833,7 @@ function ShootDayRow({
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}
       >
-        {locationName ?? (day.notes ? day.notes : 'No location')}
+        {locationName ?? (day.notes ? <MentionText text={day.notes} accent='#6470f3' /> : 'No location')}
       </div>
     </button>
   )
@@ -828,6 +854,9 @@ function ShootDayEditSheet({
   const [type, setType] = useState<ShootDayType>(day?.type ?? 'prod')
   const [locationId, setLocationId] = useState<string | null>(day?.locationId ?? null)
   const [notes, setNotes] = useState<string>(day?.notes ?? '')
+  const [notesMentions, setNotesMentions] = useState<string[]>((day as any)?.mentions ?? [])
+  const { data: roster = [] } = useMentionRoster(projectId)
+  const meId = useMeId()
 
   const create = useCreateShootDay(projectId)
   const update = useUpdateShootDay(projectId)
@@ -840,11 +869,16 @@ function ShootDayEditSheet({
       await create.mutateAsync({
         projectId, date, type,
         locationId, notes: notes.trim() || null,
+        actorId: meId as string,
+        mentions: notesMentions,
+        contextLabel: `Shoot Day · ${new Date(date).toLocaleDateString()}`,
       })
     } else if (day) {
       await update.mutateAsync({
         id: day.id,
-        fields: { date, type, locationId, notes: notes.trim() || null },
+        actorId: meId as string,
+        fields: { date, type, locationId, notes: notes.trim() || null, mentions: notesMentions },
+        contextLabel: `Shoot Day · ${new Date(date).toLocaleDateString()}`,
       })
     }
     onSubmitted()
@@ -940,21 +974,25 @@ function ShootDayEditSheet({
         </label>
       )}
 
-      <label className="flex flex-col" style={{ gap: 6 }}>
+      <div className="flex flex-col" style={{ gap: 6 }}>
         <span className="font-mono uppercase" style={{ fontSize: '0.42rem', letterSpacing: '0.1em', color: '#62627a' }}>Notes (optional)</span>
-        <textarea
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          rows={2}
-          style={{
-            padding: '10px 12px', borderRadius: 10,
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            color: '#e8e8f0', fontSize: '0.78rem', resize: 'none',
-            fontFamily: 'inherit',
-          }}
-        />
-      </label>
+        <div style={{
+          padding: '10px 12px', borderRadius: 10,
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          color: '#e8e8f0', fontSize: '0.78rem',
+        }}>
+          <MentionInput
+            value={notes}
+            mentions={notesMentions}
+            onChange={(text, m) => { setNotes(text); setNotesMentions(m) }}
+            roster={roster}
+            placeholder="Optional notes…"
+            multiline
+            accent='#6470f3'
+          />
+        </div>
+      </div>
 
       <div className="flex items-center" style={{ gap: 10, marginTop: 4 }}>
         {mode === 'edit' && (

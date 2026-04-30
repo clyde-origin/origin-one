@@ -585,20 +585,40 @@ export async function toggleActionItem(id: string, done: boolean): Promise<void>
   if (error) { console.error('toggleActionItem failed:', error); throw error }
 }
 
-export async function updateActionItem(
-  id: string,
-  fields: { title?: string; description?: string; assignedTo?: string | null; department?: string | null; dueDate?: string | null; status?: string }
-): Promise<void> {
+export async function updateActionItem({
+  id,
+  actorId,
+  fields,
+  contextLabel,
+}: {
+  id: string
+  actorId: string
+  fields: { title?: string; description?: string; assignedTo?: string | null; department?: string | null; dueDate?: string | null; status?: string; mentions?: string[] }
+  contextLabel?: string
+}): Promise<void> {
   const db = createClient()
-  const { error } = await db
+  const { data, error } = await db
     .from('ActionItem')
     .update(fields)
     .eq('id', id)
+    .select('title, projectId')
+    .single()
   if (error) { console.error('updateActionItem failed:', error); throw error }
+  if (fields.description !== undefined && fields.mentions && fields.mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'actionItem',
+      sourceId: id,
+      projectId: data.projectId,
+      actorId,
+      newMentions: fields.mentions,
+      text: fields.description ?? '',
+      contextLabel: contextLabel ?? `Action Item · ${data.title}`,
+    })
+  }
 }
 
 export async function createActionItem(
-  item: { projectId: string; title: string; description?: string; assignedTo?: string | null; department?: string | null; dueDate?: string | null }
+  item: { projectId: string; title: string; description?: string; assignedTo?: string | null; department?: string | null; dueDate?: string | null; actorId: string; mentions?: string[]; contextLabel?: string }
 ) {
   const db = createClient()
   const { data, error } = await db
@@ -611,10 +631,22 @@ export async function createActionItem(
       assignedTo: item.assignedTo ?? null,
       department: item.department ?? null,
       dueDate: item.dueDate ?? null,
+      mentions: item.mentions ?? [],
     })
     .select()
     .single()
   if (error) { console.error('createActionItem failed:', error); throw error }
+  if (item.mentions && item.mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'actionItem',
+      sourceId: data.id,
+      projectId: item.projectId,
+      actorId: item.actorId,
+      newMentions: item.mentions,
+      text: item.description ?? '',
+      contextLabel: item.contextLabel ?? `Action Item · ${item.title}`,
+    })
+  }
   return data
 }
 
@@ -634,16 +666,36 @@ export async function getMilestones(projectId: string) {
   }))
 }
 
-export async function updateMilestone(
-  id: string,
-  fields: { title?: string; date?: string; status?: string; notes?: string }
-): Promise<void> {
+export async function updateMilestone({
+  id,
+  actorId,
+  fields,
+  contextLabel,
+}: {
+  id: string
+  actorId: string
+  fields: { title?: string; date?: string; status?: string; notes?: string; mentions?: string[] }
+  contextLabel?: string
+}): Promise<void> {
   const db = createClient()
-  const { error } = await db
+  const { data, error } = await db
     .from('Milestone')
     .update(fields)
     .eq('id', id)
+    .select('title, projectId')
+    .single()
   if (error) { console.error('updateMilestone failed:', error); throw error }
+  if (fields.notes !== undefined && fields.mentions && fields.mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'milestone',
+      sourceId: id,
+      projectId: data.projectId,
+      actorId,
+      newMentions: fields.mentions,
+      text: fields.notes ?? '',
+      contextLabel: contextLabel ?? `Milestone · ${data.title}`,
+    })
+  }
 }
 
 export async function addMilestonePerson(milestoneId: string, userId: string): Promise<void> {
@@ -659,10 +711,10 @@ export async function removeMilestonePerson(milestoneId: string, userId: string)
 }
 
 export async function createMilestone(
-  milestone: { projectId: string; title: string; date: string; status?: string; notes?: string; people?: string[] }
+  milestone: { projectId: string; title: string; date: string; status?: string; notes?: string; people?: string[]; actorId: string; mentions?: string[]; contextLabel?: string }
 ) {
   const db = createClient()
-  const { people = [], ...fields } = milestone
+  const { people = [], actorId, mentions, contextLabel, ...fields } = milestone
   const { data, error } = await db
     .from('Milestone')
     .insert({
@@ -672,6 +724,7 @@ export async function createMilestone(
       date: fields.date,
       status: fields.status ?? 'upcoming',
       notes: fields.notes ?? null,
+      mentions: mentions ?? [],
     })
     .select()
     .single()
@@ -681,6 +734,17 @@ export async function createMilestone(
       .from('MilestonePerson')
       .insert(people.map(userId => ({ milestoneId: data.id, userId })))
     if (pErr) { console.error('createMilestone people failed:', pErr); throw pErr }
+  }
+  if (mentions && mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'milestone',
+      sourceId: data.id,
+      projectId: fields.projectId,
+      actorId,
+      newMentions: mentions,
+      text: fields.notes ?? '',
+      contextLabel: contextLabel ?? `Milestone · ${fields.title}`,
+    })
   }
   return { ...data, people }
 }
@@ -952,18 +1016,38 @@ export async function createThread(
   return { ...data, messages: [], unreadCount: 0, unread: false }
 }
 
-export async function postMessage(
-  threadId: string,
-  createdBy: string,
-  content: string,
-) {
+export async function postMessage(input: {
+  threadId: string
+  createdBy: string
+  content: string
+  projectId: string
+  mentions?: string[]
+  contextLabel?: string
+}) {
   const db = createClient()
   const { data, error } = await db
     .from('ThreadMessage')
-    .insert({ id: crypto.randomUUID(), threadId, createdBy, content })
+    .insert({
+      id: crypto.randomUUID(),
+      threadId: input.threadId,
+      createdBy: input.createdBy,
+      content: input.content,
+      mentions: input.mentions ?? [],
+    })
     .select()
     .single()
   if (error) throw error
+  if (input.mentions && input.mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'threadMessage',
+      sourceId: data.id,
+      projectId: input.projectId,
+      actorId: input.createdBy,
+      newMentions: input.mentions,
+      text: input.content,
+      contextLabel: input.contextLabel ?? 'Thread',
+    })
+  }
   return data
 }
 
@@ -1641,6 +1725,9 @@ export async function createShootDay(input: {
   notes?: string | null
   locationId?: string | null
   sortOrder?: number
+  actorId: string
+  mentions?: string[]
+  contextLabel?: string
 }) {
   const db = createClient()
   const { data, error } = await db
@@ -1653,26 +1740,57 @@ export async function createShootDay(input: {
       notes: input.notes ?? null,
       locationId: input.locationId ?? null,
       sortOrder: input.sortOrder ?? 0,
+      mentions: input.mentions ?? [],
     })
     .select()
     .single()
   if (error) { console.error('createShootDay failed:', error); throw error }
+  if (input.mentions && input.mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'shootDay',
+      sourceId: data.id,
+      projectId: input.projectId,
+      actorId: input.actorId,
+      newMentions: input.mentions,
+      text: input.notes ?? '',
+      contextLabel: input.contextLabel ?? `Shoot Day · ${new Date(input.date).toLocaleDateString()}`,
+    })
+  }
   return data
 }
 
-export async function updateShootDay(
-  id: string,
+export async function updateShootDay({
+  id,
+  actorId,
+  fields,
+  contextLabel,
+}: {
+  id: string
+  actorId: string
   fields: {
     date?: string
     type?: 'pre' | 'prod' | 'post'
     notes?: string | null
     locationId?: string | null
     sortOrder?: number
+    mentions?: string[]
   }
-): Promise<void> {
+  contextLabel?: string
+}): Promise<void> {
   const db = createClient()
-  const { error } = await db.from('ShootDay').update(fields).eq('id', id)
+  const { data, error } = await db.from('ShootDay').update(fields).eq('id', id).select('date, projectId').single()
   if (error) { console.error('updateShootDay failed:', error); throw error }
+  if (fields.notes !== undefined && fields.mentions && fields.mentions.length > 0) {
+    await fanoutMentions({
+      sourceType: 'shootDay',
+      sourceId: id,
+      projectId: data.projectId,
+      actorId,
+      newMentions: fields.mentions,
+      text: fields.notes ?? '',
+      contextLabel: contextLabel ?? `Shoot Day · ${new Date(data.date).toLocaleDateString()}`,
+    })
+  }
 }
 
 export async function deleteShootDay(id: string): Promise<void> {
