@@ -17,6 +17,7 @@ import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { getProjectColor, getSceneColor, statusHex, statusLabel } from '@/lib/utils/phase'
 import { aspectRatioToCss } from '@/lib/aspect-ratio'
+import { STORYBOARD_STYLES, DEFAULT_STORYBOARD_STYLE, type StoryboardStyle } from '@/lib/bria/style'
 import { ScriptView, type ScriptViewHandle } from './components/ScriptView'
 import { ShotDetailSheet } from './components/ShotDetailSheet'
 import { EntityDrawer } from './components/EntityDrawer'
@@ -100,6 +101,7 @@ type NewShotSaveData = {
   imageMode: ImageMode
   file: File | null
   prompt: string
+  style: StoryboardStyle
 }
 
 function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
@@ -116,6 +118,7 @@ function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
   const [imageMode, setImageMode] = useState<ImageMode>('none')
   const [file, setFile] = useState<File | null>(null)
   const [prompt, setPrompt] = useState('')
+  const [style, setStyle] = useState<StoryboardStyle>(DEFAULT_STORYBOARD_STYLE)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const canSave = !pending && (
@@ -213,7 +216,7 @@ function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
                 value={prompt}
                 onChange={e => setPrompt(e.target.value)}
                 disabled={pending}
-                placeholder={description.trim() || 'Describe the shot — tone, subject, lighting…'}
+                placeholder="describe your shot"
                 rows={3}
                 style={{
                   width: '100%',
@@ -240,6 +243,36 @@ function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
                   Use shot description ↓
                 </button>
               )}
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span className="font-mono uppercase" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em' }}>Style</span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {STORYBOARD_STYLES.map(({ value: v, label }) => {
+                    const active = style === v
+                    return (
+                      <button
+                        key={v}
+                        type="button"
+                        disabled={pending}
+                        onClick={() => { haptic('light'); setStyle(v) }}
+                        className="font-mono uppercase flex-1"
+                        style={{
+                          background: active ? `${accent}28` : 'rgba(255,255,255,0.03)',
+                          border: `1px solid ${active ? `${accent}66` : 'rgba(255,255,255,0.06)'}`,
+                          borderRadius: 7,
+                          padding: '8px 6px',
+                          color: active ? accent : '#a8a8b8',
+                          fontSize: '0.46rem',
+                          letterSpacing: '0.08em',
+                          cursor: pending ? 'not-allowed' : 'pointer',
+                          opacity: pending ? 0.5 : 1,
+                        }}
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
               <span className="font-mono block" style={{ marginTop: 6, fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em' }}>
                 Image generation takes 30–60 seconds after save.
               </span>
@@ -257,7 +290,7 @@ function NewShotSheet({ autoId, accent, pending, onSave, onClose }: {
             color: canSave ? accent : '#62627a',
             cursor: canSave ? 'pointer' : 'not-allowed',
           }}
-          onClick={() => { haptic('medium'); onSave({ description, size, imageMode, file, prompt: prompt.trim() }) }}>
+          onClick={() => { haptic('medium'); onSave({ description, size, imageMode, file, prompt: prompt.trim(), style }) }}>
           {pending && <Spinner color={accent} />}
           {pending ? (imageMode === 'create' ? 'Generating…' : 'Saving…') : 'Save'}
         </button>
@@ -2150,7 +2183,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
                 const res = await fetch('/api/storyboard/generate', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ projectId, shotId: newShotId, prompt: data.prompt }),
+                  body: JSON.stringify({ projectId, shotId: newShotId, prompt: data.prompt, style: data.style }),
                 })
                 if (!res.ok) {
                   const body = await res.json().catch(() => ({}))
