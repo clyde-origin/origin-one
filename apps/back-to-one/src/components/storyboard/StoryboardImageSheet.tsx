@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { uploadStoryboardImage } from '@/lib/db/queries'
 import { haptic } from '@/lib/utils/haptics'
+import { STORYBOARD_STYLES, DEFAULT_STORYBOARD_STYLE, type StoryboardStyle } from '@/lib/bria/style'
 
 type Mode = 'menu' | 'bria'
 
@@ -38,6 +39,7 @@ export function StoryboardImageSheet({
 }) {
   const [mode, setMode] = useState<Mode>('menu')
   const [prompt, setPrompt] = useState('')
+  const [style, setStyle] = useState<StoryboardStyle>(DEFAULT_STORYBOARD_STYLE)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -47,6 +49,7 @@ export function StoryboardImageSheet({
     if (open) {
       setMode('menu')
       setPrompt(initialPrompt ?? '')
+      setStyle(DEFAULT_STORYBOARD_STYLE)
       setPending(false)
       setError(null)
     }
@@ -78,7 +81,7 @@ export function StoryboardImageSheet({
       const res = await fetch('/api/storyboard/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, shotId, prompt: prompt.trim() }),
+        body: JSON.stringify({ projectId, shotId, prompt: prompt.trim(), style }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -145,7 +148,7 @@ export function StoryboardImageSheet({
                 value={prompt}
                 onChange={e => setPrompt(e.target.value)}
                 disabled={pending}
-                placeholder="Wide medium shot, golden hour, two characters silhouetted against an open field…"
+                placeholder="describe your shot"
                 rows={5}
                 style={{
                   background: 'rgba(255,255,255,0.04)',
@@ -160,6 +163,7 @@ export function StoryboardImageSheet({
                   fontFamily: 'inherit',
                 }}
               />
+              <StylePicker value={style} onChange={setStyle} accentColor={accentColor} disabled={pending} />
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -266,6 +270,48 @@ function ActionRow({
         <span style={{ fontSize: '0.62rem', color: '#62627a', marginTop: 2 }}>{helper}</span>
       </span>
     </button>
+  )
+}
+
+function StylePicker({
+  value, onChange, accentColor, disabled,
+}: {
+  value: StoryboardStyle
+  onChange: (s: StoryboardStyle) => void
+  accentColor: string
+  disabled?: boolean
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="font-mono uppercase" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em' }}>Style</span>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {STORYBOARD_STYLES.map(({ value: v, label }) => {
+          const active = v === value
+          return (
+            <button
+              key={v}
+              type="button"
+              disabled={disabled}
+              onClick={() => { haptic('light'); onChange(v) }}
+              className="font-mono uppercase flex-1"
+              style={{
+                background: active ? `${accentColor}28` : 'rgba(255,255,255,0.03)',
+                border: `1px solid ${active ? `${accentColor}66` : 'rgba(255,255,255,0.06)'}`,
+                borderRadius: 7,
+                padding: '8px 6px',
+                color: active ? accentColor : '#a8a8b8',
+                fontSize: '0.46rem',
+                letterSpacing: '0.08em',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                opacity: disabled ? 0.5 : 1,
+              }}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
