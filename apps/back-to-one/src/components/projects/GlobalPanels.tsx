@@ -13,6 +13,23 @@ import { PanelDetailSheet, type PanelDetail, type CrewDetailRow } from '@/compon
 import { useRootFab } from '@/components/ui/ActionBarRoot'
 import type { ActionItem, Milestone, Project } from '@/types'
 
+// Adds keyboard activation (Enter/Space) to a div-as-button. Used for
+// the mini-calendar nav arrows and day cells where a real <button>
+// would break the grid layout.
+function clickableProps(handler: () => void) {
+  return {
+    role: 'button' as const,
+    tabIndex: 0,
+    onClick: handler,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        handler()
+      }
+    },
+  }
+}
+
 // ── TYPES ────────────────────────────────────────────────────
 
 // Threads moved to its own route (/projects/threads) in PR 2c. The 4th slot
@@ -417,12 +434,14 @@ function SchedulePanel({ milestones, projects, onSelectMilestone }: { milestones
         <div style={{ padding: '12px 0 6px' }}>
           {/* Nav */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px', marginBottom: 10 }}>
-            <div onClick={() => { if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) } else setViewMonth(m => m - 1) }}
+            <div aria-label="Previous month"
+              {...clickableProps(() => { if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) } else setViewMonth(m => m - 1) })}
               style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#62627a', fontSize: 12, cursor: 'pointer' }}>
               ‹
             </div>
             <div style={{ fontWeight: 700, fontSize: 13, color: '#dddde8' }}>{monthLabel}</div>
-            <div onClick={() => { if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) } else setViewMonth(m => m + 1) }}
+            <div aria-label="Next month"
+              {...clickableProps(() => { if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) } else setViewMonth(m => m + 1) })}
               style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#62627a', fontSize: 12, cursor: 'pointer' }}>
               ›
             </div>
@@ -439,7 +458,10 @@ function SchedulePanel({ milestones, projects, onSelectMilestone }: { milestones
               const dayEvents = events.filter(e => e.date === c.dateStr)
               const dotColors = Array.from(new Set(dayEvents.map(e => e.color)))
               return (
-                <div key={i} onClick={() => { setSelectedDate(c.dateStr === selectedDate ? null : c.dateStr); haptic('light') }}
+                <div key={i}
+                  aria-label={`${c.dateStr}${dayEvents.length ? `, ${dayEvents.length} event${dayEvents.length === 1 ? '' : 's'}` : ''}`}
+                  aria-pressed={isSelected}
+                  {...clickableProps(() => { setSelectedDate(c.dateStr === selectedDate ? null : c.dateStr); haptic('light') })}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2px 0 4px',
                     cursor: 'pointer', borderRadius: 8, position: 'relative',
