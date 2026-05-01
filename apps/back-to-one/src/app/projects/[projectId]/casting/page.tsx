@@ -8,6 +8,7 @@ import {
   useCreateCastRole,
   useUpdateCastEntity,
   useUpdateTalent,
+  useUploadTalentImage,
   useAssignTalent,
   useDeleteCastRole,
 } from '@/lib/hooks/useOriginOne'
@@ -282,6 +283,21 @@ function CastDetailSheet({
   const actorNameRef = useRef<HTMLInputElement>(null)
   const notesRef = useRef<HTMLTextAreaElement>(null)
   const newActorRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const uploadTalentImage = useUploadTalentImage(projectId)
+  const [imageError, setImageError] = useState<string | null>(null)
+
+  const onPickImage = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !role?.talent) return
+    setImageError(null)
+    haptic('light')
+    uploadTalentImage.mutate(
+      { file, talentId: role.talent.id },
+      { onError: (err: any) => setImageError(err?.message ?? 'Upload failed') },
+    )
+  }, [role?.talent, uploadTalentImage])
 
   const { TriggerIcon, PreviewRow, MessageZone, StartSheetOverlay } = useDetailSheetThreads({
     projectId,
@@ -369,13 +385,22 @@ function CastDetailSheet({
             Actor
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
-            <div style={{
-              width: 52, height: 52, borderRadius: '50%',
-              background: `${accent}20`, border: `1.5px solid ${accent}45`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 16, fontWeight: 700, flexShrink: 0, color: accent,
-              overflow: 'hidden',
-            }}>
+            <button
+              type="button"
+              onClick={() => { if (!uploadTalentImage.isPending) imageInputRef.current?.click() }}
+              aria-label={role.talent.imageUrl ? 'Replace photo' : 'Upload photo'}
+              disabled={uploadTalentImage.isPending}
+              style={{
+                position: 'relative',
+                width: 52, height: 52, borderRadius: '50%',
+                background: `${accent}20`, border: `1.5px solid ${accent}45`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 16, fontWeight: 700, flexShrink: 0, color: accent,
+                overflow: 'hidden', padding: 0,
+                cursor: uploadTalentImage.isPending ? 'wait' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
               {role.talent.imageUrl ? (
                 <StorageImage
                   url={role.talent.imageUrl}
@@ -386,7 +411,30 @@ function CastDetailSheet({
               ) : (
                 role.talent.initials
               )}
-            </div>
+              {uploadTalentImage.isPending && (
+                <span style={{
+                  position: 'absolute', inset: 0, borderRadius: '50%',
+                  background: 'rgba(0,0,0,0.45)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <span style={{
+                    width: 18, height: 18,
+                    border: '2px solid rgba(255,255,255,0.25)',
+                    borderTopColor: 'rgba(255,255,255,0.85)',
+                    borderRadius: '50%',
+                    animation: 'cast-avatar-spin 0.9s linear infinite',
+                  }} />
+                  <style>{`@keyframes cast-avatar-spin { to { transform: rotate(360deg); } }`}</style>
+                </span>
+              )}
+            </button>
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={onPickImage}
+              style={{ display: 'none' }}
+            />
             <input
               ref={actorNameRef}
               defaultValue={role.talent.name}
@@ -399,6 +447,21 @@ function CastDetailSheet({
               }}
             />
           </div>
+          {imageError && (
+            <div style={{
+              marginBottom: 10, padding: '7px 10px', borderRadius: 8,
+              background: 'rgba(232,72,72,0.06)', border: '0.5px solid rgba(232,72,72,0.25)',
+              color: 'rgba(232,72,72,0.9)', fontFamily: "'Geist Mono', monospace",
+              fontSize: 11, letterSpacing: '0.04em',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+            }}>
+              <span style={{ flex: 1 }}>{imageError}</span>
+              <button type="button" onClick={() => setImageError(null)} style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'rgba(232,72,72,0.7)', fontSize: 12,
+              }}>✕</button>
+            </div>
+          )}
 
           {/* Agency row */}
           <InfoRow

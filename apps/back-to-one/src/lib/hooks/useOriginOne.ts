@@ -1240,6 +1240,15 @@ export function useUpdateTalent(projectId: string) {
   })
 }
 
+export function useUploadTalentImage(projectId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ file, talentId }: { file: File; talentId: string }) =>
+      db.uploadTalentImage(file, talentId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.castRoles(projectId) }),
+  })
+}
+
 export function useAssignTalent(projectId: string) {
   const qc = useQueryClient()
   return useMutation({

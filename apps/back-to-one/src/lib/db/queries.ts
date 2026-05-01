@@ -1463,6 +1463,57 @@ export async function removeAvatar(userId: string): Promise<void> {
   }
 }
 
+// Talent headshot — shares the avatars bucket. Path convention
+// `talent/{talentId}/{rand}.{ext}` keeps user and talent objects from
+// colliding while reusing the same RLS posture and 5MB / png-jpeg-webp cap.
+export async function uploadTalentImage(file: File, talentId: string): Promise<string> {
+  const db = createClient()
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const rand = crypto.randomUUID()
+  const path = `talent/${talentId}/${rand}.${ext}`
+
+  const { data: existing } = await db
+    .from('Talent').select('imageUrl').eq('id', talentId).single()
+  const oldUrl = (existing as any)?.imageUrl as string | null | undefined
+
+  const { error: uploadErr } = await db.storage.from(AVATARS_BUCKET).upload(path, file, {
+    contentType: file.type || `image/${ext}`,
+    upsert: false,
+  })
+  if (uploadErr) {
+    console.error('uploadTalentImage storage failed:', uploadErr)
+    if (uploadErr.message?.includes('Bucket not found')) {
+      throw new Error('Avatars bucket not configured. Run `pnpm --filter @origin-one/db exec prisma migrate deploy`.')
+    }
+    if (uploadErr.message?.includes('mime type')) {
+      throw new Error('File type not supported. Use PNG, JPEG, or WebP.')
+    }
+    if (uploadErr.message?.includes('size')) {
+      throw new Error('File too large. Maximum 5 MB.')
+    }
+    throw new Error(uploadErr.message || 'Upload failed. Please try again.')
+  }
+
+  const { data: { publicUrl } } = db.storage.from(AVATARS_BUCKET).getPublicUrl(path)
+
+  const { error: updateErr } = await db
+    .from('Talent').update({ imageUrl: publicUrl, updatedAt: new Date().toISOString() }).eq('id', talentId)
+  if (updateErr) {
+    await db.storage.from(AVATARS_BUCKET).remove([path]).catch(() => {})
+    console.error('uploadTalentImage Talent.imageUrl update failed:', updateErr)
+    throw new Error(updateErr.message || 'Failed to record image.')
+  }
+
+  if (oldUrl) {
+    const match = oldUrl.match(/\/avatars\/(.+)$/)
+    if (match) {
+      await db.storage.from(AVATARS_BUCKET).remove([match[1]]).catch(() => {})
+    }
+  }
+
+  return publicUrl
+}
+
 // Crew Profile v2 (#22) — split mutations because phone is User-global and
 // notes/skills are ProjectMember-scoped. Each lands on the right table per
 // the DECISIONS "Crew profile fields — global vs project-scoped split" entry.
