@@ -1233,6 +1233,7 @@ export default function ProjectsPage() {
       <button
         onClick={() => { haptic('light'); setShowSettings(true) }}
         aria-label="Settings"
+        className="active:opacity-60 transition-opacity"
         style={{
           position: 'fixed', left: 18, bottom: 'calc(18px + env(safe-area-inset-bottom, 0px))',
           zIndex: 7, width: 32, height: 32, borderRadius: '50%',
