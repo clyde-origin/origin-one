@@ -63,7 +63,6 @@ export default function NewProjectPage() {
 
   const handleCreate = async () => {
     if (!name.trim()) return
-    console.log('[handleCreate] starting...', { name: name.trim(), type, client: client.trim(), status })
     try {
       const result = await create.mutateAsync({
         name: name.trim(),
@@ -71,7 +70,6 @@ export default function NewProjectPage() {
         client: client.trim(),
         status,
       } as any)
-      console.log('[handleCreate] project created:', result)
       const projectId = result?.id
       if (!projectId) {
         console.error('[handleCreate] No project ID returned from create')
@@ -86,7 +84,6 @@ export default function NewProjectPage() {
           createdAt: new Date().toISOString(),
         } as any)
       }
-      console.log('[handleCreate] navigating to /projects/' + projectId)
       router.push(`/projects/${projectId}`)
     } catch (e) {
       console.error('[handleCreate] FAILED:', e)
