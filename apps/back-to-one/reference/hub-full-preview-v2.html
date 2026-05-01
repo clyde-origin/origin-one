@@ -4,23 +4,39 @@
   ============================================================================
 
   This file is the canonical visual reference for Back to One's design
-  language ("Cinema Glass" — Variant E, promoted from the explorations round).
-  When porting to React components in apps/back-to-one/src/, the rule is:
+  language ("Cinema Glass" — Variant E, the convergence winner from the
+  exploration round, expanded to cover every shipped surface in the app).
+
+  Scope of this file:
+    - Hub + every project surface (Timeline, Budget, Action Items, Threads,
+      Chat, Script/Shotlist/Storyboard, Tone, Locations, Casting, Crew,
+      Timecards, Art/Wardrobe/HMU, Inventory, Workflow, Resources)
+    - Pre-project surfaces (Login, Project Selection, Folder Open, Archive)
+    - Detail / overlay sheets for each
+    - Dark and Light themes (toggle pill at top of the gallery)
+    - BRAND LANGUAGE KEY panel (typography, treatments, statuses, accents,
+      departments, 18-color project palette stress test)
+
+  When porting any surface to React in apps/back-to-one/src/, the rule is:
 
     RE-SKIN ONLY. The new design leads the LOOK — scale, type, color,
     spacing, placement, surface treatments. It does NOT change the live
-    app's content or behavior.
+    app's content or behavior. The mockups have been deliberately aligned
+    to the shipped app's copy and controls; if a string or button shown
+    here is missing from the live app, leave it out of the port — do not
+    add it.
 
   DO change in React components:
     - Tailwind classes / inline styles (typography, color, spacing, radius)
     - Token usage (phase, accent, surface, fg/bg)
     - Visual placement of existing controls within an existing container
     - Motion / easing / hover and active states
+    - Theme support — wire up dark + light token pairs
 
   DO NOT change in React components:
-    - Text copy of any kind (labels, headings, button text, empty states,
-      tooltips). If this file shows a string the live app doesn't have,
-      that string is forward-looking — leave it out of the port.
+    - Text copy (labels, headings, button text, empty states, tooltips).
+      The mockup is content-accurate to the live app; treat it as a
+      visual spec, not a content spec.
     - The set of buttons, controls, or affordances rendered. No additions,
       removals, or renames.
     - Component shapes that the codebase treats as load-bearing — most
@@ -30,11 +46,13 @@
     - Functionality, data shape, query patterns, or state machines.
 
   Acceptance check for any re-skin PR derived from this file:
-    git diff --stat should be dominated by className/style edits.
+    git diff --stat should be dominated by className/style/token edits.
     Large net additions or new JSX subtrees signal scope drift.
 
   Spec of record: docs/superpowers/specs/2026-04-25-back-to-one-design-language-design.md
   Distilled language: docs/DESIGN_LANGUAGE.md
+  Token reference:    BRAND_TOKENS.md
+  Snapshot tag:       design-locked-2026-05-01 (this commit, this file's blob)
   Archived predecessor: apps/back-to-one/reference/archive/hub-full-preview.html
   ============================================================================
 -->
@@ -43,7 +61,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Hub — Cinema Glass (canonical v2)</title>
+<title>Back to One — Cinema Glass (canonical v2)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&family=Cormorant+Garamond:wght@400;500&display=swap" rel="stylesheet">
@@ -65,6 +83,63 @@
   --radius-card: 12px;       /* softer — from C */
   --ease:        cubic-bezier(0.16, 1, 0.3, 1);  /* expo out — filmic — from C */
   --dur:         320ms;
+}
+
+/* =====================
+   Light-mode token overrides — opt-in via body.light-mode.
+   Flips background/text/border tokens; surface-level overrides
+   for hardcoded rgba live further down with the originating rules.
+   ===================== */
+body.light-mode {
+  /* Warm cinema-paper beige — like aged script stock or a darkroom tray.
+     Accent tokens are NOT overridden — every project's accent stays as
+     vivid as it is in dark mode, just rendered against beige instead of black. */
+  --bg:          #ebe2cd;        /* page bg — warm cream */
+  --surface:     rgba(248, 240, 220, 0.85);  /* card surface — lighter cream */
+  --border:      rgba(60, 38, 14, 0.14);     /* warm tannin */
+  --fg:          #1f160a;        /* deep sepia */
+  --fg-mono:     #6a5840;        /* warm gray-brown */
+}
+
+/* =====================
+   Theme toggle — pill at the very top of the gallery.
+   Positioned sticky so it stays accessible while scrolling 63 phones.
+   ===================== */
+.theme-toggle {
+  position: sticky;
+  top: 16px;
+  z-index: 100;
+  display: inline-flex;
+  align-self: center;
+  margin: 0 auto 8px;
+  padding: 4px;
+  border-radius: 100px;
+  background: rgba(20, 20, 28, 0.65);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  border: 1px solid var(--border);
+}
+body.light-mode .theme-toggle {
+  background: rgba(255, 255, 255, 0.85);
+}
+body.solo .theme-toggle { display: none; }
+.theme-toggle-btn {
+  padding: 6px 14px;
+  border-radius: 100px;
+  border: none;
+  background: transparent;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.theme-toggle-btn.active {
+  background: rgba(var(--accent-rgb), 0.18);
+  color: var(--accent);
 }
 
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -152,21 +227,22 @@ body {
    pattern as the accent section headers, just toned to --fg cream
    so it remains distinct from the modules below. */
 .proj-name {
-  font-weight: 300;
-  font-size: 1.55rem;
-  letter-spacing: 0.02em;
-  line-height: 1.05;
+  font-weight: 600;
+  font-size: 1.85rem;
+  letter-spacing: -0.01em;
+  line-height: 1.0;
   background: linear-gradient(180deg,
-    rgba(255,255,255,1) 0%,
-    var(--fg) 55%,
-    rgba(235,235,239,0.82) 100%);
+    rgba(255, 255, 255, 1) 0%,
+    rgba(var(--accent-glow-rgb), 0.95) 38%,
+    var(--accent) 65%,
+    rgba(var(--accent-rgb), 0.78) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
   filter:
-    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
-    drop-shadow(0 0 8px rgba(255, 255, 255, 0.08));
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 14px rgba(var(--accent-rgb), 0.32));
 }
 .proj-sub {
   display: flex; align-items: center; justify-content: center;
@@ -1117,8 +1193,11 @@ body {
   display: flex;
   flex-direction: column;
   background:
-    /* Soft single radial — gentle key-light from the top */
-    radial-gradient(ellipse 100% 70% at 50% -10%, rgba(var(--proj-rgb), 0.20) 0%, transparent 65%),
+    /* Soft key-light at top — brightest spot of accent color */
+    radial-gradient(ellipse 100% 70% at 50% -10%, rgba(var(--proj-rgb), 0.24) 0%, transparent 65%),
+    /* Full-tile gentle accent wash — every project tile gets a soft
+       all-over tint of its own color, not just at the top */
+    linear-gradient(180deg, rgba(var(--proj-rgb), 0.10) 0%, rgba(var(--proj-rgb), 0.06) 50%, rgba(var(--proj-rgb), 0.04) 100%),
     rgba(14,14,20,0.70);
   backdrop-filter: blur(18px) saturate(135%);
   -webkit-backdrop-filter: blur(18px) saturate(135%);
@@ -1947,6 +2026,12 @@ body {
 .loc-status-pill.scouting,
 .loc-approval.option   { background: rgba(232,160,32,0.12); color: var(--phase-pre);  border: 1px solid rgba(232,160,32,0.32); }
 .loc-status-pill.pending { background: rgba(255,255,255,0.04); color: var(--fg-mono); border: 1px solid var(--border); }
+/* Live status enum (locations/page.tsx STATUSES): unscouted / scouting /
+   in_talks / confirmed / passed. The first three reuse phase-pre/cool tones,
+   passed uses a muted brick. */
+.loc-status-pill.unscouted { background: rgba(98,98,122,0.14); color: #a0a0b0; border: 1px solid rgba(98,98,122,0.32); }
+.loc-status-pill.in_talks  { background: rgba(155,109,224,0.14); color: #b89df0; border: 1px solid rgba(155,109,224,0.34); }
+.loc-status-pill.passed    { background: rgba(138,74,74,0.16); color: #d29090; border: 1px solid rgba(138,74,74,0.36); }
 
 /* Scene-tab strip — same row treatment as dept filters */
 .loc-tabs { padding-bottom: 8px; }
@@ -2902,49 +2987,61 @@ body {
 .oa-fab-side,
 .oa-fab-back,
 .oa-fab-book {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  border: 1px solid rgba(var(--accent-rgb), 0.28);
-  background: rgba(var(--accent-rgb), 0.06);
+  border: 1.5px solid rgba(var(--accent-rgb), 0.50);
+  background:
+    radial-gradient(circle at 50% 30%, rgba(var(--accent-rgb), 0.20) 0%, rgba(var(--accent-rgb), 0.08) 100%);
   backdrop-filter: blur(14px) saturate(130%);
   -webkit-backdrop-filter: blur(14px) saturate(130%);
   box-shadow:
-    0 0 14px rgba(var(--accent-rgb), 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  color: var(--fg-mono);
+    0 0 18px rgba(var(--accent-rgb), 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  color: var(--fg);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   padding: 0;
-  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
 .oa-fab-side:hover,
 .oa-fab-back:hover,
 .oa-fab-book:hover {
   color: var(--fg);
-  border-color: rgba(var(--accent-rgb), 0.50);
+  border-color: rgba(var(--accent-rgb), 0.85);
+  transform: translateY(-1px);
   box-shadow:
-    0 0 22px rgba(var(--accent-rgb), 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+    0 0 30px rgba(var(--accent-rgb), 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.20);
 }
 .oa-fab-main {
-  width: 46px;
-  height: 46px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
-  border: 1.5px solid rgba(var(--accent-rgb), 0.55);
-  background: rgba(var(--accent-rgb), 0.16);
+  border: 2px solid rgba(var(--accent-rgb), 0.80);
+  background:
+    radial-gradient(circle at 50% 30%, rgba(var(--accent-rgb), 0.42) 0%, rgba(var(--accent-rgb), 0.22) 100%);
   backdrop-filter: blur(16px) saturate(135%);
   -webkit-backdrop-filter: blur(16px) saturate(135%);
   box-shadow:
-    0 0 22px rgba(var(--accent-rgb), 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+    0 0 32px rgba(var(--accent-rgb), 0.65),
+    0 0 56px -10px rgba(var(--accent-rgb), 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   padding: 0;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.oa-fab-main:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 40px rgba(var(--accent-rgb), 0.80),
+    0 0 64px -10px rgba(var(--accent-rgb), 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
 }
 
 /* --- Sub-filter pill row (Script: Characters / Locations / Props) --- */
@@ -4205,6 +4302,23 @@ body.solo .gallery-row-label {
   color: rgb(var(--status-rgb));
   background: rgba(var(--status-rgb), 0.12);
   border: 1px solid rgba(var(--status-rgb), 0.32);
+}
+/* Hero pill — orange accent that sits next to the status pill on hero props.
+   Mirrors live art/page.tsx HERO_STYLE (#E07B39). */
+.art-hero-pill {
+  position: absolute;
+  top: 12px;
+  right: 60px;
+  z-index: 4;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.32rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: #E07B39;
+  background: rgba(224, 123, 57, 0.10);
+  border: 1px solid rgba(224, 123, 57, 0.22);
 }
 
 /* === Prop Detail === */
@@ -6968,9 +7082,321 @@ body.gallery .stress-row {
   margin: 18px auto 12px;
   border-radius: 4px;
 }
+
+/* =====================
+   Light-mode surface overrides
+   These flip the high-impact hardcoded rgba surfaces — phone body, frosted
+   cards, glass panels, fab clusters, overlay sheets, brand-key, skeletons.
+   Deep-nested rgba values inside individual modules are intentionally
+   left alone (v1 — visually recognisable light theme, not pixel-perfect).
+   ===================== */
+/* Body: warm darker beige with a deeper-beige column running down the
+   middle for atmospheric depth. Always the same warm tones regardless
+   of project accent — light mode's BG stays consistent so the per-project
+   accent only affects content (cards, text, glow), not the page itself. */
+body.light-mode {
+  background:
+    /* Wide soft tannin column — spreads gently across the page so the
+       deeper beige feels like an even atmospheric wash, not a hot band */
+    radial-gradient(ellipse 75% 130% at 50% 50%,
+      rgba(100, 70, 36, 0.26) 0%,
+      rgba(100, 70, 36, 0.18) 25%,
+      rgba(100, 70, 36, 0.10) 55%,
+      rgba(100, 70, 36, 0.04) 80%,
+      transparent 100%),
+    /* Soft warm halo at the top — ambient room light */
+    radial-gradient(ellipse 100% 50% at 50% 0%, rgba(190, 150, 80, 0.16) 0%, transparent 75%),
+    /* Base warm beige */
+    #c8bb9c;
+  background-attachment: fixed;
+}
+body.light-mode .phone {
+  /* Phone interior — smooth left-center-right warm beige gradient so glass
+     cards filter through real variation. No hard stops, even falloff. */
+  background:
+    linear-gradient(90deg,
+      #f5edd6 0%,
+      #e6dab9 50%,
+      #f5edd6 100%);
+  border-color: rgba(60, 38, 14, 0.18);
+}
+/* Page header — deeper beige slab so the title row feels grounded
+   and distinct from the page surface. No border (was creating a line
+   above the title), just the sepia gradient bg. */
+body.light-mode .ai-header {
+  background:
+    linear-gradient(180deg, rgba(80, 56, 24, 0.10) 0%, rgba(80, 56, 24, 0.04) 100%);
+  border-radius: 14px;
+  padding: 18px 14px 16px;
+  margin-bottom: 4px;
+}
+/* Solid-color header text in light mode — replaces the sheen+extrusion
+   gradient (which fights the beige bg and washes out). Use deep sepia
+   for titles, the project accent for active states. */
+body.light-mode .ai-title,
+body.light-mode .proj-name,
+body.light-mode .mname,
+body.light-mode .section-name,
+body.light-mode .crew-section-header,
+body.light-mode .art-section-header,
+body.light-mode .inv-section-header,
+body.light-mode .res-section-header,
+body.light-mode .tc-section-header,
+body.light-mode .chat-section-header,
+body.light-mode .budget-section-header,
+body.light-mode .month-header,
+body.light-mode .detail-name,
+body.light-mode .slate-name,
+body.light-mode .brand-key-treatment-title,
+body.light-mode .thread-item-title {
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+  -webkit-text-fill-color: var(--fg) !important;
+  color: var(--fg) !important;
+  filter: none !important;
+}
+/* Active tab text in light mode — accent color, no gradient */
+body.light-mode .oa-tab.active,
+body.light-mode .tl-mode-btn.active {
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+  -webkit-text-fill-color: var(--accent) !important;
+  color: var(--accent) !important;
+  filter: none !important;
+}
+
+/* Topbar — warm cream gradient with subtle accent wash */
+body.light-mode .topbar {
+  background:
+    linear-gradient(180deg, rgba(var(--accent-rgb), 0.10) 0%, rgba(var(--accent-glow-rgb), 0.05) 50%, var(--bg) 100%);
+  border-bottom-color: rgba(60, 38, 14, 0.14);
+}
+
+/* Frosted glass cards — warm parchment instead of cold white */
+body.light-mode .card,
+body.light-mode .sm-card,
+body.light-mode .tone-card,
+body.light-mode .sp-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 248, 228, 0.85) 0%, rgba(245, 235, 212, 0.78) 100%);
+  border-color: rgba(60, 38, 14, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 250, 232, 0.72),
+    0 4px 16px -8px rgba(60, 38, 14, 0.20);
+}
+
+/* Edge-glow + film grain pseudo-elements get softened on light cards */
+body.light-mode .card::before,
+body.light-mode .sm-card::before,
+body.light-mode .tone-card::before,
+body.light-mode .sp-panel::before,
+body.light-mode .inv-chip::before,
+body.light-mode .wf-node::before {
+  opacity: 0.40;
+}
+
+/* Brand-key panel — warm beige slab with sepia border */
+body.light-mode .brand-key {
+  background:
+    linear-gradient(180deg, rgba(255, 248, 228, 0.92) 0%, rgba(240, 228, 200, 0.85) 100%);
+  border-color: rgba(60, 38, 14, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 250, 232, 0.65),
+    0 6px 22px -10px rgba(60, 38, 14, 0.20);
+}
+body.light-mode .brand-key-section {
+  background: rgba(60, 38, 14, 0.04);
+  border-color: rgba(60, 38, 14, 0.12);
+}
+body.light-mode .brand-key-sample {
+  background: rgba(60, 38, 14, 0.05);
+  border-color: rgba(60, 38, 14, 0.10);
+}
+
+/* List + grid surfaces inside pages — warm cream */
+body.light-mode .ai-list,
+body.light-mode .cal-card,
+body.light-mode .crew-card {
+  background:
+    linear-gradient(180deg, rgba(60, 38, 14, 0.03) 0%, rgba(60, 38, 14, 0.01) 50%, transparent 100%),
+    rgba(255, 248, 228, 0.86);
+  border-color: rgba(60, 38, 14, 0.12);
+}
+/* Slate cards get a project-color tint over the cream base in light mode too,
+   so each tile carries its accent identity gently across the whole card */
+body.light-mode .slate-card {
+  background:
+    radial-gradient(ellipse 100% 70% at 50% -10%, rgba(var(--proj-rgb), 0.22) 0%, transparent 65%),
+    linear-gradient(180deg, rgba(var(--proj-rgb), 0.14) 0%, rgba(var(--proj-rgb), 0.08) 50%, rgba(var(--proj-rgb), 0.05) 100%),
+    rgba(255, 248, 228, 0.92);
+  border-color: rgba(var(--proj-rgb), 0.40);
+}
+
+/* Detail-sheet meta cards + ALL dark-slab content containers — flip
+   from dark slab to cream slab with sepia row dividers so list contents
+   pop properly against the warm bg. Catches every "rgba(20,20,28,X)"
+   panel used across detail sheets, budgets, timecards, screenplay,
+   activity logs, preview/description cards. */
+body.light-mode .oa-meta-card,
+body.light-mode .budget-line-list,
+body.light-mode .budget-summary,
+body.light-mode .oa-screenplay,
+body.light-mode .tc-detail-day-list,
+body.light-mode .tc-detail-totals,
+body.light-mode .detail-activity-card,
+body.light-mode .res-preview-card,
+body.light-mode .res-description-card,
+body.light-mode .path-description-card,
+body.light-mode .oa-detail-slug,
+body.light-mode .thread-msg-list,
+body.light-mode .thread-composer {
+  background:
+    linear-gradient(180deg, rgba(255, 250, 232, 0.92) 0%, rgba(245, 235, 212, 0.85) 100%);
+  border-color: rgba(60, 38, 14, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 250, 232, 0.45);
+}
+/* List-row dividers — flip from translucent white (invisible on cream)
+   to subtle sepia tannin */
+body.light-mode .oa-meta-row,
+body.light-mode .budget-line-row,
+body.light-mode .detail-activity-row,
+body.light-mode .tc-detail-day {
+  border-bottom-color: rgba(60, 38, 14, 0.10);
+}
+/* List-row labels in light mode — slightly more contrast */
+body.light-mode .oa-meta-label {
+  color: rgba(60, 38, 14, 0.65);
+}
+
+/* Workflow node circles in light mode — flip from dark slab to bright
+   cream base so per-node tag color glows clearly against the beige page */
+body.light-mode .wf-node {
+  background:
+    radial-gradient(circle at 50% 35%, rgba(var(--tag-rgb), 0.40) 0%, rgba(var(--tag-rgb), 0.18) 55%, rgba(var(--tag-rgb), 0.10) 100%),
+    rgba(255, 250, 232, 0.95);
+  border-color: rgba(var(--tag-rgb), 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 0 28px -6px rgba(var(--tag-rgb), 0.45),
+    0 4px 14px -8px rgba(60, 38, 14, 0.18);
+}
+body.light-mode .wf-node:hover {
+  border-color: rgba(var(--tag-rgb), 0.80);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 0 36px -4px rgba(var(--tag-rgb), 0.62),
+    0 6px 18px -8px rgba(60, 38, 14, 0.22);
+}
+/* Connector pills + diagonal lines stay accent-colored on cream */
+body.light-mode .wf-connector-pill {
+  background:
+    linear-gradient(180deg, rgba(255, 250, 232, 0.85) 0%, rgba(245, 235, 212, 0.78) 100%);
+  border-color: rgba(var(--accent-rgb), 0.45);
+  color: var(--accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    0 0 14px -6px rgba(var(--accent-rgb), 0.32);
+}
+/* Deliverable rows nested under Final Delivery — cream base */
+body.light-mode .wf-deliverable,
+body.light-mode .wf-node-deliverable-row {
+  background:
+    linear-gradient(180deg, rgba(255, 250, 232, 0.88) 0%, rgba(245, 235, 212, 0.78) 100%);
+  border-color: rgba(60, 38, 14, 0.14);
+}
+/* Add-node placeholder — cream dashed circle */
+body.light-mode .wf-add-circle {
+  background: rgba(255, 250, 232, 0.65);
+  border-color: rgba(60, 38, 14, 0.30);
+}
+
+/* Crew avatar rings — soft sepia */
+body.light-mode .av {
+  background: rgba(60, 38, 14, 0.06);
+  border-color: rgba(60, 38, 14, 0.12);
+}
+
+/* Floating action buttons — warm cream pills with sepia border */
+body.light-mode .oa-fab-side,
+body.light-mode .oa-fab-back,
+body.light-mode .oa-fab-book {
+  background: rgba(255, 248, 228, 0.86);
+  border-color: rgba(var(--accent-rgb), 0.32);
+  box-shadow:
+    0 0 14px rgba(var(--accent-rgb), 0.18),
+    inset 0 1px 0 rgba(255, 250, 232, 0.7);
+}
+
+/* Sheets — overlay sheets become warm parchment */
+body.light-mode .overlay-sheet,
+body.light-mode .archive-sheet {
+  background: rgba(252, 244, 220, 0.96);
+  border-top-color: rgba(var(--accent-rgb), 0.22);
+  box-shadow:
+    0 -8px 30px -6px rgba(60, 38, 14, 0.22),
+    0 -1px 0 0 rgba(var(--accent-glow-rgb), 0.20) inset;
+}
+body.light-mode .overlay-sheet-handle {
+  background: rgba(60, 38, 14, 0.26);
+}
+
+/* Cal-nav + small inset bubbles — sepia tint */
+body.light-mode .cal-nav {
+  background: rgba(60, 38, 14, 0.05);
+  border-color: rgba(60, 38, 14, 0.12);
+}
+body.light-mode .cal-nav:hover {
+  background: rgba(60, 38, 14, 0.09);
+}
+
+/* Skeleton shimmer — warm beige version of the loader */
+body.light-mode .sk {
+  background: linear-gradient(
+    90deg,
+    rgba(60, 38, 14, 0.05) 0%,
+    rgba(60, 38, 14, 0.05) 32%,
+    rgba(60, 38, 14, 0.13) 50%,
+    rgba(60, 38, 14, 0.05) 68%,
+    rgba(60, 38, 14, 0.05) 100%);
+  background-size: 200% 100%;
+  background-position: 100% 0;
+}
+body.light-mode .sk-row {
+  border-bottom-color: rgba(60, 38, 14, 0.08);
+}
+
+/* (Light-mode header text overrides moved earlier into the .ai-header
+   block — solid sepia / accent color, no gradient.) */
+
+/* Stripes + accent dividers — keep the project tints visible on cream.
+   The slate-card top stripe and similar accent bars need slightly more
+   alpha to stay vivid against the warm bg. */
+body.light-mode .slate-card::before {
+  background: linear-gradient(90deg, transparent 0%, rgba(var(--proj-rgb), 0.85) 50%, transparent 100%);
+}
+body.light-mode .slate-card::after {
+  display: none;       /* film grain unreadable on cream — kill it */
+}
+
+/* Theme-toggle pill — warm cream variant */
+body.light-mode .theme-toggle {
+  background: rgba(255, 248, 228, 0.92);
+  border-color: rgba(60, 38, 14, 0.18);
+  box-shadow: 0 4px 14px -8px rgba(60, 38, 14, 0.30);
+}
 </style>
 </head>
 <body class="gallery">
+
+  <!-- ======================================
+       THEME TOGGLE — flips the whole gallery between Dark and Light.
+       ====================================== -->
+  <div class="theme-toggle" role="group" aria-label="Theme toggle">
+    <button class="theme-toggle-btn active" data-theme="dark" type="button">Dark</button>
+    <button class="theme-toggle-btn" data-theme="light" type="button">Light</button>
+  </div>
 
   <!-- ======================================
        BRAND LANGUAGE KEY — design system reference. Typography samples,
@@ -7168,7 +7594,7 @@ body.gallery .stress-row {
           <div class="login-form-label">Sign in as</div>
           <div class="login-role-row">
             <button class="login-role-btn active" data-role="producer">Producer</button>
-            <button class="login-role-btn" data-role="crew">Crew<span class="login-role-btn-soon">Soon</span></button>
+            <button class="login-role-btn" data-role="crew">Crew</button>
             <button class="login-role-btn" data-role="partner">Partner<span class="login-role-btn-soon">Soon</span></button>
           </div>
         </div>
@@ -7758,7 +8184,6 @@ body.gallery .stress-row {
 
       <!-- Topbar — heavier blur (z:3), feels in-front -->
       <div class="topbar">
-        <div class="date-stamp">Apr 26</div>
         <div class="proj-name">The Weave</div>
         <div class="proj-sub">
           <span class="proj-type">Narrative Short</span>
@@ -8176,7 +8601,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Timeline</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -8409,7 +8833,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Timeline</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">All Projects</span>
@@ -8705,7 +9128,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Timeline</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -8877,7 +9299,6 @@ body.gallery .stress-row {
       </div>
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Timeline</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -9069,7 +9490,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Budget</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -9233,7 +9653,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Budget</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -9474,7 +9893,6 @@ body.gallery .stress-row {
     <div class="ai-inner">
       <!-- Header: date stamp · title · project-name + status pill -->
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Action Items</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -9482,11 +9900,15 @@ body.gallery .stress-row {
         </div>
       </div>
 
-      <!-- Tabs (Upcoming dropped — Me carries the time-buckets) -->
+      <!-- Tabs — Me / Upcoming / Dept (matches live action-items/page.tsx Tab type) -->
       <div class="ai-tabs">
         <button class="ai-tab active">
           <span class="ai-tab-label">Me</span>
           <span class="ai-tab-count">7</span>
+        </button>
+        <button class="ai-tab">
+          <span class="ai-tab-label">Upcoming</span>
+          <span class="ai-tab-count">8</span>
         </button>
         <button class="ai-tab">
           <span class="ai-tab-label">Dept</span>
@@ -9611,7 +10033,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Action Items</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -9619,11 +10040,15 @@ body.gallery .stress-row {
         </div>
       </div>
 
-      <!-- Tabs — Dept active (Upcoming dropped per design note above) -->
+      <!-- Tabs — Me / Upcoming / Dept; Dept active -->
       <div class="ai-tabs">
         <button class="ai-tab">
           <span class="ai-tab-label">Me</span>
           <span class="ai-tab-count">7</span>
+        </button>
+        <button class="ai-tab">
+          <span class="ai-tab-label">Upcoming</span>
+          <span class="ai-tab-count">8</span>
         </button>
         <button class="ai-tab active">
           <span class="ai-tab-label">Dept</span>
@@ -9631,11 +10056,17 @@ body.gallery .stress-row {
         </button>
       </div>
 
-      <!-- Dept filter pills — symbol stacked above label, count inline -->
+      <!-- Dept filter pills — symbol stacked above label, count inline.
+           Order matches live action-items DEPT_OPTIONS:
+           Direction / Production / Camera / Sound / Art / Wardrobe / HMU / Post / Other -->
       <div class="ai-dept-filters">
         <div class="dept-pill">
-          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2" fill="currentColor"/><circle cx="18" cy="6" r="2" fill="currentColor"/><circle cx="6" cy="18" r="2" fill="currentColor"/><circle cx="18" cy="18" r="2" fill="currentColor"/></svg>
-          <span class="dept-line"><span>All</span><span class="dept-count">23</span></span>
+          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v12H4z"/><path d="M4 10h4M16 10h4M4 14h4M16 14h4"/></svg>
+          <span class="dept-line"><span>Direction</span><span class="dept-count">3</span></span>
+        </div>
+        <div class="dept-pill">
+          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l1 4H8z"/><rect x="6" y="7" width="12" height="13" rx="2"/><path d="M10 12h4M10 16h4"/></svg>
+          <span class="dept-line"><span>Production</span><span class="dept-count">6</span></span>
         </div>
         <div class="dept-pill">
           <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h3l1.5-2h5L16 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.2"/></svg>
@@ -9658,12 +10089,12 @@ body.gallery .stress-row {
           <span class="dept-line"><span>HMU</span><span class="dept-count">3</span></span>
         </div>
         <div class="dept-pill">
-          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-2 8 9-12h-7l2-8z"/></svg>
-          <span class="dept-line"><span>G&amp;E</span><span class="dept-count">2</span></span>
+          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>
+          <span class="dept-line"><span>Post</span><span class="dept-count">2</span></span>
         </div>
         <div class="dept-pill">
-          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-7 7-12a7 7 0 1 0-14 0c0 5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>
-          <span class="dept-line"><span>Locations</span><span class="dept-count">4</span></span>
+          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18" cy="12" r="1.6" fill="currentColor"/></svg>
+          <span class="dept-line"><span>Other</span><span class="dept-count">1</span></span>
         </div>
       </div>
 
@@ -9758,7 +10189,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Action Items</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -9770,6 +10200,10 @@ body.gallery .stress-row {
           <button class="ai-tab active">
             <span class="ai-tab-label">Me</span>
             <span class="ai-tab-count">7</span>
+          </button>
+          <button class="ai-tab">
+            <span class="ai-tab-label">Upcoming</span>
+            <span class="ai-tab-count">8</span>
           </button>
           <button class="ai-tab">
             <span class="ai-tab-label">Dept</span>
@@ -9964,7 +10398,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Threads</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -9972,28 +10405,16 @@ body.gallery .stress-row {
         </div>
       </div>
 
-      <!-- Tabs: Inbox / All / Resolved -->
-      <div class="ai-tabs">
-        <button class="ai-tab active">
-          <span class="ai-tab-label">Inbox</span>
-          <span class="ai-tab-count">6</span>
-        </button>
-        <button class="ai-tab">
-          <span class="ai-tab-label">All</span>
-          <span class="ai-tab-count">23</span>
-        </button>
-        <button class="ai-tab">
-          <span class="ai-tab-label">Resolved</span>
-          <span class="ai-tab-count">12</span>
-        </button>
-      </div>
+      <!-- Live Threads has NO tab nav — Unread / Recent / Resolved render as
+           section headers with rule-lines either side (see live threads/page.tsx
+           SectionLabel calls at lines 514, 528, 542). -->
 
       <!-- Thread list with bucketed sections -->
       <div class="thread-list">
 
         <div class="ai-bucket today">
           <span class="bucket-rule"></span>
-          <span class="bucket-label">Unread · 3</span>
+          <span class="bucket-label">Unread (3)</span>
           <span class="bucket-rule"></span>
         </div>
 
@@ -10067,7 +10488,7 @@ body.gallery .stress-row {
 
         <div class="ai-bucket">
           <span class="bucket-rule"></span>
-          <span class="bucket-label">Recent · 3</span>
+          <span class="bucket-label">Recent (12)</span>
           <span class="bucket-rule"></span>
         </div>
 
@@ -10112,6 +10533,12 @@ body.gallery .stress-row {
           <div class="thread-meta">
             <span class="thread-time">2d</span>
           </div>
+        </div>
+
+        <div class="ai-bucket">
+          <span class="bucket-rule"></span>
+          <span class="bucket-label">Resolved (4)</span>
+          <span class="bucket-rule"></span>
         </div>
 
         <div class="thread-card resolved">
@@ -10176,7 +10603,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Threads</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -10184,25 +10610,12 @@ body.gallery .stress-row {
           </div>
         </div>
 
-        <div class="ai-tabs">
-          <button class="ai-tab active">
-            <span class="ai-tab-label">Inbox</span>
-            <span class="ai-tab-count">6</span>
-          </button>
-          <button class="ai-tab">
-            <span class="ai-tab-label">All</span>
-            <span class="ai-tab-count">23</span>
-          </button>
-          <button class="ai-tab">
-            <span class="ai-tab-label">Resolved</span>
-            <span class="ai-tab-count">12</span>
-          </button>
-        </div>
+        <!-- Live Threads has NO tab nav — sections only. -->
 
         <div class="thread-list">
           <div class="ai-bucket today">
             <span class="bucket-rule"></span>
-            <span class="bucket-label">Unread · 3</span>
+            <span class="bucket-label">Unread (3)</span>
             <span class="bucket-rule"></span>
           </div>
 
@@ -10523,7 +10936,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Chat</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -10638,7 +11050,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Chat</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -10755,7 +11166,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Chat</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -10997,7 +11407,6 @@ body.gallery .stress-row {
 
     <div class="oa-page">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Script</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -11144,7 +11553,6 @@ body.gallery .stress-row {
 
     <div class="oa-page">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Shotlist</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -11289,7 +11697,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="oa-page" style="padding-bottom: 0;">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Shotlist</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -11460,7 +11867,6 @@ body.gallery .stress-row {
 
     <div class="oa-page">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Storyboard</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -11690,7 +12096,6 @@ body.gallery .stress-row {
 
     <div class="oa-page">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Tone</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -11698,6 +12103,11 @@ body.gallery .stress-row {
         </div>
       </div>
 
+      <!-- DESIGN-EXTENSION NOTE: live moodboard tabs are user-created and
+           dynamic (rename/delete inline via useMoodboardTabs). Engineer
+           should wire these as dynamic tabs against the moodboard tab API
+           rather than treating them as fixed labels. Visual treatment can
+           remain — only the data binding changes. -->
       <div class="oa-tone-tabs">
         <button class="oa-tone-tab active">All</button>
         <button class="oa-tone-tab">Color Story</button>
@@ -11769,7 +12179,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Tone</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -11960,7 +12369,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Locations</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -11968,14 +12376,10 @@ body.gallery .stress-row {
         </div>
       </div>
 
-      <!-- Scene-tab filter pills (same .dept-pill treatment, "Act 2" active) -->
-      <div class="ai-dept-filters loc-tabs">
-        <div class="dept-pill"><span>All</span><span class="dept-count">9</span></div>
-        <div class="dept-pill"><span>Act 1</span><span class="dept-count">3</span></div>
-        <div class="dept-pill active"><span>Act 2</span><span class="dept-count">4</span></div>
-        <div class="dept-pill"><span>Act 3</span><span class="dept-count">2</span></div>
-        <div class="dept-pill" style="border-style: dashed; opacity: 0.7;"><span>+ Scene</span></div>
-      </div>
+      <!-- Live Locations has no Act/Scene filter row — it's a flat
+           grid keyed by status. Status enum (LocationStatus):
+           unscouted / scouting / in_talks / confirmed / passed.
+           Separate `approved` boolean renders as a small teal badge. -->
 
       <!-- Location card grid (2 per row, vertical cards) -->
       <div class="loc-grid">
@@ -11990,6 +12394,7 @@ body.gallery .stress-row {
             <span class="loc-address">Devil's Slide · Pacifica</span>
             <div class="loc-dates-row">
               <span class="loc-dates">Apr 17 – 18</span>
+              <span class="loc-approval approved">Approved</span>
               <span class="loc-status-pill confirmed">Confirmed</span>
             </div>
           </div>
@@ -12035,7 +12440,7 @@ body.gallery .stress-row {
             <span class="loc-address">Treasure Island · Soundstage</span>
             <div class="loc-dates-row">
               <span class="loc-dates">Apr 24 – 25</span>
-              <span class="loc-status-pill confirmed">Confirmed</span>
+              <span class="loc-status-pill in_talks">In Talks</span>
             </div>
           </div>
         </div>
@@ -12080,7 +12485,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Locations</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -12088,12 +12492,7 @@ body.gallery .stress-row {
           </div>
         </div>
 
-        <div class="ai-dept-filters loc-tabs">
-          <div class="dept-pill"><span>All</span><span class="dept-count">9</span></div>
-          <div class="dept-pill"><span>Act 1</span><span class="dept-count">3</span></div>
-          <div class="dept-pill active"><span>Act 2</span><span class="dept-count">4</span></div>
-          <div class="dept-pill"><span>Act 3</span><span class="dept-count">2</span></div>
-        </div>
+        <!-- Live Locations has no Act/Scene filter row. -->
 
         <div class="loc-grid">
           <div class="loc-card">
@@ -12106,6 +12505,7 @@ body.gallery .stress-row {
               <span class="loc-address">Devil's Slide · Pacifica</span>
               <div class="loc-dates-row">
                 <span class="loc-dates">Apr 17 – 18</span>
+                <span class="loc-approval approved">Approved</span>
                 <span class="loc-status-pill confirmed">Confirmed</span>
               </div>
             </div>
@@ -12265,7 +12665,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Casting</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -12424,7 +12823,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Casting</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -12615,7 +13013,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Crew</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -12623,44 +13020,16 @@ body.gallery .stress-row {
         </div>
       </div>
 
-      <!-- Department tabs (sort by dept now) — icons stacked above labels -->
-      <div class="ai-dept-filters">
-        <div class="dept-pill active">
-          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2" fill="currentColor"/><circle cx="18" cy="6" r="2" fill="currentColor"/><circle cx="6" cy="18" r="2" fill="currentColor"/><circle cx="18" cy="18" r="2" fill="currentColor"/></svg>
-          <span class="dept-line"><span>All</span><span class="dept-count">13</span></span>
-        </div>
-        <div class="dept-pill">
-          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8l4-4M9 8l4-4M15 8l4-4"/><path d="M3 14h6"/></svg>
-          <span class="dept-line"><span>Production</span><span class="dept-count">4</span></span>
-        </div>
-        <div class="dept-pill">
-          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3l5 5L8 21H3v-5z"/><path d="M14 5l5 5"/></svg>
-          <span class="dept-line"><span>Writing</span><span class="dept-count">1</span></span>
-        </div>
-        <div class="dept-pill">
-          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h3l1.5-2h5L16 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.2"/></svg>
-          <span class="dept-line"><span>Camera</span><span class="dept-count">2</span></span>
-        </div>
-        <div class="dept-pill">
-          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-2 8 9-12h-7l2-8z"/></svg>
-          <span class="dept-line"><span>G&amp;E</span><span class="dept-count">1</span></span>
-        </div>
-        <div class="dept-pill">
-          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>
-          <span class="dept-line"><span>Sound</span><span class="dept-count">1</span></span>
-        </div>
-        <div class="dept-pill">
-          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.3 0 1.8-1 1.8-1.8a2 2 0 0 1 2-2H17a3 3 0 0 0 3-3 9 9 0 0 0-8-11z"/><circle cx="7.5" cy="11" r="1" fill="currentColor"/><circle cx="11" cy="7.5" r="1" fill="currentColor"/><circle cx="15.5" cy="9" r="1" fill="currentColor"/></svg>
-          <span class="dept-line"><span>Art</span><span class="dept-count">1</span></span>
-        </div>
-        <div class="dept-pill">
-          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7a2 2 0 1 1 2-2"/><path d="M3 18l9-7 9 7"/><path d="M3 18h18"/></svg>
-          <span class="dept-line"><span>Wardrobe</span><span class="dept-count">1</span></span>
-        </div>
-        <div class="dept-pill">
-          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l5.5-5.5"/><path d="M9 15l3-3 4 4-3 3z"/><path d="M13 11l4-4a2 2 0 0 1 3 3l-4 4"/></svg>
-          <span class="dept-line"><span>HMU</span><span class="dept-count">2</span></span>
-        </div>
+      <!-- Role filter tabs — match live crew/page.tsx ROLE_TABS:
+           All / Director / Producer / Coordinator / Writer / Crew.
+           Plain text+count style (no dept icons since these are roles). -->
+      <div class="cp-filter-row" style="padding: 8px 16px 10px;">
+        <span class="cp-filter-pill active">All · 13</span>
+        <span class="cp-filter-pill">Director · 1</span>
+        <span class="cp-filter-pill">Producer · 2</span>
+        <span class="cp-filter-pill">Coordinator · 1</span>
+        <span class="cp-filter-pill">Writer · 1</span>
+        <span class="cp-filter-pill">Crew · 8</span>
       </div>
 
       <!-- Dept-grouped crew grid (3 cards per row) -->
@@ -12865,7 +13234,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Crew</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -12873,23 +13241,14 @@ body.gallery .stress-row {
           </div>
         </div>
 
-        <div class="ai-dept-filters">
-          <div class="dept-pill active">
-            <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2" fill="currentColor"/><circle cx="18" cy="6" r="2" fill="currentColor"/><circle cx="6" cy="18" r="2" fill="currentColor"/><circle cx="18" cy="18" r="2" fill="currentColor"/></svg>
-            <span class="dept-line"><span>All</span><span class="dept-count">13</span></span>
-          </div>
-          <div class="dept-pill">
-            <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8l4-4M9 8l4-4M15 8l4-4"/><path d="M3 14h6"/></svg>
-            <span class="dept-line"><span>Production</span><span class="dept-count">4</span></span>
-          </div>
-          <div class="dept-pill">
-            <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3l5 5L8 21H3v-5z"/><path d="M14 5l5 5"/></svg>
-            <span class="dept-line"><span>Writing</span><span class="dept-count">1</span></span>
-          </div>
-          <div class="dept-pill">
-            <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h3l1.5-2h5L16 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.2"/></svg>
-            <span class="dept-line"><span>Camera</span><span class="dept-count">2</span></span>
-          </div>
+        <!-- Role filters (parent peek) — match live ROLE_TABS. -->
+        <div class="cp-filter-row" style="padding: 8px 16px 10px;">
+          <span class="cp-filter-pill active">All · 13</span>
+          <span class="cp-filter-pill">Director · 1</span>
+          <span class="cp-filter-pill">Producer · 2</span>
+          <span class="cp-filter-pill">Coordinator · 1</span>
+          <span class="cp-filter-pill">Writer · 1</span>
+          <span class="cp-filter-pill">Crew · 8</span>
         </div>
 
         <div class="crew-section">
@@ -13035,7 +13394,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Timecards</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -13186,7 +13544,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Timecards</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -13403,7 +13760,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Art</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -13411,20 +13767,25 @@ body.gallery .stress-row {
         </div>
       </div>
 
+      <!-- Tab order matches live art/page.tsx TABS:
+           Wardrobe / Set Dec / Props / HMU. "Set Dec & Props" active here.
+           Prop status enum: needed / sourced / ready (+ separate isHero boolean
+           rendered via .art-hero-pill). -->
       <div class="oa-tabs">
-        <button class="oa-tab active">Props</button>
         <button class="oa-tab">Wardrobe</button>
+        <button class="oa-tab active">Set Dec &amp; Props</button>
         <button class="oa-tab">HMU</button>
       </div>
 
       <div class="art-section">
-        <h2 class="art-section-header">Props</h2>
+        <h2 class="art-section-header">Set Dec &amp; Props</h2>
         <div class="art-grid">
           <div class="art-card" style="--scene-rgb: 232, 80, 122;">
             <div class="art-card-image" style="background: linear-gradient(165deg, #2a0a14 0%, #5a1430 50%, #1a0810 100%);">
               <div class="letterbox-top"></div>
               <div class="letterbox-bottom"></div>
             </div>
+            <span class="art-hero-pill">Hero</span>
             <div class="art-status-pill" style="--status-rgb: 0, 184, 148;">Sourced</div>
             <div class="art-card-name">Mara's Journal</div>
             <div class="art-card-meta">SC 02 · Mara</div>
@@ -13434,7 +13795,8 @@ body.gallery .stress-row {
               <div class="letterbox-top"></div>
               <div class="letterbox-bottom"></div>
             </div>
-            <div class="art-status-pill" style="--status-rgb: 245, 165, 50;">Pending</div>
+            <span class="art-hero-pill">Hero</span>
+            <div class="art-status-pill" style="--status-rgb: 245, 165, 50;">Needed</div>
             <div class="art-card-name">Vintage Typewriter</div>
             <div class="art-card-meta">SC 14 · Set Dressing</div>
           </div>
@@ -13452,7 +13814,7 @@ body.gallery .stress-row {
               <div class="letterbox-top"></div>
               <div class="letterbox-bottom"></div>
             </div>
-            <div class="art-status-pill" style="--status-rgb: 0, 184, 148;">Sourced</div>
+            <div class="art-status-pill" style="--status-rgb: 103, 232, 249;">Ready</div>
             <div class="art-card-name">Water Canteen</div>
             <div class="art-card-meta">SC 01–05 · Continuity</div>
           </div>
@@ -13461,7 +13823,7 @@ body.gallery .stress-row {
               <div class="letterbox-top"></div>
               <div class="letterbox-bottom"></div>
             </div>
-            <div class="art-status-pill" style="--status-rgb: 245, 165, 50;">In Build</div>
+            <div class="art-status-pill" style="--status-rgb: 245, 165, 50;">Needed</div>
             <div class="art-card-name">Hand-Drawn Map</div>
             <div class="art-card-meta">SC 03 · Featured</div>
           </div>
@@ -13488,7 +13850,7 @@ body.gallery .stress-row {
               <div class="letterbox-top"></div>
               <div class="letterbox-bottom"></div>
             </div>
-            <div class="art-status-pill" style="--status-rgb: 0, 184, 148;">Sourced</div>
+            <div class="art-status-pill" style="--status-rgb: 103, 232, 249;">Ready</div>
             <div class="art-card-name">Eli's Pocket Watch</div>
             <div class="art-card-meta">SC 01 · Hero</div>
           </div>
@@ -13530,7 +13892,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Art</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -13538,9 +13899,11 @@ body.gallery .stress-row {
         </div>
       </div>
 
+      <!-- Tab order matches live art/page.tsx TABS. Wardrobe active.
+           Wardrobe status enum: needed / sourced / fitted / ready. -->
       <div class="oa-tabs">
-        <button class="oa-tab">Props</button>
         <button class="oa-tab active">Wardrobe</button>
+        <button class="oa-tab">Set Dec &amp; Props</button>
         <button class="oa-tab">HMU</button>
       </div>
 
@@ -13552,7 +13915,7 @@ body.gallery .stress-row {
               <div class="letterbox-top"></div>
               <div class="letterbox-bottom"></div>
             </div>
-            <div class="art-status-pill" style="--status-rgb: 0, 184, 148;">Fitted</div>
+            <div class="art-status-pill" style="--status-rgb: 167, 139, 250;">Fitted</div>
             <div class="art-card-name">Khaki Field Shirt</div>
             <div class="art-card-meta">Eli · SC 01–03</div>
           </div>
@@ -13561,7 +13924,7 @@ body.gallery .stress-row {
               <div class="letterbox-top"></div>
               <div class="letterbox-bottom"></div>
             </div>
-            <div class="art-status-pill" style="--status-rgb: 0, 184, 148;">Fitted</div>
+            <div class="art-status-pill" style="--status-rgb: 167, 139, 250;">Fitted</div>
             <div class="art-card-name">Hiking Boots</div>
             <div class="art-card-meta">Mara · SC 02–05</div>
           </div>
@@ -13579,7 +13942,7 @@ body.gallery .stress-row {
               <div class="letterbox-top"></div>
               <div class="letterbox-bottom"></div>
             </div>
-            <div class="art-status-pill" style="--status-rgb: 245, 165, 50;">Pending</div>
+            <div class="art-status-pill" style="--status-rgb: 245, 165, 50;">Needed</div>
             <div class="art-card-name">Wind Scarf</div>
             <div class="art-card-meta">Mara · SC 02</div>
           </div>
@@ -13588,7 +13951,7 @@ body.gallery .stress-row {
               <div class="letterbox-top"></div>
               <div class="letterbox-bottom"></div>
             </div>
-            <div class="art-status-pill" style="--status-rgb: 0, 184, 148;">Fitted</div>
+            <div class="art-status-pill" style="--status-rgb: 103, 232, 249;">Ready</div>
             <div class="art-card-name">Eli's Hat</div>
             <div class="art-card-meta">Eli · SC 01–05</div>
           </div>
@@ -13639,7 +14002,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Art</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -13647,9 +14009,11 @@ body.gallery .stress-row {
         </div>
       </div>
 
+      <!-- Tab order matches live art/page.tsx TABS. HMU active.
+           HMU status enum: needed / sourced / confirmed. -->
       <div class="oa-tabs">
-        <button class="oa-tab">Props</button>
         <button class="oa-tab">Wardrobe</button>
+        <button class="oa-tab">Set Dec &amp; Props</button>
         <button class="oa-tab active">HMU</button>
       </div>
 
@@ -13661,7 +14025,7 @@ body.gallery .stress-row {
               <div class="letterbox-top"></div>
               <div class="letterbox-bottom"></div>
             </div>
-            <div class="art-status-pill" style="--status-rgb: 0, 184, 148;">Built</div>
+            <div class="art-status-pill" style="--status-rgb: 103, 232, 249;">Confirmed</div>
             <div class="art-card-name">Desert Weathering Kit</div>
             <div class="art-card-meta">All Scenes</div>
           </div>
@@ -13670,7 +14034,7 @@ body.gallery .stress-row {
               <div class="letterbox-top"></div>
               <div class="letterbox-bottom"></div>
             </div>
-            <div class="art-status-pill" style="--status-rgb: 0, 184, 148;">Built</div>
+            <div class="art-status-pill" style="--status-rgb: 103, 232, 249;">Confirmed</div>
             <div class="art-card-name">Sun Damage Continuity</div>
             <div class="art-card-meta">All Scenes</div>
           </div>
@@ -13679,7 +14043,7 @@ body.gallery .stress-row {
               <div class="letterbox-top"></div>
               <div class="letterbox-bottom"></div>
             </div>
-            <div class="art-status-pill" style="--status-rgb: 0, 184, 148;">Built</div>
+            <div class="art-status-pill" style="--status-rgb: 0, 184, 148;">Sourced</div>
             <div class="art-card-name">Wind-Tousled Hair Setup</div>
             <div class="art-card-meta">Mara · SC 02</div>
           </div>
@@ -13688,7 +14052,7 @@ body.gallery .stress-row {
               <div class="letterbox-top"></div>
               <div class="letterbox-bottom"></div>
             </div>
-            <div class="art-status-pill" style="--status-rgb: 0, 184, 148;">Built</div>
+            <div class="art-status-pill" style="--status-rgb: 245, 165, 50;">Needed</div>
             <div class="art-card-name">Salt Tear-Mark FX</div>
             <div class="art-card-meta">Eli · SC 04</div>
           </div>
@@ -13733,7 +14097,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Art</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -13742,19 +14105,20 @@ body.gallery .stress-row {
         </div>
 
         <div class="oa-tabs">
-          <button class="oa-tab active">Props</button>
           <button class="oa-tab">Wardrobe</button>
+          <button class="oa-tab active">Set Dec &amp; Props</button>
           <button class="oa-tab">HMU</button>
         </div>
 
         <div class="art-section">
-          <h2 class="art-section-header">Props</h2>
+          <h2 class="art-section-header">Set Dec &amp; Props</h2>
           <div class="art-grid">
             <div class="art-card" style="--scene-rgb: 232, 80, 122;">
               <div class="art-card-image" style="background: linear-gradient(165deg, #2a0a14 0%, #5a1430 50%, #1a0810 100%);">
                 <div class="letterbox-top"></div>
                 <div class="letterbox-bottom"></div>
               </div>
+              <span class="art-hero-pill">Hero</span>
               <div class="art-status-pill" style="--status-rgb: 0, 184, 148;">Sourced</div>
               <div class="art-card-name">Mara's Journal</div>
               <div class="art-card-meta">SC 02 · Mara</div>
@@ -13764,7 +14128,8 @@ body.gallery .stress-row {
                 <div class="letterbox-top"></div>
                 <div class="letterbox-bottom"></div>
               </div>
-              <div class="art-status-pill" style="--status-rgb: 245, 165, 50;">Pending</div>
+              <span class="art-hero-pill">Hero</span>
+              <div class="art-status-pill" style="--status-rgb: 245, 165, 50;">Needed</div>
               <div class="art-card-name">Vintage Typewriter</div>
               <div class="art-card-meta">SC 14 · Set Dressing</div>
             </div>
@@ -13926,7 +14291,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Inventory</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -13940,9 +14304,17 @@ body.gallery .stress-row {
           <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2" fill="currentColor"/><circle cx="18" cy="6" r="2" fill="currentColor"/><circle cx="6" cy="18" r="2" fill="currentColor"/><circle cx="18" cy="18" r="2" fill="currentColor"/></svg>
           <span class="dept-line"><span>All</span><span class="dept-count">32</span></span>
         </div>
+        <!-- Dept labels reflect live DEPARTMENTS enum (phase.ts).
+             Live uses full names: Camera / G&E / Lighting / Sound / Art /
+             Wardrobe (no "Grip" — that's part of G&E — and no "Expendables" —
+             those are category, not dept). -->
         <div class="dept-pill">
           <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h3l1.5-2h5L16 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.2"/></svg>
           <span class="dept-line"><span>Camera</span><span class="dept-count">8</span></span>
+        </div>
+        <div class="dept-pill">
+          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-2 8 9-12h-7l2-8z"/></svg>
+          <span class="dept-line"><span>G&amp;E</span><span class="dept-count">4</span></span>
         </div>
         <div class="dept-pill">
           <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 1 4 10.4c-.6.5-1 1.2-1 2V16H9v-.6c0-.8-.4-1.5-1-2A6 6 0 0 1 12 3z"/></svg>
@@ -13953,12 +14325,8 @@ body.gallery .stress-row {
           <span class="dept-line"><span>Sound</span><span class="dept-count">6</span></span>
         </div>
         <div class="dept-pill">
-          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="9" width="12" height="11" rx="1.5"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/><path d="M9 13h6M9 16h6"/></svg>
-          <span class="dept-line"><span>Grip</span><span class="dept-count">4</span></span>
-        </div>
-        <div class="dept-pill">
-          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M7 9l10 6M7 12l10 0M7 15l10-6"/></svg>
-          <span class="dept-line"><span>Expend.</span><span class="dept-count">2</span></span>
+          <svg class="dept-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.3 0 1.8-1 1.8-1.8a2 2 0 0 1 2-2H17a3 3 0 0 0 3-3 9 9 0 0 0-8-11z"/><circle cx="7.5" cy="11" r="1" fill="currentColor"/><circle cx="11" cy="7.5" r="1" fill="currentColor"/><circle cx="15.5" cy="9" r="1" fill="currentColor"/></svg>
+          <span class="dept-line"><span>Art</span><span class="dept-count">2</span></span>
         </div>
       </div>
 
@@ -14113,7 +14481,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Inventory</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -14174,11 +14541,6 @@ body.gallery .stress-row {
     <!-- Sheet -->
     <div class="overlay-sheet">
       <div class="overlay-sheet-handle"></div>
-
-      <div class="detail-hero landscape" style="background: linear-gradient(165deg, #08182a 0%, #1a3050 40%, #5a4810 100%);">
-        <div class="letterbox-top"></div>
-        <div class="letterbox-bottom"></div>
-      </div>
 
       <div class="detail-heading">
         <span class="detail-name">Aperture 600d</span>
@@ -14348,7 +14710,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Workflow</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -14358,6 +14719,12 @@ body.gallery .stress-row {
 
       <div class="wf-count">7 Nodes</div>
 
+      <!-- DESIGN-EXTENSION NOTE: live workflow supports long-press on a
+           connector to edit `inputFormat → outputFormat` inline. The pills
+           below render a single connector format string for visual brevity;
+           engineer should wire the long-press editor and bind both formats
+           when porting (not a structural mismatch — the data model already
+           carries both fields). -->
       <div class="wf-chain">
 
         <!-- Node 1 — Camera Ingest -->
@@ -14551,7 +14918,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Workflow</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -14732,7 +15098,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Workflow</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -14915,7 +15280,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Workflow</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -15155,7 +15519,6 @@ body.gallery .stress-row {
 
     <div class="ai-inner">
       <div class="ai-header">
-        <div class="date-stamp">Apr 26</div>
         <h1 class="ai-title">Resources</h1>
         <div class="ai-meta-row">
           <span class="ai-meta-name">The Weave</span>
@@ -15323,7 +15686,6 @@ body.gallery .stress-row {
     <div class="overlay-parent">
       <div class="ai-inner">
         <div class="ai-header">
-          <div class="date-stamp">Apr 26</div>
           <h1 class="ai-title">Resources</h1>
           <div class="ai-meta-row">
             <span class="ai-meta-name">The Weave</span>
@@ -15666,6 +16028,23 @@ if (backBtn) {
     window.scrollTo({ top: 0, behavior: 'instant' });
   });
 }
+
+// ───────────────────────────────────────────────────────────
+// Theme toggle — flip whole gallery between Dark and Light
+// ───────────────────────────────────────────────────────────
+document.querySelectorAll('.theme-toggle-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const theme = btn.dataset.theme;
+    if (theme === 'light') {
+      document.body.classList.add('light-mode');
+    } else {
+      document.body.classList.remove('light-mode');
+    }
+    document.querySelectorAll('.theme-toggle-btn').forEach((b) => {
+      b.classList.toggle('active', b === btn);
+    });
+  });
+});
 </script>
 
 </body>

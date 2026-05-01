@@ -40,13 +40,21 @@ This is demo-level only — no data, no routing, no state machines.
 
 ## Selection — outcome
 
-The four directions converged into a hybrid — **Variant E ("Cinema Glass")** — combining the depth and tactility of Glass House (D) with the instrumentation-forward calm of Grading Suite (A) and the editorial warmth of Cinema House (C). Variant E expanded beyond the Hub during the convergence round to cover Action Items, Threads, Locations, Crew, and Timeline as well, providing one consistent visual vocabulary for the surfaces around the Hub.
+The four directions converged into a hybrid — **Variant E ("Cinema Glass")** — combining the depth and tactility of Glass House (D) with the instrumentation-forward calm of Grading Suite (A) and the editorial warmth of Cinema House (C).
+
+During the convergence round, Variant E grew well past the Hub: it now covers **every shipped surface in Back to One**, including Login, Project Selection, Folder Open, Archive, all project-side pages (Hub, Timeline / Master / Days, Budget, Action Items, Threads, Chat, Script, Shotlist, Storyboard, Tone, Locations, Casting, Crew, Timecards, Art / Wardrobe / HMU, Inventory, Workflow, Resources) and their detail / overlay sheets. It also adds:
+
+- A **Theme Toggle** (pill at the top of the gallery) flipping the entire gallery between Dark and Light themes — Light is a warm cinema-paper beige; project accents stay vivid in both.
+- A **BRAND LANGUAGE KEY** panel with typography samples, treatment swatches, status pill rows, the schema-accurate Departments grid (with icons), and the 18-color project palette stress test.
+
+The mockups are content-accurate to the live app — the same labels, the same buttons, the same affordances. They are a **visual** spec, not a content spec.
 
 The winner has been promoted to:
 
-- `apps/back-to-one/reference/hub-full-preview-v2.html` — canonical visual reference (carries the visual-only banner that governs porting rules)
+- `apps/back-to-one/reference/hub-full-preview-v2.html` — canonical visual reference for every surface (carries the visual-only banner that governs porting rules)
 - `docs/DESIGN_LANGUAGE.md` — distilled written spec
-- `BRAND_TOKENS.md` — completed reserved sections (typography scale, project accents, UI greys, status hexes)
+- `BRAND_TOKENS.md` — completed reserved sections (typography scale, project accents, UI greys, status hexes, themes)
+- Tag `design-locked-2026-05-01` — frozen snapshot of the gallery; anything that changes after this is post-spec iteration.
 
 The four exploration files (A–D) are kept in this folder as historical record of the divergent round. The pre-distillation Hub reference is preserved at `apps/back-to-one/reference/archive/hub-full-preview.html`.
 
