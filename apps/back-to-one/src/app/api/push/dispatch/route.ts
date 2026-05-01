@@ -63,11 +63,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'fetch failed' }, { status: 500 })
   }
 
+  // Fetch all relevant PushSubscriptions in one query and group by userId,
+  // rather than one round-trip per notification.
+  const userIds = Array.from(new Set((notifications ?? []).map(n => n.userId)))
+  const subsByUserId = new Map<string, Array<{ endpoint: string; p256dh: string; auth: string }>>()
+  if (userIds.length > 0) {
+    const { data: allSubs } = await supabase
+      .from('PushSubscription')
+      .select('userId, endpoint, p256dh, auth')
+      .in('userId', userIds)
+    for (const s of allSubs ?? []) {
+      const list = subsByUserId.get(s.userId) ?? []
+      list.push({ endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth })
+      subsByUserId.set(s.userId, list)
+    }
+  }
+
   let dispatched = 0
   for (const n of notifications ?? []) {
-    const { data: subs } = await supabase
-      .from('PushSubscription').select('*').eq('userId', n.userId)
-    if (!subs || subs.length === 0) continue
+    const subs = subsByUserId.get(n.userId) ?? []
+    if (subs.length === 0) continue
 
     const actorName = (n as any).actor?.name ?? 'Someone'
     const projectName = (n as any).project?.name

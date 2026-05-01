@@ -9,7 +9,7 @@ import { getShotsByProject } from '@/lib/db/queries'
 import { EntityAttachmentCover } from '@/components/attachments/EntityAttachmentGallery'
 import {
   useProject, useActionItems, useToggleActionItem, useCreateActionItem, useMilestones, useCreateMilestone, useCrew,
-  useScenes, useMoodboard, useThreadPreviews,
+  useMoodboard, useThreadPreviews,
   useLocations, useArtItems, useCastRoles, useWorkflowNodes, useInventoryItems, useShootDays, useBudget,
   useUpdateUserPhone, useUpdateProjectMemberProfile, useUploadAvatar,
 } from '@/lib/hooks/useOriginOne'
@@ -38,6 +38,23 @@ import {
 import type { ActionItem, Milestone, CrewMember, Project, WorkflowNode } from '@/types'
 
 // ── HELPERS ───────────────────────────────────────────────
+
+// Adds keyboard activation to a div-as-button. Use only for tile-shape
+// surfaces where a real <button> would break layout/grid; primitives
+// should still use <button>.
+function clickableProps(handler: () => void) {
+  return {
+    role: 'button' as const,
+    tabIndex: 0,
+    onClick: handler,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        handler()
+      }
+    },
+  }
+}
 
 function hexToRgb(hex: string | null | undefined): [number, number, number] {
   const h = hex || '#444444'
@@ -872,7 +889,9 @@ export function HubContent({ projectId }: { projectId: string }) {
   const { data: actionItems, isLoading: loadingAI } = useActionItems(projectId)
   const { data: milestones, isLoading: loadingMS } = useMilestones(projectId)
   const { data: crew, isLoading: loadingCrew } = useCrew(projectId)
-  const { data: scenes } = useScenes(projectId)
+  // getShotsByProject returns Scene rows with Shot(*) attached, sorted
+  // the same way useScenes would — so a separate scenes fetch was a
+  // duplicate request. Derive allScenes from this single source.
   const { data: scenesWithShots } = useQuery({
     queryKey: ['shotsByProject', projectId],
     queryFn: () => getShotsByProject(projectId),
@@ -1016,7 +1035,7 @@ export function HubContent({ projectId }: { projectId: string }) {
   // PageHeader meta slot.
 
   const allItems = actionItems ?? [], allMS = milestones ?? [], allCrew = crew ?? []
-  const allScenes = scenes ?? []
+  const allScenes = scenesWithShots ?? []
   const allShots: any[] = (scenesWithShots ?? []).flatMap((s: any) => s.Shot ?? [])
   const allMoodRefs = moodRefs ?? []
   const allLocations = locations ?? [], allArt = artItems ?? [], allCast = castRoles ?? []
@@ -1137,7 +1156,7 @@ export function HubContent({ projectId }: { projectId: string }) {
               alignItems: 'stretch',
             }}
           >
-            <div className="cursor-pointer" onClick={() => router.push(`/projects/${projectId}/timeline`)}>
+            <div className="cursor-pointer" aria-label="Open timeline" {...clickableProps(() => router.push(`/projects/${projectId}/timeline`))}>
               <ModuleHeader name="Timeline" meta={new Date().toLocaleDateString('en-US', { weekday: 'short', month: '2-digit', day: '2-digit' }).replace(',', ' ·')} />
               {loadingMS ? (
                 <div style={{ ...cardStyle, height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1293,7 +1312,7 @@ export function HubContent({ projectId }: { projectId: string }) {
           </div>
 
           {/* 2. ACTION ITEMS (second) — item 9: no chevron, item 13: assignee pills + navigate */}
-          <div className="cursor-pointer" onClick={() => router.push(`/projects/${projectId}/action-items`)}>
+          <div className="cursor-pointer" aria-label="Open action items" {...clickableProps(() => router.push(`/projects/${projectId}/action-items`))}>
             <ModuleHeader name="My Action Items" meta={openItems.length > 0 ? `${openItems.length} open` : 'All clear'} />
             {loadingAI ? (
               <div style={{ ...cardStyle, height: 148, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1613,7 +1632,7 @@ export function HubContent({ projectId }: { projectId: string }) {
           </div>
 
           {/* 5. WORKFLOW */}
-          <div className="cursor-pointer" style={{ padding: '0 2px' }} onClick={() => router.push(`/projects/${projectId}/workflow`)}>
+          <div className="cursor-pointer" style={{ padding: '0 2px' }} aria-label="Open workflow" {...clickableProps(() => router.push(`/projects/${projectId}/workflow`))}>
             <ModuleHeader name="Workflow" meta={`${allWorkflow.length} nodes`} />
             {allWorkflow.length > 0 ? (
               <div className="flex items-start">
