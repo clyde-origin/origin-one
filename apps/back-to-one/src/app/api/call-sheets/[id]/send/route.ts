@@ -17,12 +17,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCallSheetAdminClient } from '@/lib/call-sheet/admin-client'
 import { personalizeRecipient } from '@/lib/call-sheet/personalize'
 import { dispatchPendingDeliveries } from '@/lib/call-sheet/dispatch'
+import {
+  getCallSheetProjectId,
+  requireProducerAccess,
+} from '@/lib/auth/server-authz'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const callSheetId = params.id
+
+  const projectId = await getCallSheetProjectId(callSheetId)
+  if (!projectId) {
+    return NextResponse.json({ ok: false, error: 'call sheet not found' }, { status: 404 })
+  }
+  const authz = await requireProducerAccess(projectId)
+  if (!authz.ok) {
+    return NextResponse.json({ ok: false, error: authz.message }, { status: authz.status })
+  }
+
   const body = await req.json().catch(() => ({})) as {
     scheduledFor?: string | null
     recipientIds?: string[]

@@ -1,10 +1,9 @@
 // CSV export — generic shape (i) per spec §8.3. Streams via
 // ReadableStream so very large budgets don't buffer in memory.
 //
-// Uses SUPABASE_SERVICE_ROLE_KEY (server-only, bypasses RLS) because
-// anon has no public-schema grants. Producer-only access is enforced
-// at the UI layer until Auth day's session-aware middleware lands.
-// See BUILD_STATUS.md "Budget export API routes".
+// Uses SUPABASE_SERVICE_ROLE_KEY (server-only, bypasses RLS) for the
+// fetch. Caller must hold producer-tier access on the budget's project;
+// enforced via requireProducerAccess + getBudgetProjectId at route entry.
 
 import {
   fetchBudgetExportData,
@@ -15,6 +14,10 @@ import {
   type BudgetExportData,
   type BudgetLineWithAmounts,
 } from '@/lib/budget-export/fetch-budget-tree'
+import {
+  getBudgetProjectId,
+  requireProducerAccess,
+} from '@/lib/auth/server-authz'
 import type { BudgetAccount, BudgetMarkup } from '@/types'
 
 export const runtime = 'nodejs'
@@ -197,6 +200,11 @@ export async function GET(
 ) {
   const url = new URL(request.url)
   const versionParam = url.searchParams.get('version')
+
+  const projectId = await getBudgetProjectId(params.budgetId)
+  if (!projectId) return new Response('Budget not found', { status: 404 })
+  const authz = await requireProducerAccess(projectId)
+  if (!authz.ok) return new Response(authz.message, { status: authz.status })
 
   let data: BudgetExportData
   try {

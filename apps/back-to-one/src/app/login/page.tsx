@@ -5,6 +5,17 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { haptic } from '@/lib/utils/haptics'
 import { createBrowserAuthClient } from '@origin-one/auth'
 
+// Same-origin path validator. Mirrors lib/auth/server-authz.ts so the
+// client-side login page rejects ?redirect=https://attacker.com without
+// pulling the server module into the client bundle.
+function safeRedirectPath(path: string | null | undefined, fallback = '/projects'): string {
+  if (typeof path !== 'string' || path.length === 0) return fallback
+  if (!path.startsWith('/')) return fallback
+  if (path.startsWith('//')) return fallback
+  if (path.includes('\\')) return fallback
+  return path
+}
+
 type RoleHint = 'producer' | 'crew' | 'partner'
 
 const ROLE_OPTIONS: { value: RoleHint; label: string; accent: string; on: string }[] = [
@@ -19,7 +30,7 @@ const TOOLTIP_BORDER = 'rgba(255,255,255,0.08)'
 function LoginForm() {
   const router = useRouter()
   const params = useSearchParams()
-  const redirect = params.get('redirect') ?? '/projects'
+  const redirect = safeRedirectPath(params.get('redirect'), '/projects')
 
   // Role hint is purely visual — actual permissions come from RLS / session.
   const [roleHint, setRoleHint] = useState<RoleHint | null>(null)

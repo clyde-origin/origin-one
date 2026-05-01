@@ -2,11 +2,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { bindAuthUser } from '@/lib/auth/binding'
+import { safeRedirectPath } from '@/lib/auth/server-authz'
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
-  const redirectTo = url.searchParams.get('redirect') ?? '/projects'
+  const redirectTo = safeRedirectPath(url.searchParams.get('redirect'), '/projects')
 
   if (!code) {
     return NextResponse.redirect(new URL('/auth/error?code=no-code', url.origin))
