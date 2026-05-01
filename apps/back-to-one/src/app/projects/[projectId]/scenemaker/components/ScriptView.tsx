@@ -103,7 +103,6 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
   const saveScene = useCallback((sceneId: string) => {
     const fields = pendingEdits.current.get(sceneId)
     if (fields) {
-      console.log('[ScriptView] saving', sceneId, fields)
       onUpdateScene(sceneId, fields)
       pendingEdits.current.delete(sceneId)
     }

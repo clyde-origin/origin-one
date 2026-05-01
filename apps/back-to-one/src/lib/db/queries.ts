@@ -389,23 +389,19 @@ export async function getProject(id: string) {
 export async function createProject(
   project: { id?: string; name: string; teamId?: string; status?: string; color?: string; client?: string; type?: string }
 ) {
-  console.log('[createProject] called with:', JSON.stringify(project))
   const db = createClient()
 
   // Resolve teamId — use provided value, or look up the first team
   let teamId = project.teamId
   if (!teamId) {
-    const { data: team, error: teamErr } = await db.from('Team').select('id').limit(1).single()
-    console.log('[createProject] Team lookup:', { team, teamErr })
+    const { data: team } = await db.from('Team').select('id').limit(1).single()
     if (!team) {
       // No team exists — create one
-      console.log('[createProject] No team found, creating default team...')
       const { data: newTeam, error: createTeamErr } = await db
         .from('Team')
         .insert({ id: crypto.randomUUID(), name: 'Origin Point' })
         .select()
         .single()
-      console.log('[createProject] Team create result:', { newTeam, createTeamErr })
       if (createTeamErr) {
         console.error('[createProject] Failed to create team:', { message: createTeamErr.message, code: createTeamErr.code, details: createTeamErr.details, hint: createTeamErr.hint })
         throw createTeamErr
@@ -429,7 +425,6 @@ export async function createProject(
     createdAt: now,
     updatedAt: now,
   }
-  console.log('[createProject] inserting row:', JSON.stringify(row))
 
   const { data, error } = await db
     .from('Project')
@@ -441,7 +436,6 @@ export async function createProject(
     console.error('[createProject] FAILED:', { message: error.message, code: error.code, details: error.details, hint: error.hint })
     throw error
   }
-  console.log('[createProject] SUCCESS:', data)
 
   // Auto-add the creator as a ProjectMember so they appear in their own
   // project's crew list and operational-table RLS sees them as a member
@@ -796,13 +790,11 @@ export async function createMilestone(
 
 export async function getScenes(projectId: string) {
   const db = createClient()
-  console.log('[getScenes] fetching for projectId:', projectId)
   const { data, error } = await db
     .from('Scene')
     .select('*')
     .eq('projectId', projectId)
     .order('sortOrder', { ascending: true })
-  console.log('[getScenes] raw response:', { count: data?.length ?? 0, error, data })
   if (error) throw error
   return data
 }
@@ -824,7 +816,6 @@ export async function createScene(
     createdAt: now,
     updatedAt: now,
   }
-  console.log('[createScene] inserting:', row)
   const { error } = await db.from('Scene').insert(row)
   if (error) { console.error('[createScene] FAILED:', error); throw error }
   return { id }
@@ -849,13 +840,14 @@ export async function createSceneAtPosition(
   const newSortOrder = insertAfterSortOrder + 1
   const sceneNumber = String((existing?.length ?? 0) + 1)
 
-  // Shift scenes at or after the new position
+  // Shift scenes at or after the new position. Supabase REST has no
+  // expression UPDATE so we still issue one PATCH per row, but in
+  // parallel — a 30-scene insert was previously 30 sequential RTTs.
   if (existing) {
-    for (const s of existing) {
-      if (s.sortOrder >= newSortOrder) {
-        await db.from('Scene').update({ sortOrder: s.sortOrder + 1, updatedAt: now }).eq('id', s.id)
-      }
-    }
+    const shifts = existing
+      .filter(s => s.sortOrder >= newSortOrder)
+      .map(s => db.from('Scene').update({ sortOrder: s.sortOrder + 1, updatedAt: now }).eq('id', s.id))
+    if (shifts.length > 0) await Promise.all(shifts)
   }
 
   const id = crypto.randomUUID()
@@ -869,7 +861,6 @@ export async function createSceneAtPosition(
     createdAt: now,
     updatedAt: now,
   }
-  console.log('[createSceneAtPosition] inserting after sortOrder', insertAfterSortOrder, row)
   const { error } = await db.from('Scene').insert(row)
   if (error) { console.error('[createSceneAtPosition] FAILED:', error); throw error }
   return { id }
@@ -880,7 +871,6 @@ export async function updateScene(
   fields: { title?: string; description?: string }
 ): Promise<void> {
   const db = createClient()
-  console.log('[ScriptView] saving scene', sceneId, fields)
   const { error } = await db
     .from('Scene')
     .update(fields)
@@ -1609,7 +1599,6 @@ export async function createMoodboardRef(
     sortOrder: ref.sortOrder ?? 0,
     tabId: ref.tabId ?? null,
   }
-  console.log('[createMoodboardRef] inserting:', payload)
   const { data, error } = await db
     .from('MoodboardRef')
     .insert(payload)
@@ -1619,7 +1608,6 @@ export async function createMoodboardRef(
     console.error('[createMoodboardRef] FAILED:', error.code, error.message, error.details, error.hint)
     throw new Error(`DB write failed: ${error.message}`)
   }
-  console.log('[createMoodboardRef] success:', data?.id)
   return data
 }
 
@@ -1649,10 +1637,11 @@ export async function deleteMoodboardRef(id: string) {
 
 export async function reorderMoodboardRefs(updates: { id: string; sortOrder: number }[]) {
   const db = createClient()
-  // Batch update sort orders
-  for (const u of updates) {
-    await db.from('MoodboardRef').update({ sortOrder: u.sortOrder }).eq('id', u.id)
-  }
+  // Sort orders differ per row, so REST PATCH still issues one request
+  // per row — but in parallel rather than serial.
+  await Promise.all(
+    updates.map(u => db.from('MoodboardRef').update({ sortOrder: u.sortOrder }).eq('id', u.id)),
+  )
 }
 // ── LOCATIONS ─────────────────────────────────────────────
 

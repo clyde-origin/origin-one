@@ -1613,7 +1613,6 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
   // ── SCENE UPDATE HANDLER (script mode) ──────────────────
   const handleUpdateScene = useCallback((sceneId: string, fields: { title?: string; description?: string }) => {
-    console.log('[SceneMaker] handleUpdateScene', sceneId, fields)
     updateScene(sceneId, fields).then(() => {
       qc.invalidateQueries({ queryKey: ['scenes', projectId] })
       qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
@@ -1635,10 +1634,8 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
     const focusedIdx = scriptRef.current?.getFocusedSceneIndex() ?? allScenes.length - 1
     // For empty projects (no scenes), use createScene with sortOrder 0
     if (allScenes.length === 0) {
-      console.log('[SceneMaker] handleAddScene — first scene for empty project', { projectId })
       createScene(projectId, { sceneNumber: '1', sortOrder: 0 })
         .then(() => {
-          console.log('[SceneMaker] createScene SUCCESS')
           qc.invalidateQueries({ queryKey: ['scenes', projectId] })
           qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
         })
@@ -1647,10 +1644,8 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
     }
     // Insert after the focused scene
     const afterSortOrder = allScenes[focusedIdx]?.sortOrder ?? allScenes[allScenes.length - 1].sortOrder
-    console.log('[SceneMaker] handleAddScene CALLED', { projectId, focusedIdx, afterSortOrder })
     createSceneAtPosition(projectId, afterSortOrder, {})
       .then(() => {
-        console.log('[SceneMaker] createSceneAtPosition SUCCESS')
         qc.invalidateQueries({ queryKey: ['scenes', projectId] })
         qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })
       })
@@ -2234,7 +2229,6 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         <div className="flex-1 overflow-y-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 100 }}>
           {loading ? <LoadingState /> : (
             <>
-              {mode === 'script' && (() => { console.log('[SceneMaker] rendering ScriptView, mode=', mode, 'scenes=', allScenes.length, 'sceneIds=', allScenes.map(s => s.id)); return null })()}
               {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} onUpdateScene={handleUpdateScene} />}
               {mode === 'shotlist' && !previewVersion && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} sortMode={shotOrder} threadByShotId={threadByShotId} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onReorderToScene={handleReorderToScene} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} onUpdateShot={(shotId, fields) => { updateShot(shotId, fields).then(() => qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })).catch(err => console.error('Failed to update shot:', err)) }} onShootReorder={handleShootReorder} />}
               {mode === 'shotlist' && previewVersion && <ShotlistView scenes={displayScenes} shots={displayShots} accent={accent} sortMode={shotOrder} onTapShot={() => {}} onTapThumbnail={() => {}} onInsert={() => {}} onReorder={() => {}} onReorderToScene={() => {}} onRenameScene={() => {}} onDeleteScene={() => {}} onUpdateShot={() => {}} />}
