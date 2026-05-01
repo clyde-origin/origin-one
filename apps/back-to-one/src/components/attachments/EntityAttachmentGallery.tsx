@@ -582,8 +582,8 @@ function Lightbox(p: LightboxProps) {
 
         <SignedBg url={item.publicUrl} style={{
           aspectRatio: '4 / 3', borderRadius: 10, marginBottom: 14, position: 'relative',
+          backgroundColor: '#0a0a12',
           backgroundSize: 'cover', backgroundPosition: 'center',
-          background: '#0a0a12',
         }}>
           {p.items.length > 1 && (
             <>
@@ -726,8 +726,8 @@ export function EntityAttachmentCover({
   return (
     <SignedBg url={items[0].publicUrl} style={{
       width: dim, height: dim, position: 'relative',
+      backgroundColor: '#0a0a12',
       backgroundSize: 'cover', backgroundPosition: 'center',
-      background: '#0a0a12',
     }}
       role="img"
       aria-label={alt}
