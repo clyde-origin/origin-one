@@ -1,14 +1,14 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useProject, useCrew, useAddCrewMember, useUpdateCrewMember, useAllCrew } from '@/lib/hooks/useOriginOne'
+import { useProject, useCrew } from '@/lib/hooks/useOriginOne'
 
 import { CrewAvatar } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
-import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
+import { InviteCrewSheet } from '@/components/crew/InviteCrewSheet'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor , statusHex, statusLabel } from '@/lib/utils/phase'
 import type { TeamMember, Role } from '@/types'
@@ -156,75 +156,6 @@ function MemberPanel({ member, onClose }: {
   )
 }
 
-// ── Add New Member Sheet ─────────────────────────────────
-
-const ROLE_OPTIONS: Role[] = ['director', 'producer', 'coordinator', 'writer', 'crew']
-
-function NewMemberSheet({ projectId, onClose, onCreate }: {
-  projectId: string; onClose: () => void
-  onCreate: (data: { projectId: string; userId: string; role: string }) => void
-}) {
-  const [name, setName] = useState('')
-  const [role, setRole] = useState<Role>('crew')
-
-  const fieldStyle = {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '13px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)',
-  } as const
-  const inputStyle = {
-    fontFamily: 'inherit', fontSize: 13, color: '#dddde8',
-    background: 'none', border: 'none', outline: 'none', textAlign: 'right' as const, maxWidth: 200,
-  }
-  const labelStyle = { fontFamily: 'var(--font-mono)', fontSize: 11, color: '#62627a', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }
-
-  return (
-    <>
-      <SheetHeader title="New Crew Member" onClose={onClose} />
-      <SheetBody className="!px-0 !pt-0">
-        <div style={{ overflowY: 'auto', scrollbarWidth: 'none' }}>
-          <div style={fieldStyle}>
-            <span style={labelStyle}>Name</span>
-            <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Full name" style={inputStyle} />
-          </div>
-          <div style={{ padding: '12px 24px 8px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <span className="font-mono uppercase block" style={{ fontSize: 10, color: '#62627a', letterSpacing: '0.08em', marginBottom: 8 }}>Role</span>
-            <div className="flex flex-wrap gap-1.5">
-              {ROLE_OPTIONS.map(r => (
-                <button key={r} onClick={() => setRole(r)}
-                  className="font-mono capitalize"
-                  style={{
-                    fontSize: 10, padding: '4px 12px', borderRadius: 20, cursor: 'pointer', border: 'none',
-                    background: role === r ? 'rgba(196,90,220,0.15)' : 'rgba(255,255,255,0.04)',
-                    borderWidth: 1, borderStyle: 'solid',
-                    borderColor: role === r ? 'rgba(196,90,220,0.35)' : 'rgba(255,255,255,0.08)',
-                    color: role === r ? '#c45adc' : '#62627a',
-                  }}>
-                  {r}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-2.5" style={{ padding: '18px 24px 0' }}>
-          <button onClick={onClose}
-            style={{
-              flex: 1, height: 44, borderRadius: 9,
-              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-              color: '#a0a0b8', fontWeight: 600, fontSize: 14, cursor: 'pointer',
-            }}>Cancel</button>
-          <button onClick={() => { if (name.trim()) { onCreate({ projectId, userId: '', role }); onClose() } }} disabled={!name.trim()}
-            style={{
-              flex: 2, height: 44, borderRadius: 9,
-              background: 'rgba(196,90,220,0.15)', border: '1px solid rgba(196,90,220,0.35)',
-              color: '#c45adc', fontWeight: 600, fontSize: 14, cursor: 'pointer',
-              opacity: name.trim() ? 1 : 0.4,
-            }}>Add to Crew</button>
-        </div>
-      </SheetBody>
-    </>
-  )
-}
-
 // ── Empty State ──────────────────────────────────────────
 
 function CrewEmpty({ onAdd }: { onAdd: () => void }) {
@@ -256,8 +187,6 @@ export default function CrewPage({ params }: { params: { projectId: string } }) 
   useFabAction({ onPress: () => { haptic('light'); setShowNewSheet(true) } })
 
   const { data: crew, isLoading } = useCrew(projectId)
-  const addMember = useAddCrewMember(projectId)
-  const updateMember = useUpdateCrewMember(projectId)
 
   const allCrew = crew ?? []
 
@@ -326,13 +255,12 @@ export default function CrewPage({ params }: { params: { projectId: string } }) 
           SideFabs deleted in PR 2a — chat / threads now live in ActionBar (also
           incidentally fixes the broken Threads route that pointed at /resources). */}
 
-      <Sheet open={showNewSheet} onClose={() => setShowNewSheet(false)}>
-        <NewMemberSheet
-          projectId={projectId}
-          onClose={() => setShowNewSheet(false)}
-          onCreate={(data) => { addMember.mutate(data); setShowNewSheet(false) }}
-        />
-      </Sheet>
+      <InviteCrewSheet
+        projectId={projectId}
+        open={showNewSheet}
+        onClose={() => setShowNewSheet(false)}
+        onSuccess={() => setShowNewSheet(false)}
+      />
     </div>
   )
 }

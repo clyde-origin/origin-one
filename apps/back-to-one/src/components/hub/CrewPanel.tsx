@@ -77,18 +77,35 @@ function getMemberDepartment(member: TeamMember): string | null {
   return (member as TeamMember & { department?: string | null }).department ?? null
 }
 
-/** Group crew by department in fixed display order, nulls last */
+// Producer-tier roles bucket by role identity, not by department — a producer
+// without a department is "Producer", not "Untagged". Order here is the order
+// these buckets appear in the grouped result.
+const ROLE_BUCKETS: { role: string; label: string }[] = [
+  { role: 'producer',    label: 'Producer' },
+  { role: 'director',    label: 'Director' },
+  { role: 'coordinator', label: 'Coordinator' },
+  { role: 'writer',      label: 'Writer' },
+]
+
+function bucketLabel(member: TeamMember): string | null {
+  const role = (member as TeamMember & { role?: string }).role
+  const roleBucket = ROLE_BUCKETS.find(b => b.role === role)
+  if (roleBucket) return roleBucket.label
+  return getMemberDepartment(member)
+}
+
+/** Group crew by bucket in fixed display order: producer-tier roles, then departments, then null */
 function groupByDepartment(crew: TeamMember[]): { department: string | null; members: TeamMember[] }[] {
   const groups: Record<string, TeamMember[]> = {}
   const nullGroup: TeamMember[] = []
 
   for (const m of crew) {
-    const dept = getMemberDepartment(m)
-    if (dept === null) {
+    const key = bucketLabel(m)
+    if (key === null) {
       nullGroup.push(m)
     } else {
-      if (!groups[dept]) groups[dept] = []
-      groups[dept].push(m)
+      if (!groups[key]) groups[key] = []
+      groups[key].push(m)
     }
   }
 
@@ -97,9 +114,13 @@ function groupByDepartment(crew: TeamMember[]): { department: string | null; mem
   Object.keys(groups).forEach(k => sortMembers(groups[k]))
   sortMembers(nullGroup)
 
-  // Build ordered result: known departments first (in fixed order), then extras, then null
+  // Build ordered result: producer-tier role buckets first, then known departments, then extras, then null.
   const result: { department: string | null; members: TeamMember[] }[] = []
   const seen = new Set<string>()
+
+  for (const { label } of ROLE_BUCKETS) {
+    if (groups[label]) { result.push({ department: label, members: groups[label] }); seen.add(label) }
+  }
 
   for (const dept of DEPARTMENTS) {
     if (groups[dept]) { result.push({ department: dept, members: groups[dept] }); seen.add(dept) }
@@ -110,7 +131,7 @@ function groupByDepartment(crew: TeamMember[]): { department: string | null; mem
     if (!seen.has(dept)) result.push({ department: dept, members: groups[dept] })
   })
 
-  // Null department last
+  // Null bucket last (only crew-role members with no department land here)
   if (nullGroup.length > 0) result.push({ department: null, members: nullGroup })
 
   return result

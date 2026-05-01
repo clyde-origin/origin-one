@@ -442,6 +442,42 @@ export async function createProject(
     throw error
   }
   console.log('[createProject] SUCCESS:', data)
+
+  // Auto-add the creator as a ProjectMember so they appear in their own
+  // project's crew list and operational-table RLS sees them as a member
+  // even before any team-member parity backstop fires. We pull the role
+  // from their TeamMember row on the same team (producer/director typically);
+  // fall back to 'producer' so the new project is at least writeable.
+  try {
+    const { data: { user } } = await db.auth.getUser()
+    if (user) {
+      const { data: meRow } = await db.from('User').select('id').eq('authId', user.id).maybeSingle()
+      const meId = (meRow as { id: string } | null)?.id
+      if (meId) {
+        const { data: tmRow } = await db
+          .from('TeamMember')
+          .select('role')
+          .eq('teamId', teamId)
+          .eq('userId', meId)
+          .maybeSingle()
+        const role = (tmRow as { role: string } | null)?.role ?? 'producer'
+        const { error: pmErr } = await db.from('ProjectMember').insert({
+          projectId: data.id,
+          userId: meId,
+          role,
+          department: null,
+          canEdit: true,
+        })
+        if (pmErr && pmErr.code !== '23505') {
+          // 23505 = unique_violation; safe to ignore (already a member)
+          console.error('[createProject] creator ProjectMember insert failed:', pmErr)
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[createProject] creator membership backfill threw:', e)
+  }
+
   return data
 }
 
@@ -622,6 +658,11 @@ export async function createActionItem(
   item: { projectId: string; title: string; description?: string; assignedTo?: string | null; department?: string | null; dueDate?: string | null; actorId: string; mentions?: string[]; contextLabel?: string }
 ) {
   const db = createClient()
+  const now = new Date().toISOString()
+  // ActionItem.updatedAt is NOT NULL with no SQL default — Prisma's @updatedAt
+  // decorator only fires when Prisma is the writer, so the Supabase REST
+  // client must set this explicitly. Without it the insert violates the
+  // not-null constraint and the row never saves. See GOTCHAS.md.
   const { data, error } = await db
     .from('ActionItem')
     .insert({
@@ -633,6 +674,7 @@ export async function createActionItem(
       department: item.department ?? null,
       dueDate: item.dueDate ?? null,
       mentions: item.mentions ?? [],
+      updatedAt: now,
     })
     .select()
     .single()
