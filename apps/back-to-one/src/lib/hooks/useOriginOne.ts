@@ -210,14 +210,21 @@ export function useUpdateProjectMemberProfile(projectId: string) {
   })
 }
 
-// Avatar upload — invalidates the active project's crew query so the new
-// avatarUrl renders immediately on the next paint.
-export function useUploadAvatar(projectId: string) {
+// Avatar upload — invalidates every cache that reads avatarUrl so the new
+// photo lands everywhere on the next paint. Project context is optional
+// (the SettingsSheet on /projects has no projectId), so we widen the
+// invalidation to cover the viewer profile, allCrew, and the current
+// project's crew when one is provided.
+export function useUploadAvatar(projectId?: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ file, userId }: { file: File; userId: string }) =>
       db.uploadAvatar(file, userId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.crew(projectId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['me'] })
+      qc.invalidateQueries({ queryKey: ['allCrew'] })
+      if (projectId) qc.invalidateQueries({ queryKey: keys.crew(projectId) })
+    },
   })
 }
 
