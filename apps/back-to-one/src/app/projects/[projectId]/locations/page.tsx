@@ -204,9 +204,15 @@ function CreateLocationSheet({ open, projectId, accent, onSave, onClose }: {
               }}>Save</button>
             </div>
             <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={labelStyle}>Name</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Location name" autoFocus autoComplete="off" spellCheck={false} style={inputStyle} />
+              <div className="flex gap-3">
+                <div style={{ flex: 2 }}>
+                  <label style={labelStyle}>Name</label>
+                  <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Location name" autoFocus autoComplete="off" spellCheck={false} style={inputStyle} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Shoot Dates</label>
+                  <input type="text" value={shootDates} onChange={e => setShootDates(e.target.value)} placeholder="Apr 11-12" autoComplete="off" style={inputStyle} />
+                </div>
               </div>
               <div>
                 <label style={labelStyle}>Address</label>
@@ -226,13 +232,18 @@ function CreateLocationSheet({ open, projectId, accent, onSave, onClose }: {
                   <input type="text" value={webLink} onChange={e => setWebLink(e.target.value)} placeholder="URL" autoComplete="off" style={inputStyle} />
                 </div>
               </div>
+              {/* Status pills + inline Approved toggle */}
               <div>
-                <label style={labelStyle}>Shoot Dates</label>
-                <input type="text" value={shootDates} onChange={e => setShootDates(e.target.value)} placeholder="e.g. Apr 11-12" autoComplete="off" style={inputStyle} />
-              </div>
-              {/* Status pills */}
-              <div>
-                <label style={labelStyle}>Status</label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <label style={{ ...labelStyle, marginBottom: 0 }}>Status</label>
+                  <button onClick={() => setApproved(a => !a)} style={{
+                    fontFamily: 'var(--font-geist-mono)', fontSize: '0.44rem', letterSpacing: '0.06em', textTransform: 'uppercase',
+                    padding: '4px 10px', borderRadius: 20, cursor: 'pointer',
+                    background: approved ? '#00b8941a' : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${approved ? '#00b89440' : 'rgba(255,255,255,0.05)'}`,
+                    color: approved ? '#00b894' : '#62627a',
+                  }}>{approved ? '✓ Approved' : 'Approved'}</button>
+                </div>
                 <div className="flex gap-2">
                   {STATUSES.map(s => (
                     <button key={s.value} onClick={() => setStatus(s.value)} style={{
@@ -243,26 +254,6 @@ function CreateLocationSheet({ open, projectId, accent, onSave, onClose }: {
                       color: status === s.value ? s.color : '#62627a',
                     }}>{s.label}</button>
                   ))}
-                </div>
-              </div>
-              {/* Approved / Option toggle */}
-              <div>
-                <label style={labelStyle}>Approval</label>
-                <div className="flex gap-2">
-                  <button onClick={() => setApproved(false)} style={{
-                    flex: 1, fontFamily: 'var(--font-geist-mono)', fontSize: '0.44rem', letterSpacing: '0.06em', textTransform: 'uppercase',
-                    padding: '8px 4px', borderRadius: 8, cursor: 'pointer',
-                    background: !approved ? '#e8a0201a' : 'rgba(255,255,255,0.04)',
-                    border: `1px solid ${!approved ? '#e8a02040' : 'rgba(255,255,255,0.05)'}`,
-                    color: !approved ? '#e8a020' : '#62627a',
-                  }}>Option</button>
-                  <button onClick={() => setApproved(true)} style={{
-                    flex: 1, fontFamily: 'var(--font-geist-mono)', fontSize: '0.44rem', letterSpacing: '0.06em', textTransform: 'uppercase',
-                    padding: '8px 4px', borderRadius: 8, cursor: 'pointer',
-                    background: approved ? '#00b8941a' : 'rgba(255,255,255,0.04)',
-                    border: `1px solid ${approved ? '#00b89440' : 'rgba(255,255,255,0.05)'}`,
-                    color: approved ? '#00b894' : '#62627a',
-                  }}>Approved</button>
                 </div>
               </div>
               <div>
