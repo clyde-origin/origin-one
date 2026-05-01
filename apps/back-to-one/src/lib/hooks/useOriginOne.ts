@@ -505,6 +505,38 @@ export function useMyTeam(): { id: string; name: string } | null {
   return data ?? null
 }
 
+/**
+ * Resolve the current viewer's User row (id, name, email, avatarUrl).
+ *
+ * Reads the Supabase session, joins User by authId, returns the relevant
+ * profile fields. Returns null while resolving or for unauthenticated
+ * users. Cache key is keyed on authId so a sign-out + sign-in to a
+ * different account refetches automatically.
+ */
+export function useMe(): { id: string; name: string; email: string; avatarUrl: string | null } | null {
+  const session = useSupabaseSession()
+  const authId = session?.user.id ?? null
+  const { data } = useQuery({
+    queryKey: ['me', authId],
+    queryFn: async () => {
+      if (!authId) return null
+      const supa = createBrowserAuthClient()
+      const { data, error } = await supa
+        .from('User')
+        .select('id, name, email, avatarUrl')
+        .eq('authId', authId)
+        .maybeSingle()
+      if (error) {
+        console.error('useMe: lookup failed', error)
+        return null
+      }
+      return (data as { id: string; name: string; email: string; avatarUrl: string | null } | null) ?? null
+    },
+    enabled: !!authId,
+  })
+  return data ?? null
+}
+
 export function useUpdateTeamName() {
   const qc = useQueryClient()
   return useMutation({
