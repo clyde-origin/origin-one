@@ -9,14 +9,14 @@ import { createBrowserAuthClient } from '@origin-one/auth'
 import { haptic } from '@/lib/utils/haptics'
 import pkg from '../../../package.json'
 
-type ThemeChoice = 'light' | 'dark' | 'system'
+type ThemeChoice = 'light' | 'dark'
 const THEME_STORAGE_KEY = 'theme-preference'
-const THEME_OPTIONS: ThemeChoice[] = ['light', 'dark', 'system']
+const THEME_OPTIONS: ThemeChoice[] = ['light', 'dark']
 
 function readStoredTheme(): ThemeChoice {
   if (typeof window === 'undefined') return 'dark'
   const v = window.localStorage.getItem(THEME_STORAGE_KEY)
-  return v === 'light' || v === 'system' ? v : 'dark'
+  return v === 'light' ? 'light' : 'dark'
 }
 
 export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
