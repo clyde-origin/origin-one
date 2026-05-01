@@ -98,11 +98,13 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#dddde8' }}>{me?.name ?? '—'}</div>
             <div className="font-mono" style={{ fontSize: 11, color: '#62627a', marginTop: 2 }}>{me?.email ?? '—'}</div>
           </div>
-          {uploadError && (
-            <div className="font-mono" style={{ fontSize: 10, color: '#e8a020', textAlign: 'center', marginTop: 2 }}>
-              {uploadError}
-            </div>
-          )}
+          <div aria-live="polite" style={{ minHeight: 14 }}>
+            {uploadError && (
+              <div className="font-mono" style={{ fontSize: 10, color: 'rgba(232,72,72,0.9)', textAlign: 'center', marginTop: 2 }}>
+                {uploadError}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Theme */}
