@@ -12,12 +12,26 @@ import { NextResponse } from 'next/server'
 import { getCallSheetAdminClient } from '@/lib/call-sheet/admin-client'
 import { personalizeRecipient, type RecipientSnapshot } from '@/lib/call-sheet/personalize'
 import { snapshotsDiffer } from '@/lib/call-sheet/detect-outdated'
+import {
+  getCallSheetProjectId,
+  requireProducerAccess,
+} from '@/lib/auth/server-authz'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const callSheetId = params.id
+
+  const projectId = await getCallSheetProjectId(callSheetId)
+  if (!projectId) {
+    return NextResponse.json({ ok: false, error: 'call sheet not found' }, { status: 404 })
+  }
+  const authz = await requireProducerAccess(projectId)
+  if (!authz.ok) {
+    return NextResponse.json({ ok: false, error: authz.message }, { status: authz.status })
+  }
+
   const db = getCallSheetAdminClient()
 
   const csRes = await db.from('CallSheet').select('*').eq('id', callSheetId).single()

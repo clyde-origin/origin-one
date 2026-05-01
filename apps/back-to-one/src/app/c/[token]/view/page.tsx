@@ -1,39 +1,49 @@
 // Public web view — full GB01-style call sheet, accessible without auth
 // via the recipient's confirmToken. Marks openedAt on first load.
+//
+// Defense: token grants read access only, but it grants it to a public
+// URL that may be archived in mailboxes/scanners forever. Reject access
+// past shoot date + EXPIRY_GRACE_DAYS, and select only the User fields
+// the call sheet actually renders (no avatarUrl, password digests,
+// internal flags) — defensive trim against future User column drift.
 
 import { getCallSheetAdminClient } from '@/lib/call-sheet/admin-client'
 import { CallSheetView } from '@/components/call-sheets/CallSheetView'
 import { deriveCallSheetViewModel } from '@/lib/call-sheet/derive-view-model'
+import {
+  isCallSheetAccessExpired,
+  loadDeliveryForToken,
+} from '@/lib/call-sheet/token-access'
 import type { CallSheet, ShootDay, Project, ScheduleBlock, ProjectTalent, Location } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
+function ExpiredOrMissing({ message }: { message: string }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#04040a] text-white p-6">
+      <p className="text-white/55">{message}</p>
+    </div>
+  )
+}
+
 export default async function PublicCallSheetView({ params }: { params: { token: string } }) {
-  const db = getCallSheetAdminClient()
-
-  const { data: delivery } = await db
-    .from('CallSheetDelivery')
-    .select('id, openedAt, CallSheetRecipient!inner(callSheetId)')
-    .eq('confirmToken', params.token)
-    .maybeSingle()
-
+  const delivery = await loadDeliveryForToken(params.token)
   if (!delivery) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#04040a] text-white p-6">
-        <p className="text-white/55">Link expired or invalid.</p>
-      </div>
-    )
+    return <ExpiredOrMissing message="Link expired or invalid." />
+  }
+  if (isCallSheetAccessExpired(delivery.shootDate)) {
+    return <ExpiredOrMissing message="This call sheet is no longer available." />
   }
 
-  const callSheetId = (delivery.CallSheetRecipient as any).callSheetId
+  const db = getCallSheetAdminClient()
+  const { id: deliveryId, callSheetId, projectId, openedAt } = delivery
 
-  // Mark opened on first view
-  if (!delivery.openedAt) {
+  if (!openedAt) {
     await db.from('CallSheetDelivery').update({
       openedAt: new Date().toISOString(),
       status: 'opened',
       updatedAt: new Date().toISOString(),
-    }).eq('id', delivery.id)
+    }).eq('id', deliveryId)
   }
 
   const [cs, sd, project, schedule, talent, members, locations] = await Promise.all([
@@ -43,39 +53,23 @@ export default async function PublicCallSheetView({ params }: { params: { token:
       if (!sdId) return { data: null }
       return db.from('ShootDay').select('*').eq('id', sdId).single()
     }),
-    db.from('CallSheet').select('projectId').eq('id', callSheetId).single().then(async (r) => {
-      const pid = r.data?.projectId
-      if (!pid) return { data: null }
-      return db.from('Project').select('*').eq('id', pid).single()
-    }),
+    db.from('Project').select('*').eq('id', projectId).single(),
     db.from('CallSheet').select('shootDayId').eq('id', callSheetId).single().then(async (r) => {
       const sdId = r.data?.shootDayId
       if (!sdId) return { data: [] }
       return db.from('ScheduleBlock').select('*').eq('shootDayId', sdId).order('startTime')
     }),
-    db.from('CallSheet').select('projectId').eq('id', callSheetId).single().then(async (r) => {
-      const pid = r.data?.projectId
-      if (!pid) return { data: [] }
-      return db.from('Talent').select('id, projectId, name, role, email, phone, imageUrl').eq('projectId', pid)
-    }),
-    db.from('CallSheet').select('projectId').eq('id', callSheetId).single().then(async (r) => {
-      const pid = r.data?.projectId
-      if (!pid) return { data: [] }
-      return db.from('ProjectMember').select('*, User(*)').eq('projectId', pid)
-    }),
-    db.from('CallSheet').select('projectId').eq('id', callSheetId).single().then(async (r) => {
-      const pid = r.data?.projectId
-      if (!pid) return { data: [] }
-      return db.from('Location').select('*').eq('projectId', pid)
-    }),
+    db.from('Talent')
+      .select('id, projectId, name, role, email, phone, imageUrl')
+      .eq('projectId', projectId),
+    db.from('ProjectMember')
+      .select('id, projectId, role, department, User(name, phone)')
+      .eq('projectId', projectId),
+    db.from('Location').select('*').eq('projectId', projectId),
   ])
 
   if (!cs.data || !sd.data || !project.data) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#04040a] text-white p-6">
-        <p className="text-white/55">Call sheet not available.</p>
-      </div>
-    )
+    return <ExpiredOrMissing message="Call sheet not available." />
   }
 
   const vm = deriveCallSheetViewModel({
