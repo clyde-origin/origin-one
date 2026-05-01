@@ -325,6 +325,12 @@ export default function ProjectsPage() {
 
   const { data: archivedFolders } = useArchivedUserProjectFolders()
   const allArchivedFolders = archivedFolders ?? []
+  // Used by both homeItems (to keep restored projects visible) and the
+  // looseArchivedProjects calculation below.
+  const archivedFolderIds = useMemo(
+    () => new Set(allArchivedFolders.map(f => f.id)),
+    [allArchivedFolders]
+  )
   const archiveFolderMutation = useArchiveUserProjectFolder()
   const restoreFolderMutation = useRestoreUserProjectFolder()
 
@@ -377,8 +383,14 @@ export default function ProjectsPage() {
 
   const homeItems = useMemo<HomeItem[]>(() => {
     const placementById = new Map(allPlacements.map(p => [p.projectId, p]))
+    // A placement counts as "in a folder" only if the folder is still active.
+    // If the folder is archived (or no longer exists), the project would be
+    // orphaned in a hidden container — treat it as top-level instead so a
+    // restored project becomes visible again immediately.
     const inFolder = new Set(
-      allPlacements.filter(p => p.folderId !== null).map(p => p.projectId)
+      allPlacements
+        .filter(p => p.folderId !== null && !archivedFolderIds.has(p.folderId!))
+        .map(p => p.projectId)
     )
 
     const folderItems: HomeItem[] = allFolders.map(f => ({
@@ -400,15 +412,11 @@ export default function ProjectsPage() {
       })
 
     return [...folderItems, ...projectItems].sort((a, b) => a.sortOrder - b.sortOrder)
-  }, [allProjects, allFolders, allPlacements])
+  }, [allProjects, allFolders, allPlacements, archivedFolderIds])
 
   // Loose archived projects = archived projects whose placement isn't inside
   // an archived folder. The synthetic Archive folder shows these directly;
   // archived projects inside an archived folder live one level deeper.
-  const archivedFolderIds = useMemo(
-    () => new Set(allArchivedFolders.map(f => f.id)),
-    [allArchivedFolders]
-  )
   const looseArchivedProjects = useMemo(() => {
     const placementByProjectId = new Map(allPlacements.map(p => [p.projectId, p]))
     return allArchivedProjects.filter(p => {
