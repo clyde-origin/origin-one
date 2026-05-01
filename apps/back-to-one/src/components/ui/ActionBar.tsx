@@ -7,6 +7,7 @@ import { useProject } from '@/lib/hooks/useOriginOne'
 import { useFabActionState } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor } from '@/lib/utils/phase'
+import { useKeyboardOffset } from '@/lib/hooks/useKeyboardOffset'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 
 // ── Visual tokens ─────────────────────────────────────────
@@ -142,6 +143,7 @@ export function ActionBar() {
   const router = useRouter()
   const { action } = useFabActionState()
   const [fabOpen, setFabOpen] = useState(false)
+  const keyboardOpen = useKeyboardOffset() > 100
 
   // Hub vs subpage detection. Hub is at /projects/<id> (2 segments). Three
   // or more segments means a subpage is mounted inside SubPageOverlay.
@@ -243,7 +245,9 @@ export function ActionBar() {
         )}
       </AnimatePresence>
 
-      {/* The bar itself — fixed at bottom, full-width */}
+      {/* The bar itself — fixed at bottom, full-width.
+          Fades out while the on-screen keyboard is up so it doesn't ride
+          above the keys; fades back in on dismiss. */}
       <div
         className="pointer-events-none"
         style={{
@@ -252,6 +256,9 @@ export function ActionBar() {
           bottom: `calc(${BAR_BOTTOM_INSET}px + env(safe-area-inset-bottom, 0px))`,
           height: SIZE_PRIMARY,
           zIndex: Z_INDEX,
+          opacity: keyboardOpen ? 0 : 1,
+          visibility: keyboardOpen ? 'hidden' : 'visible',
+          transition: 'opacity 0.2s ease, visibility 0.2s ease',
         }}
       >
         {/* Back — left. Never gets the active variant (always navigation-only). */}

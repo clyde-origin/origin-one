@@ -23,6 +23,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { useRouter, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/utils/haptics'
+import { useKeyboardOffset } from '@/lib/hooks/useKeyboardOffset'
 import type { PanelDetail } from '@/components/projects/PanelDetailSheet'
 
 // ── RootFabContext ────────────────────────────────────────
@@ -284,6 +285,7 @@ export function ActionBarRoot() {
   const accent = ACCENT
   const onThreadsRoute = pathname === '/projects/threads'
   const threadsActive = onThreadsRoute || threadsOpen
+  const keyboardOpen = useKeyboardOffset() > 100
 
   // Anything that, when present, the back button can pop. Order is the
   // close priority — top of the stack first.
@@ -366,6 +368,9 @@ export function ActionBarRoot() {
         bottom: `calc(${BAR_BOTTOM_INSET}px + env(safe-area-inset-bottom, 0px))`,
         height: SIZE_PRIMARY,
         zIndex: Z_INDEX,
+        opacity: keyboardOpen ? 0 : 1,
+        visibility: keyboardOpen ? 'hidden' : 'visible',
+        transition: 'opacity 0.2s ease, visibility 0.2s ease',
       }}
     >
       {/* Back — left edge. Fades in only when there is something to pop
