@@ -7,7 +7,7 @@ import { useProject } from '@/lib/hooks/useOriginOne'
 import { useFabActionState } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor } from '@/lib/utils/phase'
-import { useKeyboardOffset } from '@/lib/hooks/useKeyboardOffset'
+import { useKeyboardOpen } from '@/lib/hooks/useKeyboardOpen'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 
 // ── Visual tokens ─────────────────────────────────────────
@@ -143,7 +143,7 @@ export function ActionBar() {
   const router = useRouter()
   const { action } = useFabActionState()
   const [fabOpen, setFabOpen] = useState(false)
-  const keyboardOpen = useKeyboardOffset() > 100
+  const keyboardOpen = useKeyboardOpen()
 
   // Hub vs subpage detection. Hub is at /projects/<id> (2 segments). Three
   // or more segments means a subpage is mounted inside SubPageOverlay.

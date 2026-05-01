@@ -23,7 +23,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { useRouter, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/utils/haptics'
-import { useKeyboardOffset } from '@/lib/hooks/useKeyboardOffset'
+import { useKeyboardOpen } from '@/lib/hooks/useKeyboardOpen'
 import type { PanelDetail } from '@/components/projects/PanelDetailSheet'
 
 // ── RootFabContext ────────────────────────────────────────
@@ -285,7 +285,7 @@ export function ActionBarRoot() {
   const accent = ACCENT
   const onThreadsRoute = pathname === '/projects/threads'
   const threadsActive = onThreadsRoute || threadsOpen
-  const keyboardOpen = useKeyboardOffset() > 100
+  const keyboardOpen = useKeyboardOpen()
 
   // Anything that, when present, the back button can pop. Order is the
   // close priority — top of the stack first.
