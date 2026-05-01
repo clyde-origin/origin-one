@@ -527,6 +527,9 @@ export function useMe(): { id: string; name: string; email: string; avatarUrl: s
         .eq('authId', authId)
         .maybeSingle()
       if (error) {
+        // Profile read for the Settings tray — graceful null on transient
+        // miss is preferable to retry storms or an error UI; the tray
+        // renders placeholders if me is null.
         console.error('useMe: lookup failed', error)
         return null
       }
