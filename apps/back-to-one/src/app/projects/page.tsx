@@ -653,8 +653,8 @@ export default function ProjectsPage() {
 
       <div style={{
         position: 'relative', zIndex: 1, maxWidth: 390, margin: '0 auto',
-        minHeight: '100vh', display: 'flex', flexDirection: 'column',
-        justifyContent: 'center', paddingTop: '4vh', paddingBottom: '24vh',
+        minHeight: '100dvh', display: 'flex', flexDirection: 'column',
+        justifyContent: 'center', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4vh)', paddingBottom: '24vh',
         filter: (activePanel || threadsOpen || chatOpen || resourcesOpen || openFolderId) ? 'blur(1.5px)' : 'none',
         transition: 'filter 0.25s',
         pointerEvents: (activePanel || threadsOpen || chatOpen || resourcesOpen || openFolderId) ? 'none' : 'auto',
