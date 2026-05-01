@@ -5,12 +5,23 @@ export function useKeyboardOffset(): number {
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return
+    const vv = window.visualViewport
     const handler = () => {
-      const keyboardHeight = window.innerHeight - (window.visualViewport?.height ?? window.innerHeight)
+      // documentElement.clientHeight is more stable than window.innerHeight on
+      // iOS — innerHeight has shrunk to match visualViewport.height in some
+      // iOS versions, which would mask the keyboard rise. clientHeight stays
+      // anchored to the layout viewport.
+      const layoutHeight = document.documentElement.clientHeight || window.innerHeight
+      const keyboardHeight = layoutHeight - vv.height - vv.offsetTop
       setOffset(Math.max(0, keyboardHeight))
     }
-    window.visualViewport.addEventListener('resize', handler)
-    return () => window.visualViewport?.removeEventListener('resize', handler)
+    handler() // measure on mount in case the keyboard is already up
+    vv.addEventListener('resize', handler)
+    vv.addEventListener('scroll', handler)
+    return () => {
+      vv.removeEventListener('resize', handler)
+      vv.removeEventListener('scroll', handler)
+    }
   }, [])
 
   return offset
