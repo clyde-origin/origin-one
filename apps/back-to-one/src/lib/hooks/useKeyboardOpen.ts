@@ -38,9 +38,21 @@ export function useKeyboardOpen(): boolean {
 
     document.addEventListener('focusin', onFocusIn)
     document.addEventListener('focusout', onFocusOut)
+    document.addEventListener('visibilitychange', update)
+    window.addEventListener('pageshow', update)
+
+    // Safety-net poll. In iOS PWA, a focused input that's removed from the
+    // DOM (e.g. when a sheet closes) sometimes does not fire focusout, so
+    // the hook can get stuck at open=true. A cheap 500ms re-check of
+    // activeElement clears that state without relying on the missing event.
+    const interval = setInterval(update, 500)
+
     return () => {
       document.removeEventListener('focusin', onFocusIn)
       document.removeEventListener('focusout', onFocusOut)
+      document.removeEventListener('visibilitychange', update)
+      window.removeEventListener('pageshow', update)
+      clearInterval(interval)
     }
   }, [])
 
