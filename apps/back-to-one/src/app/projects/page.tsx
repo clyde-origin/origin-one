@@ -25,11 +25,11 @@ import { OpenFolderSheet } from '@/components/projects/OpenFolderSheet'
 import { FolderActionSheet } from '@/components/projects/FolderActionSheet'
 import { NewFolderSheet } from '@/components/projects/NewFolderSheet'
 import { TeamNameSheet } from '@/components/projects/TeamNameSheet'
+import { SettingsSheet } from '@/components/settings/SettingsSheet'
 import { GlobalPanels, type PanelId } from '@/components/projects/GlobalPanels'
 import { ThreadsSheet } from '@/components/projects/ThreadsSheet'
 import { ChatSheet } from '@/components/projects/ChatSheet'
 import { ResourcesSheet } from '@/components/projects/ResourcesSheet'
-import { createBrowserAuthClient } from '@origin-one/auth'
 import type { Project } from '@/types'
 
 // ── HELPERS ──────────────────────────────────────────────────
@@ -131,13 +131,6 @@ export default function ProjectsPage() {
     if (colorOverrides[projectId]) return colorOverrides[projectId]
     const p = allProjects.find(proj => proj.id === projectId)
     return p?.color || getProjectColor(projectId)
-  }
-
-  async function handleLogout() {
-    haptic('medium')
-    const supabase = createBrowserAuthClient()
-    await supabase.auth.signOut()
-    router.push('/login')
   }
 
   function handleRename(name: string, client: string) {
@@ -311,6 +304,7 @@ export default function ProjectsPage() {
   const placementMutation = useUpsertUserProjectPlacement()
   const moveProjectToRootMutation = useMoveProjectToRoot()
 
+  const [showSettings, setShowSettings] = useState(false)
   const [actionFolder, setActionFolder] = useState<{ id: string; name: string; color: string | null } | null>(null)
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [renamingTeam, setRenamingTeam] = useState(false)
@@ -689,15 +683,6 @@ export default function ProjectsPage() {
             </div>
             <p className="font-sans" style={{ fontSize: '0.88rem', fontWeight: 500, color: '#62627a', marginTop: 10 }}>Select a Project</p>
           </div>
-          <button onClick={handleLogout} className="active:opacity-60 transition-opacity" style={{
-            position: 'fixed', top: 56, right: 20, zIndex: 5, width: 32, height: 32, borderRadius: '50%',
-            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.35 }}>
-              <path d="M6 2H4a2 2 0 00-2 2v8a2 2 0 002 2h2M10.5 11.5L14 8l-3.5-3.5M14 8H6" stroke="white" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
         </div>
 
         {/* Slates grid */}
@@ -1244,6 +1229,23 @@ export default function ProjectsPage() {
           await updateTeamNameMutation.mutateAsync({ teamId: myTeam.id, name })
         }}
       />
+      {/* Bottom-left settings gear — mirrors the FAB's bottom-safe positioning */}
+      <button
+        onClick={() => { haptic('light'); setShowSettings(true) }}
+        aria-label="Settings"
+        style={{
+          position: 'fixed', left: 18, bottom: 'calc(18px + env(safe-area-inset-bottom, 0px))',
+          zIndex: 7, width: 32, height: 32, borderRadius: '50%',
+          background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+        }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.4 }}>
+          <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="white" strokeWidth="1.6" />
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1.08 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="white" strokeWidth="1.4" />
+        </svg>
+      </button>
+      <SettingsSheet open={showSettings} onClose={() => setShowSettings(false)} />
     </div>
   )
 }
