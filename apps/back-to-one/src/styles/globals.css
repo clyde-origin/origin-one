@@ -399,8 +399,11 @@ body.light-mode .hub-topbar, html.light-mode body .hub-topbar {
 
 /* Loading skeleton shimmer — DESIGN_LANGUAGE.md loading section.
    Linear (not ease) — feels like a film leader, not a UI bounce.
-   2.2s — slow enough to register without feeling jittery. */
-.sk-block {
+   2.2s — slow enough to register without feeling jittery.
+   `.sk` is the canonical short name introduced with the v2 loading-state
+   primitives below; `.sk-block` stays as a backward-compat alias for the
+   pre-v2 HubSkeleton + Crew V1 routes. They share the same shimmer rule. */
+.sk-block, .sk {
   background: linear-gradient(90deg,
     rgba(255, 255, 255, 0.04) 0%,
     rgba(255, 255, 255, 0.10) 50%,
@@ -409,7 +412,8 @@ body.light-mode .hub-topbar, html.light-mode body .hub-topbar {
   animation: sk-shimmer 2.2s linear infinite;
   border-radius: 4px;
 }
-body.light-mode .sk-block, html.light-mode body .sk-block {
+body.light-mode .sk-block, html.light-mode body .sk-block,
+body.light-mode .sk, html.light-mode body .sk {
   background: linear-gradient(90deg,
     rgba(60, 38, 14, 0.06) 0%,
     rgba(60, 38, 14, 0.14) 50%,
@@ -602,6 +606,37 @@ html.light-mode body .scenemaker-meta-row {
   font-size: 0.74rem;
   color: var(--fg);
   line-height: 1.45;
+}
+
+/* Skeleton primitives — V2 cinema-glass library additions.
+   Compose with `.sk` to inherit the shimmer; size + shape variants below.
+   Ratios match the gallery's `.sk-line`, `.sk-pill`, `.sk-title`,
+   `.sk-grid-3` rules so per-route `loading.tsx` files can mirror the
+   design mockups directly. Each skeleton block stays a presentational
+   primitive — no border, no padding, no margin (callers compose layout). */
+.sk-line {
+  height: 10px;
+  width: 100%;
+  border-radius: 4px;
+}
+.sk-line.short { width: 30%; margin-left: auto; margin-right: auto; }
+.sk-line.med   { width: 60%; }
+.sk-line.long  { width: 85%; }
+.sk-pill {
+  height: 24px;
+  width: 50px;
+  border-radius: 999px;
+}
+.sk-title {
+  height: 18px;
+  width: 60%;
+  margin: 0 auto;
+  border-radius: 6px;
+}
+.sk-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 
 /* ── ANIMATIONS ── */
