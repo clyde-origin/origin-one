@@ -10,8 +10,25 @@ import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor , statusHex, statusLabel } from '@/lib/utils/phase'
+import { getProjectColor, statusLabel } from '@/lib/utils/phase'
 import type { Resource, ResourceType } from '@/types'
+
+// ── Helpers ────────────────────────────────────────────────
+
+// Decompose a #rrggbb hex into a [r,g,b] triplet so the screen root can set
+// `--tile-rgb` / `--accent-rgb` / `--accent-glow-rgb` for the cinema-glass
+// classes (`glass-tile`, `sheen-title`, `ai-meta-pill`) to consume.
+function hexToRgb(hex: string | null | undefined): [number, number, number] {
+  const h = (hex && /^#[0-9a-f]{6}$/i.test(hex)) ? hex : '#c45adc'
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
+}
+
+// Project status → ai-meta-pill phase modifier (.pre / .prod / .post).
+function statusToPhase(s: string | undefined): 'pre' | 'prod' | 'post' {
+  if (s === 'production') return 'prod'
+  if (s === 'post_production') return 'post'
+  return 'pre'
+}
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -33,18 +50,25 @@ function ResourceRow({ resource }: { resource: Resource }) {
       href={resource.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center gap-3 px-4 py-3 border-b border-border cursor-pointer transition-colors active:bg-surface2"
+      className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors active:opacity-80"
+      style={{ borderBottom: '1px solid var(--border)' }}
     >
-      <div className="w-9 h-9 rounded-lg bg-surface2 border border-border flex items-center justify-center flex-shrink-0 text-base">
+      <div
+        className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-base"
+        style={{
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid var(--border)',
+        }}
+      >
         {TYPE_ICONS[resource.type] ?? '📎'}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-base leading-snug text-text truncate">
+        <div className="text-base leading-snug truncate" style={{ color: 'var(--fg)' }}>
           {resource.title}
         </div>
-        <div className="font-mono text-xs text-muted truncate capitalize">{resource.type}</div>
+        <div className="font-mono text-xs truncate capitalize" style={{ color: 'var(--fg-mono)' }}>{resource.type}</div>
       </div>
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="flex-shrink-0 text-muted">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="flex-shrink-0" style={{ color: 'var(--fg-mono)' }}>
         <path d="M4 2h6v6M10 2L3 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     </a>
@@ -127,10 +151,30 @@ export default function ResourcesPage({ params }: { params: { projectId: string 
   const meId = useMeId()
 
   const allResources = resources ?? []
+  // Cinema-glass tokens consumed by .sheen-title / .ai-meta-pill at this scope.
+  const [pr, pg, pb] = hexToRgb(accent)
+  const glowR = Math.min(255, pr + 20)
+  const glowG = Math.min(255, pg + 30)
+  const glowB = Math.min(255, pb + 16)
 
   return (
-    <div className="screen">
-      <PageHeader projectId={projectId} title="Resources" meta={project ? (<div className="flex flex-col items-center gap-1.5"><ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" /><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''} />
+    <div
+      className="screen"
+      style={{
+        ['--tile-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
+      } as React.CSSProperties}
+    >
+      <PageHeader projectId={projectId} title="Resources" meta={project ? (
+        <div className="flex flex-col items-center gap-1.5">
+          <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
+          <span className={`ai-meta-pill ${statusToPhase(project.status)}`}>
+            <span className="phase-dot" />
+            {statusLabel(project.status)}
+          </span>
+        </div>
+      ) : ''} />
 
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 80 }}>
         {isLoading ? <LoadingState /> : (
