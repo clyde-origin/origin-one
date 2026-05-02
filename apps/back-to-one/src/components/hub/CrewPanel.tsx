@@ -10,7 +10,7 @@ import {
 } from '@/lib/hooks/useOriginOne'
 import { CrewAvatar } from '@/components/ui'
 import { haptic } from '@/lib/utils/haptics'
-import { DEPARTMENTS } from '@/lib/utils/phase'
+import { DEPARTMENTS, DEPT_COLORS } from '@/lib/utils/phase'
 import { formatUSD } from '@/lib/utils/currency'
 import { useViewerRole } from '@/lib/auth/useViewerRole'
 import { InviteCrewSheet } from '@/components/crew/InviteCrewSheet'
@@ -27,16 +27,18 @@ const spring = { type: 'spring' as const, stiffness: 400, damping: 40 }
 
 function TimecardsLabelButton({ accent, onClick }: { accent: string; onClick: () => void }) {
   const [hover, setHover] = useState(false)
+  // V2: button label is title-case display text. Mono-uppercase is reserved
+  // for field labels only; "Timecards" reads as a real word, not "TIMECARDS".
   return (
     <button
       type="button"
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className="font-mono uppercase active:opacity-60"
+      className="font-mono active:opacity-60"
       style={{
-        fontSize: 11,
-        letterSpacing: '0.08em',
+        fontSize: 12,
+        letterSpacing: 0,
         color: hover ? accent : 'var(--fg-mono)',
         background: 'transparent',
         border: 'none',
@@ -170,7 +172,10 @@ function CrewDetail({ member, accent, projectId, onBack, onRemoved, onTimecards 
       <div className="flex flex-col items-center px-5 pb-5 flex-shrink-0">
         <CrewAvatar name={member.User.name} size={56} avatarUrl={member.User.avatarUrl} />
         <div className="mt-3 text-center">
-          <div className="sheen-title" style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '0.01em' }}>{member.User.name}</div>
+          {/* Profile name — cream display text, NOT accent sheen. The sheen
+              treatment is reserved for actual section / module / dept headers;
+              person names are display content. (Crew V2 fix.) */}
+          <div style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '0.01em', color: 'var(--fg)' }}>{member.User.name}</div>
           <div className="text-text2 mt-0.5" style={{ fontSize: '0.82rem' }}>{member.User.email}</div>
         </div>
       </div>
@@ -225,14 +230,32 @@ function CrewDetail({ member, accent, projectId, onBack, onRemoved, onTimecards 
 
 // ── CREW CELL (avatar + name + role, horizontal grid) ───
 
-function CrewCell({ member, onTap }: { member: TeamMember; onTap: () => void }) {
+function CrewCell({ member, onTap, deptRgb }: { member: TeamMember; onTap: () => void; deptRgb?: [number, number, number] }) {
+  // V2: when a dept rgb is supplied (caller knows the dept context — e.g. the
+  // groupByDepartment block above), wrap the avatar in a dept-tinted ring so
+  // Camera-dept members read as indigo instead of the name-hash color
+  // CrewAvatar derives on its own.
+  const avatar = deptRgb ? (
+    <div style={{
+      width: 44, height: 44, borderRadius: '50%',
+      background: `rgba(${deptRgb[0]},${deptRgb[1]},${deptRgb[2]},0.18)`,
+      border: `1px solid rgba(${deptRgb[0]},${deptRgb[1]},${deptRgb[2]},0.45)`,
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden', flexShrink: 0,
+    }}>
+      <CrewAvatar name={member.User.name} size={42} avatarUrl={member.User.avatarUrl} />
+    </div>
+  ) : (
+    <CrewAvatar name={member.User.name} size={42} avatarUrl={member.User.avatarUrl} />
+  )
   return (
     <div
       className="flex flex-col items-center cursor-pointer active:opacity-70"
       style={{ width: 68, gap: 4 }}
       onClick={onTap}
     >
-      <CrewAvatar name={member.User.name} size={42} avatarUrl={member.User.avatarUrl} />
+      {avatar}
       <div className="text-center w-full" style={{
         fontSize: '0.62rem', fontWeight: 500, color: 'var(--fg)', lineHeight: 1.25,
         display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
@@ -240,7 +263,7 @@ function CrewCell({ member, onTap }: { member: TeamMember; onTap: () => void }) 
       }}>
         {member.User.name}
       </div>
-      <div className="text-center w-full" style={{
+      <div className="text-center w-full capitalize" style={{
         fontSize: '0.48rem', color: 'var(--fg-mono)', lineHeight: 1.2, marginTop: -1,
       }}>
         {member.role}
@@ -353,17 +376,19 @@ function StatusPill({ status }: { status: string }) {
     reopened:  { bg: 'rgba(232,160,32,0.16)',  color: '#e8a020', label: 'Reopened', prefix: '⟲ ' },
   }
   const p = palette[status] ?? palette.draft
+  // V2: pill content reads in title case ("Approved" / "Submitted" / "Draft" /
+  // "Reopened"). Mono-uppercase is reserved for field labels only.
   return (
     <span
-      className="font-mono uppercase"
+      className="font-mono"
       style={{
         display: 'inline-flex',
         alignItems: 'center',
         gap: 4,
         padding: '2px 8px',
         borderRadius: 999,
-        fontSize: 9,
-        letterSpacing: '0.08em',
+        fontSize: 10,
+        letterSpacing: 0,
         background: p.bg,
         color: p.color,
       }}
@@ -763,8 +788,13 @@ function IndividualWeekView({
             marginBottom: 14,
           }}
         >{avatarInitials}</div>
-        <div className="sheen-title" style={{ fontSize: '1.05rem', fontWeight: 700, letterSpacing: '0.02em', marginBottom: 4 }}>{member.User.name}</div>
-        <div className="font-mono uppercase" style={{ fontSize: 11, color: 'var(--fg-mono)', letterSpacing: '0.06em' }}>
+        {/* Profile name — cream display text, NOT accent sheen. The sheen
+            treatment is reserved for actual section / module / dept headers;
+            person names are display content. (Crew V2 fix.) */}
+        <div style={{ fontSize: '1.05rem', fontWeight: 700, letterSpacing: '0.01em', color: 'var(--fg)', marginBottom: 4 }}>{member.User.name}</div>
+        {/* Department + project — title-case display text. Mono uppercase is
+            reserved for field labels. */}
+        <div className="font-mono" style={{ fontSize: 11, color: 'var(--fg-mono)', letterSpacing: 0 }}>
           {department} · {projectName}
         </div>
       </div>
@@ -1577,9 +1607,9 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                 {viewerRole === 'producer' && (
                   <button
                     onClick={() => { haptic('light'); setInviteOpen(true) }}
-                    className="font-mono uppercase"
+                    className="font-mono"
                     style={{
-                      fontSize: '0.5rem', letterSpacing: '0.08em',
+                      fontSize: '0.62rem', letterSpacing: 0,
                       padding: '6px 10px', marginRight: 4, borderRadius: 8,
                       background: `${accent}1a`, border: `1px solid ${accent}40`,
                       color: accent, cursor: 'pointer',
@@ -1595,7 +1625,20 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
 
               {/* Crew grid — grouped by department */}
               <div className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch', padding: '0 16px 20px' }}>
-                {groupByDepartment(allCrew).map(({ department, members }) => (
+                {groupByDepartment(allCrew).map(({ department, members }) => {
+                  // V2: dept-tinted avatar — Camera dept members read as
+                  // indigo, G&E as gold, etc. Resolves the dept hex via
+                  // DEPT_COLORS (BRAND_TOKENS.md). null department → no tint
+                  // (pass-through to default CrewAvatar coloring).
+                  const deptHex = department ? DEPT_COLORS[department] : null
+                  const deptRgb: [number, number, number] | undefined = deptHex
+                    ? [
+                        parseInt(deptHex.slice(1, 3), 16),
+                        parseInt(deptHex.slice(3, 5), 16),
+                        parseInt(deptHex.slice(5, 7), 16),
+                      ]
+                    : undefined
+                  return (
                   <div key={department ?? '__none'} style={{ marginTop: 16 }}>
                     {/* Sheen section divider — per the Hub PR convention every
                         centered section/dept header uses the .sheen-title treatment. */}
@@ -1608,11 +1651,12 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                     {/* Avatar row — wrapping flex */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
                       {members.map(m => (
-                        <CrewCell key={m.id} member={m} onTap={() => { haptic('light'); setSelectedMember(m); setLayer('detail') }} />
+                        <CrewCell key={m.id} member={m} deptRgb={deptRgb} onTap={() => { haptic('light'); setSelectedMember(m); setLayer('detail') }} />
                       ))}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </motion.div>
 
@@ -1636,12 +1680,12 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                   <div style={{ padding: '0 20px 16px' }}>
                     <button
                       onClick={() => { haptic('light'); setAddRoleOpen(true) }}
-                      className="font-mono uppercase"
+                      className="font-mono"
                       style={{
                         width: '100%', padding: '10px',
                         background: `${accent}1a`, border: `1px solid ${accent}40`,
-                        borderRadius: 8, color: accent, fontSize: '0.7rem',
-                        letterSpacing: '0.08em', cursor: 'pointer',
+                        borderRadius: 8, color: accent, fontSize: '0.82rem',
+                        letterSpacing: 0, cursor: 'pointer',
                       }}
                     >
                       + Add role

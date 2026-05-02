@@ -47,9 +47,12 @@ function RolePillRow({ active, onChange, counts, accent }: {
         const isActive = active === t
         const label = ROLE_LABELS[t] ?? t
         const count = counts[t] ?? 0
+        // Title-case pill text per Crew V2 — mono uppercase is reserved for
+        // field labels only (e.g. EMAIL, PHONE). Pill content is sentence-case
+        // display text so "All · 13" reads as written, not "ALL · 13".
         return (
-          <button key={t} onClick={() => onChange(t)} className="font-mono uppercase" style={{
-            fontSize: '0.46rem', letterSpacing: '0.06em',
+          <button key={t} onClick={() => onChange(t)} className="font-mono" style={{
+            fontSize: '0.52rem', letterSpacing: 0,
             padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
             whiteSpace: 'nowrap', flexShrink: 0,
             background: isActive ? `${accent}1f` : 'rgba(255,255,255,0.04)',
@@ -69,9 +72,23 @@ function RolePillRow({ active, onChange, counts, accent }: {
 // Per `GALLERY_HANDOFF` row 14 spec: "Dept-grouped crew grid: section header
 // (sheen) per dept, then 3-col crew-card grid. Crew card: avatar (dept-tinted)
 // + name + role; outer glow uses `--proj-rgb`, avatar uses `--dept-rgb`."
+//
+// V2 fix: avatar is now genuinely dept-tinted. V1 wrapped CrewAvatar
+// (name-hash colored) in a thin tinted ring, so Camera-dept members like
+// Riley Tan and Tyler Brooks rendered with arbitrary hash colors instead
+// of indigo. V2 renders the dept-tinted initials inline (matching the
+// spec's `.crew-card-avatar` rule); when a User.avatarUrl exists, the
+// photo crops into the dept-tinted circle.
+function avatarInitialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+  return (name[0] ?? '?').toUpperCase()
+}
+
 function CrewCard({ member, onTap, deptRgb }: { member: TeamMember; onTap: (m: TeamMember) => void; deptRgb: [number, number, number] }) {
   const name = member.User?.name ?? 'Unknown'
   const [r, g, b] = deptRgb
+  const avatarUrl = member.User?.avatarUrl
   return (
     <button
       type="button"
@@ -88,13 +105,27 @@ function CrewCard({ member, onTap, deptRgb }: { member: TeamMember; onTap: (m: T
       <div style={{
         width: 44, height: 44, borderRadius: '50%',
         background: `rgba(${r},${g},${b},0.18)`,
-        border: `1.5px solid rgba(${r},${g},${b},0.45)`,
+        border: `1px solid rgba(${r},${g},${b},0.45)`,
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         overflow: 'hidden',
+        color: `rgb(${r},${g},${b})`,
+        fontFamily: 'var(--font-geist-mono), monospace',
+        fontSize: '0.68rem',
+        fontWeight: 600,
+        letterSpacing: '0.04em',
       }}>
-        <CrewAvatar name={name} size={42} avatarUrl={member.User?.avatarUrl} />
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatarUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          avatarInitialsOf(name)
+        )}
       </div>
+      {/* Person name — display text, sentence case, NOT uppercase. */}
       <div className="truncate w-full" style={{ fontSize: '0.62rem', fontWeight: 600, color: 'var(--fg)', lineHeight: 1.2 }}>{name}</div>
+      {/* Role title — title-case via `capitalize` (live role enum is single-
+          word lowercase; capitalize gives "Director" / "Producer" / etc.). */}
       <div className="font-mono capitalize truncate w-full" style={{ fontSize: '0.40rem', letterSpacing: '0.06em', color: 'var(--fg-mono)' }}>{member.role}</div>
     </button>
   )
@@ -127,7 +158,10 @@ function MemberPanel({ member, accent, onClose }: {
       <div className="flex items-center gap-3.5" style={{ padding: '12px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
         <CrewAvatar name={name} size={50} avatarUrl={member.User?.avatarUrl} />
         <div style={{ flex: 1 }}>
-          <div className="sheen-title" style={{ fontSize: '1.05rem', fontWeight: 700, letterSpacing: '0.02em' }}>{name}</div>
+          {/* Profile name — cream display text, NOT accent sheen. The sheen
+              treatment is reserved for actual section / module / dept headers;
+              person names are display content. (Crew V2 fix.) */}
+          <div style={{ fontSize: '1.05rem', fontWeight: 700, letterSpacing: '0.01em', color: 'var(--fg)' }}>{name}</div>
           <div className="font-mono capitalize" style={{ fontSize: 11, color: 'var(--fg-mono)', marginTop: 2 }}>{member.role}</div>
         </div>
         <button onClick={onClose}
@@ -255,9 +289,17 @@ export default function CrewPage({ params }: { params: { projectId: string } }) 
 
   const phase = phaseClass(project?.status)
 
-  // Per the brief / GALLERY_HANDOFF row 14: avatar uses --dept-rgb. Roles map
-  // onto the matching department color from BRAND_TOKENS.md.
-  function deptRgbFor(role: string): [number, number, number] {
+  // Per the brief / GALLERY_HANDOFF row 14: avatar uses --dept-rgb. Resolves
+  // department first (so a "crew" role member working in Camera reads as
+  // indigo, not gray), then falls back to the role-based mapping for
+  // producer-tier roles whose dept is implied by their role identity.
+  // (Crew V2 fix — V1 mapped role → dept only, which dropped Camera/G&E/
+  // Sound/Art/Wardrobe/HMU/Locations/Post members into the gray "Other"
+  // bucket.)
+  function deptRgbFor(member: TeamMember): [number, number, number] {
+    const dept = (member as TeamMember & { department?: string | null }).department
+    if (dept && DEPT_COLORS[dept]) return hexToRgb(DEPT_COLORS[dept])
+    const role = member.role
     const hex = DEPT_COLORS[
       role === 'director' ? 'Direction'
       : role === 'producer' ? 'Production'
@@ -330,7 +372,6 @@ export default function CrewPage({ params }: { params: { projectId: string } }) 
           <div className="font-mono text-center py-12" style={{ fontSize: 11, color: 'var(--fg-mono)' }}>No crew with role {tab}</div>
         ) : (
           grouped.map(({ role, members }) => {
-            const deptRgb = deptRgbFor(role)
             return (
               <div key={role} style={{ padding: '0 16px' }}>
                 {/* Sheen section divider — DESIGN_LANGUAGE.md section dividers
@@ -346,7 +387,7 @@ export default function CrewPage({ params }: { params: { projectId: string } }) 
                     <CrewCard
                       key={m.id}
                       member={m}
-                      deptRgb={deptRgb}
+                      deptRgb={deptRgbFor(m)}
                       onTap={(m) => { haptic('light'); setSelectedMember(m) }}
                     />
                   ))}
