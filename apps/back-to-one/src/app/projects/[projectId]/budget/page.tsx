@@ -135,19 +135,21 @@ function VersionPill({
 }) {
   const longPress = useLongPress(() => { haptic('medium'); onLongPress() }, 500)
   const locked = version.state === 'locked'
+  // Cinema Glass — active pill wears .sheen-title + accent inset border
+  // (matches the Timeline mode-toggle treatment).
   return (
     <button
       type="button"
       onClick={onTap}
       {...longPress}
-      className="font-mono uppercase"
+      className={`font-mono uppercase ${active ? 'sheen-title' : ''}`}
       style={{
         flex: 1,
         padding: '7px 10px', borderRadius: 999,
-        fontSize: 10, letterSpacing: '0.06em',
-        background: active ? `${accent}24` : 'rgba(255,255,255,0.02)',
-        border: `1px solid ${active ? `${accent}66` : 'rgba(255,255,255,0.08)'}`,
-        color: active ? accent : '#a0a0b8',
+        fontSize: 10, letterSpacing: '0.06em', fontWeight: 600,
+        ...(active
+          ? { boxShadow: `inset 0 0 0 1px rgba(var(--accent-rgb), 0.32)` }
+          : { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', color: '#a0a0b8' }),
         cursor: 'pointer',
         userSelect: 'none',
         WebkitUserSelect: 'none',
@@ -401,6 +403,9 @@ function VariablesStrip({
   schedule: { prepDays: number; shootDays: number; postDays: number }
   vars: Record<string, string>
 }) {
+  // Cinema Glass — phase chips wear the canonical chip alpha
+  // (bg @ 0.20, border @ 0.50) + glowing phase dot. Custom variables
+  // collapse to the neutral glass chip.
   return (
     <div
       className="flex flex-wrap"
@@ -415,15 +420,16 @@ function VariablesStrip({
         return (
           <span
             key={t}
-            className="font-mono inline-flex items-center"
+            className="font-mono uppercase inline-flex items-center"
             style={{
-              gap: 6, padding: '4px 10px', borderRadius: 999,
-              fontSize: 10, letterSpacing: '0.04em',
-              background: `${hex}1a`, border: `1px solid ${hex}38`, color: hex,
+              gap: 5, padding: '3px 9px', borderRadius: 999,
+              fontSize: 10, letterSpacing: '0.06em', fontWeight: 600,
+              background: `${hex}33`, border: `1px solid ${hex}80`, color: hex,
             }}
           >
-            <span style={{ opacity: 0.85 }}>{PHASE_LABEL[t]}</span>
-            <span style={{ fontWeight: 600 }}>{value}</span>
+            <span className="rounded-full" style={{ width: 4, height: 4, background: hex, boxShadow: `0 0 4px ${hex}` }} />
+            <span>{PHASE_LABEL[t]}</span>
+            <span>{value}</span>
           </span>
         )
       })}
@@ -432,7 +438,7 @@ function VariablesStrip({
           key={name}
           className="font-mono inline-flex items-center"
           style={{
-            gap: 6, padding: '4px 10px', borderRadius: 999,
+            gap: 6, padding: '3px 10px', borderRadius: 999,
             fontSize: 10, letterSpacing: '0.04em',
             background: 'rgba(255,255,255,0.04)',
             border: '1px solid rgba(255,255,255,0.10)',
@@ -614,15 +620,10 @@ function AccountCard({
     ? visibleAccountLines.reduce((s, l) => s + (computedByLine.get(l.id)?.total ?? 0), 0)
     : subtotal?.total ?? 0
 
+  // Cinema Glass — account row sits in a .glass-tile-sm. Project accent
+  // tints the surface via --tile-rgb inherited from the screen root.
   return (
-    <div
-      style={{
-        background: 'rgba(15,15,25,0.6)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        borderRadius: 14,
-        overflow: 'hidden',
-      }}
-    >
+    <div className="glass-tile-sm">
       <button
         type="button"
         onClick={onToggle}
@@ -1087,8 +1088,22 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
     ? budget.lines.find(l => l.id === activeLineId) ?? null
     : null
 
+  // Cinema Glass — feed --accent-rgb / --accent-glow-rgb / --tile-rgb
+  // off the project accent so .sheen-title and any rgba(var(--accent-rgb),…)
+  // consumer reads the project tint. Same pattern as HubContent + Timeline.
+  const [ar, ag, ab] = [parseInt(accent.slice(1, 3), 16), parseInt(accent.slice(3, 5), 16), parseInt(accent.slice(5, 7), 16)]
+  const glowR = Math.min(255, ar + 20), glowG = Math.min(255, ag + 20), glowB = Math.min(255, ab + 20)
+
   return (
-    <div className="screen">
+    <div
+      className="screen"
+      style={{
+        ['--accent-rgb' as string]: `${ar}, ${ag}, ${ab}`,
+        ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
+        ['--tile-rgb' as string]: `${ar}, ${ag}, ${ab}`,
+        ['--accent' as string]: accent,
+      }}
+    >
       <PageHeader
         projectId={projectId}
         title="Budget"
@@ -1098,8 +1113,12 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
             <span
               className="font-mono uppercase"
               style={{
-                fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12,
-                background: `${statusHex(project.status)}18`, color: statusHex(project.status),
+                fontSize: '0.42rem', letterSpacing: '0.08em',
+                padding: '1px 7px', borderRadius: 20,
+                background: `${statusHex(project.status)}33`,
+                border: `1px solid ${statusHex(project.status)}80`,
+                color: statusHex(project.status),
+                fontWeight: 600,
               }}
             >{projectStatusLabel(project.status)}</span>
           </div>
@@ -1183,11 +1202,13 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
                 <div>
                   <div
                     className="font-mono uppercase"
-                    style={{ fontSize: 9, letterSpacing: '0.12em', color: '#62627a', marginBottom: 4 }}
+                    style={{ fontSize: 9, letterSpacing: '0.12em', color: '#7a7a82', marginBottom: 4 }}
                   >Working Total</div>
+                  {/* Hero number — sheen+extrusion treatment per
+                      DESIGN_LANGUAGE.md (Page-title scale, project accent). */}
                   <div
-                    className="font-mono"
-                    style={{ fontSize: 18, fontWeight: 600, color: '#fff' }}
+                    className="font-mono sheen-title"
+                    style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em' }}
                   >{formatUSD(rollup.grandTotal)}</div>
                 </div>
                 <div>
@@ -1357,40 +1378,32 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
       </div>
 
       {/* Topsheet handle — fixed bottom of the budget surface, above
-          ActionBar. Tap to open. PR 8 had this slot as decoration in
-          the mockup; PR 10 wires it. */}
+          ActionBar. Cinema-glass: .glass-tile-sm + sheen-title total. */}
       {budget && rollup && topsheetData && (
         <button
           type="button"
           onClick={() => { haptic('light'); setTopsheetOpen(true) }}
-          className="font-mono"
+          className="glass-tile-sm font-mono"
           style={{
-            // Sit above the ActionBar (cluster height + padding) and
-            // above the page content. ActionBar handles env(safe-area).
             position: 'fixed',
             left: 0, right: 0,
             bottom: 'calc(68px + 52px + 14px + env(safe-area-inset-bottom, 0px))',
             margin: '0 16px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '12px 16px', borderRadius: 14,
-            background: 'rgba(15,15,25,0.92)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            border: '1px solid rgba(255,255,255,0.10)',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.40)',
-            color: '#e8e8f0', fontSize: 12,
+            padding: '12px 16px',
+            color: '#ebebef', fontSize: 12,
             cursor: 'pointer', zIndex: 30,
           }}
         >
           <div className="flex flex-col" style={{ alignItems: 'flex-start', gap: 2 }}>
             <span
               className="font-mono uppercase"
-              style={{ fontSize: 9, color: '#62627a', letterSpacing: '0.08em' }}
+              style={{ fontSize: 9, color: '#7a7a82', letterSpacing: '0.08em' }}
             >Grand Total · {(() => {
               const v = budget.versions.find(x => x.id === activeVersionId)
               return v?.name ?? '—'
             })()}</span>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>
+            <span className="sheen-title" style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>
               {(() => {
                 const total = rollup.grandTotal
                 if (total >= 100) return `$${Math.round(total).toLocaleString('en-US')}`
@@ -1398,7 +1411,7 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
               })()}
             </span>
           </div>
-          <span style={{ color: '#62627a', fontSize: 12 }}>▴ topsheet</span>
+          <span style={{ color: '#7a7a82', fontSize: 12 }}>▴ topsheet</span>
         </button>
       )}
 
