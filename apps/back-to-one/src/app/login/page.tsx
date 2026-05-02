@@ -91,7 +91,7 @@ function LoginForm() {
       {/* Background image */}
       <div
         className="absolute inset-0 z-0 bg-cover bg-top"
-        style={{ backgroundImage: "url('/images/b21_bg.png')" }}
+        style={{ backgroundImage: "url('/images/b21_bg.jpg')" }}
       />
 
       {/* Gradient overlay */}

@@ -5,6 +5,7 @@ import { AnimatePresence } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
+import dynamic from 'next/dynamic'
 import { useProject, useScenes, useShotlistVersions, useCreateShotlistVersion, useUpdateShotlistVersionLabel, useThreadPreviews } from '@/lib/hooks/useOriginOne'
 import { getShotsByProject, updateShotOrder, updateShootOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene, deleteScene } from '@/lib/db/queries'
 import { LoadingState } from '@/components/ui'
@@ -20,11 +21,29 @@ import { aspectRatioToCss } from '@/lib/aspect-ratio'
 import { STORYBOARD_STYLES, DEFAULT_STORYBOARD_STYLE, type StoryboardStyle } from '@/lib/bria/style'
 import { SHOT_SIZE_OPTIONS, SHOT_SIZE_ABBREV } from '@/lib/shot-sizes'
 import { ScriptView, type ScriptViewHandle } from './components/ScriptView'
-import { ShotDetailSheet } from './components/ShotDetailSheet'
-import { EntityDrawer } from './components/EntityDrawer'
-import { PdfExport } from './components/PdfExport'
 import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
-import { StoryboardImageSheet } from '@/components/storyboard/StoryboardImageSheet'
+
+// Heavy modules deferred until the surface that needs them mounts.
+// PdfExport pulls in @react-pdf/renderer; EntityDrawer + ShotDetailSheet
+// + StoryboardImageSheet only render on user interaction. Keeping them
+// out of the initial SceneMaker chunk shrinks the navigation cost from
+// the Hub.
+const ShotDetailSheet = dynamic(
+  () => import('./components/ShotDetailSheet').then(m => ({ default: m.ShotDetailSheet })),
+  { ssr: false },
+)
+const EntityDrawer = dynamic(
+  () => import('./components/EntityDrawer').then(m => ({ default: m.EntityDrawer })),
+  { ssr: false },
+)
+const PdfExport = dynamic(
+  () => import('./components/PdfExport').then(m => ({ default: m.PdfExport })),
+  { ssr: false },
+)
+const StoryboardImageSheet = dynamic(
+  () => import('@/components/storyboard/StoryboardImageSheet').then(m => ({ default: m.StoryboardImageSheet })),
+  { ssr: false },
+)
 import { Toast, type ToastSpec } from '@/components/ui/Toast'
 import {
   DndContext,
