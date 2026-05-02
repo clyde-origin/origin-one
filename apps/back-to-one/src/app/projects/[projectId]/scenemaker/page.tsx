@@ -900,6 +900,13 @@ function SortableShotRow({
     position: 'relative',
   }
 
+  // Per-row scene-rgb override — shot tag picks up the scene hue via
+  // .scenemaker-shot-num's --tag-rgb consumer, and the row's glass-tile
+  // bg/border re-tints to the scene via --tile-rgb. One inline triplet
+  // does both.
+  const sr = parseInt(sceneColor.slice(1, 3), 16)
+  const sg = parseInt(sceneColor.slice(3, 5), 16)
+  const sb = parseInt(sceneColor.slice(5, 7), 16)
   // Listeners + attributes are always attached. TouchSensor's 250 ms delay
   // handles the tap-vs-drag disambiguation: a quick tap doesn't activate
   // drag (preventDefault is never called), so onClick still flows to the
@@ -909,15 +916,15 @@ function SortableShotRow({
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
       <div
-        className={`flex items-center select-none relative${wiggleMode && !isDragging ? ' wiggle' : ''}`}
+        className={`glass-tile-sm flex items-center select-none relative${wiggleMode && !isDragging ? ' wiggle' : ''}`}
         style={{
           gap: 9,
-          background: isDragging ? 'rgba(10,10,18,0.85)' : 'rgba(10,10,18,0.42)',
-          backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-          border: isDragging ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 8, padding: '9px 10px',
-          boxShadow: isDragging ? '0 8px 32px rgba(0,0,0,0.6)' : 'none',
-        }}
+          padding: '9px 10px',
+          ['--tile-rgb' as string]: `${sr}, ${sg}, ${sb}`,
+          ...(isDragging
+            ? { boxShadow: '0 8px 32px rgba(0,0,0,0.6)', opacity: 0.85 }
+            : {}),
+        } as React.CSSProperties}
         {...listeners}
         onClick={(e) => { if (wiggleMode) e.stopPropagation() }}
       >
@@ -930,15 +937,15 @@ function SortableShotRow({
           </div>
         )}
 
-        <span className={`flex-shrink-0 cursor-pointer${blinking ? ' number-blink' : ''}`}
-          style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
+        <span
+          className={`scenemaker-shot-num cursor-pointer${blinking ? ' number-blink' : ''}`}
+          style={{ ['--tag-rgb' as string]: `${sr}, ${sg}, ${sb}` } as React.CSSProperties}
           onClick={() => !wiggleMode && onTap()}>
           {displayNum}
         </span>
 
         {shot.size && (
-          <span className="font-mono uppercase flex-shrink-0 cursor-pointer"
-            style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}
+          <span className="scenemaker-aspect-label cursor-pointer"
             onClick={() => !wiggleMode && onTap()}>
             {SIZE_ABBREV[shot.size] ?? shot.size}
           </span>
@@ -963,8 +970,8 @@ function SortableShotRow({
             onClick={e => e.stopPropagation()}
           />
         ) : (
-          <span className="flex-1 min-w-0 truncate cursor-text"
-            style={{ fontSize: '0.58rem', fontWeight: 500, color: '#a0a0b8', lineHeight: 1.35 }}
+          <span className="font-mono flex-1 min-w-0 truncate cursor-text"
+            style={{ fontSize: '0.58rem', fontWeight: 500, color: 'var(--fg)', lineHeight: 1.35 }}
             onClick={(e) => {
               if (wiggleMode) return
               if (descBehavior === 'tap-edits-inline' && setEditingDescValue && setEditingDescShotId) {
@@ -1032,10 +1039,16 @@ function SceneHeaderDroppable({
         ...(highlighted ? { background: `${sceneColor}12`, borderRadius: 6, margin: '0 4px' } : {}),
         transition: 'background 0.15s, margin 0.15s',
       }}>
-      <span className="flex-shrink-0 cursor-pointer"
-        style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', color: sceneColor, minWidth: 20 }}
+      <span
+        className="scenemaker-scene-num cursor-pointer"
+        style={(() => {
+          const r = parseInt(sceneColor.slice(1, 3), 16)
+          const g = parseInt(sceneColor.slice(3, 5), 16)
+          const b = parseInt(sceneColor.slice(5, 7), 16)
+          return { ['--tag-rgb' as string]: `${r}, ${g}, ${b}` } as React.CSSProperties
+        })()}
         onClick={() => !wiggleMode && toggleScene(scene.id)}>
-        {scene.sceneNumber}
+        {scene.sceneNumber.padStart(2, '0')}
       </span>
       {isEditing ? (
         <input
@@ -1469,20 +1482,38 @@ function BoardCard({ shot, sceneColor, aspectRatio, isDragging, isShifted, onTap
           {shot.imageUrl && (
             <StorageImage url={shot.imageUrl} alt={shot.shotNumber} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
           )}
-          <div className="absolute top-1 left-1" style={{
-            fontFamily: "'Geist', sans-serif", fontSize: '0.38rem', fontWeight: 700, letterSpacing: '0.04em',
-            color: sceneColor, background: 'rgba(4,4,10,0.7)',
-            borderRadius: 4, padding: '1px 4px',
-            zIndex: 6,
-          }}>
+          {/* Shot tag (top-left) + aspect label (top-right) — both sit
+              above the letterbox z-index so they remain readable on the
+              letterboxed image. The shot tag uses the dept-color outline
+              rect; aspect is mono-caps in dept color. */}
+          <span
+            className="scenemaker-shot-num absolute"
+            style={{
+              top: 4, left: 4, zIndex: 6,
+              backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+              ['--tag-rgb' as string]: `${sr}, ${sg}, ${sb}`,
+            } as React.CSSProperties}>
             {shot.shotNumber}
-          </div>
+          </span>
+          {shot.size && (
+            <span
+              className="scenemaker-aspect-label absolute font-mono"
+              style={{
+                top: 6, right: 6, zIndex: 6,
+                color: sceneColor,
+                background: 'rgba(4,4,10,0.55)', borderRadius: 4, padding: '1px 5px',
+                backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+              }}>
+              {SIZE_ABBREV[shot.size] ?? shot.size}
+            </span>
+          )}
           <div className="letterbox-bottom" style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }} />
         </div>
-        {/* Description */}
-        <div style={{
+        {/* Description — Geist Mono, --fg, 2-line truncate per
+            DESIGN_LANGUAGE.md storyboard panel pattern. */}
+        <div className="font-mono" style={{
           padding: '5px 6px', fontSize: '0.44rem', fontWeight: 500,
-          color: '#a0a0b8', lineHeight: 1.35,
+          color: 'var(--fg)', lineHeight: 1.35,
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
           overflow: 'hidden',
         }}>
@@ -2187,23 +2218,17 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
       {/* ── MODE SUBHEADERS (consistent 44px height) ── */}
 
-      {/* Script subheader: Characters / Locations / Props */}
+      {/* Script subheader — Characters / Locations / Props.
+          DESIGN_LANGUAGE.md: rounded outline pills, mono caps,
+          --fg-mono color, hairline border. Active swaps to project
+          accent (read from --accent-rgb on .screen root). */}
       {mode === 'script' && (
         <div className="flex items-center justify-center flex-shrink-0" style={{ height: 44, padding: '0 14px', gap: 10, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          {([
-            { key: 'characters' as const, color: '#67E8F9', bg: 'rgba(103,232,249,0.1)', border: 'rgba(103,232,249,0.28)' },
-            { key: 'locations' as const,  color: '#A78BFA', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.28)' },
-            { key: 'props' as const,      color: '#FCD34D', bg: 'rgba(252,211,77,0.08)', border: 'rgba(252,211,77,0.22)' },
-          ]).map(({ key, color, bg, border }) => {
+          {(['characters', 'locations', 'props'] as const).map(key => {
             const active = scriptPanel === key
             return (
-              <button key={key} className="font-mono uppercase cursor-pointer select-none transition-colors"
-                style={{
-                  fontSize: '0.46rem', letterSpacing: '0.06em', padding: '6px 18px', borderRadius: 16,
-                  background: active ? bg : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${active ? border : 'rgba(255,255,255,0.08)'}`,
-                  color: active ? color : '#a0a0b8',
-                }}
+              <button key={key}
+                className={`scenemaker-filter-pill${active ? ' active' : ''}`}
                 onClick={() => { haptic('light'); setScriptPanel(active ? null : key) }}>
                 {key}
               </button>
@@ -2212,28 +2237,26 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         </div>
       )}
 
-      {/* Shotlist subheader: Export PDF | Story/Shooting | Version */}
+      {/* Shotlist subheader: PDF chip | Story/Shooting toggle | V0 dropdown + add.
+          DESIGN_LANGUAGE.md toolbar pattern — left chip, centered segmented
+          toggle, right dropdown + add. Active states pull from --accent-rgb
+          on the .screen root via .scenemaker-toolbar-chip / -toggle utilities. */}
       {mode === 'shotlist' && (
         <div className="flex items-center flex-shrink-0" style={{ height: 44, padding: '0 14px', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           {/* Export PDF */}
-          <button className="flex items-center gap-2 cursor-pointer select-none"
-            style={{ padding: '6px 14px', borderRadius: 16, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+          <button className="scenemaker-toolbar-chip"
             onClick={() => { haptic('light'); setShowExport(true) }}>
-            <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 7V8.5h6V7" stroke="#a0a0b8" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /><path d="M5 1v5M3 4l2 2 2-2" stroke="#a0a0b8" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            <span className="font-mono uppercase" style={{ fontSize: '0.46rem', letterSpacing: '0.06em', color: '#a0a0b8' }}>PDF</span>
+            <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 7V8.5h6V7" stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /><path d="M5 1v5M3 4l2 2 2-2" stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            <span className="font-mono uppercase" style={{ fontSize: '0.46rem', letterSpacing: '0.06em' }}>PDF</span>
           </button>
 
           <div className="flex-1" />
 
           {/* Story / Shooting toggle */}
-          <div className="flex" style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="scenemaker-toggle">
             {(['story', 'shooting'] as const).map(o => (
-              <button key={o} className="font-mono uppercase cursor-pointer select-none transition-colors"
-                style={{
-                  fontSize: '0.46rem', letterSpacing: '0.04em', padding: '6px 14px',
-                  background: shotOrder === o ? `${accent}1a` : 'rgba(255,255,255,0.02)',
-                  color: shotOrder === o ? accent : '#62627a',
-                }}
+              <button key={o}
+                className={`scenemaker-toggle-btn${shotOrder === o ? ' active' : ''}`}
                 onClick={() => { haptic('light'); setShotOrder(o) }}>
                 {o}
               </button>
@@ -2244,30 +2267,35 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
           {/* Version selector */}
           <div className="flex items-center" style={{ gap: 5 }}>
-            <button className="flex items-center gap-1.5 cursor-pointer select-none"
-              style={{
-                padding: '6px 12px', borderRadius: 16,
-                background: showVersionPanel ? `${accent}1a` : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${showVersionPanel ? `${accent}40` : 'rgba(255,255,255,0.08)'}`,
-              }}
+            <button className={`scenemaker-toolbar-chip${showVersionPanel ? ' active' : ''}`}
+              style={{ padding: '6px 12px' }}
               onClick={() => { haptic('light'); setShowVersionPanel(v => !v) }}>
-              <span className="font-mono" style={{ fontSize: '0.5rem', fontWeight: 700, color: showVersionPanel ? accent : '#a0a0b8' }}>
+              <span className="font-mono" style={{ fontSize: '0.5rem', fontWeight: 700 }}>
                 {previewVersion ? `v${previewVersion.versionNumber}` : shotlistVersions?.[0] ? `v${shotlistVersions[0].versionNumber}` : 'v0'}
               </span>
               <svg width="7" height="7" viewBox="0 0 6 6" fill="none" style={{ transform: showVersionPanel ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                <path d="M1.5 2.5L3 4L4.5 2.5" stroke={showVersionPanel ? accent : '#62627a'} strokeWidth="0.9" strokeLinecap="round" />
+                <path d="M1.5 2.5L3 4L4.5 2.5" stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" />
               </svg>
             </button>
             <button className="flex items-center justify-center cursor-pointer"
-              style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+              style={{
+                width: 26, height: 26, borderRadius: '50%',
+                background: 'transparent',
+                border: `1px solid rgba(${pr},${pg},${pb},0.50)`,
+                color: accent,
+              }}
               onClick={() => { handleSaveVersion() }}>
-              <svg width="10" height="10" viewBox="0 0 8 8" fill="none"><path d="M4 1.5v5M1.5 4h5" stroke="#62627a" strokeWidth="0.9" strokeLinecap="round" /></svg>
+              <svg width="10" height="10" viewBox="0 0 8 8" fill="none"><path d="M4 1.5v5M1.5 4h5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" /></svg>
             </button>
           </div>
         </div>
       )}
 
-      {/* Storyboard subheader: scale selector */}
+      {/* Storyboard subheader — view-mode selector. Active mode reads as
+          a glass-tile-sm chip with accent stroke + inset highlight; inactive
+          stays flat with --fg-mono. Class lives in globals.css as
+          .scenemaker-viewmode-btn so the active treatment composes with the
+          .screen root's --accent-rgb. */}
       {mode === 'storyboard' && (
         <div className="flex items-center justify-center flex-shrink-0" style={{ height: 44, padding: '0 14px', gap: 6, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           {([
@@ -2275,20 +2303,19 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
             { key: '3up' as const, label: '3-up', icon: <><rect x="1" y="3" width="3.5" height="3" rx="0.5" /><rect x="5.25" y="3" width="3.5" height="3" rx="0.5" /><rect x="9.5" y="3" width="3.5" height="3" rx="0.5" /><rect x="1" y="7" width="3.5" height="3" rx="0.5" /><rect x="5.25" y="7" width="3.5" height="3" rx="0.5" /><rect x="9.5" y="7" width="3.5" height="3" rx="0.5" /></> },
             { key: '2up' as const, label: 'Split', icon: <><rect x="1" y="2" width="6" height="5" rx="0.5" /><rect x="7.5" y="2" width="6" height="5" rx="0.5" /><rect x="1" y="9" width="2.5" height="2" rx="0.3" /><rect x="4" y="9" width="2.5" height="2" rx="0.3" /><rect x="7" y="9" width="2.5" height="2" rx="0.3" /><rect x="10" y="9" width="2.5" height="2" rx="0.3" /></> },
             { key: 'all' as const, label: 'All', icon: <>{[0,1,2,3].map(r => [0,1,2,3].map(c => <rect key={`${r}${c}`} x={1+c*3.25} y={1.5+r*3} width="2.5" height="2" rx="0.3" />))}</> },
-          ]).map(s => (
-            <button key={s.key} className="flex flex-col items-center gap-1 cursor-pointer select-none transition-colors"
-              style={{
-                padding: '4px 12px', borderRadius: 10, minWidth: 48,
-                background: boardScale === s.key ? `${accent}14` : 'transparent',
-                border: boardScale === s.key ? `1px solid ${accent}30` : '1px solid transparent',
-              }}
-              onClick={() => { haptic('light'); setBoardScale(s.key) }}>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={boardScale === s.key ? accent : '#62627a'} strokeWidth="0.7">
-                {s.icon}
-              </svg>
-              <span className="font-mono uppercase" style={{ fontSize: '0.3rem', letterSpacing: '0.04em', color: boardScale === s.key ? accent : '#62627a' }}>{s.label}</span>
-            </button>
-          ))}
+          ]).map(s => {
+            const active = boardScale === s.key
+            return (
+              <button key={s.key}
+                className={`scenemaker-viewmode-btn${active ? ' active' : ''}`}
+                onClick={() => { haptic('light'); setBoardScale(s.key) }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="0.7">
+                  {s.icon}
+                </svg>
+                <span className="font-mono uppercase" style={{ fontSize: '0.3rem', letterSpacing: '0.04em' }}>{s.label}</span>
+              </button>
+            )
+          })}
         </div>
       )}
 

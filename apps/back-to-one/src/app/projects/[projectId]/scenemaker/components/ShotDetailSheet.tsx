@@ -87,7 +87,9 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
       {/* Hero image area — taps open the storyboard image menu (Upload /
           Create image) when onOpenImageMenu is wired; falls back to the
           native file picker if not. The detail sheet closes itself before
-          the menu opens so we don't stack two sheets. */}
+          the menu opens so we don't stack two sheets.
+          DESIGN_LANGUAGE.md heavy-letterbox variant: 6px bars top/bottom
+          mark detail-sheet hero images vs the 2px standard on cards. */}
       <div
         className="cursor-pointer"
         style={{
@@ -109,6 +111,7 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
           }
         }}
       >
+        <div className="letterbox-top" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6 }} />
         {shot.imageUrl ? (
           <StorageImage url={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
@@ -127,12 +130,14 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
             width: 28, height: 28, borderRadius: '50%',
             background: 'rgba(4,4,10,0.7)', backdropFilter: 'blur(8px)',
             border: '1px solid rgba(255,255,255,0.15)',
+            zIndex: 6,
           }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M6 3v6M3 6h6" stroke="rgba(255,255,255,0.6)" strokeWidth="1.3" strokeLinecap="round" />
             </svg>
           </div>
         )}
+        <div className="letterbox-bottom" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 6 }} />
       </div>
 
       <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
@@ -202,40 +207,45 @@ export function ShotDetailSheet({ shot, accent, projectId, aspectRatio, onClose,
         </div>
       </div>
 
-      {/* Notes field */}
-      <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <span className="font-mono uppercase block" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Notes</span>
-        {editingNotes ? (
-          <textarea
-            value={notesValue}
-            onChange={e => setNotesValue(e.target.value)}
-            autoFocus
-            onBlur={commitNotes}
-            rows={3}
-            placeholder="Crew instructions, reminders..."
-            className="w-full outline-none resize-none"
-            style={{ fontSize: '0.74rem', color: '#a0a0b8', lineHeight: 1.5, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6, padding: '6px 8px' }}
-          />
-        ) : (
-          <div
-            className="cursor-text"
-            style={{ fontSize: '0.74rem', color: shot.notes ? '#a0a0b8' : '#62627a', lineHeight: 1.5, minHeight: 20, borderRadius: 6, padding: '2px 0' }}
-            onClick={() => { setNotesValue(shot.notes ?? ''); setEditingNotes(true) }}>
-            {shot.notes || 'Tap to add notes...'}
+      {/* Meta data card — Status + Notes wrapped in a single glass-tile.
+          DESIGN_LANGUAGE.md detail-sheet meta card pattern: mono caps
+          labels left at fixed width, value right. Notes value spans full
+          width and wraps. Lens / Move / Cast / Props / Location rows are
+          deferred to a follow-up that adds the corresponding fields to
+          the Shot type (see PR description). */}
+      <div style={{ padding: '0 16px 14px' }}>
+        <div className="glass-tile" style={{ borderRadius: 12 }}>
+          <div className="scenemaker-meta-row">
+            <span className="scenemaker-meta-label">Status</span>
+            <span className="scenemaker-meta-value capitalize">{shot.status.replace(/_/g, ' ')}</span>
           </div>
-        )}
+          <div className="scenemaker-meta-row">
+            <span className="scenemaker-meta-label">Notes</span>
+            {editingNotes ? (
+              <textarea
+                value={notesValue}
+                onChange={e => setNotesValue(e.target.value)}
+                autoFocus
+                onBlur={commitNotes}
+                rows={3}
+                placeholder="Crew instructions, reminders..."
+                className="scenemaker-meta-value outline-none resize-none"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6, padding: '6px 8px' }}
+              />
+            ) : (
+              <div
+                className="scenemaker-meta-value cursor-text"
+                style={{ color: shot.notes ? 'var(--fg)' : 'var(--fg-mono)', minHeight: 20, padding: '2px 0' }}
+                onClick={() => { setNotesValue(shot.notes ?? ''); setEditingNotes(true) }}>
+                {shot.notes || 'Tap to add notes...'}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {PreviewRow}
       {MessageZone}
-
-      {/* Metadata rows */}
-      <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 11 }}>
-        <div className="flex items-start gap-3">
-          <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', width: 68, paddingTop: 2 }}>Status</span>
-          <span className="capitalize" style={{ fontSize: '0.76rem', fontWeight: 600, color: '#dddde8' }}>{shot.status.replace(/_/g, ' ')}</span>
-        </div>
-      </div>
 
       {/* Buttons */}
       <div style={{ padding: '14px 20px 0', display: 'flex', gap: 10 }}>

@@ -395,9 +395,23 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
             style={{ padding: '20px 20px 0', borderTop: si > 0 ? '1px solid rgba(255,255,255,0.05)' : undefined }}
             onFocus={() => { focusedSceneIndex.current = si }}>
 
-            {/* Scene number badge + Scene title (primary heading) */}
+            {/* Scene number badge + Scene title (primary heading).
+                Badge is a dept-color outline rect; tag-rgb inline picks
+                up the per-scene color so one .scenemaker-scene-num class
+                serves every dept. Title uses .sheen-title with --accent
+                pinned to the scene color via inline style so the gradient
+                re-tints to the scene hue. caretColor falls back to the
+                scene color since background-clip:text makes the caret
+                inherit from the gradient. */}
             <div className="flex items-start" style={{ gap: 8, marginBottom: 12 }}>
-              <span className="font-mono flex-shrink-0" style={{ fontSize: '0.52rem', fontWeight: 700, color: sceneColor, background: `${sceneColor}1a`, borderRadius: 4, padding: '2px 5px', marginTop: 2 }}>
+              <span
+                className="scenemaker-scene-num"
+                style={(() => {
+                  const r = parseInt(sceneColor.slice(1, 3), 16)
+                  const g = parseInt(sceneColor.slice(3, 5), 16)
+                  const b = parseInt(sceneColor.slice(5, 7), 16)
+                  return { ['--tag-rgb' as string]: `${r}, ${g}, ${b}`, marginTop: 2 } as React.CSSProperties
+                })()}>
                 {scene.sceneNumber.padStart(2, '0')}
               </span>
               <div contentEditable suppressContentEditableWarning
@@ -409,12 +423,21 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
                   }
                 }}
                 data-placeholder="Scene Heading"
-                style={{
-                  fontFamily: "'Geist', sans-serif", fontSize: '0.78rem', fontWeight: 700,
-                  color: accent, textTransform: 'uppercase', letterSpacing: '0.04em',
-                  lineHeight: 1.4, outline: 'none', borderRadius: 4, cursor: 'text',
-                  flex: 1, minHeight: 20,
-                }}
+                className="sheen-title"
+                style={(() => {
+                  const r = parseInt(sceneColor.slice(1, 3), 16)
+                  const g = parseInt(sceneColor.slice(3, 5), 16)
+                  const b = parseInt(sceneColor.slice(5, 7), 16)
+                  return {
+                    fontFamily: "'Geist', sans-serif", fontSize: '0.78rem', fontWeight: 700,
+                    textTransform: 'uppercase', letterSpacing: '0.04em',
+                    lineHeight: 1.4, outline: 'none', borderRadius: 4, cursor: 'text',
+                    flex: 1, minHeight: 20,
+                    caretColor: sceneColor,
+                    ['--accent-rgb' as string]: `${r}, ${g}, ${b}`,
+                    ['--accent-glow-rgb' as string]: `${Math.min(255, r + 20)}, ${Math.min(255, g + 30)}, ${Math.min(255, b + 16)}`,
+                  } as React.CSSProperties
+                })()}
                 onFocus={focusStyle}
                 onInput={e => handleTitleInput(scene.id, e)}
                 onBlur={e => handleTitleBlur(scene.id, e)}
@@ -428,9 +451,14 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
               if (block.type === 'scene_heading') {
                 const hNum = headingNumbers.get(block.id) ?? (totalScenes + 1)
                 const hColor = getSceneColor(hNum, headingCounter)
+                const hr = parseInt(hColor.slice(1, 3), 16)
+                const hg = parseInt(hColor.slice(3, 5), 16)
+                const hb = parseInt(hColor.slice(5, 7), 16)
                 return (
                   <div key={block.id} className="flex items-start" style={{ gap: 8, marginBottom: 12, marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span className="font-mono flex-shrink-0" style={{ fontSize: '0.52rem', fontWeight: 700, color: hColor, background: `${hColor}1a`, borderRadius: 4, padding: '2px 5px', marginTop: 2 }}>
+                    <span
+                      className="scenemaker-scene-num"
+                      style={{ ['--tag-rgb' as string]: `${hr}, ${hg}, ${hb}`, marginTop: 2 } as React.CSSProperties}>
                       {String(hNum).padStart(2, '0')}
                     </span>
                     <div
@@ -443,7 +471,15 @@ export const ScriptView = forwardRef<ScriptViewHandle, ScriptViewProps>(function
                         }
                       }}
                       data-placeholder={PLACEHOLDER.scene_heading}
-                      style={{ ...getBlockStyle('scene_heading'), flex: 1 }}
+                      className="sheen-title"
+                      style={{
+                        ...getBlockStyle('scene_heading'),
+                        flex: 1,
+                        color: undefined,
+                        caretColor: hColor,
+                        ['--accent-rgb' as string]: `${hr}, ${hg}, ${hb}`,
+                        ['--accent-glow-rgb' as string]: `${Math.min(255, hr + 20)}, ${Math.min(255, hg + 30)}, ${Math.min(255, hb + 16)}`,
+                      } as React.CSSProperties}
                       onFocus={focusStyle}
                       onInput={e => handleBlockInput(scene.id, bi, e)}
                       onBlur={e => handleBlockBlur(scene.id, e)}
