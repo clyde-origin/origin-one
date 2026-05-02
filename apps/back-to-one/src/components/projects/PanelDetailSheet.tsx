@@ -15,6 +15,7 @@
 // Schedule "Shoot Day" events route to the project chat instead of opening
 // a detail (no shoot-day record exists yet).
 
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useToggleActionItem } from '@/lib/hooks/useOriginOne'
@@ -240,8 +241,7 @@ function CrewDetailBody({ row, projects, onClose }: { row: CrewDetailRow; projec
     <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 18px', display: 'flex', flexDirection: 'column', gap: 14, overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         {row.avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={row.avatarUrl} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover' }} />
+          <Image src={row.avatarUrl} alt="" width={56} height={56} style={{ borderRadius: '50%', objectFit: 'cover' }} />
         ) : (
           <div style={{
             width: 56, height: 56, borderRadius: '50%',
