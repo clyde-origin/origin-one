@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { haptic } from '@/lib/utils/haptics'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
-import { DEPARTMENTS, getProjectColor, statusHex, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
+import { DEPARTMENTS, getProjectColor, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import type { InventoryItem, InventoryItemStatus, ImportSource, TeamMember } from '@/types'
@@ -18,13 +18,15 @@ import type { InventoryItem, InventoryItemStatus, ImportSource, TeamMember } fro
 // ── Status palette (BRAND_TOKENS § Inventory Item Status) ─────────────
 // Inline per the Locations / Art convention. The phase-color reuse for
 // ordered/packed/returned is documented in BRAND_TOKENS.md.
+// Alphas match the cinema-glass chip pattern (bg @ 0.10, border @ 0.22,
+// color @ 0.9 implied) per DESIGN_LANGUAGE.md status-pill rule.
 
 const STATUS_COLORS: Record<InventoryItemStatus, { color: string; border: string; bg: string }> = {
-  needed:   { color: '#e84848', border: 'rgba(232, 72, 72, 0.35)',  bg: 'rgba(232, 72, 72, 0.08)' },
-  ordered:  { color: '#e8a020', border: 'rgba(232, 160, 32, 0.35)', bg: 'rgba(232, 160, 32, 0.08)' },
-  arrived:  { color: '#4ab8e8', border: 'rgba(74, 184, 232, 0.35)', bg: 'rgba(74, 184, 232, 0.08)' },
-  packed:   { color: '#6470f3', border: 'rgba(100, 112, 243, 0.35)', bg: 'rgba(100, 112, 243, 0.08)' },
-  returned: { color: '#00b894', border: 'rgba(0, 184, 148, 0.35)',   bg: 'rgba(0, 184, 148, 0.08)' },
+  needed:   { color: '#e84848', border: 'rgba(232, 72, 72, 0.22)',  bg: 'rgba(232, 72, 72, 0.10)' },
+  ordered:  { color: '#e8a020', border: 'rgba(232, 160, 32, 0.22)', bg: 'rgba(232, 160, 32, 0.10)' },
+  arrived:  { color: '#4ab8e8', border: 'rgba(74, 184, 232, 0.22)', bg: 'rgba(74, 184, 232, 0.10)' },
+  packed:   { color: '#6470f3', border: 'rgba(100, 112, 243, 0.22)', bg: 'rgba(100, 112, 243, 0.10)' },
+  returned: { color: '#00b894', border: 'rgba(0, 184, 148, 0.22)',   bg: 'rgba(0, 184, 148, 0.10)' },
 }
 
 const STATUS_LABEL: Record<InventoryItemStatus, string> = {
@@ -38,6 +40,23 @@ const TOOLTIP_BG = '#10101a'
 const TOOLTIP_BORDER = 'rgba(255,255,255,0.08)'
 
 // ── Helpers ────────────────────────────────────────────────────────────
+
+// Decompose a #rrggbb hex into a [r,g,b] triplet so the screen root can set
+// `--tile-rgb` / `--accent-rgb` / `--accent-glow-rgb` for the cinema-glass
+// classes (`glass-tile`, `sheen-title`, `ai-meta-pill`) to consume.
+function hexToRgb(hex: string | null | undefined): [number, number, number] {
+  const h = (hex && /^#[0-9a-f]{6}$/i.test(hex)) ? hex : '#c45adc'
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
+}
+
+// Project status → ai-meta-pill phase modifier (.pre / .prod / .post).
+// development + pre_production both ride pre amber; archived collapses to
+// pre as a neutral fallback (the pill is omitted upstream when project is null).
+function statusToPhase(s: string | undefined): 'pre' | 'prod' | 'post' {
+  if (s === 'production') return 'prod'
+  if (s === 'post_production') return 'post'
+  return 'pre'
+}
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/)
@@ -152,26 +171,29 @@ function InventoryItemRow({
   return (
     <div
       onClick={onTap}
-      className="cursor-pointer active:opacity-90 transition-opacity"
+      className="glass-tile cursor-pointer active:opacity-90 transition-opacity"
       style={{
-        padding: 12, borderRadius: 12,
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.06)',
+        position: 'relative',
+        padding: 12,
       }}
     >
+      {/* Letterbox bars — cinema-glass identity. Above content (z:5). */}
+      <div className="letterbox-top" />
+      <div className="letterbox-bottom" />
+
       <div className="flex items-start" style={{ gap: 10 }}>
         <div className="flex-1 min-w-0">
-          <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#fff', lineHeight: 1.25 }}>
+          <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--fg)', lineHeight: 1.25 }}>
             {item.name}
           </div>
           <div
             className="flex items-center"
-            style={{ gap: 6, marginTop: 5, fontSize: '0.56rem', color: 'rgba(255,255,255,0.4)', flexWrap: 'wrap' }}
+            style={{ gap: 6, marginTop: 5, fontSize: '0.56rem', color: 'var(--fg-mono)', flexWrap: 'wrap' }}
           >
-            <span style={{ fontWeight: 500, color: 'rgba(255,255,255,0.55)' }}>×{item.quantity}</span>
+            <span style={{ fontWeight: 500, color: 'var(--fg-mono)' }}>×{item.quantity}</span>
             {item.source && (
               <>
-                <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
+                <span style={{ color: 'var(--fg-mono)', opacity: 0.5 }}>·</span>
                 <span>{item.source}</span>
               </>
             )}
@@ -186,7 +208,7 @@ function InventoryItemRow({
           className="flex items-center"
           style={{ marginTop: 10, gap: 12 }}
         >
-          <div className="flex-1 min-w-0" style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>
+          <div className="flex-1 min-w-0" style={{ fontSize: '0.58rem', color: 'var(--fg-mono)', lineHeight: 1.5 }}>
             {item.notes && (
               <span
                 style={{
@@ -318,14 +340,14 @@ function InventoryDetailSheet({
 
   const inputStyle: React.CSSProperties = {
     background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.05)',
+    border: '1px solid var(--border)',
     borderRadius: 7, padding: '10px 12px',
-    color: '#dddde8', fontSize: '0.82rem',
+    color: 'var(--fg)', fontSize: '0.82rem',
     width: '100%', outline: 'none',
   }
   const labelStyle: React.CSSProperties = {
     fontFamily: 'var(--font-geist-mono)',
-    fontSize: '0.44rem', color: 'rgba(255,255,255,0.32)',
+    fontSize: '0.44rem', color: 'var(--fg-mono)',
     letterSpacing: '0.1em', textTransform: 'uppercase',
     display: 'block', marginBottom: 6,
   }
@@ -609,6 +631,11 @@ export default function InventoryPage({ params }: { params: { projectId: string 
 
   const colors = deriveProjectColors(project?.color || getProjectColor(projectId) || DEFAULT_PROJECT_HEX)
   const accent = colors.primary
+  // Cinema-glass tokens consumed by .glass-tile / .sheen-title / .ai-meta-pill.
+  const [pr, pg, pb] = hexToRgb(accent)
+  const glowR = Math.min(255, pr + 20)
+  const glowG = Math.min(255, pg + 30)
+  const glowB = Math.min(255, pb + 16)
 
   const allItems = (items ?? []) as InventoryItem[]
   const allCrew = (crew ?? []) as TeamMember[]
@@ -645,20 +672,24 @@ export default function InventoryPage({ params }: { params: { projectId: string 
   )
 
   return (
-    <div className="screen">
+    <div
+      className="screen"
+      style={{
+        ['--tile-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
+      } as React.CSSProperties}
+    >
       <PageHeader
         projectId={projectId}
         title="Inventory"
         meta={project ? (
           <div className="flex flex-col items-center gap-1.5">
             <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
-            <span
-              className="font-mono uppercase"
-              style={{
-                fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12,
-                background: `${statusHex(project.status)}18`, color: statusHex(project.status),
-              }}
-            >{projectStatusLabel(project.status)}</span>
+            <span className={`ai-meta-pill ${statusToPhase(project.status)}`}>
+              <span className="phase-dot" />
+              {projectStatusLabel(project.status)}
+            </span>
           </div>
         ) : ''}
         noBorder
@@ -669,7 +700,7 @@ export default function InventoryPage({ params }: { params: { projectId: string 
         className="flex items-center justify-center font-mono uppercase flex-shrink-0"
         style={{
           gap: 8, fontSize: '0.46rem', letterSpacing: '0.1em',
-          color: 'rgba(255,255,255,0.32)',
+          color: 'var(--fg-mono)',
           padding: '0 16px 16px',
         }}
       >
@@ -734,10 +765,11 @@ export default function InventoryPage({ params }: { params: { projectId: string 
         </div>
       </div>
 
-      {/* Tab bar — 13 departments, horizontal scroll */}
+      {/* Tab bar — 13 departments, horizontal scroll. Active chip uses
+          project accent so the whole route reads as project-tinted. */}
       <div
         className="flex-shrink-0 overflow-x-auto no-scrollbar"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+        style={{ borderBottom: '1px solid var(--border)' }}
       >
         <div className="flex" style={{ gap: 6, padding: '0 16px 12px' }}>
           {DEPARTMENTS.map(d => {
@@ -750,9 +782,9 @@ export default function InventoryPage({ params }: { params: { projectId: string 
                 className="font-mono uppercase flex items-center cursor-pointer transition-colors flex-shrink-0"
                 style={{
                   gap: 6, padding: '7px 12px', borderRadius: 20,
-                  background: isActive ? 'rgba(100, 112, 243, 0.12)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${isActive ? 'rgba(100, 112, 243, 0.4)' : 'rgba(255,255,255,0.06)'}`,
-                  color: isActive ? '#c9ceff' : 'rgba(255,255,255,0.5)',
+                  background: isActive ? `rgba(${pr}, ${pg}, ${pb}, 0.12)` : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${isActive ? `rgba(${pr}, ${pg}, ${pb}, 0.40)` : 'rgba(255,255,255,0.06)'}`,
+                  color: isActive ? accent : 'var(--fg-mono)',
                   fontSize: '0.5rem', letterSpacing: '0.08em',
                 }}
               >
@@ -762,8 +794,8 @@ export default function InventoryPage({ params }: { params: { projectId: string 
                   style={{
                     fontSize: 10,
                     padding: '1px 6px', borderRadius: 9,
-                    background: isActive ? 'rgba(100, 112, 243, 0.22)' : 'rgba(255,255,255,0.05)',
-                    color: isActive ? '#c9ceff' : 'rgba(255,255,255,0.4)',
+                    background: isActive ? `rgba(${pr}, ${pg}, ${pb}, 0.22)` : 'rgba(255,255,255,0.05)',
+                    color: isActive ? accent : 'var(--fg-mono)',
                   }}
                 >{count}</span>
               </button>
@@ -777,12 +809,13 @@ export default function InventoryPage({ params }: { params: { projectId: string 
         className="flex-1 overflow-y-auto no-scrollbar"
         style={{ WebkitOverflowScrolling: 'touch', padding: '14px 16px 100px' }}
       >
-        {/* List header */}
+        {/* List header — active dept name gets the sheen-extrusion treatment
+            per the brief's "Inventory chip section labels" rule. */}
         <div className="flex items-end justify-between" style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#dddde8' }}>{activeTab}</div>
+          <div className="sheen-title" style={{ fontSize: '0.92rem', fontWeight: 700, letterSpacing: '-0.01em' }}>{activeTab}</div>
           <div
             className="font-mono uppercase"
-            style={{ fontSize: '0.42rem', color: 'rgba(255,255,255,0.32)', letterSpacing: '0.1em' }}
+            style={{ fontSize: '0.42rem', color: 'var(--fg-mono)', letterSpacing: '0.1em' }}
           >
             {tabItems.length} items
           </div>
@@ -792,14 +825,10 @@ export default function InventoryPage({ params }: { params: { projectId: string 
         {isLoading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[0, 1, 2].map(i => (
-              <div
-                key={i}
-                style={{
-                  height: 80, borderRadius: 12,
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                }}
-              />
+              <div key={i} className="glass-tile sk-block" style={{ position: 'relative', height: 80 }}>
+                <div className="letterbox-top" />
+                <div className="letterbox-bottom" />
+              </div>
             ))}
           </div>
         ) : tabItems.length === 0 ? (
@@ -807,7 +836,7 @@ export default function InventoryPage({ params }: { params: { projectId: string 
             className="flex flex-col items-center justify-center text-center"
             style={{ gap: 8, padding: '40px 20px' }}
           >
-            <div className="font-mono" style={{ fontSize: '0.56rem', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.06em', lineHeight: 1.6 }}>
+            <div className="font-mono" style={{ fontSize: '0.56rem', color: 'var(--fg-mono)', letterSpacing: '0.06em', lineHeight: 1.6 }}>
               No items in {activeTab} yet.
               <br />
               Tap + to start.
