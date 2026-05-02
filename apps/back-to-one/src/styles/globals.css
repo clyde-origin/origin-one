@@ -263,31 +263,14 @@
    inline via style props on the consuming element.
    ──────────────────────────────────────────────────────────── */
 
-/* Sheen + extrusion title — two variants, both per BRAND_TOKENS.md and
-   DESIGN_LANGUAGE.md. Light-mode collapses both to solid sepia (the
-   white spotlight reads worse than clean sepia against beige).
-
-   .sheen-title-display — neutral cream gradient. Project name only
-     (the film-title treatment). Reads as identity, not accent.
-   .sheen-title-section — accent-tinted gradient. Every module /
-     section header. Hue comes from var(--accent) so each project
-     re-tints automatically. */
-
-.sheen-title-display {
-  background: linear-gradient(180deg,
-    rgba(255, 255, 255, 1) 0%,
-    var(--fg) 55%,
-    rgba(235, 235, 239, 0.82) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  filter:
-    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
-    drop-shadow(0 0 8px rgba(255, 255, 255, 0.08));
-}
-
-.sheen-title-section {
+/* Sheen + extrusion title — primary identity heading. Used on the
+   project name and on every module / section header so the panel
+   headers join the project accent. Hue comes from var(--accent), so
+   each project re-tints automatically. Spec: BRAND_TOKENS.md
+   "Sheen+Extrusion Title" + DESIGN_LANGUAGE.md page header pattern.
+   Light-mode collapses to solid sepia (var(--fg)) — white spotlight
+   reads worse than clean sepia against beige. */
+.sheen-title {
   background: linear-gradient(180deg,
     rgba(255, 255, 255, 0.96) 0%,
     rgba(var(--accent-glow-rgb, 216, 124, 236), 1) 32%,
@@ -301,11 +284,8 @@
     drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
     drop-shadow(0 0 6px rgba(var(--accent-rgb, 196, 90, 220), 0.22));
 }
-
-body.light-mode .sheen-title-display,
-html.light-mode body .sheen-title-display,
-body.light-mode .sheen-title-section,
-html.light-mode body .sheen-title-section {
+body.light-mode .sheen-title,
+html.light-mode body .sheen-title {
   background: none;
   -webkit-text-fill-color: var(--fg);
   color: var(--fg);

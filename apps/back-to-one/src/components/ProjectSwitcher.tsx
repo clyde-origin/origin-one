@@ -69,7 +69,7 @@ export function ProjectSwitcher({
           aria-label="Switch project"
         >
           <span
-            className="sheen-title-display text-center"
+            className="sheen-title text-center"
             style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.05 }}
           >
             {projectName}

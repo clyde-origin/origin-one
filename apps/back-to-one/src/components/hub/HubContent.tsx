@@ -77,7 +77,7 @@ function ModuleHeader({ name, meta }: { name: string; meta?: string }) {
   return (
     <div className="flex flex-col items-center mb-2.5">
       <div className="flex items-center gap-1.5">
-        <span className="sheen-title-section" style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '-0.01em' }}>{name}</span>
+        <span className="sheen-title" style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '-0.01em' }}>{name}</span>
       </div>
       {meta && (
         <span className="font-mono" style={{ fontSize: '0.50rem', color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>
