@@ -31,7 +31,7 @@ import type { Milestone, CrewMember, ShootDay, ShootDayType, Location } from '@/
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-const DOW = ['Su','Mo','Tu','We','Th','Fr','Sa']
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
 type Mode = 'project' | 'master' | 'days'
 type TopTab = 'milestones' | 'schedule'
@@ -101,7 +101,14 @@ function Calendar({ month, mode, accent, milestones, selectedDate, onSelect, onM
   const [ar, ag, ab] = [parseInt(ah.slice(1, 3), 16), parseInt(ah.slice(3, 5), 16), parseInt(ah.slice(5, 7), 16)]
 
   return (
-    <div className="timeline-cal flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', padding: '12px 14px 14px' }}>
+    <div
+      className="glass-tile timeline-cal flex-shrink-0"
+      style={{
+        ['--tile-rgb' as any]: `${ar}, ${ag}, ${ab}`,
+        margin: '12px 16px',
+        padding: '12px 14px 14px',
+      }}
+    >
       {/* Month nav — circular 22px chrome buttons + tabular mono caps month label. */}
       <div className="flex items-center justify-center gap-3 mb-2">
         <button onClick={prev} className="flex items-center justify-center cursor-pointer" style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#7a7a82' }} aria-label="Previous month">
@@ -448,6 +455,8 @@ export default function TimelinePage({ params }: { params: { projectId: string }
   const router = useRouter()
   const { data: project } = useProject(projectId)
   const accent = project?.color || getProjectColor(projectId)
+  const accentHex = accent.startsWith('#') ? accent : '#c45adc'
+  const accentRgb = `${parseInt(accentHex.slice(1, 3), 16)}, ${parseInt(accentHex.slice(3, 5), 16)}, ${parseInt(accentHex.slice(5, 7), 16)}`
   const { data: milestones, isLoading } = useMilestones(projectId)
   const { data: crew } = useCrew(projectId)
   const threadByMilestoneId = useThreadsByEntity(projectId, 'milestone')
@@ -757,15 +766,20 @@ export default function TimelinePage({ params }: { params: { projectId: string }
                 <div className="sheen-title text-center" style={{ fontWeight: 700, fontSize: '0.84rem', letterSpacing: '-0.01em', padding: '14px 0 10px', fontVariantNumeric: 'tabular-nums' }}>
                   {MONTHS[selectedDate.getMonth()]} {selectedDate.getDate()}, {selectedDate.getFullYear()}
                 </div>
-                {dayMs.map(ms => (
-                  <MilestoneRow
-                    key={ms.id}
-                    ms={ms}
-                    accent={accent}
-                    threadEntry={threadByMilestoneId.get(ms.id)}
-                    onClick={() => setSelectedMS(ms)}
-                  />
-                ))}
+                <div
+                  className="glass-tile timeline-ms-list"
+                  style={{ ['--tile-rgb' as any]: accentRgb, padding: '0 14px' }}
+                >
+                  {dayMs.map(ms => (
+                    <MilestoneRow
+                      key={ms.id}
+                      ms={ms}
+                      accent={accent}
+                      threadEntry={threadByMilestoneId.get(ms.id)}
+                      onClick={() => setSelectedMS(ms)}
+                    />
+                  ))}
+                </div>
               </>
             )
           })()
@@ -777,21 +791,26 @@ export default function TimelinePage({ params }: { params: { projectId: string }
                 <div className="sheen-title text-center" style={{ fontWeight: 700, fontSize: '0.84rem', letterSpacing: '-0.01em', padding: '14px 0 10px', fontVariantNumeric: 'tabular-nums' }}>
                   {group.label}
                 </div>
-                {group.items.map(ms => {
-                  const isNext = !ms.title.toLowerCase().includes('delivery') && sorted.indexOf(ms) === sorted.findIndex(m => new Date(m.date) >= new Date())
-                  const highlighted = highlightId === ms.id
-                  return (
-                    <MilestoneRow
-                      key={ms.id}
-                      ms={ms}
-                      accent={accent}
-                      isNext={isNext}
-                      highlighted={highlighted}
-                      threadEntry={threadByMilestoneId.get(ms.id)}
-                      onClick={() => setSelectedMS(ms)}
-                    />
-                  )
-                })}
+                <div
+                  className="glass-tile timeline-ms-list"
+                  style={{ ['--tile-rgb' as any]: accentRgb, padding: '0 14px' }}
+                >
+                  {group.items.map(ms => {
+                    const isNext = !ms.title.toLowerCase().includes('delivery') && sorted.indexOf(ms) === sorted.findIndex(m => new Date(m.date) >= new Date())
+                    const highlighted = highlightId === ms.id
+                    return (
+                      <MilestoneRow
+                        key={ms.id}
+                        ms={ms}
+                        accent={accent}
+                        isNext={isNext}
+                        highlighted={highlighted}
+                        threadEntry={threadByMilestoneId.get(ms.id)}
+                        onClick={() => setSelectedMS(ms)}
+                      />
+                    )
+                  })}
+                </div>
               </div>
             ))}
           </>
