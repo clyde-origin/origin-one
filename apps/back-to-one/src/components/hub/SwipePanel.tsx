@@ -54,8 +54,8 @@ export function SwipePanel<T>({
 
   return (
     <div
-      className="flex-1 relative overflow-hidden cursor-pointer active:opacity-90 transition-opacity"
-      style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, minHeight: 90, display: 'flex', flexDirection: 'column' }}
+      className="glass-tile flex-1 cursor-pointer active:opacity-90 transition-opacity"
+      style={{ minHeight: 90, display: 'flex', flexDirection: 'column' }}
       role="region"
       aria-roledescription="carousel"
       aria-label={label}
@@ -65,7 +65,8 @@ export function SwipePanel<T>({
       onClick={() => router.push(href)}
       onKeyDown={onKeyDown}
     >
-      <div className="font-mono uppercase" style={{ fontSize: '0.44rem', fontWeight: 700, color: labelColor, letterSpacing: '0.06em', textAlign: 'center', padding: '7px 0 0', position: 'relative', zIndex: 2 }}>{label}</div>
+      <div className="letterbox-top" />
+      <div className="font-mono uppercase" style={{ fontSize: '0.44rem', fontWeight: 700, color: labelColor, letterSpacing: '0.06em', textAlign: 'center', padding: '7px 0 0', position: 'relative', zIndex: 6 }}>{label}</div>
       {items.length > 0 ? (
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           <div style={{ display: 'flex', width: `${items.length * 100}%`, height: '100%', transform: `translateX(-${page * (100 / items.length)}%)`, transition: 'transform 0.28s ease' }}>
@@ -90,11 +91,12 @@ export function SwipePanel<T>({
               <div style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px dashed rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M5 2V8M2 5H8" stroke="rgba(255,255,255,0.25)" strokeWidth="1.3" strokeLinecap="round" /></svg>
               </div>
-              {emptyLabel && <span className="font-mono" style={{ fontSize: '0.36rem', color: '#62627a' }}>{emptyLabel}</span>}
+              {emptyLabel && <span className="font-mono" style={{ fontSize: '0.36rem', color: 'var(--fg-mono)' }}>{emptyLabel}</span>}
             </>
           )}
         </div>
       )}
+      <div className="letterbox-bottom" />
     </div>
   )
 }

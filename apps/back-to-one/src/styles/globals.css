@@ -9,12 +9,34 @@
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --safe-left:   env(safe-area-inset-left, 0px);
     --safe-right:  env(safe-area-inset-right, 0px);
+
+    /* Cinema Glass chrome tokens. Surface vars flip in body.light-mode, html.light-mode body below.
+       Project accent rgb stays inline-hex on the JSX (Locations/Art precedent). */
+    --bg:          #07070b;
+    --surface:     rgba(20, 20, 28, 0.42);
+    --border:      rgba(255, 255, 255, 0.08);
+    --fg:          #ebebef;
+    --fg-mono:     #7a7a82;
+    --phase-pre:   #e8a020;
+    --phase-prod:  #6470f3;
+    --phase-prod-rgb: 100, 112, 243;
+    --phase-post:  #00b894;
+  }
+
+  body.light-mode,
+  html.light-mode body {
+    --bg:          #ebe2cd;
+    --surface:     rgba(248, 240, 220, 0.85);
+    --border:      rgba(60, 38, 14, 0.14);
+    --fg:          #1f160a;
+    --fg-mono:     #6a5840;
   }
 
   html {
     height: 100%;
     background: #04040a;
   }
+  html.light-mode { background: #ebe2cd; }
   body {
     min-height: 100dvh;
     width: 100%;
@@ -231,6 +253,162 @@
 }
 [contenteditable][data-placeholder]:empty:focus::before {
   color: #444455;
+}
+
+/* ────────────────────────────────────────────────────────────
+   Cinema Glass — Hub re-skin classes.
+   Tokens stay inline-hex on the JSX per the Locations/Art precedent;
+   these classes consume `--tile-rgb` (the project accent triplet) and
+   `--accent-rgb` / `--accent-glow-rgb` (sheen title accent triplet) set
+   inline via style props on the consuming element.
+   ──────────────────────────────────────────────────────────── */
+
+/* Sheen + extrusion title — primary identity heading.
+   Spec: BRAND_TOKENS.md "Sheen+Extrusion Title". Light-mode collapses
+   the gradient to solid sepia (white spotlight reads worse on beige). */
+.sheen-title {
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(var(--accent-glow-rgb, 216, 124, 236), 1) 32%,
+    rgb(var(--accent-rgb, 196, 90, 220)) 55%,
+    rgba(var(--accent-rgb, 196, 90, 220), 0.78) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 6px rgba(var(--accent-rgb, 196, 90, 220), 0.22));
+}
+body.light-mode .sheen-title, html.light-mode body .sheen-title {
+  background: none;
+  -webkit-text-fill-color: var(--fg);
+  color: var(--fg);
+  filter: none;
+}
+
+/* Glass tile — frosted accent surface used on every Hub card.
+   Per-domain variants change only `--tile-rgb`: project accent for
+   most cards, dept rgb for crew tiles, tag rgb for workflow nodes. */
+.glass-tile {
+  position: relative;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--tile-rgb, 196, 90, 220), 0.16) 0%,
+      rgba(var(--tile-rgb, 196, 90, 220), 0.08) 45%,
+      rgba(var(--tile-rgb, 196, 90, 220), 0.03) 100%),
+    rgba(20, 20, 28, 0.55);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  border: 1px solid rgba(var(--tile-rgb, 196, 90, 220), 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 24px -8px rgba(var(--tile-rgb, 196, 90, 220), 0.32),
+    0 4px 20px -8px rgba(0, 0, 0, 0.55);
+  border-radius: 14px;
+  overflow: hidden;
+}
+body.light-mode .glass-tile, html.light-mode body .glass-tile {
+  background:
+    linear-gradient(180deg,
+      rgba(var(--tile-rgb, 196, 90, 220), 0.10) 0%,
+      rgba(var(--tile-rgb, 196, 90, 220), 0.04) 45%,
+      rgba(var(--tile-rgb, 196, 90, 220), 0.02) 100%),
+    rgba(248, 240, 220, 0.85);
+  border-color: rgba(var(--tile-rgb, 196, 90, 220), 0.30);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    0 0 24px -8px rgba(var(--tile-rgb, 196, 90, 220), 0.20),
+    0 4px 20px -8px rgba(60, 38, 14, 0.18);
+}
+
+/* Inventory chip / Workflow node cascade — same formula, smaller radius. */
+.glass-tile-sm { border-radius: 10px; }
+.glass-tile-xs { border-radius: 8px; }
+
+/* Letterbox bars — cinematic frame. 2px black bars top + bottom on
+   cards. Above content (z:5). The frame-within-frame is the cinema
+   identity — letterbox the content, not the chrome. */
+.letterbox-top,
+.letterbox-bottom {
+  position: relative;
+  height: 2px;
+  background: #000;
+  z-index: 5;
+  flex-shrink: 0;
+}
+
+/* Hub topbar — frosted bg that flips with theme. */
+.hub-topbar {
+  background: rgba(4, 4, 10, 0.65);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+body.light-mode .hub-topbar, html.light-mode body .hub-topbar {
+  background: rgba(248, 240, 220, 0.85);
+  border-bottom: 1px solid rgba(60, 38, 14, 0.14);
+}
+
+/* Phase / status / dept chip patterns — DESIGN_LANGUAGE.md
+   chip pattern: bg = base @ 0.20, border @ 0.50, dot box-shadow.
+   Status pill: bg @ 0.10, border @ 0.22, color @ 0.9. */
+.ai-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.ai-meta-pill .phase-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+.ai-meta-pill.pre {
+  background: rgba(232, 160, 32, 0.20);
+  border: 1px solid rgba(232, 160, 32, 0.50);
+  color: var(--phase-pre);
+}
+.ai-meta-pill.pre .phase-dot { background: var(--phase-pre); box-shadow: 0 0 4px var(--phase-pre); }
+.ai-meta-pill.prod {
+  background: rgba(var(--phase-prod-rgb), 0.20);
+  border: 1px solid rgba(var(--phase-prod-rgb), 0.50);
+  color: var(--phase-prod);
+}
+.ai-meta-pill.prod .phase-dot { background: var(--phase-prod); box-shadow: 0 0 4px var(--phase-prod); }
+.ai-meta-pill.post {
+  background: rgba(0, 184, 148, 0.20);
+  border: 1px solid rgba(0, 184, 148, 0.50);
+  color: var(--phase-post);
+}
+.ai-meta-pill.post .phase-dot { background: var(--phase-post); box-shadow: 0 0 4px var(--phase-post); }
+
+/* Loading skeleton shimmer — DESIGN_LANGUAGE.md loading section.
+   Linear (not ease) — feels like a film leader, not a UI bounce.
+   2.2s — slow enough to register without feeling jittery. */
+.sk-block {
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.04) 100%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 2.2s linear infinite;
+  border-radius: 4px;
+}
+body.light-mode .sk-block, html.light-mode body .sk-block {
+  background: linear-gradient(90deg,
+    rgba(60, 38, 14, 0.06) 0%,
+    rgba(60, 38, 14, 0.14) 50%,
+    rgba(60, 38, 14, 0.06) 100%);
+  background-size: 200% 100%;
+}
+@keyframes sk-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* ── ANIMATIONS ── */

@@ -33,7 +33,6 @@ import { haptic } from '@/lib/utils/haptics'
 import { Sheet } from '@/components/ui/Sheet'
 import {
   formatDate, isLate, getProjectColor,
-  PHASE_HEX, STATUS_DOT, STATUS_TEXT,
   statusLabel,
 } from '@/lib/utils/phase'
 import type { ActionItem, Milestone, CrewMember, Project, WorkflowNode } from '@/types'
@@ -437,10 +436,28 @@ export function HubContent({ projectId }: { projectId: string }) {
   const artApproved = allArt.filter(a => a.status === 'Approved').length
   const castConfirmed = allCast.filter((r: any) => r.cast === true).length
 
-  const cardStyle = { background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden' as const }
+  // Cinema Glass: visual properties (bg, border, blur, radius) live on the
+  // .glass-tile class; consumers spread structural style only (height, flex).
+  const cardStyle = {}
+  // Lighter project accent for the sheen-title gradient apex (the spec's
+  // "accent-glow"). +20/+30/+16 lands close to the gallery values without
+  // a new package export.
+  const glowR = Math.min(255, pr + 20)
+  const glowG = Math.min(255, pg + 30)
+  const glowB = Math.min(255, pb + 16)
 
   return (
-    <div className="screen">
+    <div
+      className="screen"
+      style={{
+        // Set inline once at the screen root; downstream .glass-tile and
+        // .sheen-title rules read these. Project tokens stay inline-hex
+        // per Locations/Art precedent — chrome surfaces flip via CSS vars.
+        ['--tile-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
+      } as React.CSSProperties}
+    >
       {/* ══ CENTER GLOW — 3 stacked radial ellipses ══ */}
       <div style={{
         position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
@@ -448,15 +465,13 @@ export function HubContent({ projectId }: { projectId: string }) {
           `radial-gradient(ellipse 20% 25% at 50% 0%, rgba(${pr},${pg},${pb},0.08) 0%, transparent 100%)`,
           `radial-gradient(ellipse 35% 45% at 50% 40%, rgba(${pr},${pg},${pb},0.07) 0%, transparent 100%)`,
           `radial-gradient(ellipse 50% 55% at 50% 90%, rgba(${pr},${pg},${pb},0.09) 0%, transparent 100%)`,
-          `linear-gradient(90deg, #04040a 0%, #04040a 8%, rgba(4,4,10,0.5) 30%, transparent 50%, rgba(4,4,10,0.5) 70%, #04040a 92%, #04040a 100%)`,
+          `linear-gradient(90deg, var(--bg) 0%, var(--bg) 8%, rgba(4,4,10,0.5) 30%, transparent 50%, rgba(4,4,10,0.5) 70%, var(--bg) 92%, var(--bg) 100%)`,
         ].join(', '),
       }} />
 
       {/* ══ TOPBAR — frosted surface + radial accent glow from above ══ */}
-      <div className="relative flex flex-col items-center justify-end px-5 flex-shrink-0" style={{
+      <div className="hub-topbar relative flex flex-col items-center justify-end px-5 flex-shrink-0" style={{
         minHeight: 100, paddingTop: 'calc(var(--safe-top) + 10px)', paddingBottom: 12,
-        background: `rgba(4,4,10,0.65)`,
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
         backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
         zIndex: 10,
         overflow: 'hidden',
@@ -483,12 +498,15 @@ export function HubContent({ projectId }: { projectId: string }) {
           variant="hub"
         />
 
-        {/* Type + Status pill — centered */}
+        {/* Type + Status pill — centered. Phase pill is the only chip
+            in the meta row per DESIGN_LANGUAGE.md page header pattern. */}
         <div className="flex items-center justify-center gap-2" style={{ marginTop: 4 }}>
-          <span className="font-mono text-text2 uppercase" style={{ fontSize: '0.48rem' }}>{project.type}</span>
-          <span className="text-muted" style={{ fontSize: '0.48rem' }}>&middot;</span>
-          <div className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[project.status]}`} />
-          <span className={`font-mono uppercase ${STATUS_TEXT[project.status]}`} style={{ fontSize: '0.48rem' }}>{statusLabel(project.status)}</span>
+          <span className="font-mono uppercase" style={{ fontSize: '0.48rem', color: 'var(--fg-mono)' }}>{project.type}</span>
+          <span style={{ fontSize: '0.48rem', color: 'var(--fg-mono)' }}>&middot;</span>
+          <span className={`ai-meta-pill ${project.status}`}>
+            <span className="phase-dot" />
+            {statusLabel(project.status)}
+          </span>
         </div>
 
         {/* Crew avatars */}
@@ -531,31 +549,37 @@ export function HubContent({ projectId }: { projectId: string }) {
             <div className="cursor-pointer" aria-label="Open timeline" {...clickableProps(() => router.push(`/projects/${projectId}/timeline`))}>
               <ModuleHeader name="Timeline" meta={new Date().toLocaleDateString('en-US', { weekday: 'short', month: '2-digit', day: '2-digit' }).replace(',', ' ·')} />
               {loadingMS ? (
-                <div style={{ ...cardStyle, height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="glass-tile" style={{ ...cardStyle, height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div className="letterbox-top" />
                   <div className="w-4 h-4 rounded-full border border-border2 border-t-accent animate-spin" />
+                  <div className="letterbox-bottom" />
                 </div>
               ) : allMS.length === 0 ? (
-                <div style={{ ...cardStyle, height: 130, display: 'flex', flexDirection: 'column' }}>
+                <div className="glass-tile" style={{ ...cardStyle, height: 130, display: 'flex', flexDirection: 'column' }}>
+                  <div className="letterbox-top" />
                   <div style={{ padding: '12px 12px 0', display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
                     {(['Pre', 'Prod', 'Post'] as const).map((label, i) => {
                       const color = ['#e8a020', '#6470f3', '#00b894'][i]
                       return (
                         <div key={label} className="flex items-center gap-1.5">
-                          <span className="font-mono uppercase text-right flex-shrink-0" style={{ fontSize: '0.42rem', color: '#62627a', width: 28, letterSpacing: '0.06em' }}>{label}</span>
+                          <span className="font-mono uppercase text-right flex-shrink-0" style={{ fontSize: '0.42rem', color: 'var(--fg-mono)', width: 28, letterSpacing: '0.06em' }}>{label}</span>
                           <div className="flex-1 rounded-sm" style={{ height: 5, background: `${color}1a`, animation: `pulse 2.4s ease-in-out infinite ${i * 0.3}s` }} />
                         </div>
                       )
                     })}
                   </div>
                   <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-4">
-                    <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#dddde8', letterSpacing: '-0.01em' }}>The time is now.</div>
-                    <div className="font-mono" style={{ fontSize: '0.47rem', color: '#62627a', letterSpacing: '0.03em', lineHeight: 1.6 }}>No milestones yet.<br />Add milestones to start the clock.</div>
+                    <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--fg)', letterSpacing: '-0.01em' }}>The time is now.</div>
+                    <div className="font-mono" style={{ fontSize: '0.47rem', color: 'var(--fg-mono)', letterSpacing: '0.03em', lineHeight: 1.6 }}>No milestones yet.<br />Add milestones to start the clock.</div>
                   </div>
+                  <div className="letterbox-bottom" />
                 </div>
               ) : (
                 // item 10: Gantt chart replaces milestone list
-                <div style={{ ...cardStyle, height: 130, display: 'flex', flexDirection: 'column' }}>
+                <div className="glass-tile" style={{ ...cardStyle, height: 130, display: 'flex', flexDirection: 'column' }}>
+                  <div className="letterbox-top" />
                   <GanttChart milestones={allMS} projectStatus={project.status} />
+                  <div className="letterbox-bottom" />
                 </div>
               )}
             </div>
@@ -579,12 +603,9 @@ export function HubContent({ projectId }: { projectId: string }) {
                 />
                 {budgetPreview ? (
                   <div
+                    className="glass-tile"
                     style={{
                       padding: '12px 14px', height: 130,
-                      background: 'rgba(10,10,18,0.42)',
-                      backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-                      border: '1px solid rgba(255,255,255,0.07)',
-                      borderRadius: 14,
                       display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
                       gap: 12, boxSizing: 'border-box',
                     }}
@@ -592,14 +613,14 @@ export function HubContent({ projectId }: { projectId: string }) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         className="font-mono uppercase"
-                        style={{ fontSize: '0.40rem', letterSpacing: '0.1em', color: '#62627a', marginBottom: 4 }}
+                        style={{ fontSize: '0.40rem', letterSpacing: '0.1em', color: 'var(--fg-mono)', marginBottom: 4 }}
                       >Actuals · Working</div>
                       <div
                         className="font-mono"
                         style={{ fontSize: '0.95rem', fontWeight: 600, color: '#9b6ef3' }}
                       >${Math.round(budgetPreview.actuals).toLocaleString('en-US')}</div>
                       {budgetPreview.workingTotal > 0 && (
-                        <div className="font-mono" style={{ fontSize: '0.5rem', color: '#a0a0b8', marginTop: 4 }}>
+                        <div className="font-mono" style={{ fontSize: '0.5rem', color: 'var(--fg-mono)', marginTop: 4 }}>
                           {Math.round((budgetPreview.actuals / budgetPreview.workingTotal) * 100)}% spent
                           <div
                             style={{
@@ -659,19 +680,19 @@ export function HubContent({ projectId }: { projectId: string }) {
                       </div>
                     </div>
                     <div
-                      style={{ color: '#62627a', fontSize: '1rem', flexShrink: 0 }}
+                      style={{ color: 'var(--fg-mono)', fontSize: '1rem', flexShrink: 0 }}
                     >›</div>
                   </div>
                 ) : (
                   <div
                     style={{
                       padding: '14px', height: 130,
-                      background: 'rgba(10,10,18,0.42)',
-                      backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-                      border: '1px dashed rgba(155,110,243,0.28)',
+                      background: `linear-gradient(180deg, rgba(${pr},${pg},${pb},0.10) 0%, rgba(${pr},${pg},${pb},0.04) 100%), rgba(20,20,28,0.55)`,
+                      backdropFilter: 'blur(16px) saturate(135%)', WebkitBackdropFilter: 'blur(16px) saturate(135%)',
+                      border: `1px dashed rgba(${pr},${pg},${pb},0.32)`,
                       borderRadius: 14,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: 'rgba(196,90,220,0.75)',
+                      color: `rgba(${pr},${pg},${pb},0.85)`,
                       fontFamily: 'monospace', fontSize: '0.5rem', letterSpacing: '0.08em', textTransform: 'uppercase',
                       boxSizing: 'border-box', textAlign: 'center',
                     }}
@@ -687,11 +708,14 @@ export function HubContent({ projectId }: { projectId: string }) {
           <div className="cursor-pointer" aria-label="Open action items" {...clickableProps(() => router.push(`/projects/${projectId}/action-items`))}>
             <ModuleHeader name="My Action Items" meta={openItems.length > 0 ? `${openItems.length} open` : 'All clear'} />
             {loadingAI ? (
-              <div style={{ ...cardStyle, height: 148, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="glass-tile" style={{ ...cardStyle, height: 148, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="letterbox-top" />
                 <div className="w-4 h-4 rounded-full border border-border2 border-t-accent animate-spin" />
+                <div className="letterbox-bottom" />
               </div>
             ) : previewTasks.length === 0 ? (
-              <div style={{ ...cardStyle, height: 148, display: 'flex', flexDirection: 'column' }}>
+              <div className="glass-tile" style={{ ...cardStyle, height: 148, display: 'flex', flexDirection: 'column' }}>
+                <div className="letterbox-top" />
                 <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-4">
                   <div className="relative flex-shrink-0" style={{ width: 34, height: 34 }}>
                     <div className="absolute inset-0 rounded-full" style={{ border: `1px solid rgba(${pr},${pg},${pb},0.3)`, animation: 'ring-pulse 2.4s ease-out infinite' }} />
@@ -700,12 +724,14 @@ export function HubContent({ projectId }: { projectId: string }) {
                       <path d="M2.5 7.5L6 11L12.5 4" stroke={projectColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </div>
-                  <div style={{ fontWeight: 800, fontSize: '0.8rem', color: '#dddde8', letterSpacing: '-0.01em' }}>All clear, boss.</div>
-                  <div className="font-mono" style={{ fontSize: '0.48rem', color: '#62627a', letterSpacing: '0.03em', lineHeight: 1.6 }}>No open items on this one.<br />Enjoy it while it lasts.</div>
+                  <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--fg)', letterSpacing: '-0.01em' }}>All clear, boss.</div>
+                  <div className="font-mono" style={{ fontSize: '0.48rem', color: 'var(--fg-mono)', letterSpacing: '0.03em', lineHeight: 1.6 }}>No open items on this one.<br />Enjoy it while it lasts.</div>
                 </div>
+                <div className="letterbox-bottom" />
               </div>
             ) : (
-              <div style={{ ...cardStyle, height: 148, display: 'flex', flexDirection: 'column' }}>
+              <div className="glass-tile" style={{ ...cardStyle, height: 148, display: 'flex', flexDirection: 'column' }}>
+                <div className="letterbox-top" />
                 {previewTasks.map((item, i) => {
                   const isMine = true
                   const dateLabel = item.dueDate ? formatDate(item.dueDate) : null
@@ -716,12 +742,12 @@ export function HubContent({ projectId }: { projectId: string }) {
                   return (
                     <div key={item.id} className="flex items-start cursor-pointer" style={{ gap: 10, padding: '9px 12px', borderBottom: i < previewTasks.length - 1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}
                       onClick={e => { e.stopPropagation(); router.push(`/projects/${projectId}/action-items`) }}>
-                      <div className="flex-shrink-0 rounded-full" style={{ width: 14, height: 14, marginTop: 1, border: `1.5px solid ${isMine ? projectColor : '#62627a'}` }}
+                      <div className="flex-shrink-0 rounded-full" style={{ width: 14, height: 14, marginTop: 1, border: `1.5px solid ${isMine ? projectColor : 'var(--fg-mono)'}` }}
                         onClick={e => { e.stopPropagation(); haptic('success'); toggle.mutate({ id: item.id, done: item.status !== 'done' }) }} />
                       <div className="flex-1 min-w-0">
                         {/* item 7: third-tier label size */}
-                        <div className="truncate" style={{ fontSize: '0.66rem', fontWeight: 600, lineHeight: 1.3, color: isMine ? '#dddde8' : '#62627a' }}>{item.title}</div>
-                        {dateLabel && <div className="font-mono" style={{ fontSize: '0.50rem', marginTop: 2, letterSpacing: '0.03em', color: overdue ? '#e8a020' : '#62627a' }}>{dateLabel}</div>}
+                        <div className="truncate" style={{ fontSize: '0.66rem', fontWeight: 600, lineHeight: 1.3, color: isMine ? 'var(--fg)' : 'var(--fg-mono)' }}>{item.title}</div>
+                        {dateLabel && <div className="font-mono" style={{ fontSize: '0.50rem', marginTop: 2, letterSpacing: '0.03em', color: overdue ? '#e8a020' : 'var(--fg-mono)' }}>{dateLabel}</div>}
                       </div>
                       {/* item 13: assignee pill */}
                       {assigneeName && (
@@ -734,12 +760,13 @@ export function HubContent({ projectId }: { projectId: string }) {
                           display: 'flex', alignItems: 'center',
                           alignSelf: 'center',
                         }}>
-                          <span className="font-mono" style={{ fontSize: '0.32rem', color: '#a0a0b8', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{assigneeName.split(' ')[0]}</span>
+                          <span className="font-mono" style={{ fontSize: '0.32rem', color: 'var(--fg-mono)', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>{assigneeName.split(' ')[0]}</span>
                         </div>
                       )}
                     </div>
                   )
                 })}
+                <div className="letterbox-bottom" />
               </div>
             )}
           </div>
@@ -752,7 +779,7 @@ export function HubContent({ projectId }: { projectId: string }) {
               {/* SceneMaker + Tone 50/50 — item 8: labels moved INSIDE panels */}
               <div className="flex" style={{ gap: 8, height: 148 }}>
                 {/* SceneMaker card — item 12: swipeable */}
-                <div className="flex-1 min-w-0 cursor-pointer" style={{ background: 'rgba(10,10,18,0.42)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <div className="glass-tile flex-1 min-w-0 cursor-pointer" style={{ display: 'flex', flexDirection: 'column' }}>
                   <SwipeableSceneMaker
                     projectId={projectId}
                     projectColor={projectColor}
@@ -939,13 +966,9 @@ export function HubContent({ projectId }: { projectId: string }) {
                     <div
                       key={dept}
                       onClick={() => { haptic('light'); router.push(`/projects/${projectId}/inventory`) }}
-                      className="flex flex-col items-center justify-center cursor-pointer active:opacity-80 transition-opacity"
+                      className="glass-tile glass-tile-sm flex flex-col items-center justify-center cursor-pointer active:opacity-80 transition-opacity"
                       style={{
                         width: 76, height: 76, flexShrink: 0,
-                        borderRadius: 14,
-                        background: 'rgba(10,10,18,0.42)',
-                        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-                        border: '1px solid rgba(255,255,255,0.07)',
                         gap: 6,
                       }}
                     >
@@ -953,15 +976,15 @@ export function HubContent({ projectId }: { projectId: string }) {
                         className="flex items-center justify-center"
                         style={{
                           width: 28, height: 28, borderRadius: 10,
-                          background: 'rgba(100,112,243,0.10)',
-                          color: '#9ba6ff',
+                          background: `rgba(${pr},${pg},${pb},0.10)`,
+                          color: projectColor,
                         }}
                       >
                         {icon}
                       </div>
                       <span
                         className="font-mono uppercase"
-                        style={{ fontSize: '0.40rem', letterSpacing: '0.08em', color: count > 0 ? '#a0a0b8' : '#62627a' }}
+                        style={{ fontSize: '0.40rem', letterSpacing: '0.08em', color: count > 0 ? projectColor : 'var(--fg-mono)' }}
                       >
                         {dept}
                       </span>
@@ -974,9 +997,9 @@ export function HubContent({ projectId }: { projectId: string }) {
                   className="flex flex-col items-center justify-center cursor-pointer active:opacity-80 transition-opacity"
                   style={{
                     width: 76, height: 76, flexShrink: 0,
-                    borderRadius: 14,
-                    background: 'rgba(196,90,220,0.04)',
-                    border: '1px dashed rgba(196,90,220,0.28)',
+                    borderRadius: 10,
+                    background: `rgba(${pr},${pg},${pb},0.04)`,
+                    border: `1px dashed rgba(${pr},${pg},${pb},0.32)`,
                     gap: 6,
                   }}
                 >
@@ -984,8 +1007,8 @@ export function HubContent({ projectId }: { projectId: string }) {
                     className="flex items-center justify-center"
                     style={{
                       width: 28, height: 28, borderRadius: 10,
-                      background: 'rgba(196,90,220,0.12)',
-                      color: 'rgba(196,90,220,0.85)',
+                      background: `rgba(${pr},${pg},${pb},0.12)`,
+                      color: `rgba(${pr},${pg},${pb},0.85)`,
                     }}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -994,7 +1017,7 @@ export function HubContent({ projectId }: { projectId: string }) {
                   </div>
                   <span
                     className="font-mono uppercase"
-                    style={{ fontSize: '0.40rem', letterSpacing: '0.08em', color: 'rgba(196,90,220,0.75)' }}
+                    style={{ fontSize: '0.40rem', letterSpacing: '0.08em', color: `rgba(${pr},${pg},${pb},0.75)` }}
                   >
                     View all
                   </span>
@@ -1011,22 +1034,22 @@ export function HubContent({ projectId }: { projectId: string }) {
                 {allWorkflow.slice(0, 5).map((node, i, arr) => (
                   <div key={node.id} className="flex items-center" style={{ flex: 1 }}>
                     <div className="flex flex-col items-center gap-1" style={{ flex: 1 }}>
-                      <div className="flex items-center justify-center border border-border" style={{ width: 36, height: 36, borderRadius: 10, background: '#0f0f1a' }}>
-                        <span style={{ fontSize: 15 }}>{WF_ICONS[node.type] ?? '⚙'}</span>
+                      <div className="glass-tile glass-tile-xs flex items-center justify-center" style={{ width: 36, height: 36 }}>
+                        <span style={{ fontSize: 15, position: 'relative', zIndex: 6 }}>{WF_ICONS[node.type] ?? '⚙'}</span>
                       </div>
                       {/* item 7: third-tier label */}
-                      <span className="font-mono text-center" style={{ fontSize: '0.36rem', color: '#a0a0b8', maxWidth: 48, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{node.label}</span>
+                      <span className="font-mono text-center" style={{ fontSize: '0.36rem', color: 'var(--fg-mono)', maxWidth: 48, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{node.label}</span>
                     </div>
-                    {i < arr.length - 1 && <div style={{ width: 12, height: 1, background: 'linear-gradient(90deg, rgba(100,112,243,0.3), rgba(0,184,148,0.3))', flexShrink: 0, marginBottom: 16 }} />}
+                    {i < arr.length - 1 && <div style={{ width: 12, height: 1, background: 'linear-gradient(90deg, rgba(var(--phase-prod-rgb), 0.3), rgba(0,184,148,0.3))', flexShrink: 0, marginBottom: 16 }} />}
                   </div>
                 ))}
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2 py-3">
                 <div className="flex items-center gap-2">
-                  {[0,1,2,3,4].map(i => <div key={i} className="flex items-center justify-center" style={{ width: 36, height: 36, borderRadius: 10, border: '1.5px dashed rgba(255,255,255,0.09)' }}><div className="rounded-full bg-muted/30" style={{ width: 4, height: 4 }} /></div>)}
+                  {[0,1,2,3,4].map(i => <div key={i} className="flex items-center justify-center" style={{ width: 36, height: 36, borderRadius: 8, border: `1.5px dashed rgba(${pr},${pg},${pb},0.18)` }}><div className="rounded-full" style={{ width: 4, height: 4, background: 'rgba(255,255,255,0.18)' }} /></div>)}
                 </div>
-                <span className="font-mono" style={{ fontSize: 9, color: '#62627a' }}>No workflow yet</span>
+                <span className="font-mono" style={{ fontSize: 9, color: 'var(--fg-mono)' }}>No workflow yet</span>
               </div>
             )}
           </div>
