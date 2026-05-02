@@ -22,7 +22,7 @@ import { StorageImage } from '@/components/ui/StorageImage'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
+import { getProjectColor, statusLabel } from '@/lib/utils/phase'
 import { MOODBOARD_GRADIENTS } from '@/lib/utils/gradients'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
@@ -31,6 +31,18 @@ import type { MoodboardRef, MoodboardTab } from '@/types'
 
 type MoodCat = MoodboardRef['cat']
 const GRADIENTS = MOODBOARD_GRADIENTS
+
+// Map ProjectStatus enum to the .ai-meta-pill modifier ('pre' / 'prod' / 'post').
+// Cinema Glass chip pattern (DESIGN_LANGUAGE.md) only ships these three.
+function statusToPhase(s: string | undefined): 'pre' | 'prod' | 'post' | '' {
+  switch (s) {
+    case 'development':
+    case 'pre_production': return 'pre'
+    case 'production': return 'prod'
+    case 'post_production': return 'post'
+    default: return ''
+  }
+}
 
 const CATEGORIES: { key: MoodCat; label: string }[] = [
   { key: 'tone',    label: 'Tone' },
@@ -73,13 +85,15 @@ function TabBar({
 
   return (
     <div className="flex items-center gap-1 px-3.5 pt-2 pb-1 overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-      {/* "All" tab */}
+      {/* "All" tab — active variant gets the sheen treatment so the
+          active label re-tints to the project accent (DESIGN_LANGUAGE.md
+          tab nav: active = sheen + extrusion). */}
       <button
         onClick={() => onSelect(null)}
-        className="shrink-0 font-mono text-xs tracking-wider uppercase px-3 py-1.5 rounded-md border transition-colors"
+        className={`shrink-0 font-mono text-xs tracking-wider uppercase px-3 py-1.5 rounded-md border transition-colors${activeTabId === null ? ' sheen-title' : ''}`}
         style={activeTabId === null
-          ? { background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)', color: '#fff' }
-          : { background: 'transparent', borderColor: 'transparent', color: '#62627a' }
+          ? { background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)' }
+          : { background: 'transparent', borderColor: 'transparent', color: 'var(--fg-mono)' }
         }
       >All</button>
 
@@ -107,10 +121,10 @@ function TabBar({
                 }
               }}
               onContextMenu={e => { e.preventDefault(); onDelete(tab.id) }}
-              className="font-mono text-xs tracking-wider uppercase px-3 py-1.5 rounded-md border transition-colors"
+              className={`font-mono text-xs tracking-wider uppercase px-3 py-1.5 rounded-md border transition-colors${activeTabId === tab.id ? ' sheen-title' : ''}`}
               style={activeTabId === tab.id
-                ? { background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)', color: '#fff' }
-                : { background: 'transparent', borderColor: 'transparent', color: '#62627a' }
+                ? { background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)' }
+                : { background: 'transparent', borderColor: 'transparent', color: 'var(--fg-mono)' }
               }
             >{tab.name}</button>
           )}
@@ -167,8 +181,8 @@ function RefCard({
     // giving the -6/-6 ThreadRowBadge an overflow-visible positioning context.
     <div style={{ position: 'relative' }}>
     <div
-      className="rounded-lg border border-border overflow-hidden cursor-pointer active:opacity-80 transition-all"
-      style={isDragging ? { opacity: 0.6, transform: 'scale(1.04)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' } : {}}
+      className="glass-tile cursor-pointer active:opacity-80 transition-all"
+      style={isDragging ? { opacity: 0.6, transform: 'scale(1.04)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' } : undefined}
       onClick={() => !isDragging && onTap(item)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
@@ -178,20 +192,26 @@ function RefCard({
       onMouseLeave={handleTouchEnd}
       {...dragHandleProps}
     >
-      {showImage ? (
-        <StorageImage
-          url={item.imageUrl!}
-          alt={item.title}
-          className="h-28 w-full object-cover"
-          onError={() => setImgError(true)}
-          placeholder={<div className="h-28 w-full" style={{ background: item.gradient || GRADIENTS[0] }} />}
-        />
-      ) : (
-        <div className="h-28 w-full" style={{ background: item.gradient || GRADIENTS[0] }} />
-      )}
-      <div className="px-3 py-2.5 bg-surface">
-        <div className="text-sm font-medium text-text truncate">{item.title}</div>
-        {item.note && <div className="font-mono text-xs text-muted truncate mt-0.5">{item.note}</div>}
+      {/* Image area — letterbox bars wrap the reference for the cinema
+          frame-within-frame identity (DESIGN_LANGUAGE.md letterbox rule). */}
+      <div className="relative">
+        <div className="letterbox-top" />
+        {showImage ? (
+          <StorageImage
+            url={item.imageUrl!}
+            alt={item.title}
+            className="h-28 w-full object-cover"
+            onError={() => setImgError(true)}
+            placeholder={<div className="h-28 w-full" style={{ background: item.gradient || GRADIENTS[0] }} />}
+          />
+        ) : (
+          <div className="h-28 w-full" style={{ background: item.gradient || GRADIENTS[0] }} />
+        )}
+        <div className="letterbox-bottom" />
+      </div>
+      <div className="px-3 py-2.5">
+        <div className="text-sm font-medium truncate" style={{ color: 'var(--fg)' }}>{item.title}</div>
+        {item.note && <div className="font-mono text-xs truncate mt-0.5" style={{ color: 'var(--fg-mono)' }}>{item.note}</div>}
       </div>
     </div>
     <ThreadRowBadge entry={threadEntry} />
@@ -614,15 +634,28 @@ export default function MoodboardPage({ params }: { params: { projectId: string 
     reorder.mutate(updates)
   }
 
+  // Cinema Glass project tokens — set once at the .screen root so every
+  // .glass-tile (--tile-rgb) and .sheen-title (--accent-rgb / glow)
+  // descendant inherits the project hue.
+  const pr = parseInt(accent.slice(1, 3), 16)
+  const pg = parseInt(accent.slice(3, 5), 16)
+  const pb = parseInt(accent.slice(5, 7), 16)
+  const projectStyle = {
+    ['--tile-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+    ['--accent-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+    ['--accent-glow-rgb' as string]: `${Math.min(255, pr + 20)}, ${Math.min(255, pg + 30)}, ${Math.min(255, pb + 16)}`,
+  } as React.CSSProperties
+
   return (
-    <div className="screen">
+    <div className="screen" style={projectStyle}>
       <PageHeader
         projectId={projectId}
         title="Moodboard"
         meta={project ? (
           <div className="flex flex-col items-center gap-1.5">
             <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
-            <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>
+            <span className={`ai-meta-pill ${statusToPhase(project.status)}`}>
+              <span className="phase-dot" />
               {statusLabel(project.status)}
             </span>
           </div>
