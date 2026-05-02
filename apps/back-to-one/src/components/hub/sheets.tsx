@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import { CrewAvatar } from '@/components/ui'
 import { SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
@@ -209,9 +210,11 @@ export function CrewDetailSheet({ member, projectId, onClose }: { member: CrewMe
             }}
           >
             {avatarUrl ? (
-              <img
+              <Image
                 src={avatarUrl}
                 alt={name}
+                width={56}
+                height={56}
                 style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
               />
             ) : (

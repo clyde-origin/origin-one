@@ -14,7 +14,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
-    "db:fetch-images": "tsx scripts/fetch-seed-images.ts"
+    "db:fetch-images": "tsx scripts/fetch-seed-images.ts",
+    "db:gen-types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_REF > src/database.types.ts"
   },
   "dependencies": {
     "@origin-one/schema": "workspace:*",

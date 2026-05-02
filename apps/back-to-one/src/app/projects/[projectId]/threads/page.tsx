@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { useProject, useThreads, usePostMessage, useCrew, useMarkThreadRead, useMeId, useMentionRoster } from '@/lib/hooks/useOriginOne'
 import { useThreadContexts, type ThreadContext } from '@/lib/thread-context'
 import { Sheet } from '@/components/ui/Sheet'
+import { StorageImage } from '@/components/ui/StorageImage'
 import { haptic } from '@/lib/utils/haptics'
 import { TV, TA } from '@/lib/thread-tokens'
 import { MentionInput } from '@/components/ui/MentionInput'
@@ -119,7 +120,11 @@ function Thumbnail({ ctx, size = 52 }: { ctx: ThreadContext; size?: number }) {
       }}
     >
       {ctx.thumbnailType === 'image' && ctx.thumbnailValue?.startsWith('http') ? (
-        <img src={ctx.thumbnailValue} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        // Storyboard / moodboard thumbnailValues are Supabase publicUrls
+        // against private buckets — must go through StorageImage to be
+        // signed. A raw <img> here returns 401 after the Auth-day RLS
+        // tightening of the storyboard bucket.
+        <StorageImage url={ctx.thumbnailValue} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       ) : ctx.thumbnailType === 'avatar' && ctx.thumbnailValue ? (
         <div style={{
           width: 28, height: 28, borderRadius: '50%',

@@ -7,6 +7,7 @@
 // by userId to surface unique humans. Each row lists which projects the human
 // is on. No schema change needed; aggregation is client-side.
 
+import Image from 'next/image'
 import { useQuery } from '@tanstack/react-query'
 import { getAllCrew } from '@/lib/db/queries'
 import { haptic } from '@/lib/utils/haptics'
@@ -117,9 +118,8 @@ export function CrewPanel({ projects, onSelect }: { projects: Project[]; onSelec
             }}
           >
             {c.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={c.avatarUrl} alt="" style={{
-                width: 26, height: 26, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+              <Image src={c.avatarUrl} alt="" width={26} height={26} style={{
+                borderRadius: '50%', flexShrink: 0, marginTop: 1,
                 objectFit: 'cover',
               }} />
             ) : (
