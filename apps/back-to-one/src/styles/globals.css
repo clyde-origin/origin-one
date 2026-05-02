@@ -331,6 +331,11 @@ body.light-mode .glass-tile, html.light-mode body .glass-tile {
 .glass-tile-sm { border-radius: 10px; }
 .glass-tile-xs { border-radius: 8px; }
 
+/* Timeline milestone list — rows share one glass-tile surface with
+   subtle internal dividers. Suppress the last row's divider so the
+   tile boundary handles the bottom edge. */
+.timeline-ms-list > .timeline-ms-row:last-child { border-bottom: 0 !important; }
+
 /* Letterbox bars — cinematic frame. 2px black bars top + bottom on
    cards. Above content (z:5). The frame-within-frame is the cinema
    identity — letterbox the content, not the chrome. */
