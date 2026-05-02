@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useProject, useActionItems, useToggleActionItem, useCreateActionItem, useUpdateActionItem, useCrew, useMentionRoster, useMeId } from '@/lib/hooks/useOriginOne'
 import { MentionInput } from '@/components/ui/MentionInput'
 import { MentionText } from '@/components/ui/MentionText'
-import { LoadingState, EmptyState, CrewAvatar, SkeletonLine } from '@/components/ui'
+import { LoadingState, EmptyState, CrewAvatar } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
@@ -22,6 +22,31 @@ type Tab = 'me' | 'upcoming' | 'dept'
 
 const DEPT_OPTIONS = ['Direction', 'Production', 'Camera', 'Sound', 'Art', 'Wardrobe', 'HMU', 'Post', 'Other'] as const
 
+// Cinema Glass: parse a project hex into the rgb triplets the .sheen-title /
+// .glass-tile rules read at runtime. Glow apex is a +20/+30/+16 brightening
+// to land near the gallery values without a new package export.
+function hexRgbTriplet(hex: string | null | undefined): string {
+  const h = hex || '#c45adc'
+  const r = parseInt(h.slice(1, 3), 16), g = parseInt(h.slice(3, 5), 16), b = parseInt(h.slice(5, 7), 16)
+  return `${r}, ${g}, ${b}`
+}
+function hexGlowTriplet(hex: string | null | undefined): string {
+  const h = hex || '#c45adc'
+  const r = Math.min(255, parseInt(h.slice(1, 3), 16) + 20)
+  const g = Math.min(255, parseInt(h.slice(3, 5), 16) + 30)
+  const b = Math.min(255, parseInt(h.slice(5, 7), 16) + 16)
+  return `${r}, ${g}, ${b}`
+}
+
+// Cinema Glass: project.status → `.ai-meta-pill` phase variant. Archived
+// has no dedicated chip; falls back to `prod` (neutral indigo) so the chip
+// still renders rather than disappearing.
+function statusToPhaseChip(status: string | undefined): 'pre' | 'prod' | 'post' {
+  if (status === 'production') return 'prod'
+  if (status === 'post_production') return 'post'
+  return 'pre' // development, pre_production
+}
+
 // ── TASK ROW ──────────────────────────────────────────────
 
 function TaskRow({ item, isMine, accent, showAssignee, crew, onTap, onToggle, threadEntry }: {
@@ -36,39 +61,40 @@ function TaskRow({ item, isMine, accent, showAssignee, crew, onTap, onToggle, th
 
   return (
     // Outer wrapper is the positioning context for the badge — the inner card
-    // keeps its overflow-hidden for ripple styling.
-    <div style={{ position: 'relative', margin: '0 16px 2px', borderRadius: 9 }}>
+    // is a glass-tile-xs (cinema-glass) so the row reads as a frosted accent
+    // surface tied to the project accent.
+    <div style={{ position: 'relative', margin: '0 16px 2px' }}>
       <div
-        className="flex items-start cursor-pointer relative overflow-hidden active:bg-[#0d0d18] transition-colors"
-        style={{ gap: 11, padding: '12px 13px', background: '#0a0a12', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 9 }}
+        className="action-items-row glass-tile glass-tile-xs flex items-start cursor-pointer relative overflow-hidden"
+        style={{ gap: 11, padding: '12px 13px' }}
         onClick={onTap}
       >
         {/* Checkbox */}
         <div
           className="flex-shrink-0 rounded-full flex items-center justify-center cursor-pointer"
-          style={{ width: 16, height: 16, marginTop: 1, border: `1.5px solid ${isMine ? accent : '#62627a'}` }}
+          style={{ width: 16, height: 16, marginTop: 1, border: `1.5px solid ${isMine ? accent : 'var(--fg-mono)'}` }}
           onClick={e => { e.stopPropagation(); haptic('success'); onToggle() }}
         />
 
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate" style={{ fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.3, color: isMine ? '#dddde8' : '#a0a0b8' }}>
+            <span className="truncate" style={{ fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.3, color: isMine ? 'var(--fg)' : 'var(--fg-mono)' }}>
               {item.title}
             </span>
             {item.department && (() => {
-              const dc = DEPT_COLORS[item.department] ?? '#62627a'
-              return <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', padding: '1px 6px', borderRadius: 10, background: `${dc}15`, color: dc }}>{DEPT_SHORT_MAP[item.department] ?? item.department}</span>
+              const dc = DEPT_COLORS[item.department] ?? '#7a7a82'
+              return <span className="font-mono flex-shrink-0" style={{ fontSize: '0.38rem', padding: '1px 6px', borderRadius: 10, background: `${dc}19`, border: `1px solid ${dc}38`, color: dc, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{DEPT_SHORT_MAP[item.department] ?? item.department}</span>
             })()}
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             {dateLabel && (
-              <span className="font-mono" style={{ fontSize: '0.48rem', letterSpacing: '0.04em', color: overdue ? '#e8a020' : '#62627a' }}>
+              <span className="font-mono" style={{ fontSize: '0.48rem', letterSpacing: '0.04em', color: overdue ? 'var(--phase-pre)' : 'var(--fg-mono)' }}>
                 {dateLabel}{overdue ? ' — Overdue' : ''}
               </span>
             )}
             {showAssignee && assignee && (
-              <span className="font-mono ml-auto" style={{ fontSize: '0.58rem', color: '#62627a' }}>
+              <span className="font-mono ml-auto" style={{ fontSize: '0.58rem', color: 'var(--fg-mono)' }}>
                 {assignee.User?.name ?? 'Unknown'}
               </span>
             )}
@@ -85,14 +111,14 @@ function TaskRow({ item, isMine, accent, showAssignee, crew, onTap, onToggle, th
 function DoneTaskRow({ item, onTap, threadEntry }: { item: ActionItem; onTap: () => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
   const dateLabel = item.dueDate ? formatDate(item.dueDate) : null
   return (
-    <div style={{ position: 'relative', margin: '0 16px 2px', borderRadius: 9 }}>
-      <div className="flex items-start cursor-pointer" style={{ gap: 11, padding: '12px 13px', background: '#0a0a12', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 9 }} onClick={onTap}>
-        <div className="flex-shrink-0 rounded-full flex items-center justify-center" style={{ width: 16, height: 16, marginTop: 1, background: 'rgba(100,112,243,0.12)', border: '1.5px solid #6470f3' }}>
-          <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4L3.5 6L6.5 2" stroke="#6470f3" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+    <div style={{ position: 'relative', margin: '0 16px 2px' }}>
+      <div className="action-items-row action-items-row--done glass-tile glass-tile-xs flex items-start cursor-pointer" style={{ gap: 11, padding: '12px 13px' }} onClick={onTap}>
+        <div className="flex-shrink-0 rounded-full flex items-center justify-center" style={{ width: 16, height: 16, marginTop: 1, background: 'rgba(var(--phase-prod-rgb), 0.12)', border: '1.5px solid var(--phase-prod)' }}>
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4L3.5 6L6.5 2" stroke="var(--phase-prod)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="truncate line-through" style={{ fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.3, color: '#62627a' }}>{item.title}</div>
-          {dateLabel && <div className="font-mono mt-0.5" style={{ fontSize: '0.48rem', color: '#62627a' }}>{dateLabel}</div>}
+          <div className="truncate line-through" style={{ fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.3, color: 'var(--fg-mono)' }}>{item.title}</div>
+          {dateLabel && <div className="font-mono mt-0.5" style={{ fontSize: '0.48rem', color: 'var(--fg-mono)' }}>{dateLabel}</div>}
         </div>
       </div>
       <ThreadRowBadge entry={threadEntry} />
@@ -270,19 +296,23 @@ function TaskDetailSheet({ item, crew, accent, projectId, onClose, onToggle }: {
 function SectionHead({ label, count }: { label: string; count?: string }) {
   return (
     <div className="flex items-center" style={{ padding: '14px 16px 8px' }}>
-      <span className="font-mono uppercase flex-1" style={{ fontSize: '0.48rem', color: '#62627a', letterSpacing: '0.1em' }}>{label}</span>
-      {count && <span className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a' }}>{count}</span>}
+      <span className="font-mono uppercase flex-1" style={{ fontSize: '0.48rem', color: 'var(--fg-mono)', letterSpacing: '0.14em' }}>{label}</span>
+      {count && <span className="font-mono" style={{ fontSize: '0.46rem', color: 'var(--fg-mono)' }}>{count}</span>}
     </div>
   )
 }
 
 // ── BUCKET DIVIDER ────────────────────────────────────────
+// Cinema-glass `.ai-bucket` pattern — rule | label | rule. The "today"
+// variant lights the label in project accent. Section header rule alpha
+// matches the spec's bucket-rule (low-alpha hairline both themes).
 
 function BucketDivider({ label, isToday }: { label: string; isToday?: boolean }) {
   return (
-    <div className="flex items-center gap-2.5" style={{ padding: '16px 16px 7px' }}>
-      <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.5rem', letterSpacing: '0.1em', color: isToday ? '#c45adc' : '#62627a' }}>{label}</span>
-      <div className="flex-1" style={{ height: 1, background: 'rgba(255,255,255,0.05)' }} />
+    <div className="action-items-bucket flex items-center" style={{ gap: 10, padding: '16px 16px 7px' }}>
+      <span className="action-items-bucket-rule flex-1" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
+      <span className="font-mono uppercase flex-shrink-0" style={{ fontSize: '0.5rem', letterSpacing: '0.14em', fontWeight: 600, color: isToday ? 'var(--accent)' : 'var(--fg-mono)' }}>{label}</span>
+      <span className="action-items-bucket-rule flex-1" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
     </div>
   )
 }
@@ -326,46 +356,83 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
   const laterItems = openItems.filter(i => { if (!i.dueDate) return false; const d = new Date(i.dueDate); d.setHours(0, 0, 0, 0); return d > endOfWeek })
 
   return (
-    <div className="screen">
-      {/* Header */}
+    <div
+      className="screen"
+      style={{
+        // Cinema Glass: set the project's accent triplets once at the screen
+        // root. Downstream `.sheen-title` / `.glass-tile` / `.sk-block` rules
+        // read these and re-tint per project automatically.
+        ['--accent' as string]: accent,
+        ['--accent-rgb' as string]: hexRgbTriplet(accent),
+        ['--accent-glow-rgb' as string]: hexGlowTriplet(accent),
+      } as React.CSSProperties}
+    >
+      {/* Header (PageHeader is a shared component; per the unattended-mode
+          brief it stays out of scope. Sheen treatment for the page title is
+          deferred to the PageHeader-refactor PR.) */}
       <PageHeader
         projectId={projectId}
         title="Action Items"
-        meta={project ? (<div className="flex flex-col items-center gap-1.5"><ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" /><span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span></div>) : ''}
+        meta={project ? (
+          <div className="flex flex-col items-center gap-1.5">
+            <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
+            <span className={`ai-meta-pill ${statusToPhaseChip(project.status)}`}>
+              <span className="phase-dot" />{statusLabel(project.status)}
+            </span>
+          </div>
+        ) : ''}
       />
 
-      {/* Tabs */}
-      <div className="flex sticky top-[73px] z-[19]" style={{ padding: '0 16px', background: '#04040a', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      {/* Tabs — cinema-glass: active label gets `.sheen-title` (gradient
+          driven by the inline accent vars set on the screen root); active
+          tab has an accent underline below. Inactive label uses var(--fg-mono)
+          so light-mode flips to warm gray-brown. */}
+      <div className="action-items-tabs flex sticky top-[73px] z-[19]" style={{ padding: '0 16px', background: 'rgba(4,4,10,0.95)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         {([
           { key: 'me' as Tab, label: 'Me', count: myItems.length },
           { key: 'upcoming' as Tab, label: 'Upcoming', count: openItems.length },
           { key: 'dept' as Tab, label: 'Dept', count: Array.from(new Set(openItems.map(i => i.department).filter(Boolean))).length },
-        ]).map(t => (
-          <button
-            key={t.key}
-            className="flex-1 flex items-center justify-center gap-1.5 relative cursor-pointer select-none transition-colors"
-            style={{ padding: '15px 0', fontWeight: 700, fontSize: '0.88rem', color: tab === t.key ? '#dddde8' : '#62627a' }}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-            <span className="font-mono" style={{
-              fontSize: '0.46rem', letterSpacing: '0.04em', padding: '2px 5px', borderRadius: 20,
-              background: tab === t.key ? `${accent}26` : 'rgba(255,255,255,0.06)',
-              color: tab === t.key ? accent : '#62627a',
-            }}>{t.count}</span>
-            {tab === t.key && <div className="absolute bottom-0" style={{ left: '12%', right: '12%', height: 2, background: accent, borderRadius: '2px 2px 0 0' }} />}
-          </button>
-        ))}
+        ]).map(t => {
+          const isActive = tab === t.key
+          return (
+            <button
+              key={t.key}
+              className="action-items-tab flex-1 flex items-center justify-center gap-1.5 relative cursor-pointer select-none"
+              style={{ padding: '15px 0', background: 'transparent', border: 'none' }}
+              onClick={() => setTab(t.key)}
+            >
+              <span
+                className={isActive ? 'sheen-title' : ''}
+                style={{ fontSize: '0.86rem', fontWeight: 600, letterSpacing: '0.005em', color: isActive ? undefined : 'var(--fg-mono)' }}
+              >{t.label}</span>
+              <span className="font-mono" style={{
+                fontSize: '0.40rem', letterSpacing: '0.04em', padding: '1px 5px', borderRadius: 20,
+                background: isActive ? `rgba(${hexRgbTriplet(accent)}, 0.14)` : 'rgba(255,255,255,0.05)',
+                color: isActive ? accent : 'var(--fg-mono)',
+                fontVariantNumeric: 'tabular-nums',
+              }}>{t.count}</span>
+              {isActive && (
+                <div className="absolute" style={{ left: '22%', right: '22%', bottom: -1, height: 2, background: accent, borderRadius: '2px 2px 0 0', boxShadow: `0 0 6px rgba(${hexRgbTriplet(accent)}, 0.5)` }} />
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* Panels */}
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 100 }}>
         {loadingItems || loadingCrew ? (
-          <div className="flex flex-col gap-0">
+          <div className="flex flex-col" style={{ padding: '14px 16px 0', gap: 8 }}>
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="flex items-start gap-3 px-4 py-3 border-b border-border">
-                <div className="mt-0.5 w-4 h-4 rounded-full animate-pulse" style={{ background: 'rgba(255,255,255,0.06)' }} />
-                <div className="flex-1 flex flex-col gap-1.5"><SkeletonLine w="80%" h={12} /><div className="flex gap-2"><SkeletonLine w={48} h={8} /><SkeletonLine w={36} h={8} /></div></div>
+              <div key={i} className="glass-tile glass-tile-xs flex items-start" style={{ gap: 11, padding: '12px 13px' }}>
+                <div className="sk-block flex-shrink-0" style={{ width: 16, height: 16, borderRadius: '50%', marginTop: 1 }} />
+                <div className="flex-1 flex flex-col" style={{ gap: 6 }}>
+                  <div className="sk-block" style={{ width: '80%', height: 10 }} />
+                  <div className="flex" style={{ gap: 8 }}>
+                    <div className="sk-block" style={{ width: 48, height: 7 }} />
+                    <div className="sk-block" style={{ width: 36, height: 7 }} />
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -384,10 +451,10 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                   <>
                     <div className="flex items-center gap-2 cursor-pointer select-none" style={{ padding: '14px 16px 10px', marginTop: 6, borderTop: '1px solid rgba(255,255,255,0.05)' }}
                       onClick={() => setShowCompleted(!showCompleted)}>
-                      <span className="font-mono uppercase flex-1" style={{ fontSize: '0.48rem', color: '#62627a', letterSpacing: '0.1em' }}>Completed</span>
-                      <span className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a' }}>{doneItems.length} tasks</span>
-                      <svg width="7" height="11" viewBox="0 0 7 11" fill="none" style={{ opacity: 0.3, transition: 'transform 0.2s', transform: showCompleted ? 'rotate(90deg)' : undefined }}>
-                        <path d="M1.5 1.5L5.5 5.5L1.5 9.5" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                      <span className="font-mono uppercase flex-1" style={{ fontSize: '0.48rem', color: 'var(--fg-mono)', letterSpacing: '0.14em' }}>Completed</span>
+                      <span className="font-mono" style={{ fontSize: '0.46rem', color: 'var(--fg-mono)' }}>{doneItems.length} tasks</span>
+                      <svg width="7" height="11" viewBox="0 0 7 11" fill="none" style={{ opacity: 0.4, transition: 'transform 0.2s', transform: showCompleted ? 'rotate(90deg)' : undefined }}>
+                        <path d="M1.5 1.5L5.5 5.5L1.5 9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </div>
                     {showCompleted && doneItems.map(item => (
@@ -429,20 +496,27 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
               const filteredItems = deptFilter ? openItems.filter(i => i.department === deptFilter) : openItems
               return (
                 <>
-                  {/* Filter pills — full width, dept colors */}
-                  <div className="flex" style={{ gap: 4, padding: '10px 16px 8px' }}>
+                  {/* Cinema-glass `.dept-pill` row — horizontal scroll if it
+                      overflows, dept-tinted chip pattern (bg 0.10 / border 0.32
+                      / text 0.95). The icon-stacked variant from the spec is
+                      omitted because the live code has no per-dept SVGs to
+                      port — a follow-up icon-pack PR will adopt the stacked
+                      layout when icons land. */}
+                  <div className="action-items-dept-filters no-scrollbar flex" style={{ gap: 5, padding: '10px 16px 8px', overflowX: 'auto' }}>
                     {DEPT_OPTIONS.map(dept => {
                       const isActive = deptFilter === dept
-                      const dc = DEPT_COLORS[dept] ?? '#62627a'
+                      const dc = DEPT_COLORS[dept] ?? '#7a7a82'
+                      const dcRgb = hexRgbTriplet(dc)
                       return (
                         <button key={dept}
                           onClick={() => setDeptFilter(isActive ? null : dept)}
-                          className="font-mono cursor-pointer"
+                          className="action-items-dept-pill font-mono uppercase cursor-pointer flex-shrink-0"
                           style={{
-                            flex: 1, fontSize: '0.56rem', padding: '6px 0', borderRadius: 20, textAlign: 'center',
-                            background: isActive ? `${dc}22` : `${dc}0a`,
-                            border: `1px solid ${isActive ? `${dc}55` : `${dc}18`}`,
-                            color: isActive ? dc : `${dc}99`,
+                            fontSize: '0.50rem', letterSpacing: '0.10em', padding: '5px 11px', borderRadius: 20,
+                            background: isActive ? `rgba(${dcRgb}, 0.18)` : 'rgba(255,255,255,0.04)',
+                            border: `1px solid ${isActive ? `rgba(${dcRgb}, 0.50)` : 'rgba(255,255,255,0.08)'}`,
+                            color: isActive ? dc : 'var(--fg-mono)',
+                            whiteSpace: 'nowrap',
                           }}
                         >{DEPT_SHORT_MAP[dept] ?? dept}</button>
                       )
