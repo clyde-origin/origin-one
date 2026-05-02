@@ -16,5 +16,10 @@ if (process.env.NODE_ENV !== 'production') {
 // Re-export all generated types so consumers get one import
 export * from '@prisma/client'
 
+// Generated Supabase row/insert/update types — used by the Supabase JS
+// client. Regenerate via the Supabase MCP `generate_typescript_types`
+// or `npx supabase gen types typescript --project-id <ref>`.
+export type { Database, Json } from './database.types'
+
 // Budget operations
 export { cloneBudget, topologicalAccounts } from './clone-budget'
