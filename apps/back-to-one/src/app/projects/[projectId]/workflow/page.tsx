@@ -23,7 +23,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
+import { getProjectColor, statusLabel } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { initials } from '@/lib/utils/formatting'
 import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
@@ -39,9 +39,23 @@ const TYPE_LABELS: Record<string, string> = {
   sound: 'Sound', delivery: 'Delivery', other: 'Other',
 }
 
+// Per-node tag colors. Hex values match the gallery's `--tag-rgb`
+// declarations on each `.wf-node` (hub-full-preview-v2.html row 17).
+// vfx is not in the gallery's mapping; it inherits the cyan from the
+// thread `obj-milestone` token (#22d4d4) which is the closest non-phase
+// non-collision available to OMC's "VFX" production semantic.
 const TYPE_COLORS: Record<string, string> = {
-  ingest: '#3498DB', edit: '#9B59B6', color: '#E74C3C', vfx: '#1ABC9C',
-  sound: '#F39C12', delivery: '#27AE60', other: 'rgba(255,255,255,0.4)',
+  ingest: '#f5a532', edit: '#9b6ef3', color: '#e8507a', vfx: '#22d4d4',
+  sound: '#f5a532', delivery: '#00b894', other: '#aaaab4',
+}
+const TYPE_RGB: Record<string, string> = {
+  ingest:   '245, 165, 50',
+  edit:     '155, 110, 243',
+  color:    '232, 80, 122',
+  vfx:      '34, 212, 212',
+  sound:    '245, 165, 50',
+  delivery: '0, 184, 148',
+  other:    '170, 170, 180',
 }
 
 const ALL_TYPES: NodeType[] = ['ingest', 'edit', 'color', 'vfx', 'sound', 'delivery', 'other']
@@ -63,6 +77,20 @@ function stableColor(s: string) {
   return `hsl(${((h % 360) + 360) % 360}, 55%, 50%)`
 }
 
+// Decompose a #rrggbb hex into a [r,g,b] triplet so the screen root can set
+// `--accent-rgb` / `--accent-glow-rgb` for `.sheen-title` and `.ai-meta-pill`.
+function hexToRgb(hex: string | null | undefined): [number, number, number] {
+  const h = (hex && /^#[0-9a-f]{6}$/i.test(hex)) ? hex : '#c45adc'
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
+}
+
+// Project status → ai-meta-pill phase modifier (.pre / .prod / .post).
+function statusToPhase(s: string | undefined): 'pre' | 'prod' | 'post' {
+  if (s === 'production') return 'prod'
+  if (s === 'post_production') return 'post'
+  return 'pre'
+}
+
 // ── Node Card ──────────────────────────────────────────────
 
 function NodeCard({
@@ -76,19 +104,36 @@ function NodeCard({
     : null
   const user = person?.User ?? person
 
+  // Per-node `--tile-rgb` drives the cinema-glass surface tint. Tag rgb
+  // (not project rgb) per BRAND_TOKENS § Cinema-Glass per-domain variant
+  // rule: "workflow nodes use --tag-rgb".
+  const tagRgb = TYPE_RGB[node.type] ?? TYPE_RGB.other
+  const [tagR, tagG, tagB] = tagRgb.split(',').map(s => parseInt(s.trim(), 10))
+  const glowR = Math.min(255, tagR + 20)
+  const glowG = Math.min(255, tagG + 30)
+  const glowB = Math.min(255, tagB + 16)
+
   return (
     <div
+      className="glass-tile"
       style={{
         position: 'relative',
-        width: '100%', background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16,
-        padding: '12px 14px', cursor: 'pointer', transition: 'background 0.15s',
-      }}
+        width: '100%', padding: '12px 14px', cursor: 'pointer',
+        transition: 'background 0.15s',
+        // Override --tile-rgb for this card so the glass surface picks up
+        // the tag color; --accent-rgb keeps the tag color so a node-title
+        // sheen reads in tag tint rather than project accent.
+        ['--tile-rgb' as string]: tagRgb,
+        ['--accent-rgb' as string]: tagRgb,
+        ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
+      } as React.CSSProperties}
       onClick={() => onTap(node)}
     >
+      <div className="letterbox-top" />
+      <div className="letterbox-bottom" />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: node.software ? 5 : 0 }}>
         <span style={typeBadgeStyle(node.type)}>{TYPE_LABELS[node.type] ?? 'Other'}</span>
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#fff', flex: 1, lineHeight: 1.2 }}>{node.label}</span>
+        <span className="sheen-title" style={{ fontSize: 14, fontWeight: 700, flex: 1, lineHeight: 1.2, letterSpacing: '-0.01em' }}>{node.label}</span>
 
         {user ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, cursor: 'pointer' }}
@@ -261,17 +306,19 @@ function DeliverableRow({ del, onTap, threadEntry }: { del: any; onTap: (d: any)
 
   return (
     <div
+      className="glass-tile"
       style={{
         position: 'relative',
         display: 'flex', alignItems: 'center', gap: 12,
-        padding: '10px 12px', borderRadius: 12,
-        background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
+        padding: '10px 12px',
         marginBottom: 7, cursor: 'pointer', transition: 'background 0.15s',
       }}
       onClick={() => onTap(del)}
     >
+      <div className="letterbox-top" />
+      <div className="letterbox-bottom" />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {del.title}
         </div>
         {specs1 && (
@@ -285,10 +332,10 @@ function DeliverableRow({ del, onTap, threadEntry }: { del: any; onTap: (d: any)
           </div>
         )}
       </div>
-      <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
+      <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, fontWeight: 700, color: 'var(--fg-mono)', flexShrink: 0 }}>
         {del.length || '—'}
       </div>
-      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.13)', flexShrink: 0 }}>›</div>
+      <div style={{ fontSize: 13, color: 'var(--fg-mono)', opacity: 0.4, flexShrink: 0 }}>›</div>
       <ThreadRowBadge entry={threadEntry} />
     </div>
   )
@@ -795,12 +842,28 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
     deleteDel.mutate(id)
   }
 
+  // Cinema-glass tokens for screen-root sheen-title / ai-meta-pill consumers
+  // (e.g. project status pill in the header). Per-node tiles override these
+  // with their own --tag-rgb.
+  const [pr, pg, pb] = hexToRgb(accent)
+  const glowR = Math.min(255, pr + 20)
+  const glowG = Math.min(255, pg + 30)
+  const glowB = Math.min(255, pb + 16)
+
   return (
-    <div className="screen">
+    <div
+      className="screen"
+      style={{
+        ['--tile-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
+      } as React.CSSProperties}
+    >
       <PageHeader projectId={projectId} title="Workflow" meta={project ? (
         <div className="flex flex-col items-center gap-1.5">
           <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
-          <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>
+          <span className={`ai-meta-pill ${statusToPhase(project.status)}`}>
+            <span className="phase-dot" />
             {statusLabel(project.status)}
           </span>
         </div>
@@ -808,7 +871,7 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
 
       {/* Node count */}
       {nodes.length > 0 && (
-        <div style={{ padding: '6px 24px 2px', fontFamily: "'Geist Mono', monospace", fontSize: '0.52rem', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+        <div style={{ padding: '6px 24px 2px', fontFamily: "'Geist Mono', monospace", fontSize: '0.52rem', color: 'var(--fg-mono)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
           {nodes.length} node{nodes.length !== 1 ? 's' : ''}
         </div>
       )}
@@ -878,9 +941,9 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
               </div>
 
               {/* ── Deliverables section ── */}
-              <div style={{ margin: '24px 24px 0', paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+              <div style={{ margin: '24px 24px 0', paddingTop: 20, borderTop: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)' }}>
+                  <span className="sheen-title" style={{ fontSize: '0.84rem', fontWeight: 700, letterSpacing: '-0.01em' }}>
                     Deliverables
                   </span>
                   <span
