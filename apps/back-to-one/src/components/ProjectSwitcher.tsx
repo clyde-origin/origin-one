@@ -18,7 +18,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useProjects, useUserProjectFolders, useUserProjectPlacements } from '@/lib/hooks/useOriginOne'
 import { haptic } from '@/lib/utils/haptics'
-import { DEFAULT_PROJECT_HEX, deriveProjectColors } from '@origin-one/ui'
+import { DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 
 type SwitcherFolder = { id: string; name: string; color: string | null; sortOrder: number }
 type SwitcherPlacement = { projectId: string; folderId: string | null; sortOrder: number }
@@ -64,23 +64,12 @@ export function ProjectSwitcher({
           type="button"
           onClick={() => { haptic('light'); setOpen(o => !o) }}
           className="flex items-center gap-1.5 leading-none"
-          style={(() => {
-            const c = deriveProjectColors(accentColor)
-            const ar = parseInt(c.primary.slice(1, 3), 16)
-            const ag = parseInt(c.primary.slice(3, 5), 16)
-            const ab = parseInt(c.primary.slice(5, 7), 16)
-            const gr = Math.min(255, ar + 20), gg = Math.min(255, ag + 30), gb = Math.min(255, ab + 16)
-            return {
-              background: 'none', border: 'none', padding: 0, cursor: 'pointer', position: 'relative',
-              ['--accent-rgb' as string]: `${ar}, ${ag}, ${ab}`,
-              ['--accent-glow-rgb' as string]: `${gr}, ${gg}, ${gb}`,
-            }
-          })()}
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', position: 'relative' }}
           aria-expanded={open}
           aria-label="Switch project"
         >
           <span
-            className="sheen-title text-center"
+            className="sheen-title-display text-center"
             style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.05 }}
           >
             {projectName}
