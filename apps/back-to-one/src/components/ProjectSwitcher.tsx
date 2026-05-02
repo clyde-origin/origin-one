@@ -68,7 +68,10 @@ export function ProjectSwitcher({
           aria-expanded={open}
           aria-label="Switch project"
         >
-          <span className="text-text text-center" style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
+          <span
+            className="sheen-title text-center"
+            style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.05 }}
+          >
             {projectName}
           </span>
           <Chevron open={open} />

@@ -38,6 +38,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="icon" href="/icon-192.png" />
+        {/* Cinema Glass theme bootstrap — runs before paint to avoid FOUC.
+            DESIGN_LANGUAGE.md: dark is the default; light mode is opt-in via
+            body.light-mode. Light is applied only when localStorage.theme is
+            explicitly 'light' — system prefers-color-scheme is ignored on
+            purpose so dark stays canonical. Reviewers verify light mode in
+            DevTools: localStorage.setItem('theme','light'); location.reload(). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{if(localStorage.getItem('theme')==='light'){document.documentElement.classList.add('light-mode');var apply=function(){document.body&&document.body.classList.add('light-mode')};if(document.body){apply()}else{document.addEventListener('DOMContentLoaded',apply,{once:true})}}}catch(e){}})();`,
+          }}
+        />
       </head>
       <body>
         <QueryProvider>
