@@ -16,7 +16,7 @@ import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { StorageImage } from '@/components/ui/StorageImage'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor, statusHex, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
+import { getProjectColor, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
@@ -53,6 +53,25 @@ interface ArtEntity {
   WardrobeSourced: WardrobeSourcedRow | null
   createdAt: string
   updatedAt: string
+}
+
+// ── Helpers ────────────────────────────────────────────
+
+// Decompose a #rrggbb hex into a [r,g,b] triplet so the screen root can set
+// `--tile-rgb` / `--accent-rgb` / `--accent-glow-rgb` for the cinema-glass
+// classes (`glass-tile`, `sheen-title`, `ai-meta-pill`) to consume.
+function hexToRgb(hex: string | null | undefined): [number, number, number] {
+  const h = (hex && /^#[0-9a-f]{6}$/i.test(hex)) ? hex : '#c45adc'
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
+}
+
+// Project status → ai-meta-pill phase modifier (.pre / .prod / .post).
+// development + pre_production both ride the pre amber; archived collapses to
+// pre as a neutral fallback (the pill is omitted upstream when project is null).
+function statusToPhase(s: string | undefined): 'pre' | 'prod' | 'post' {
+  if (s === 'production') return 'prod'
+  if (s === 'post_production') return 'post'
+  return 'pre'
 }
 
 // ── Constants ───────────────────────────────────────────
@@ -136,16 +155,18 @@ function ArtItemCard({ item, accent, onTap, threadEntry }: { item: ArtEntity; ac
 
   return (
     <div
-      className="flex cursor-pointer active:opacity-90 transition-opacity"
+      className="glass-tile flex cursor-pointer active:opacity-90 transition-opacity"
       style={{
         position: 'relative',
-        gap: 14, padding: 12, borderRadius: 16,
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.06)',
+        gap: 14, padding: 12,
         alignItems: 'flex-start',
       }}
       onClick={onTap}
     >
+      {/* Letterbox bars — cinema-glass identity. Above content (z:5). */}
+      <div className="letterbox-top" />
+      <div className="letterbox-bottom" />
+
       {/* Image */}
       <div style={{
         width: 80, height: 80, borderRadius: 10, flexShrink: 0, overflow: 'hidden',
@@ -170,12 +191,12 @@ function ArtItemCard({ item, accent, onTap, threadEntry }: { item: ArtEntity; ac
 
       {/* Text */}
       <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
-        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#fff', marginBottom: 3, lineHeight: 1.2 }}>
+        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--fg)', marginBottom: 3, lineHeight: 1.2 }}>
           {item.name}
         </div>
         {item.description && (
           <div style={{
-            fontSize: '0.62rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.5,
+            fontSize: '0.62rem', color: 'var(--fg-mono)', lineHeight: 1.5,
             display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden',
           }}>
             {item.description}
@@ -351,15 +372,15 @@ function ArtDetailSheet({
 
   const inputStyle = {
     background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.05)',
+    border: '1px solid var(--border)',
     borderRadius: 7, padding: '10px 12px',
-    color: '#dddde8', fontSize: '0.82rem',
+    color: 'var(--fg)', fontSize: '0.82rem',
     width: '100%', outline: 'none',
   }
 
   const labelStyle: React.CSSProperties = {
     fontFamily: 'var(--font-geist-mono)',
-    fontSize: '0.44rem', color: 'rgba(255,255,255,0.28)',
+    fontSize: '0.44rem', color: 'var(--fg-mono)',
     letterSpacing: '0.13em', textTransform: 'uppercase',
     display: 'block', marginBottom: 6,
   }
@@ -369,12 +390,13 @@ function ArtDetailSheet({
       {/* Handle */}
       <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.13)', margin: '12px auto 0', flexShrink: 0 }} />
 
-      {/* Header */}
+      {/* Header — item name uses sheen-extrusion treatment per
+          DESIGN_LANGUAGE.md detail-sheet-title rule. */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
+        padding: '14px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0,
       }}>
-        <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#fff' }}>
+        <span className="sheen-title" style={{ fontSize: '0.88rem', fontWeight: 700, letterSpacing: '0.01em' }}>
           {isCreate ? 'New Item' : item?.name ?? 'Item Detail'}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -388,12 +410,14 @@ function ArtDetailSheet({
         </div>
       </div>
 
-      {/* Hero image */}
+      {/* Hero image — 6px heavy letterbox bars per BRAND_TOKENS detail-hero rule. */}
       <div style={{
         width: '100%', aspectRatio: '4/3',
         background: 'rgba(255,255,255,0.04)',
         position: 'relative', flexShrink: 0, overflow: 'hidden',
       }}>
+        <div className="letterbox-top" style={{ height: 6, position: 'absolute', left: 0, right: 0, top: 0 }} />
+        <div className="letterbox-bottom" style={{ height: 6, position: 'absolute', left: 0, right: 0, bottom: 0 }} />
         {imgUrl ? (
           <>
             <StorageImage url={imgUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -409,7 +433,7 @@ function ArtDetailSheet({
           <div style={{
             width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center', gap: 8,
-            color: 'rgba(255,255,255,0.15)', cursor: 'pointer',
+            color: 'var(--fg-mono)', cursor: 'pointer',
           }}>
             <span style={{ fontSize: 28 }}>+</span>
             <span className="font-mono uppercase" style={{ fontSize: '0.48rem', letterSpacing: '0.1em' }}>
@@ -547,7 +571,7 @@ function ArtEmptyState() {
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       padding: '60px 30px', gap: 10, textAlign: 'center',
     }}>
-      <div style={{ fontSize: 32, opacity: 0.2 }}>
+      <div style={{ fontSize: 32, opacity: 0.2, color: 'var(--fg-mono)' }}>
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
           <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.3" />
           <circle cx="8" cy="10" r="2" stroke="currentColor" strokeWidth="1.2" />
@@ -555,7 +579,7 @@ function ArtEmptyState() {
         </svg>
       </div>
       <div className="font-mono" style={{
-        fontSize: '0.56rem', color: 'rgba(255,255,255,0.2)',
+        fontSize: '0.56rem', color: 'var(--fg-mono)',
         letterSpacing: '0.06em', lineHeight: 1.6,
       }}>
         No items added yet.<br />Tap + to add your first item.
@@ -571,6 +595,13 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
   const { data: project } = useProject(projectId)
   const colors = deriveProjectColors(project?.color || getProjectColor(projectId) || DEFAULT_PROJECT_HEX)
   const accent = colors.primary
+  // Cinema-glass tokens: set --tile-rgb / --accent-rgb / --accent-glow-rgb
+  // inline once at the screen root so .glass-tile and .sheen-title rules
+  // inherit. +20 / +30 / +16 lifts the project rgb to its accent-glow apex.
+  const [pr, pg, pb] = hexToRgb(accent)
+  const glowR = Math.min(255, pr + 20)
+  const glowG = Math.min(255, pg + 30)
+  const glowB = Math.min(255, pb + 16)
   const { data: items, isLoading } = useArtItems(projectId)
   const allItems = (items ?? []) as ArtEntity[]
 
@@ -592,23 +623,31 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
   const needed = tabItems.filter(i => getStatus(i) === 'needed').length
 
   return (
-    <div className="screen">
+    <div
+      className="screen"
+      style={{
+        ['--tile-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
+      } as React.CSSProperties}
+    >
       <PageHeader
         projectId={projectId}
         title="Art"
         meta={project ? (
           <div className="flex flex-col items-center gap-1.5">
             <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
-            <span className="font-mono uppercase" style={{
-              fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12,
-              background: `${statusHex(project.status)}18`, color: statusHex(project.status),
-            }}>{projectStatusLabel(project.status)}</span>
+            <span className={`ai-meta-pill ${statusToPhase(project.status)}`}>
+              <span className="phase-dot" />
+              {projectStatusLabel(project.status)}
+            </span>
           </div>
         ) : ''}
         noBorder
       />
 
-      {/* Tab bar */}
+      {/* Tab bar — active tab text uses sheen-extrusion treatment per
+          DESIGN_LANGUAGE.md tab-nav rule. */}
       <div className="flex">
         {TABS.map(tab => {
           const isActive = activeTab === tab.key
@@ -616,11 +655,11 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className="flex-1 text-center uppercase cursor-pointer select-none relative transition-colors"
+              className={`flex-1 text-center uppercase cursor-pointer select-none relative transition-colors ${isActive ? 'sheen-title' : ''}`}
               style={{
                 fontFamily: "'Geist', sans-serif", fontWeight: 700,
                 padding: '11px 0', fontSize: '0.52rem', letterSpacing: '0.08em',
-                color: isActive ? '#dddde8' : '#62627a',
+                color: isActive ? undefined : 'var(--fg-mono)',
                 background: 'transparent', border: 'none',
               }}
             >
@@ -629,6 +668,7 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
                 <div className="absolute bottom-0" style={{
                   left: '10%', right: '10%', height: 2,
                   background: accent, borderRadius: '2px 2px 0 0',
+                  boxShadow: `0 -2px 12px -4px rgba(${pr},${pg},${pb},0.45)`,
                 }} />
               )}
             </button>
@@ -644,15 +684,17 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
         {isLoading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[0, 1, 2].map(i => (
-              <div key={i} style={{
-                display: 'flex', gap: 14, padding: 12, borderRadius: 16,
-                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+              <div key={i} className="glass-tile" style={{
+                position: 'relative',
+                display: 'flex', gap: 14, padding: 12,
               }}>
-                <div style={{ width: 80, height: 80, borderRadius: 10, background: 'rgba(255,255,255,0.05)', flexShrink: 0 }} />
+                <div className="letterbox-top" />
+                <div className="letterbox-bottom" />
+                <div className="sk-block" style={{ width: 80, height: 80, borderRadius: 10, flexShrink: 0 }} />
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4 }}>
-                  <div style={{ width: 140, height: 12, borderRadius: 4, background: 'rgba(255,255,255,0.06)' }} />
-                  <div style={{ width: 200, height: 9, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
-                  <div style={{ width: 100, height: 9, borderRadius: 4, background: 'rgba(255,255,255,0.03)' }} />
+                  <div className="sk-block" style={{ width: 140, height: 12 }} />
+                  <div className="sk-block" style={{ width: 200, height: 9 }} />
+                  <div className="sk-block" style={{ width: 100, height: 9 }} />
                 </div>
               </div>
             ))}
@@ -664,7 +706,7 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
             {/* Section label */}
             <div className="font-mono uppercase" style={{
               fontSize: '0.44rem', letterSpacing: '0.15em',
-              color: 'rgba(255,255,255,0.2)',
+              color: 'var(--fg-mono)',
               marginBottom: 8, marginTop: 4, paddingLeft: 2,
             }}>
               {tabItems.length} items · {ready} ready · {needed} needed
