@@ -39,12 +39,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="icon" href="/icon-192.png" />
         {/* Cinema Glass theme bootstrap — runs before paint to avoid FOUC.
-            No toggle UI is shipped in this PR (visual-only re-skin). Reviewers
-            verify light mode by switching system color-scheme or by setting
-            localStorage.theme='light' in DevTools. */}
+            DESIGN_LANGUAGE.md: dark is the default; light mode is opt-in via
+            body.light-mode. Light is applied only when localStorage.theme is
+            explicitly 'light' — system prefers-color-scheme is ignored on
+            purpose so dark stays canonical. Reviewers verify light mode in
+            DevTools: localStorage.setItem('theme','light'); location.reload(). */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var s=localStorage.getItem('theme');var m=window.matchMedia('(prefers-color-scheme: light)').matches;var L=(s==='light'||(s==null&&m));if(L){document.documentElement.classList.add('light-mode');var apply=function(){document.body&&document.body.classList.add('light-mode')};if(document.body){apply()}else{document.addEventListener('DOMContentLoaded',apply,{once:true})}}}catch(e){}})();`,
+            __html: `(function(){try{if(localStorage.getItem('theme')==='light'){document.documentElement.classList.add('light-mode');var apply=function(){document.body&&document.body.classList.add('light-mode')};if(document.body){apply()}else{document.addEventListener('DOMContentLoaded',apply,{once:true})}}}catch(e){}})();`,
           }}
         />
       </head>
