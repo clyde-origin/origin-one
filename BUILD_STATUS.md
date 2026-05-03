@@ -1,7 +1,7 @@
 # Back to One — Build Status
 Update this file at the end of every Claude Code session. This is the single source of truth for where the build actually is.
 
-Last updated: April 28, 2026 (Auth Day complete — full bundle live; Tyler/Kelly/Christian on Origin Point; Matt Forrest first external producer on Cloud Forest team with demo clones)
+Last updated: May 3, 2026 (Cinema Glass visual reskin shipped to main — see "Cinema Glass arc" below; Auth Day completed Apr 28)
 
 ---
 
@@ -16,6 +16,33 @@ Last updated: April 28, 2026 (Auth Day complete — full bundle live; Tyler/Kell
 **Next, in sequence:** Location cleanup → Location parent/child UI → Storage discipline PR → Location images → Department enum conversion → PropSourced schema → PropSourced UI → WardrobeSourced schema → WardrobeSourced UI → InventoryItem schema → Inventory page → Inventory hub preview → Crew Profile v2 schema → avatars bucket → Crew Profile v2 UI → Auth.
 
 **Dogfood trigger:** Tyler + Kelly run the app when every surface is honest and the data is real enough to think with.
+
+---
+
+## Cinema Glass arc — shipped May 3, 2026
+
+Visual-only re-skin of every wired surface against the design-locked gallery (`apps/back-to-one/reference/hub-full-preview-v2.html` @ tag `design-locked-2026-05-01`). 16 PRs landed across V1 (per-route ports) → V2 (structural follow-ups) → V2.1 (live-preview polish) → wiring V2.2 (post-merge affordance fixes).
+
+| Wave | PRs |
+|---|---|
+| V1 — initial port | #122 Hub, #123 Locations, #124 Scenemaker, #125 Art, #126 Timeline, #127 Action Items, #128 Moodboard, #129 Timeline-Days, #130 Inventory, #131 Casting, #132 Threads, #133 Budget, #134 Workflow, #135 Chat, #136 Resources, #137 Crew + CrewPanel |
+| V2 — structural | #138 Timeline V2, #139 Crew V2, #140 Scenemaker V2, #141 Casting V2 (+ shared `.sk-*` skeleton primitives), #142 Login first port, #143 Action Items + Inventory V2 (3→2 tab consolidation, design-lead approved), #144 Budget V2, #145 Workflow V2, #146 Image-grid bundle V2, #147 Project Selection first port, #148 Hub V2 |
+| Hotfix | #149 globals.css rebuilt from clean PR heads after rebase resolver mangled three CSS sections |
+| V2.1 polish | #150 Project Selection V2.1, #151 Hub V2.1, #152 Loading skeletons (14 routes), #153 Scenemaker V2.1 |
+| Umbrella | #121 (`redesign/cinema-glass → main`, squash-merge) |
+| Wiring V2.2 | #154 — settings gear bottom-left, Hub crew role-pills wired to filter, Login bg photo restored w/ vignette + role-tile color tints |
+
+**Skipped — flagged for follow-up:**
+- **Chat V2** deferred — gallery's Team-tab "list of channels" overview vs current's direct-into-messages opening is a borderline feature change; needs design review.
+- **Threads V2** deferred — V1 was tight against gallery; only minor polish remained.
+- **Dept icon-stacked pills** (Action Items / Threads / Inventory / Resources) — needs a dept-icon library to land first.
+- **Hub inventory chips deep-link** (low-severity wiring item) — chips push to `/inventory` without `?dept=` param; user lands on plain Inventory page.
+
+**Process notes (lessons):**
+- Local sub-agents stalled silently on 5 of 7 dispatches; user-driven Claude Code shells were vastly more reliable for parallel implementation work. Reserved sub-agents for read-only research after that.
+- Auto-resolving rebase conflicts on `globals.css` with a `\1\n\n\2` substitution mangled CSS rule boundaries — fixed via `#149` by rebuilding from clean append-only PR heads. Subsequent rebases used a marker-strip-only resolver that worked cleanly.
+
+Main tip after the arc: `6d31011` (post-#154).
 
 ---
 
