@@ -639,8 +639,8 @@ export function HubContent({ projectId }: { projectId: string }) {
                         className="bgt-body"
                         style={{
                           flex: 1, display: 'flex', flexDirection: 'column',
-                          alignItems: 'center', justifyContent: 'center',
-                          padding: '6px 10px',
+                          alignItems: 'center', justifyContent: 'flex-start',
+                          padding: '8px 12px',
                         }}
                       >
                         <div className="bgt-dial">
@@ -679,20 +679,38 @@ export function HubContent({ projectId }: { projectId: string }) {
                     </div>
                   )
                 })() : (
+                  // V2.1 empty state: same Cinema Glass chrome as the loaded
+                  // tile (glass-tile + bgt-card + version pill + letterboxes).
+                  // Only the dial fg arc and meta values are dropped; a "—"
+                  // placeholder keeps the dial silhouette and a mono ghost CTA
+                  // anchors the next action. Visual-only; data flow unchanged.
                   <div
+                    className="glass-tile bgt-card"
                     style={{
-                      padding: '14px', height: 130,
-                      background: `linear-gradient(180deg, rgba(${pr},${pg},${pb},0.10) 0%, rgba(${pr},${pg},${pb},0.04) 100%), rgba(20,20,28,0.55)`,
-                      backdropFilter: 'blur(16px) saturate(135%)', WebkitBackdropFilter: 'blur(16px) saturate(135%)',
-                      border: `1px dashed rgba(${pr},${pg},${pb},0.32)`,
-                      borderRadius: 14,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: `rgba(${pr},${pg},${pb},0.85)`,
-                      fontFamily: 'monospace', fontSize: '0.5rem', letterSpacing: '0.08em', textTransform: 'uppercase',
-                      boxSizing: 'border-box', textAlign: 'center',
+                      position: 'relative', height: 130,
+                      display: 'flex', flexDirection: 'column',
+                      boxSizing: 'border-box',
                     }}
                   >
-                    Start budget →
+                    <span className="bgt-version-pill bgt-version-pill-empty">—</span>
+                    <div className="letterbox-top" />
+                    <div
+                      className="bgt-body"
+                      style={{
+                        flex: 1, display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', justifyContent: 'flex-start',
+                        padding: '8px 12px',
+                      }}
+                    >
+                      <div className="bgt-dial bgt-dial-empty">
+                        <svg viewBox="0 0 64 64" fill="none">
+                          <circle className="bgt-dial-bg" cx="32" cy="32" r="26" strokeWidth="3" />
+                        </svg>
+                        <span className="bgt-dial-pct">—</span>
+                      </div>
+                      <span className="bgt-empty-cta">Set up budget →</span>
+                    </div>
+                    <div className="letterbox-bottom" />
                   </div>
                 )}
               </div>
