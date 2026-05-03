@@ -58,62 +58,58 @@ function hexToRgb(hex: string | null | undefined): [number, number, number] {
 
 // ── Location Card ────────────────────────────────────────
 
-function LocationCard({ loc, projectId, accent, onTap, threadEntry }: { loc: Location; projectId: string; accent: string; onTap: (l: Location) => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
-  const sc = statusColor(loc.status)
+// Per-location hero gradient palette. Gallery (#27 Locations) tints each
+// loc-image-hero with a locale-specific dark gradient (Ravine Edge ochre,
+// Lohm's Apartment indigo, City Plaza ember, Studio C teal). Live data has
+// no scene-color metadata, so we hash the location id deterministically into
+// this palette — same location always reads the same hue.
+const LOC_HERO_GRADIENTS: string[] = [
+  'linear-gradient(165deg, #2a1a0d 0%, #4a2a1a 35%, #1a0a05 100%)',  // ochre / earth
+  'linear-gradient(165deg, #0d0a1f 0%, #1a1228 60%, #0a0815 100%)',  // indigo / dusk
+  'linear-gradient(165deg, #1a0d05 0%, #3a2510 50%, #0a0500 100%)',  // ember
+  'linear-gradient(165deg, #0d1a1a 0%, #1a2828 50%, #0a1212 100%)',  // teal / studio
+  'linear-gradient(165deg, #1f0d1a 0%, #2c1428 60%, #100716 100%)',  // plum
+  'linear-gradient(165deg, #1a1505 0%, #2c220c 50%, #100a02 100%)',  // mustard
+]
+function locGradientFor(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash)
+  return LOC_HERO_GRADIENTS[Math.abs(hash) % LOC_HERO_GRADIENTS.length]
+}
+
+function LocationCard({ loc, projectId, onTap, threadEntry }: { loc: Location; projectId: string; onTap: (l: Location) => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
   return (
-    // Wrapper preserves the card's overflow:hidden (image clipping) while
-    // providing an overflow-visible positioning context for the ThreadRowBadge
-    // so it can float over the card's bottom-right edge at -6/-6.
+    // Wrapper gives the -6/-6 ThreadRowBadge an overflow-visible positioning
+    // context while the card itself clips its image hero.
     <div style={{ position: 'relative' }}>
       <div
-        className="glass-tile flex cursor-pointer active:opacity-90 transition-opacity"
+        className="loc-card"
         onClick={() => onTap(loc)}
+        style={{ ['--loc-bg' as string]: locGradientFor(loc.id) } as React.CSSProperties}
       >
-        {/* Hero — most-recent attachment (with +N badge if multiple), or placeholder.
-            Letterbox bars frame the hero with the cinema-glass treatment. */}
-        <div style={{ width: 96, height: 96, flexShrink: 0, position: 'relative' }}>
-          <div className="letterbox-top" style={{ position: 'absolute', top: 0, left: 0, right: 0 }} />
+        {/* Title at top — sheen+extrusion treatment via .loc-title */}
+        <div className="loc-title">{loc.name}</div>
+
+        {/* 16:9 hero image with letterbox bars (cinema frame) */}
+        <div className="loc-image-hero">
+          <div className="letterbox-top" />
           <EntityAttachmentCover
             projectId={projectId}
             attachedToType="location"
             attachedToId={loc.id}
-            size={96}
+            size="100%"
             alt={loc.name}
           />
-          <div className="letterbox-bottom" style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }} />
+          <div className="letterbox-bottom" />
         </div>
 
-        {/* Info */}
-        <div style={{ flex: 1, padding: '10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: 0 }}>
-          <div>
-            <div className="flex items-start justify-between gap-2">
-              <span className="truncate" style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--fg)' }}>{loc.name}</span>
-              <span className="font-mono uppercase flex-shrink-0" style={{
-                fontSize: '0.36rem', letterSpacing: '0.06em',
-                padding: '2px 7px', borderRadius: 10,
-                background: `${sc}1a`, border: `1px solid ${sc}38`, color: sc,
-              }}>{statusDisplay(loc.status)}</span>
-            </div>
-            {loc.address && (
-              <div className="truncate" style={{ fontSize: '0.56rem', color: 'var(--fg-mono)', marginTop: 2 }}>{loc.address}</div>
-            )}
-          </div>
-          <div className="flex items-center justify-between" style={{ marginTop: 6 }}>
-            {loc.shootDates ? (
-              <span className="font-mono" style={{ fontSize: '0.44rem', color: 'var(--fg-mono)', letterSpacing: '0.04em' }}>{loc.shootDates}</span>
-            ) : <span />}
-            <button
-              onClick={(e) => { e.stopPropagation() }}
-              style={{
-                fontSize: '0.38rem', fontFamily: 'var(--font-geist-mono)',
-                letterSpacing: '0.06em', textTransform: 'uppercase',
-                padding: '3px 8px', borderRadius: 10,
-                background: loc.approved ? '#00b8941a' : '#e8a0201a',
-                border: `1px solid ${loc.approved ? '#00b89438' : '#e8a02038'}`,
-                color: loc.approved ? '#00b894' : '#e8a020',
-                cursor: 'pointer',
-              }}
-            >{loc.approved ? 'Approved' : 'Option'}</button>
+        {/* Meta — address + dates row + approval pill + status pill */}
+        <div className="loc-meta">
+          {loc.address && <span className="loc-address">{loc.address}</span>}
+          <div className="loc-dates-row">
+            {loc.shootDates && <span className="loc-dates">{loc.shootDates}</span>}
+            {loc.approved && <span className="loc-approval approved">Approved</span>}
+            <span className={`loc-status-pill ${loc.status}`}>{statusDisplay(loc.status)}</span>
           </div>
         </div>
       </div>
@@ -730,13 +726,14 @@ export default function LocationsPage({ params }: { params: { projectId: string 
       {/* Content */}
       <div className="flex-1 overflow-y-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch', padding: '12px 16px 120px' }}>
         {isLoading ? (
-          <div className="flex flex-col gap-3">
-            {[0, 1, 2].map(i => (
-              <div key={i} className="glass-tile flex" style={{ overflow: 'hidden' }}>
-                <div className="sk-block" style={{ width: 96, height: 96, borderRadius: 0 }} />
-                <div style={{ flex: 1, padding: '12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div className="sk-block" style={{ width: 120, height: 12 }} />
-                  <div className="sk-block" style={{ width: 180, height: 10 }} />
+          <div className="loc-grid">
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} className="loc-card" style={{ padding: 0 }}>
+                <div className="sk-block" style={{ width: '60%', height: 11, margin: '10px auto 8px', borderRadius: 4 }} />
+                <div className="sk-block" style={{ width: '100%', aspectRatio: '16 / 9', borderRadius: 0 }} />
+                <div style={{ padding: '8px 8px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                  <div className="sk-block" style={{ width: '70%', height: 7 }} />
+                  <div className="sk-block" style={{ width: '50%', height: 8 }} />
                 </div>
               </div>
             ))}
@@ -750,9 +747,9 @@ export default function LocationsPage({ params }: { params: { projectId: string 
             onAdd={() => { haptic('light'); setShowCreate(true) }}
           />
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="loc-grid">
             {filtered.map(loc => (
-              <LocationCard key={loc.id} loc={loc} projectId={projectId} accent={accent} onTap={setSelected} threadEntry={threadByLocationId.get(loc.id)} />
+              <LocationCard key={loc.id} loc={loc} projectId={projectId} onTap={setSelected} threadEntry={threadByLocationId.get(loc.id)} />
             ))}
           </div>
         )}
