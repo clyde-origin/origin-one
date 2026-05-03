@@ -16,7 +16,7 @@ import { Sheet } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
-import { getProjectColor, getSceneColor, statusHex, statusLabel } from '@/lib/utils/phase'
+import { getProjectColor, getSceneColor, statusLabel } from '@/lib/utils/phase'
 import { aspectRatioToCss } from '@/lib/aspect-ratio'
 import { STORYBOARD_STYLES, DEFAULT_STORYBOARD_STYLE, type StoryboardStyle } from '@/lib/bria/style'
 import { SHOT_SIZE_OPTIONS, SHOT_SIZE_ABBREV } from '@/lib/shot-sizes'
@@ -70,6 +70,18 @@ import type { Scene, Shot, SceneMakerMode } from '@/types'
 
 type StoryboardScale = 'feed' | '3up' | '2up' | 'all'
 type ScriptPanel = 'characters' | 'locations' | 'props' | null
+
+// Map ProjectStatus enum to the .ai-meta-pill modifier ('pre' / 'prod' / 'post').
+// Cinema Glass chip pattern (DESIGN_LANGUAGE.md) only ships these three.
+function statusToPhase(s: string | undefined): 'pre' | 'prod' | 'post' | '' {
+  switch (s) {
+    case 'development':
+    case 'pre_production': return 'pre'
+    case 'production': return 'prod'
+    case 'post_production': return 'post'
+    default: return ''
+  }
+}
 
 // ── PILL SELECTOR ─────────────────────────────────────────
 
@@ -888,6 +900,13 @@ function SortableShotRow({
     position: 'relative',
   }
 
+  // Per-row scene-rgb override — shot tag picks up the scene hue via
+  // .scenemaker-shot-num's --tag-rgb consumer, and the row's glass-tile
+  // bg/border re-tints to the scene via --tile-rgb. One inline triplet
+  // does both.
+  const sr = parseInt(sceneColor.slice(1, 3), 16)
+  const sg = parseInt(sceneColor.slice(3, 5), 16)
+  const sb = parseInt(sceneColor.slice(5, 7), 16)
   // Listeners + attributes are always attached. TouchSensor's 250 ms delay
   // handles the tap-vs-drag disambiguation: a quick tap doesn't activate
   // drag (preventDefault is never called), so onClick still flows to the
@@ -897,15 +916,15 @@ function SortableShotRow({
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
       <div
-        className={`flex items-center select-none relative${wiggleMode && !isDragging ? ' wiggle' : ''}`}
+        className={`glass-tile-sm flex items-center select-none relative${wiggleMode && !isDragging ? ' wiggle' : ''}`}
         style={{
           gap: 9,
-          background: isDragging ? 'rgba(10,10,18,0.85)' : 'rgba(10,10,18,0.42)',
-          backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-          border: isDragging ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 8, padding: '9px 10px',
-          boxShadow: isDragging ? '0 8px 32px rgba(0,0,0,0.6)' : 'none',
-        }}
+          padding: '9px 10px',
+          ['--tile-rgb' as string]: `${sr}, ${sg}, ${sb}`,
+          ...(isDragging
+            ? { boxShadow: '0 8px 32px rgba(0,0,0,0.6)', opacity: 0.85 }
+            : {}),
+        } as React.CSSProperties}
         {...listeners}
         onClick={(e) => { if (wiggleMode) e.stopPropagation() }}
       >
@@ -918,15 +937,15 @@ function SortableShotRow({
           </div>
         )}
 
-        <span className={`flex-shrink-0 cursor-pointer${blinking ? ' number-blink' : ''}`}
-          style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', color: sceneColor }}
+        <span
+          className={`scenemaker-shot-num cursor-pointer${blinking ? ' number-blink' : ''}`}
+          style={{ ['--tag-rgb' as string]: `${sr}, ${sg}, ${sb}` } as React.CSSProperties}
           onClick={() => !wiggleMode && onTap()}>
           {displayNum}
         </span>
 
         {shot.size && (
-          <span className="font-mono uppercase flex-shrink-0 cursor-pointer"
-            style={{ fontSize: '0.36rem', letterSpacing: '0.06em', padding: '2px 6px', borderRadius: 10, background: `${sceneColor}14`, border: `1px solid ${sceneColor}30`, color: sceneColor }}
+          <span className="scenemaker-aspect-label cursor-pointer"
             onClick={() => !wiggleMode && onTap()}>
             {SIZE_ABBREV[shot.size] ?? shot.size}
           </span>
@@ -951,8 +970,8 @@ function SortableShotRow({
             onClick={e => e.stopPropagation()}
           />
         ) : (
-          <span className="flex-1 min-w-0 truncate cursor-text"
-            style={{ fontSize: '0.58rem', fontWeight: 500, color: '#a0a0b8', lineHeight: 1.35 }}
+          <span className="font-mono flex-1 min-w-0 cursor-text scenemaker-shot-desc"
+            style={{ fontSize: '0.58rem', fontWeight: 500, color: 'var(--fg)', lineHeight: 1.35 }}
             onClick={(e) => {
               if (wiggleMode) return
               if (descBehavior === 'tap-edits-inline' && setEditingDescValue && setEditingDescShotId) {
@@ -1020,10 +1039,16 @@ function SceneHeaderDroppable({
         ...(highlighted ? { background: `${sceneColor}12`, borderRadius: 6, margin: '0 4px' } : {}),
         transition: 'background 0.15s, margin 0.15s',
       }}>
-      <span className="flex-shrink-0 cursor-pointer"
-        style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', color: sceneColor, minWidth: 20 }}
+      <span
+        className="scenemaker-scene-num cursor-pointer"
+        style={(() => {
+          const r = parseInt(sceneColor.slice(1, 3), 16)
+          const g = parseInt(sceneColor.slice(3, 5), 16)
+          const b = parseInt(sceneColor.slice(5, 7), 16)
+          return { ['--tag-rgb' as string]: `${r}, ${g}, ${b}` } as React.CSSProperties
+        })()}
         onClick={() => !wiggleMode && toggleScene(scene.id)}>
-        {scene.sceneNumber}
+        {scene.sceneNumber.padStart(2, '0')}
       </span>
       {isEditing ? (
         <input
@@ -1043,8 +1068,21 @@ function SceneHeaderDroppable({
           style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: accent, background: 'rgba(255,255,255,0.06)', border: `1px solid ${accent}40`, borderRadius: 4, padding: '2px 6px' }}
         />
       ) : (
-        <span className="flex-1 truncate cursor-pointer"
-          style={{ fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em', color: accent, opacity: 0.7 }}
+        // Scene title — sheen-title applied per-scene by overriding
+        // --accent-rgb inline with this scene's color so the gradient
+        // re-tints to the scene hue (otherwise inherits project accent
+        // from the .screen root).
+        <span className="sheen-title flex-1 truncate cursor-pointer"
+          style={(() => {
+            const r = parseInt(sceneColor.slice(1, 3), 16)
+            const g = parseInt(sceneColor.slice(3, 5), 16)
+            const b = parseInt(sceneColor.slice(5, 7), 16)
+            return {
+              fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700, letterSpacing: '0.02em',
+              ['--accent-rgb' as string]: `${r}, ${g}, ${b}`,
+              ['--accent-glow-rgb' as string]: `${Math.min(255, r + 20)}, ${Math.min(255, g + 30)}, ${Math.min(255, b + 16)}`,
+            } as React.CSSProperties
+          })()}
           onClick={() => { if (!wiggleMode) toggleScene(scene.id) }}
           onDoubleClick={() => {
             setEditingTitle(scene.title ?? '')
@@ -1158,10 +1196,14 @@ function StoryboardView({ scenes, shots, scale, aspectRatio, onTapShot, onReorde
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '8px 10px' }}>
       {sorted.map(shot => {
         const sc = getSceneColorForShot(shot)
+        const sr = parseInt(sc.slice(1, 3), 16)
+        const sg = parseInt(sc.slice(3, 5), 16)
+        const sb = parseInt(sc.slice(5, 7), 16)
         return (
-          <div key={shot.id} className="cursor-pointer" onClick={() => onTapShot(shot)}
-            style={{ background: 'rgba(10,10,18,0.42)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, overflow: 'hidden' }}>
+          <div key={shot.id} className="glass-tile-sm cursor-pointer" onClick={() => onTapShot(shot)}
+            style={{ ['--tile-rgb' as string]: `${sr}, ${sg}, ${sb}` } as React.CSSProperties}>
             <div className="relative" style={{ aspectRatio: aspectRatioToCss(aspectRatio) }}>
+              <div className="letterbox-top" />
               {shot.imageUrl ? (
                 <StorageImage url={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
@@ -1170,7 +1212,9 @@ function StoryboardView({ scenes, shots, scale, aspectRatio, onTapShot, onReorde
               <div className="absolute top-2 left-2" style={{
                 fontFamily: "'Geist', sans-serif", fontSize: '0.52rem', fontWeight: 700,
                 color: sc, background: 'rgba(4,4,10,0.75)', borderRadius: 6, padding: '2px 8px',
+                zIndex: 6,
               }}>{shot.shotNumber}</div>
+              <div className="letterbox-bottom" style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }} />
             </div>
             <div style={{ padding: '8px 12px' }}>
               <div style={{ fontSize: '0.66rem', fontWeight: 600, color: '#dddde8', lineHeight: 1.4, marginBottom: 4 }}>{shot.description || '—'}</div>
@@ -1403,6 +1447,11 @@ function BoardCard({ shot, sceneColor, aspectRatio, isDragging, isShifted, onTap
     }
   }
 
+  // Per-frame scene-rgb override — drives the glass-tile tint per scene
+  // so neighbouring frames in the storyboard read as their own scene.
+  const sr = parseInt(sceneColor.slice(1, 3), 16)
+  const sg = parseInt(sceneColor.slice(3, 5), 16)
+  const sb = parseInt(sceneColor.slice(5, 7), 16)
   return (
     <div data-board-id={shot.id} style={{
       position: 'relative',
@@ -1410,43 +1459,61 @@ function BoardCard({ shot, sceneColor, aspectRatio, isDragging, isShifted, onTap
     }}
       onTouchStart={handleTouchStart} onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd} onTouchCancel={() => { if (timerRef.current) clearTimeout(timerRef.current) }}>
-      <div ref={cardInnerRef} className="cursor-pointer select-none"
+      <div ref={cardInnerRef} className="glass-tile-sm cursor-pointer select-none"
         style={{
-          background: 'rgba(10,10,18,0.42)',
-          backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-          border: isDragging ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 8, overflow: 'hidden',
+          // glass-tile-sm provides bg/blur/border/glow at radius:10. Override
+          // tile-rgb per scene so each frame carries its scene hue while
+          // staying inside the cinema-glass formula.
+          ['--tile-rgb' as string]: `${sr}, ${sg}, ${sb}`,
           ...(isDragging ? {
             boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
             opacity: 0.85,
           } : {
             transition: 'transform 0.25s ease, opacity 0.2s ease',
-            boxShadow: 'none',
             opacity: isShifted ? 0.6 : 1,
             transform: isShifted ? 'scale(0.95)' : 'scale(1)',
           }),
-        }}>
-        {/* shot image area */}
+        } as React.CSSProperties}>
+        {/* shot image area — letterbox bars wrap the frame for the
+            cinema frame-within-frame identity. */}
         <div className="relative" style={{ aspectRatio: aspectRatioToCss(aspectRatio) }}>
+          <div className="letterbox-top" />
           <div className="w-full h-full absolute inset-0" style={{ background: `linear-gradient(135deg, ${sceneColor}15, ${sceneColor}08)` }} />
           {shot.imageUrl && (
             <StorageImage url={shot.imageUrl} alt={shot.shotNumber} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
           )}
-          <div className="absolute top-1 left-1" style={{
-            fontFamily: "'Geist', sans-serif", fontSize: '0.38rem', fontWeight: 700, letterSpacing: '0.04em',
-            color: sceneColor, background: 'rgba(4,4,10,0.7)',
-            borderRadius: 4, padding: '1px 4px',
-          }}>
+          {/* Shot tag (top-left) + aspect label (top-right) — both sit
+              above the letterbox z-index so they remain readable on the
+              letterboxed image. The shot tag uses the dept-color outline
+              rect; aspect is mono-caps in dept color. */}
+          <span
+            className="scenemaker-shot-num absolute"
+            style={{
+              top: 4, left: 4, zIndex: 6,
+              backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+              ['--tag-rgb' as string]: `${sr}, ${sg}, ${sb}`,
+            } as React.CSSProperties}>
             {shot.shotNumber}
-          </div>
+          </span>
+          {shot.size && (
+            <span
+              className="scenemaker-aspect-label absolute font-mono"
+              style={{
+                top: 6, right: 6, zIndex: 6,
+                color: sceneColor,
+                background: 'rgba(4,4,10,0.55)', borderRadius: 4, padding: '1px 5px',
+                backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+              }}>
+              {SIZE_ABBREV[shot.size] ?? shot.size}
+            </span>
+          )}
+          <div className="letterbox-bottom" style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }} />
         </div>
-        {/* Description */}
-        <div style={{
-          padding: '5px 6px', fontSize: '0.44rem', fontWeight: 500,
-          color: '#a0a0b8', lineHeight: 1.35,
-          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
-        }}>
+        {/* Description — Geist Mono, --fg, 2-line truncate per
+            DESIGN_LANGUAGE.md storyboard panel pattern. Explicit
+            content-box height = lineHeight × 2 keeps the third-line
+            top half from bleeding through into the gap below. */}
+        <div className="font-mono scenemaker-board-desc">
           {shot.description}
         </div>
       </div>
@@ -2075,10 +2142,27 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
   useFabAction({ branches }, [branches])
 
+  // Cinema Glass project tokens — set once at the .screen root so every
+  // .glass-tile (--tile-rgb) and .sheen-title (--accent-rgb / glow)
+  // descendant inherits the project hue. Project-accent inline-hex on
+  // individual JSX continues to follow the Locations/Art precedent.
+  const pr = parseInt(accent.slice(1, 3), 16)
+  const pg = parseInt(accent.slice(3, 5), 16)
+  const pb = parseInt(accent.slice(5, 7), 16)
+  const glowR = Math.min(255, pr + 20)
+  const glowG = Math.min(255, pg + 30)
+  const glowB = Math.min(255, pb + 16)
+  const projectStyle = {
+    ['--tile-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+    ['--accent-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+    ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
+    overflow: 'hidden',
+  } as React.CSSProperties
+
   return (
-    <div className="screen" style={{ overflow: 'hidden' }}>
+    <div className="screen" style={projectStyle}>
       {/* Header */}
-      <div className="flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#04040a' }}>
+      <div className="hub-topbar flex-shrink-0">
         <PageHeader
           projectId={projectId}
           title=""
@@ -2086,7 +2170,10 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
             <div className="flex flex-col items-center gap-1.5">
               <span className="font-mono uppercase" style={{ fontSize: 11, letterSpacing: '0.12em', color: accent }}>One Arc</span>
               <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="hub" />
-              <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{statusLabel(project.status)}</span>
+              <span className={`ai-meta-pill ${statusToPhase(project.status)}`}>
+                <span className="phase-dot" />
+                {statusLabel(project.status)}
+              </span>
             </div>
           ) : ''}
           right={
@@ -2103,38 +2190,42 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           noBorder
         />
 
-        {/* Mode tabs */}
+        {/* Mode tabs — DESIGN_LANGUAGE.md tab nav: active text uses
+            sheen+extrusion (var --accent-rgb set on .screen root), accent
+            underline at the bottom, low glow from below. */}
         <div className="flex">
-          {(['script', 'shotlist', 'storyboard'] as SceneMakerMode[]).map(m => (
-            <button key={m} className="flex-1 text-center uppercase cursor-pointer select-none relative transition-colors"
-              style={{ fontFamily: "'Geist', sans-serif", fontWeight: 700, padding: '11px 0', fontSize: '0.52rem', letterSpacing: '0.08em', color: mode === m ? '#dddde8' : '#62627a' }}
-              onClick={() => { if (mode === 'script') scriptRef.current?.flush(); setMode(m) }}>
-              {m}
-              {mode === m && <div className="absolute bottom-0" style={{ left: '10%', right: '10%', height: 2, background: accent, borderRadius: '2px 2px 0 0' }} />}
-            </button>
-          ))}
+          {(['script', 'shotlist', 'storyboard'] as SceneMakerMode[]).map(m => {
+            const active = mode === m
+            return (
+              <button key={m} className="flex-1 text-center uppercase cursor-pointer select-none relative transition-colors"
+                style={{
+                  fontFamily: "'Geist', sans-serif", fontWeight: 700, padding: '11px 0',
+                  fontSize: '0.52rem', letterSpacing: '0.08em',
+                  color: active ? undefined : '#62627a',
+                  boxShadow: active ? `0 -2px 12px -4px rgba(${pr},${pg},${pb},0.45)` : undefined,
+                }}
+                onClick={() => { if (mode === 'script') scriptRef.current?.flush(); setMode(m) }}>
+                <span className={active ? 'sheen-title' : undefined}>{m}</span>
+                {active && <div className="absolute bottom-0" style={{ left: '10%', right: '10%', height: 1, background: accent, borderRadius: '1px 1px 0 0' }} />}
+              </button>
+            )
+          })}
         </div>
       </div>
 
       {/* ── MODE SUBHEADERS (consistent 44px height) ── */}
 
-      {/* Script subheader: Characters / Locations / Props */}
+      {/* Script subheader — Characters / Locations / Props.
+          DESIGN_LANGUAGE.md: rounded outline pills, mono caps,
+          --fg-mono color, hairline border. Active swaps to project
+          accent (read from --accent-rgb on .screen root). */}
       {mode === 'script' && (
         <div className="flex items-center justify-center flex-shrink-0" style={{ height: 44, padding: '0 14px', gap: 10, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          {([
-            { key: 'characters' as const, color: '#67E8F9', bg: 'rgba(103,232,249,0.1)', border: 'rgba(103,232,249,0.28)' },
-            { key: 'locations' as const,  color: '#A78BFA', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.28)' },
-            { key: 'props' as const,      color: '#FCD34D', bg: 'rgba(252,211,77,0.08)', border: 'rgba(252,211,77,0.22)' },
-          ]).map(({ key, color, bg, border }) => {
+          {(['characters', 'locations', 'props'] as const).map(key => {
             const active = scriptPanel === key
             return (
-              <button key={key} className="font-mono uppercase cursor-pointer select-none transition-colors"
-                style={{
-                  fontSize: '0.46rem', letterSpacing: '0.06em', padding: '6px 18px', borderRadius: 16,
-                  background: active ? bg : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${active ? border : 'rgba(255,255,255,0.08)'}`,
-                  color: active ? color : '#a0a0b8',
-                }}
+              <button key={key}
+                className={`scenemaker-filter-pill${active ? ' active' : ''}`}
                 onClick={() => { haptic('light'); setScriptPanel(active ? null : key) }}>
                 {key}
               </button>
@@ -2143,28 +2234,26 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
         </div>
       )}
 
-      {/* Shotlist subheader: Export PDF | Story/Shooting | Version */}
+      {/* Shotlist subheader: PDF chip | Story/Shooting toggle | V0 dropdown + add.
+          DESIGN_LANGUAGE.md toolbar pattern — left chip, centered segmented
+          toggle, right dropdown + add. Active states pull from --accent-rgb
+          on the .screen root via .scenemaker-toolbar-chip / -toggle utilities. */}
       {mode === 'shotlist' && (
         <div className="flex items-center flex-shrink-0" style={{ height: 44, padding: '0 14px', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           {/* Export PDF */}
-          <button className="flex items-center gap-2 cursor-pointer select-none"
-            style={{ padding: '6px 14px', borderRadius: 16, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+          <button className="scenemaker-toolbar-chip"
             onClick={() => { haptic('light'); setShowExport(true) }}>
-            <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 7V8.5h6V7" stroke="#a0a0b8" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /><path d="M5 1v5M3 4l2 2 2-2" stroke="#a0a0b8" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            <span className="font-mono uppercase" style={{ fontSize: '0.46rem', letterSpacing: '0.06em', color: '#a0a0b8' }}>PDF</span>
+            <svg width="12" height="12" viewBox="0 0 10 10" fill="none"><path d="M2 7V8.5h6V7" stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /><path d="M5 1v5M3 4l2 2 2-2" stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            <span className="font-mono uppercase" style={{ fontSize: '0.46rem', letterSpacing: '0.06em' }}>PDF</span>
           </button>
 
           <div className="flex-1" />
 
           {/* Story / Shooting toggle */}
-          <div className="flex" style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="scenemaker-toggle">
             {(['story', 'shooting'] as const).map(o => (
-              <button key={o} className="font-mono uppercase cursor-pointer select-none transition-colors"
-                style={{
-                  fontSize: '0.46rem', letterSpacing: '0.04em', padding: '6px 14px',
-                  background: shotOrder === o ? `${accent}1a` : 'rgba(255,255,255,0.02)',
-                  color: shotOrder === o ? accent : '#62627a',
-                }}
+              <button key={o}
+                className={`scenemaker-toggle-btn${shotOrder === o ? ' active' : ''}`}
                 onClick={() => { haptic('light'); setShotOrder(o) }}>
                 {o}
               </button>
@@ -2175,30 +2264,35 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
 
           {/* Version selector */}
           <div className="flex items-center" style={{ gap: 5 }}>
-            <button className="flex items-center gap-1.5 cursor-pointer select-none"
-              style={{
-                padding: '6px 12px', borderRadius: 16,
-                background: showVersionPanel ? `${accent}1a` : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${showVersionPanel ? `${accent}40` : 'rgba(255,255,255,0.08)'}`,
-              }}
+            <button className={`scenemaker-toolbar-chip${showVersionPanel ? ' active' : ''}`}
+              style={{ padding: '6px 12px' }}
               onClick={() => { haptic('light'); setShowVersionPanel(v => !v) }}>
-              <span className="font-mono" style={{ fontSize: '0.5rem', fontWeight: 700, color: showVersionPanel ? accent : '#a0a0b8' }}>
+              <span className="font-mono" style={{ fontSize: '0.5rem', fontWeight: 700 }}>
                 {previewVersion ? `v${previewVersion.versionNumber}` : shotlistVersions?.[0] ? `v${shotlistVersions[0].versionNumber}` : 'v0'}
               </span>
               <svg width="7" height="7" viewBox="0 0 6 6" fill="none" style={{ transform: showVersionPanel ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                <path d="M1.5 2.5L3 4L4.5 2.5" stroke={showVersionPanel ? accent : '#62627a'} strokeWidth="0.9" strokeLinecap="round" />
+                <path d="M1.5 2.5L3 4L4.5 2.5" stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" />
               </svg>
             </button>
             <button className="flex items-center justify-center cursor-pointer"
-              style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+              style={{
+                width: 26, height: 26, borderRadius: '50%',
+                background: 'transparent',
+                border: `1px solid rgba(${pr},${pg},${pb},0.50)`,
+                color: accent,
+              }}
               onClick={() => { handleSaveVersion() }}>
-              <svg width="10" height="10" viewBox="0 0 8 8" fill="none"><path d="M4 1.5v5M1.5 4h5" stroke="#62627a" strokeWidth="0.9" strokeLinecap="round" /></svg>
+              <svg width="10" height="10" viewBox="0 0 8 8" fill="none"><path d="M4 1.5v5M1.5 4h5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" /></svg>
             </button>
           </div>
         </div>
       )}
 
-      {/* Storyboard subheader: scale selector */}
+      {/* Storyboard subheader — view-mode selector. Active mode reads as
+          a glass-tile-sm chip with accent stroke + inset highlight; inactive
+          stays flat with --fg-mono. Class lives in globals.css as
+          .scenemaker-viewmode-btn so the active treatment composes with the
+          .screen root's --accent-rgb. */}
       {mode === 'storyboard' && (
         <div className="flex items-center justify-center flex-shrink-0" style={{ height: 44, padding: '0 14px', gap: 6, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           {([
@@ -2206,20 +2300,19 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
             { key: '3up' as const, label: '3-up', icon: <><rect x="1" y="3" width="3.5" height="3" rx="0.5" /><rect x="5.25" y="3" width="3.5" height="3" rx="0.5" /><rect x="9.5" y="3" width="3.5" height="3" rx="0.5" /><rect x="1" y="7" width="3.5" height="3" rx="0.5" /><rect x="5.25" y="7" width="3.5" height="3" rx="0.5" /><rect x="9.5" y="7" width="3.5" height="3" rx="0.5" /></> },
             { key: '2up' as const, label: 'Split', icon: <><rect x="1" y="2" width="6" height="5" rx="0.5" /><rect x="7.5" y="2" width="6" height="5" rx="0.5" /><rect x="1" y="9" width="2.5" height="2" rx="0.3" /><rect x="4" y="9" width="2.5" height="2" rx="0.3" /><rect x="7" y="9" width="2.5" height="2" rx="0.3" /><rect x="10" y="9" width="2.5" height="2" rx="0.3" /></> },
             { key: 'all' as const, label: 'All', icon: <>{[0,1,2,3].map(r => [0,1,2,3].map(c => <rect key={`${r}${c}`} x={1+c*3.25} y={1.5+r*3} width="2.5" height="2" rx="0.3" />))}</> },
-          ]).map(s => (
-            <button key={s.key} className="flex flex-col items-center gap-1 cursor-pointer select-none transition-colors"
-              style={{
-                padding: '4px 12px', borderRadius: 10, minWidth: 48,
-                background: boardScale === s.key ? `${accent}14` : 'transparent',
-                border: boardScale === s.key ? `1px solid ${accent}30` : '1px solid transparent',
-              }}
-              onClick={() => { haptic('light'); setBoardScale(s.key) }}>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={boardScale === s.key ? accent : '#62627a'} strokeWidth="0.7">
-                {s.icon}
-              </svg>
-              <span className="font-mono uppercase" style={{ fontSize: '0.3rem', letterSpacing: '0.04em', color: boardScale === s.key ? accent : '#62627a' }}>{s.label}</span>
-            </button>
-          ))}
+          ]).map(s => {
+            const active = boardScale === s.key
+            return (
+              <button key={s.key}
+                className={`scenemaker-viewmode-btn${active ? ' active' : ''}`}
+                onClick={() => { haptic('light'); setBoardScale(s.key) }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="0.7">
+                  {s.icon}
+                </svg>
+                <span className="font-mono uppercase" style={{ fontSize: '0.3rem', letterSpacing: '0.04em' }}>{s.label}</span>
+              </button>
+            )
+          })}
         </div>
       )}
 

@@ -26,6 +26,26 @@ import { initials } from '@/lib/utils/formatting'
 
 // ── Helpers ────────────────────────────────────────────────
 
+// Cinema Glass: parse a project hex into rgb triplets the .sheen-title /
+// .glass-tile rules read. Glow apex matches the +20/+30/+16 pattern HubContent
+// established in #122.
+function hexRgbTriplet(hex: string | null | undefined): string {
+  const h = hex || '#c45adc'
+  return `${parseInt(h.slice(1, 3), 16)}, ${parseInt(h.slice(3, 5), 16)}, ${parseInt(h.slice(5, 7), 16)}`
+}
+function hexGlowTriplet(hex: string | null | undefined): string {
+  const h = hex || '#c45adc'
+  const r = Math.min(255, parseInt(h.slice(1, 3), 16) + 20)
+  const g = Math.min(255, parseInt(h.slice(3, 5), 16) + 30)
+  const b = Math.min(255, parseInt(h.slice(5, 7), 16) + 16)
+  return `${r}, ${g}, ${b}`
+}
+function statusToPhaseChip(status: string | undefined): 'pre' | 'prod' | 'post' {
+  if (status === 'production') return 'prod'
+  if (status === 'post_production') return 'post'
+  return 'pre'
+}
+
 function stableColor(s: string) {
   let h = 0
   for (let i = 0; i < s.length; i++) h = s.charCodeAt(i) + ((h << 5) - h)
@@ -75,27 +95,35 @@ function MessageBubble({
       ) : (
         <div style={{ width: 28, flexShrink: 0 }} />
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxWidth: '75%', alignItems: isSelf ? 'flex-end' : 'flex-start' }}>
+      <div className="flex flex-col" style={{ gap: 3, maxWidth: '75%', alignItems: isSelf ? 'flex-end' : 'flex-start' }}>
         {showName && !isSelf && (
-          <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 8, letterSpacing: '0.07em', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>
+          <div className="font-mono uppercase" style={{ fontSize: 8, letterSpacing: '0.07em', color: 'var(--fg-mono)' }}>
             {senderName}
           </div>
         )}
-        <div style={{
-          padding: '9px 12px',
-          borderRadius: 14,
-          fontSize: 13,
-          lineHeight: 1.5,
-          color: '#fff',
-          background: isSelf ? `${accent}cc` : 'rgba(255,255,255,0.06)',
-          border: isSelf ? 'none' : '1px solid rgba(255,255,255,0.07)',
-          borderBottomLeftRadius: isSelf ? 14 : 4,
-          borderBottomRightRadius: isSelf ? 4 : 14,
-          wordBreak: 'break-word',
-        }}>
+        <div
+          className={`chat-bubble ${isSelf ? 'chat-bubble--self' : 'chat-bubble--other'}`}
+          style={{
+            padding: '9px 12px',
+            borderRadius: 14,
+            fontSize: 13,
+            lineHeight: 1.5,
+            color: isSelf ? '#fff' : 'var(--fg)',
+            // Self bubble takes the project accent (~80% opacity); other-bubble
+            // takes a frosted glass-tile-like fill keyed off var(--fg) so it
+            // flips with theme.
+            background: isSelf ? `${accent}cc` : 'rgba(255,255,255,0.06)',
+            border: isSelf ? 'none' : '1px solid rgba(255,255,255,0.08)',
+            borderBottomLeftRadius: isSelf ? 14 : 4,
+            borderBottomRightRadius: isSelf ? 4 : 14,
+            wordBreak: 'break-word',
+            boxShadow: isSelf
+              ? `0 4px 14px -8px ${accent}, inset 0 1px 0 rgba(255,255,255,0.10)`
+              : 'inset 0 1px 0 rgba(255,255,255,0.05)',
+          }}>
           <MentionText text={msg.content ?? ''} accent={isSelf ? '#ffffff' : accent} />
         </div>
-        <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 8, color: 'rgba(255,255,255,0.2)' }}>
+        <div className="font-mono" style={{ fontSize: 8, color: 'var(--fg-mono)', opacity: 0.7 }}>
           {timeOf(msg.createdAt)}
         </div>
       </div>
@@ -114,13 +142,14 @@ function MessageList({ messages, meId, accent }: { messages: any[]; meId: string
     const m = messages[i]
     const prev = messages[i - 1]
     if (!prev || !sameDay(prev.createdAt, m.createdAt)) {
+      // Cinema-glass `.ai-bucket` rule pattern — rule | label | rule
       items.push(
-        <div key={`sep-${m.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0' }}>
-          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
-          <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)' }}>
+        <div key={`sep-${m.id}`} className="chat-day-sep flex items-center" style={{ gap: 10, margin: '4px 0' }}>
+          <div className="flex-1" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
+          <span className="font-mono uppercase" style={{ fontSize: 9, letterSpacing: '0.14em', fontWeight: 600, color: 'var(--fg-mono)' }}>
             {dayLabel(m.createdAt)}
           </span>
-          <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
+          <div className="flex-1" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
         </div>,
       )
     }
@@ -165,8 +194,13 @@ function InputBar({
   const ready = value.trim().length > 0
 
   return (
-    <div style={{ flexShrink: 0, padding: '10px 14px 20px', borderTop: '1px solid rgba(255,255,255,0.07)', position: 'relative' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 22, padding: '8px 14px' }}>
+    <div className="chat-input-bar flex-shrink-0 relative" style={{ padding: '10px 14px 20px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+      <div className="chat-input-inner flex items-center" style={{
+        gap: 8,
+        background: 'rgba(255,255,255,0.05)',
+        border: '1px solid rgba(255,255,255,0.10)',
+        borderRadius: 22, padding: '8px 14px',
+      }}>
         <MentionInput
           value={value}
           mentions={mentions}
@@ -178,7 +212,13 @@ function InputBar({
         />
         <span
           onClick={submit}
-          style={{ fontSize: 16, color: ready ? accent : 'rgba(255,255,255,0.25)', flexShrink: 0, cursor: ready ? 'pointer' : 'default', transition: 'color 0.15s' }}>
+          className="flex-shrink-0"
+          style={{
+            fontSize: 16, color: ready ? accent : 'var(--fg-mono)',
+            cursor: ready ? 'pointer' : 'default',
+            transition: 'color 0.15s',
+            textShadow: ready ? `0 0 8px rgba(${hexRgbTriplet(accent)}, 0.45)` : undefined,
+          }}>
           ↑
         </span>
       </div>
@@ -249,9 +289,9 @@ function DMListView({ projectId, meId, accent, crew, onOpen }: { projectId: stri
     })
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <div className="chat-dm-list flex-1 overflow-y-auto" style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
       {rows.length === 0 ? (
-        <div style={{ padding: 32, textAlign: 'center', fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+        <div className="font-mono uppercase" style={{ padding: 32, textAlign: 'center', fontSize: 10, color: 'var(--fg-mono)', letterSpacing: '0.08em' }}>
           No teammates yet
         </div>
       ) : rows.map(r => {
@@ -259,28 +299,27 @@ function DMListView({ projectId, meId, accent, crew, onOpen }: { projectId: stri
         return (
           <div key={r.partnerId}
             onClick={() => { haptic('light'); onOpen(r.partnerId) }}
+            className={`chat-dm-row glass-tile glass-tile-xs flex items-center cursor-pointer ${r.unread ? 'chat-dm-row--unread' : ''}`}
             style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '10px 10px', borderRadius: 12, cursor: 'pointer',
-              background: r.unread ? 'rgba(255,255,255,0.03)' : 'transparent',
+              gap: 12, padding: '10px 10px',
               transition: 'background 0.14s',
             }}>
             <div style={{ width: 40, height: 40, borderRadius: '50%', background: `${c}22`, border: `1.5px solid ${c}55`, color: c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
               {initials(r.user?.name ?? '')}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', lineHeight: 1.2 }}>{r.user?.name}</div>
-              <div style={{ fontSize: 12, color: r.unread ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.35)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)', lineHeight: 1.2 }}>{r.user?.name}</div>
+              <div style={{ fontSize: 12, color: 'var(--fg-mono)', opacity: r.unread ? 1 : 0.7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
                 {r.lastMessage || (r.role ? r.role.charAt(0).toUpperCase() + r.role.slice(1) : '—')}
               </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
+            <div className="flex flex-col items-end flex-shrink-0" style={{ gap: 5 }}>
               {r.lastAt && (
-                <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>
+                <div className="font-mono" style={{ fontSize: 9, color: 'var(--fg-mono)' }}>
                   {dayLabel(r.lastAt) === 'Today' ? timeOf(r.lastAt) : dayLabel(r.lastAt)}
                 </div>
               )}
-              {r.unread && <div style={{ width: 8, height: 8, borderRadius: '50%', background: accent }} />}
+              {r.unread && <div style={{ width: 8, height: 8, borderRadius: '50%', background: accent, boxShadow: `0 0 6px ${accent}` }} />}
             </div>
           </div>
         )
@@ -298,12 +337,12 @@ function DMConversation({ projectId, meId, partner, accent, onBack }: { projectI
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-        <span onClick={onBack} style={{ fontSize: 18, color: 'rgba(255,255,255,0.4)', cursor: 'pointer', flexShrink: 0 }}>←</span>
+      <div className="flex items-center flex-shrink-0" style={{ gap: 10, padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <span onClick={onBack} style={{ fontSize: 18, color: 'var(--fg-mono)', cursor: 'pointer', flexShrink: 0 }}>←</span>
         <div style={{ width: 28, height: 28, borderRadius: '50%', background: `${color}22`, border: `1px solid ${color}44`, color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>
           {initials(user?.name ?? '')}
         </div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', flex: 1 }}>{user?.name}</div>
+        <div className="flex-1" style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>{user?.name}</div>
       </div>
       <MessageList messages={messages ?? []} meId={meId} accent={accent} />
       <InputBar
@@ -377,35 +416,56 @@ export default function ChatPage({ params }: { params: { projectId: string } }) 
   const dmPartner = dmPartnerId ? crew.find(m => m.userId === dmPartnerId) : null
 
   return (
-    <div className="screen">
+    <div
+      className="screen"
+      style={{
+        // Cinema Glass: project accent triplets at the .screen root so
+        // .sheen-title / .glass-tile inherit. Chat is a project surface
+        // (not a thread surface), so it uses the project's accent — not
+        // fixed thread tokens.
+        ['--accent' as string]: accent,
+        ['--accent-rgb' as string]: hexRgbTriplet(accent),
+        ['--accent-glow-rgb' as string]: hexGlowTriplet(accent),
+      } as React.CSSProperties}
+    >
       <PageHeader projectId={projectId} title="Chat" meta={project ? (
         <div className="flex flex-col items-center gap-1.5">
           <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
-          <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>
-            {statusLabel(project.status)}
+          <span className={`ai-meta-pill ${statusToPhaseChip(project.status)}`}>
+            <span className="phase-dot" />{statusLabel(project.status)}
           </span>
         </div>
       ) : ''} />
 
-      {/* Team / Direct tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+      {/* Team / Direct tabs — cinema-glass active treatment: sheen on
+          active label + accent underline. Inactive uses var(--fg-mono)
+          so light mode flips correctly. */}
+      <div className="chat-tabs flex flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
         {(['team', 'direct'] as const).map(t => {
           const active = tab === t
           return (
             <div
               key={t}
               onClick={() => { haptic('light'); setTab(t); if (t === 'direct') setDmPartnerId(null) }}
-              style={{
-                flex: 1, textAlign: 'center', padding: '10px 0',
-                fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.12em',
-                textTransform: 'uppercase', cursor: 'pointer', userSelect: 'none',
-                color: active ? '#fff' : 'rgba(255,255,255,0.28)',
-                borderBottom: active ? `2px solid ${accent}` : '2px solid transparent',
-                marginBottom: -1,
-                transition: 'color 0.15s',
-              }}
+              className="chat-tab relative flex-1 cursor-pointer select-none flex items-center justify-center"
+              style={{ padding: '12px 0' }}
             >
-              {t === 'team' ? 'Team' : 'Direct'}
+              <span
+                className={`font-mono uppercase ${active ? 'sheen-title' : ''}`}
+                style={{
+                  fontSize: 9, letterSpacing: '0.14em', fontWeight: 600,
+                  color: active ? undefined : 'var(--fg-mono)',
+                }}
+              >
+                {t === 'team' ? 'Team' : 'Direct'}
+              </span>
+              {active && (
+                <div className="absolute" style={{
+                  left: '24%', right: '24%', bottom: -1, height: 2,
+                  background: accent, borderRadius: '2px 2px 0 0',
+                  boxShadow: `0 0 6px rgba(${hexRgbTriplet(accent)}, 0.5)`,
+                }} />
+              )}
             </div>
           )
         })}
@@ -413,23 +473,34 @@ export default function ChatPage({ params }: { params: { projectId: string } }) 
 
       {tab === 'team' ? (
         <>
-          {/* Channel tabs + Topic */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)', overflowX: 'auto', flexShrink: 0 }} className="no-scrollbar">
+          {/* Channel pills row — cinema-glass `.dept-pill`-style chips
+              tinted with the project accent on the active channel. The
+              "+ Topic" affordance keeps its dashed border (signals "add
+              new" rather than "select"). Horizontal scroll via .no-scrollbar. */}
+          <div className="chat-channel-pills no-scrollbar flex flex-shrink-0 items-center" style={{
+            gap: 6, padding: '8px 12px',
+            borderBottom: '1px solid rgba(255,255,255,0.05)',
+            overflowX: 'auto',
+          }}>
             {channelsLoading ? (
-              <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>Loading...</span>
+              // Cinema-glass shimmer pill placeholders match channel pill silhouette.
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="sk-block flex-shrink-0" style={{ width: 78, height: 22, borderRadius: 20 }} />
+              ))
             ) : activeChannels.map(c => {
               const active = c.id === activeChannelId
               return (
                 <div
                   key={c.id}
                   onClick={() => { haptic('light'); setActiveChannelId(c.id) }}
+                  className="chat-channel-pill flex-shrink-0 font-mono uppercase cursor-pointer"
                   style={{
-                    fontFamily: "'Geist Mono', monospace", fontSize: 10, letterSpacing: '0.1em',
-                    textTransform: 'uppercase', padding: '6px 12px', borderRadius: 20,
-                    background: active ? `${accent}1f` : 'transparent',
-                    border: active ? `1px solid ${accent}4d` : '1px solid rgba(255,255,255,0.08)',
-                    color: active ? accent : 'rgba(255,255,255,0.4)',
-                    whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0,
+                    fontSize: 10, letterSpacing: '0.1em',
+                    padding: '6px 12px', borderRadius: 20,
+                    background: active ? `rgba(${hexRgbTriplet(accent)}, 0.14)` : 'rgba(255,255,255,0.04)',
+                    border: active ? `1px solid rgba(${hexRgbTriplet(accent)}, 0.40)` : '1px solid rgba(255,255,255,0.08)',
+                    color: active ? accent : 'var(--fg-mono)',
+                    whiteSpace: 'nowrap',
                     transition: 'all 0.15s',
                   }}>
                   {c.name}
@@ -438,14 +509,14 @@ export default function ChatPage({ params }: { params: { projectId: string } }) 
             })}
             <div
               onClick={() => { haptic('light'); setCreatingChannel(true) }}
+              className="chat-channel-pill chat-channel-pill--add flex-shrink-0 font-mono uppercase cursor-pointer flex items-center"
               style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                fontFamily: "'Geist Mono', monospace", fontSize: 10, letterSpacing: '0.1em',
-                textTransform: 'uppercase', padding: '6px 12px', borderRadius: 20,
+                gap: 5,
+                fontSize: 10, letterSpacing: '0.1em',
+                padding: '6px 12px', borderRadius: 20,
                 border: '1px dashed rgba(255,255,255,0.18)',
-                color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.02)',
-                whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0,
-                marginLeft: 'auto',
+                color: 'var(--fg-mono)', background: 'rgba(255,255,255,0.02)',
+                whiteSpace: 'nowrap', marginLeft: 'auto',
               }}>
               <span style={{ fontSize: 13, lineHeight: 1 }}>+</span>
               <span>Topic</span>

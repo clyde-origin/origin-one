@@ -20,6 +20,7 @@ import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { CreateMilestoneSheet } from '@/components/create'
 import { haptic } from '@/lib/utils/haptics'
 import { formatDate, isLate, getProjectColor, MILESTONE_STATUS_HEX, MILESTONE_STATUS_LABEL, statusLabel, statusHex } from '@/lib/utils/phase'
+import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { useViewerRole } from '@/lib/auth/useViewerRole'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
@@ -30,7 +31,7 @@ import type { Milestone, CrewMember, ShootDay, ShootDayType, Location } from '@/
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-const DOW = ['Su','Mo','Tu','We','Th','Fr','Sa']
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
 type Mode = 'project' | 'master' | 'days'
 type TopTab = 'milestones' | 'schedule'
@@ -95,70 +96,78 @@ function Calendar({ month, mode, accent, milestones, selectedDate, onSelect, onM
   const prev = () => onMonthChange(new Date(yr, mo - 1, 1))
   const next = () => onMonthChange(new Date(yr, mo + 1, 1))
 
+  // Cinema Glass calendar — see hub-full-preview-v2.html `.cal-card`.
+  const ah = accent.startsWith('#') ? accent : '#c45adc'
+  const [ar, ag, ab] = [parseInt(ah.slice(1, 3), 16), parseInt(ah.slice(3, 5), 16), parseInt(ah.slice(5, 7), 16)]
+
   return (
-    <div className="flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '10px 16px 8px' }}>
-      {/* Month nav */}
-      <div className="flex items-center justify-between mb-2.5">
-        <button onClick={prev} className="flex items-center justify-center cursor-pointer" style={{ width: 44, height: 44, borderRadius: '50%' }}>
-          <div className="flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)' }}>
-            <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </div>
+    <div
+      className="glass-tile timeline-cal flex-shrink-0"
+      style={{
+        ['--tile-rgb' as any]: `${ar}, ${ag}, ${ab}`,
+        margin: '12px 16px',
+        padding: '12px 14px 14px',
+      }}
+    >
+      {/* Month nav — circular 22px chrome buttons + tabular mono caps month label. */}
+      <div className="flex items-center justify-center gap-3 mb-2">
+        <button onClick={prev} className="flex items-center justify-center cursor-pointer" style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#7a7a82' }} aria-label="Previous month">
+          <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
-        <span style={{ fontWeight: 800, fontSize: '0.88rem', letterSpacing: '-0.01em' }}>{MONTHS[mo]} {yr}</span>
-        <button onClick={next} className="flex items-center justify-center cursor-pointer" style={{ width: 44, height: 44, borderRadius: '50%' }}>
-          <div className="flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)' }}>
-            <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M1 1L5 5L1 9" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </div>
+        <span className="font-mono uppercase" style={{ fontSize: '0.54rem', fontWeight: 600, letterSpacing: '0.10em', color: '#ebebef', fontVariantNumeric: 'tabular-nums' }}>{MONTHS[mo]} {yr}</span>
+        <button onClick={next} className="flex items-center justify-center cursor-pointer" style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#7a7a82' }} aria-label="Next month">
+          <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M1 1L5 5L1 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
       </div>
 
       {/* Day of week headers */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: 3 }}>
-        {DOW.map(d => <div key={d} className="font-mono uppercase text-center" style={{ fontSize: '0.52rem', color: '#62627a', letterSpacing: '0.05em', padding: '2px 0' }}>{d}</div>)}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', padding: '0 2px' }}>
+        {DOW.map(d => <div key={d} className="font-mono uppercase text-center" style={{ fontSize: '0.36rem', color: '#7a7a82', letterSpacing: '0.10em', padding: '4px 0 2px' }}>{d}</div>)}
       </div>
 
-      {/* Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2 }}>
+      {/* Grid — circular cells, accent dot below for milestones, accent halo for today, solid accent fill for selected. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, padding: '0 2px' }}>
         {cells.map((c, i) => {
           const isToday = sameDay(c.date, today)
           const isSelected = selectedDate && sameDay(c.date, selectedDate)
           const dayMilestones = milestones.filter(m => sameDay(m.date, c.date))
           const hasMilestone = dayMilestones.length > 0
+          const muted = c.otherMonth
 
-          // Check for special dates
-          const isDelivery = dayMilestones.some(m => {
-            const title = (m as any).title ?? ''
-            return title.toLowerCase().includes('delivery') || title.toLowerCase().includes('final')
-          })
-          const isProduction = dayMilestones.some(m => {
-            const title = (m as any).title ?? ''
-            return title.toLowerCase().includes('shoot') || title.toLowerCase().includes('day 1') || title.toLowerCase().includes('day 2') || title.toLowerCase().includes('day 3')
-          })
+          // Color resolution: selected wins → today → muted → default
+          const cellBg = isSelected ? accent
+            : isToday ? `rgba(${ar},${ag},${ab},0.18)`
+            : 'transparent'
+          const cellColor = isSelected ? '#04040a'
+            : isToday ? accent
+            : muted ? '#7a7a82'
+            : '#ebebef'
 
           return (
             <div
               key={i}
-              className="flex flex-col items-center justify-center cursor-pointer relative select-none"
+              className="flex flex-col items-center justify-center cursor-pointer relative select-none font-mono"
               style={{
-                height: 36, borderRadius: 6,
-                background: isDelivery && !c.otherMonth ? 'rgba(255,255,255,0.12)'
-                  : isProduction && !c.otherMonth ? `${accent}20`
-                  : isToday ? 'rgba(255,255,255,0.13)'
-                  : undefined,
-                color: c.otherMonth ? undefined : isToday ? '#dddde8' : '#a0a0b8',
-                fontWeight: isToday || isDelivery || isProduction ? 700 : undefined,
-                opacity: c.otherMonth ? 0.2 : 1,
-                pointerEvents: c.otherMonth ? 'none' : undefined,
-                outline: isSelected ? `1.5px solid ${accent}99` : undefined,
-                outlineOffset: isSelected ? 1 : undefined,
+                aspectRatio: '1',
+                borderRadius: '50%',
+                background: cellBg,
+                color: cellColor,
+                fontSize: '0.50rem',
+                fontWeight: isToday || isSelected ? 600 : 500,
+                fontVariantNumeric: 'tabular-nums',
+                opacity: muted ? 0.32 : 1,
+                pointerEvents: muted ? 'none' : undefined,
+                boxShadow: isSelected ? `0 0 10px rgba(${ar},${ag},${ab},0.50)` : undefined,
               }}
-              onClick={() => !c.otherMonth && onSelect(c.date)}
+              onClick={() => !muted && onSelect(c.date)}
             >
-              <span className="font-mono" style={{ fontSize: '0.62rem', lineHeight: 1 }}>{c.day}</span>
-              {hasMilestone && !isDelivery && !isProduction && (
-                <div className="flex items-center justify-center" style={{ gap: 2, height: 5, marginTop: 2 }}>
-                  <div className="rounded-full" style={{ width: 4, height: 4, background: accent }} />
-                </div>
+              <span style={{ lineHeight: 1 }}>{c.day}</span>
+              {hasMilestone && !isSelected && (
+                <div className="absolute" style={{
+                  bottom: 3, left: '50%', transform: 'translateX(-50%)',
+                  width: 3, height: 3, borderRadius: '50%',
+                  background: accent, boxShadow: `0 0 4px ${accent}`,
+                }} />
               )}
             </div>
           )
@@ -166,19 +175,19 @@ function Calendar({ month, mode, accent, milestones, selectedDate, onSelect, onM
       </div>
 
       {/* Legend */}
-      <div className="flex items-center" style={{ gap: 10, marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      <div className="flex items-center" style={{ gap: 10, marginTop: 10, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         {mode === 'project' ? (
           <>
             {[{ label: 'Upcoming', color: '#e8a020' }, { label: 'In Progress', color: '#6470f3' }, { label: 'Done', color: '#00b894' }].map(l => (
               <div key={l.label} className="flex items-center gap-1">
-                <div className="rounded-full" style={{ width: 5, height: 5, background: l.color }} />
-                <span className="font-mono uppercase" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.05em' }}>{l.label}</span>
+                <div className="rounded-full" style={{ width: 4, height: 4, background: l.color, boxShadow: `0 0 3px ${l.color}` }} />
+                <span className="font-mono uppercase" style={{ fontSize: '0.36rem', color: '#7a7a82', letterSpacing: '0.10em' }}>{l.label}</span>
               </div>
             ))}
           </>
         ) : (
           <div className="flex items-center gap-2.5">
-            <span className="font-mono uppercase" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.05em' }}>Projects:</span>
+            <span className="font-mono uppercase" style={{ fontSize: '0.36rem', color: '#7a7a82', letterSpacing: '0.10em' }}>Projects:</span>
           </div>
         )}
       </div>
@@ -236,17 +245,17 @@ function MilestoneDetailSheet({ milestone, crew, accent, projectId, onClose }: {
 
   return (
     <>
-      <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)', margin: '12px auto 18px' }} />
-      {/* Header — editable title */}
-      <div style={{ padding: '0 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)', margin: '12px auto 18px' }} />
+      {/* Header — editable title (sheen-title treatment when displaying) */}
+      <div style={{ padding: '0 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex justify-between items-start">
           {editTitle ? (
             <input autoFocus value={titleValue} onChange={e => setTitleValue(e.target.value)} onBlur={saveTitle}
               onKeyDown={e => { if (e.key === 'Enter') saveTitle() }}
               className="outline-none flex-1"
-              style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '4px 8px' }} />
+              style={{ fontSize: '1.05rem', fontWeight: 700, letterSpacing: '0.02em', color: '#ebebef', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6, padding: '4px 8px' }} />
           ) : (
-            <div onClick={() => setEditTitle(true)} style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#dddde8', cursor: 'pointer', borderBottom: '1px dashed rgba(255,255,255,0.1)', paddingBottom: 1, flex: 1 }}>{milestone.title}</div>
+            <div onClick={() => setEditTitle(true)} className="sheen-title" style={{ fontSize: '1.05rem', fontWeight: 700, letterSpacing: '0.02em', cursor: 'pointer', flex: 1 }}>{milestone.title}</div>
           )}
           <div className="flex items-center gap-2 flex-shrink-0">
             {TriggerIcon}
@@ -363,6 +372,82 @@ function MilestoneDetailSheet({ milestone, crew, accent, projectId, onClose }: {
   )
 }
 
+// ── MILESTONE ROW (Cinema Glass .ms-row) ──────────────────
+//
+// One canonical row used by both Project mode and Master view.
+// Date number wears the project accent; the dow caption is mono;
+// the vertical rule is an accent gradient; the status pill follows
+// the cinema-glass chip pattern (bg @ 0.20, border @ 0.50).
+
+function MilestoneRow({ ms, accent, isNext, highlighted, threadEntry, onClick }: {
+  ms: Milestone
+  accent: string
+  isNext?: boolean
+  highlighted?: boolean
+  threadEntry: any
+  onClick: () => void
+}) {
+  const d = new Date(ms.date)
+  const isDelivery = ms.title.toLowerCase().includes('delivery')
+  const ah = accent.startsWith('#') ? accent : '#c45adc'
+  const [ar, ag, ab] = [parseInt(ah.slice(1, 3), 16), parseInt(ah.slice(3, 5), 16), parseInt(ah.slice(5, 7), 16)]
+  // Status → phase token mapping for the chip pattern.
+  // Delivery overrides everything (red); otherwise the milestone status
+  // resolves to a phase key consumed by .ai-meta-pill.
+  const statusKey = isDelivery ? 'delivery' : (ms.status === 'completed' ? 'post' : ms.status === 'in_progress' ? 'prod' : 'pre')
+  const statusBg = isDelivery ? 'rgba(232,86,74,0.20)' : statusKey === 'pre' ? 'rgba(232,160,32,0.20)' : statusKey === 'prod' ? 'rgba(100,112,243,0.20)' : 'rgba(0,184,148,0.20)'
+  const statusBorder = isDelivery ? 'rgba(232,86,74,0.50)' : statusKey === 'pre' ? 'rgba(232,160,32,0.50)' : statusKey === 'prod' ? 'rgba(100,112,243,0.50)' : 'rgba(0,184,148,0.50)'
+  const statusFg = isDelivery ? '#e8564a' : statusKey === 'pre' ? '#e8a020' : statusKey === 'prod' ? '#6470f3' : '#00b894'
+  const statusLabel = isDelivery ? 'Delivery' : (MILESTONE_STATUS_LABEL[ms.status] ?? ms.status)
+  return (
+    <div data-ms-id={ms.id}
+      className="timeline-ms-row flex items-start cursor-pointer transition-all"
+      style={{
+        position: 'relative',
+        gap: 12, padding: highlighted ? '11px 8px' : '11px 0',
+        margin: highlighted ? '0 -8px' : undefined,
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        background: highlighted ? `rgba(${ar},${ag},${ab},0.06)` : undefined,
+        borderRadius: highlighted ? 7 : undefined,
+      }}
+      onClick={onClick}>
+      <div className="flex-shrink-0 text-center" style={{ width: 36 }}>
+        <div className="font-mono" style={{
+          fontSize: '1.05rem', fontWeight: 500, lineHeight: 1, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums',
+          color: isDelivery ? '#e8564a' : (isNext ? accent : accent),
+        }}>{d.getDate()}</div>
+        <div className="font-mono uppercase" style={{ fontSize: '0.34rem', color: '#7a7a82', letterSpacing: '0.10em', marginTop: 4 }}>{DAYS[d.getDay()]}</div>
+      </div>
+      <div className="flex-shrink-0" style={{
+        width: 1, alignSelf: 'stretch', margin: '2px 0',
+        background: isDelivery
+          ? 'linear-gradient(180deg, transparent, rgba(232,86,74,0.50) 18%, rgba(232,86,74,0.50) 82%, transparent)'
+          : `linear-gradient(180deg, transparent, rgba(${ar},${ag},${ab},0.40) 18%, rgba(${ar},${ag},${ab},0.40) 82%, transparent)`,
+      }} />
+      <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 5, paddingTop: 2 }}>
+        <div style={{ fontSize: '0.72rem', fontWeight: 500, color: isDelivery ? '#e8564a' : '#ebebef', letterSpacing: '0.005em', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {ms.title}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span
+            className="font-mono uppercase inline-flex items-center"
+            style={{
+              fontSize: '0.32rem', letterSpacing: '0.08em', gap: 4,
+              padding: '1px 6px', borderRadius: 10,
+              background: statusBg, border: `1px solid ${statusBorder}`, color: statusFg,
+            }}
+          >
+            <span className="rounded-full" style={{ width: 3, height: 3, background: statusFg, boxShadow: `0 0 3px ${statusFg}` }} />
+            {statusLabel}
+          </span>
+        </div>
+      </div>
+      <svg width="5" height="9" viewBox="0 0 5 9" fill="none" className="flex-shrink-0" style={{ opacity: 0.25, marginTop: 6 }}><path d="M1 1L4 4.5L1 8" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      <ThreadRowBadge entry={threadEntry} />
+    </div>
+  )
+}
+
 // ── MAIN PAGE ─────────────────────────────────────────────
 
 export default function TimelinePage({ params }: { params: { projectId: string } }) {
@@ -370,6 +455,8 @@ export default function TimelinePage({ params }: { params: { projectId: string }
   const router = useRouter()
   const { data: project } = useProject(projectId)
   const accent = project?.color || getProjectColor(projectId)
+  const accentHex = accent.startsWith('#') ? accent : '#c45adc'
+  const accentRgb = `${parseInt(accentHex.slice(1, 3), 16)}, ${parseInt(accentHex.slice(3, 5), 16)}, ${parseInt(accentHex.slice(5, 7), 16)}`
   const { data: milestones, isLoading } = useMilestones(projectId)
   const { data: crew } = useCrew(projectId)
   const threadByMilestoneId = useThreadsByEntity(projectId, 'milestone')
@@ -494,8 +581,24 @@ export default function TimelinePage({ params }: { params: { projectId: string }
 
   const projectStatusLabel = project ? statusLabel(project.status) : ''
 
+  // Cinema Glass — feed `--accent-rgb` / `--accent-glow-rgb` to .sheen-title
+  // and any rgba(var(--accent-rgb),…) consumer below. Same pattern as
+  // HubContent. Project tokens stay inline-hex on JSX where the spec
+  // calls for the raw accent (Locations/Art precedent).
+  const accentColors = deriveProjectColors(accent || DEFAULT_PROJECT_HEX)
+  const [ar, ag, ab] = [parseInt(accentColors.primary.slice(1, 3), 16), parseInt(accentColors.primary.slice(3, 5), 16), parseInt(accentColors.primary.slice(5, 7), 16)]
+  const glowR = Math.min(255, ar + 20), glowG = Math.min(255, ag + 20), glowB = Math.min(255, ab + 20)
+
   return (
-    <div className="screen" style={{ overflow: 'hidden' }}>
+    <div
+      className="screen"
+      style={{
+        overflow: 'hidden',
+        ['--accent-rgb' as string]: `${ar}, ${ag}, ${ab}`,
+        ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
+        ['--tile-rgb' as string]: `${ar}, ${ag}, ${ab}`,
+        ['--accent' as string]: accent,
+      }}>
       {/* Header — title + status pill. Primary tabs (Milestones | Schedule)
           render below the header. Secondary toggle on the right of the
           header switches inside whichever primary tab is active. */}
@@ -505,34 +608,60 @@ export default function TimelinePage({ params }: { params: { projectId: string }
         meta={project ? (
           <div className="flex flex-col items-center gap-1.5">
             <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
-            <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>{projectStatusLabel}</span>
+            <span
+              className="font-mono uppercase"
+              style={{
+                fontSize: '0.42rem',
+                letterSpacing: '0.08em',
+                padding: '1px 7px',
+                borderRadius: 20,
+                background: `${statusHex(project.status)}33`,
+                border: `1px solid ${statusHex(project.status)}80`,
+                color: statusHex(project.status),
+                fontWeight: 600,
+              }}
+            >
+              {projectStatusLabel}
+            </span>
           </div>
         ) : ''}
         right={
           topTab === 'milestones' ? (
-            <div className="flex items-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 20, padding: 3, gap: 2 }}>
-              <button onClick={() => setMode('project')} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
-                style={{ fontSize: '0.44rem', letterSpacing: '0.05em', padding: '4px 9px', borderRadius: 16, transition: 'all 0.18s',
-                  ...(mode === 'project' ? { background: `${accent}2e`, color: accent, border: `1px solid ${accent}4d` } : { color: '#62627a', border: '1px solid transparent' }) }}>
+            <div className="timeline-mode-toggle flex items-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 2, gap: 1 }}>
+              <button onClick={() => setMode('project')}
+                className={`font-mono uppercase cursor-pointer select-none whitespace-nowrap ${mode === 'project' ? 'sheen-title' : ''}`}
+                style={{ fontSize: '0.42rem', letterSpacing: '0.06em', padding: '4px 9px', borderRadius: 16, fontWeight: 600,
+                  ...(mode === 'project'
+                    ? { boxShadow: `inset 0 0 0 1px rgba(${ar}, ${ag}, ${ab}, 0.32)` }
+                    : { color: '#7a7a82', border: '1px solid transparent', background: 'transparent' }) }}>
                 Project
               </button>
-              <button onClick={() => { setMode('master'); setSelectedDate(null) }} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
-                style={{ fontSize: '0.44rem', letterSpacing: '0.05em', padding: '4px 9px', borderRadius: 16, transition: 'all 0.18s',
-                  ...(mode === 'master' ? { background: 'rgba(255,255,255,0.08)', color: '#dddde8' } : { color: '#62627a', border: '1px solid transparent' }) }}>
+              <button onClick={() => { setMode('master'); setSelectedDate(null) }}
+                className={`font-mono uppercase cursor-pointer select-none whitespace-nowrap ${mode === 'master' ? 'sheen-title' : ''}`}
+                style={{ fontSize: '0.42rem', letterSpacing: '0.06em', padding: '4px 9px', borderRadius: 16, fontWeight: 600,
+                  ...(mode === 'master'
+                    ? { boxShadow: `inset 0 0 0 1px rgba(${ar}, ${ag}, ${ab}, 0.32)` }
+                    : { color: '#7a7a82', border: '1px solid transparent', background: 'transparent' }) }}>
                 Master
               </button>
             </div>
           ) : (
-            <div className="flex items-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 20, padding: 3, gap: 2 }}>
-              <button onClick={() => { haptic('light'); setScheduleSub('days') }} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
-                style={{ fontSize: '0.44rem', letterSpacing: '0.05em', padding: '4px 9px', borderRadius: 16, transition: 'all 0.18s',
-                  ...(scheduleSub === 'days' ? { background: `${accent}2e`, color: accent, border: `1px solid ${accent}4d` } : { color: '#62627a', border: '1px solid transparent' }) }}>
+            <div className="timeline-mode-toggle flex items-center flex-shrink-0" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 2, gap: 1 }}>
+              <button onClick={() => { haptic('light'); setScheduleSub('days') }}
+                className={`font-mono uppercase cursor-pointer select-none whitespace-nowrap ${scheduleSub === 'days' ? 'sheen-title' : ''}`}
+                style={{ fontSize: '0.42rem', letterSpacing: '0.06em', padding: '4px 9px', borderRadius: 16, fontWeight: 600,
+                  ...(scheduleSub === 'days'
+                    ? { boxShadow: `inset 0 0 0 1px rgba(${ar}, ${ag}, ${ab}, 0.32)` }
+                    : { color: '#7a7a82', border: '1px solid transparent', background: 'transparent' }) }}>
                 Days
               </button>
               {isProducer && (
-                <button onClick={() => { haptic('light'); setScheduleSub('callsheet') }} className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
-                  style={{ fontSize: '0.44rem', letterSpacing: '0.05em', padding: '4px 9px', borderRadius: 16, transition: 'all 0.18s',
-                    ...(scheduleSub === 'callsheet' ? { background: 'rgba(0,184,148,0.18)', color: '#00b894', border: '1px solid rgba(0,184,148,0.45)' } : { color: '#62627a', border: '1px solid transparent' }) }}>
+                <button onClick={() => { haptic('light'); setScheduleSub('callsheet') }}
+                  className="font-mono uppercase cursor-pointer select-none whitespace-nowrap"
+                  style={{ fontSize: '0.42rem', letterSpacing: '0.06em', padding: '4px 9px', borderRadius: 16, fontWeight: 600,
+                    ...(scheduleSub === 'callsheet'
+                      ? { background: 'rgba(0,184,148,0.20)', color: '#00b894', border: '1px solid rgba(0,184,148,0.50)' }
+                      : { color: '#7a7a82', border: '1px solid transparent', background: 'transparent' }) }}>
                   Callsheet
                 </button>
               )}
@@ -543,20 +672,20 @@ export default function TimelinePage({ params }: { params: { projectId: string }
 
       {/* Primary tab strip — Milestones | Schedule. Visible to everyone;
           Callsheet sub-tab is gated to producers (right slot). */}
-      <div className="flex items-center justify-center gap-2 px-4 pb-3 pt-2 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div className="flex items-center justify-center gap-2 px-4 pb-3 pt-2 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         {(['milestones', 'schedule'] as TopTab[]).map(t => {
           const active = topTab === t
           return (
             <button
               key={t}
               onClick={() => { haptic('light'); setTopTab(t) }}
-              className="font-mono uppercase cursor-pointer select-none"
+              className={`font-mono uppercase cursor-pointer select-none ${active ? 'sheen-title' : ''}`}
               style={{
-                fontSize: '0.5rem', letterSpacing: '0.1em',
-                padding: '6px 14px', borderRadius: 18, transition: 'all 0.18s',
+                fontSize: '0.5rem', letterSpacing: '0.1em', fontWeight: 700,
+                padding: '6px 14px', borderRadius: 18,
                 ...(active
-                  ? { background: 'rgba(255,255,255,0.10)', color: '#dddde8', border: '1px solid rgba(255,255,255,0.20)' }
-                  : { background: 'transparent', color: '#62627a', border: '1px solid transparent' }),
+                  ? { boxShadow: `inset 0 0 0 1px rgba(${ar}, ${ag}, ${ab}, 0.32)` }
+                  : { background: 'transparent', color: '#7a7a82', border: '1px solid transparent' }),
               }}
             >
               {t}
@@ -627,40 +756,30 @@ export default function TimelinePage({ params }: { params: { projectId: string }
                   <path d="M11 4V8M21 4V8" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
                 <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#a0a0b8' }}>{MONTHS[selectedDate.getMonth()]} {selectedDate.getDate()}</div>
-                <div className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a', letterSpacing: '0.04em', lineHeight: 1.6 }}>
+                <div className="font-mono" style={{ fontSize: '0.46rem', color: '#7a7a82', letterSpacing: '0.04em', lineHeight: 1.6 }}>
                   Nothing scheduled across<br />any project on this date.
                 </div>
               </div>
             )
             return (
               <>
-                <div className="font-mono uppercase" style={{ fontSize: '0.47rem', color: '#62627a', letterSpacing: '0.1em', padding: '14px 0 7px' }}>
+                <div className="sheen-title text-center" style={{ fontWeight: 700, fontSize: '0.84rem', letterSpacing: '-0.01em', padding: '14px 0 10px', fontVariantNumeric: 'tabular-nums' }}>
                   {MONTHS[selectedDate.getMonth()]} {selectedDate.getDate()}, {selectedDate.getFullYear()}
                 </div>
-                {dayMs.map(ms => {
-                  const d = new Date(ms.date)
-                  const isDelivery = ms.title.toLowerCase().includes('delivery')
-                  const msColor = isDelivery ? '#e8564a' : (MILESTONE_STATUS_HEX[ms.status] ?? '#62627a')
-                  return (
-                    <div key={ms.id} className="flex items-start cursor-pointer" style={{ position: 'relative', gap: 12, padding: '11px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
-                      onClick={() => setSelectedMS(ms)}>
-                      <div className="flex-shrink-0" style={{ width: 40 }}>
-                        <div className="font-mono" style={{ fontSize: '1rem', fontWeight: 500, color: accent, lineHeight: 1 }}>{d.getDate()}</div>
-                        <div className="font-mono uppercase" style={{ fontSize: '0.4rem', color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>{DAYS[d.getDay()]}</div>
-                      </div>
-                      <div className="flex-shrink-0" style={{ width: 1, background: `${accent}66`, alignSelf: 'stretch', margin: '2px 0' }} />
-                      <div className="flex-1 min-w-0" style={{ paddingTop: 2 }}>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: isDelivery ? '#e8564a' : '#dddde8', marginBottom: 4 }}>{ms.title}</div>
-                        <div className="font-mono uppercase flex items-center gap-1" style={{ fontSize: '0.42rem', color: '#62627a', background: 'rgba(255,255,255,0.04)', borderRadius: 3, padding: '2px 5px', display: 'inline-flex', letterSpacing: '0.05em' }}>
-                          <div className="rounded-full" style={{ width: 5, height: 5, background: msColor }} />
-                          {MILESTONE_STATUS_LABEL[ms.status] ?? ms.status}
-                        </div>
-                      </div>
-                      <svg width="5" height="9" viewBox="0 0 5 9" fill="none" className="flex-shrink-0" style={{ opacity: 0.2, marginTop: 4 }}><path d="M1 1L4 4.5L1 8" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                      <ThreadRowBadge entry={threadByMilestoneId.get(ms.id)} />
-                    </div>
-                  )
-                })}
+                <div
+                  className="glass-tile timeline-ms-list"
+                  style={{ ['--tile-rgb' as any]: accentRgb, padding: '0 14px' }}
+                >
+                  {dayMs.map(ms => (
+                    <MilestoneRow
+                      key={ms.id}
+                      ms={ms}
+                      accent={accent}
+                      threadEntry={threadByMilestoneId.get(ms.id)}
+                      onClick={() => setSelectedMS(ms)}
+                    />
+                  ))}
+                </div>
               </>
             )
           })()
@@ -669,42 +788,29 @@ export default function TimelinePage({ params }: { params: { projectId: string }
           <>
             {sorted.length === 0 ? <EmptyState text="No milestones yet" /> : monthGroups.map(group => (
               <div key={group.label}>
-                <div className="font-mono uppercase" style={{ fontSize: '0.47rem', color: '#62627a', letterSpacing: '0.1em', padding: '14px 0 7px' }}>{group.label}</div>
-                {group.items.map((ms, i) => {
-                  const d = new Date(ms.date)
-                  const isDelivery = ms.title.toLowerCase().includes('delivery')
-                  const isNext = !isDelivery && sorted.indexOf(ms) === sorted.findIndex(m => new Date(m.date) >= new Date())
-                  const highlighted = highlightId === ms.id
-                  const msColor = isDelivery ? '#e8564a' : (MILESTONE_STATUS_HEX[ms.status] ?? '#62627a')
-                  return (
-                    <div key={ms.id} data-ms-id={ms.id}
-                      className="flex items-start cursor-pointer transition-all"
-                      style={{
-                        position: 'relative',
-                        gap: 12, padding: highlighted ? '11px 8px' : '11px 0',
-                        margin: highlighted ? '0 -8px' : undefined,
-                        borderBottom: highlighted ? '1px solid transparent' : '1px solid rgba(255,255,255,0.05)',
-                        background: highlighted ? `${accent}12` : undefined,
-                        borderRadius: highlighted ? 7 : 4,
-                      }}
-                      onClick={() => setSelectedMS(ms)}>
-                      <div className="flex-shrink-0" style={{ width: 40 }}>
-                        <div className="font-mono" style={{ fontSize: '1rem', fontWeight: 500, lineHeight: 1, color: isDelivery ? '#e8564a' : isNext ? accent : '#dddde8' }}>{d.getDate()}</div>
-                        <div className="font-mono uppercase" style={{ fontSize: '0.4rem', color: '#62627a', letterSpacing: '0.06em', marginTop: 2 }}>{DAYS[d.getDay()]}</div>
-                      </div>
-                      <div className="flex-shrink-0" style={{ width: 1, alignSelf: 'stretch', margin: '2px 0', background: isDelivery ? 'rgba(232,86,74,0.5)' : isNext ? `${accent}66` : 'rgba(255,255,255,0.05)' }} />
-                      <div className="flex-1 min-w-0" style={{ paddingTop: 2 }}>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: isDelivery ? '#e8564a' : '#dddde8', marginBottom: 4 }}>{ms.title}</div>
-                        <div className="font-mono uppercase flex items-center gap-1" style={{ fontSize: '0.42rem', color: '#62627a', background: 'rgba(255,255,255,0.04)', borderRadius: 3, padding: '2px 5px', display: 'inline-flex', letterSpacing: '0.05em' }}>
-                          <div className="rounded-full" style={{ width: 5, height: 5, background: msColor }} />
-                          {isDelivery ? 'Delivery' : (MILESTONE_STATUS_LABEL[ms.status] ?? ms.status)}
-                        </div>
-                      </div>
-                      <svg width="5" height="9" viewBox="0 0 5 9" fill="none" className="flex-shrink-0" style={{ opacity: 0.2, marginTop: 4 }}><path d="M1 1L4 4.5L1 8" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                      <ThreadRowBadge entry={threadByMilestoneId.get(ms.id)} />
-                    </div>
-                  )
-                })}
+                <div className="sheen-title text-center" style={{ fontWeight: 700, fontSize: '0.84rem', letterSpacing: '-0.01em', padding: '14px 0 10px', fontVariantNumeric: 'tabular-nums' }}>
+                  {group.label}
+                </div>
+                <div
+                  className="glass-tile timeline-ms-list"
+                  style={{ ['--tile-rgb' as any]: accentRgb, padding: '0 14px' }}
+                >
+                  {group.items.map(ms => {
+                    const isNext = !ms.title.toLowerCase().includes('delivery') && sorted.indexOf(ms) === sorted.findIndex(m => new Date(m.date) >= new Date())
+                    const highlighted = highlightId === ms.id
+                    return (
+                      <MilestoneRow
+                        key={ms.id}
+                        ms={ms}
+                        accent={accent}
+                        isNext={isNext}
+                        highlighted={highlighted}
+                        threadEntry={threadByMilestoneId.get(ms.id)}
+                        onClick={() => setSelectedMS(ms)}
+                      />
+                    )
+                  })}
+                </div>
               </div>
             ))}
           </>
@@ -752,16 +858,32 @@ function DaysTabContent({
 }) {
   return (
     <>
-      {/* Phase counts strip */}
+      {/* Phase counts strip — chip pattern matches the cinema-glass
+          .ai-meta-pill anatomy; one chip per phase (Prep / Shoot / Post). */}
       <div
-        className="flex items-center justify-center font-mono uppercase flex-shrink-0"
-        style={{ gap: 14, padding: '12px 16px 14px', fontSize: '0.5rem', letterSpacing: '0.1em', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+        className="flex items-center justify-center flex-shrink-0"
+        style={{ gap: 8, padding: '12px 16px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
       >
-        {PHASE_ORDER.map(t => (
-          <span key={t} style={{ color: counts[t] > 0 ? PHASE_HEX[t] : '#62627a' }}>
-            {PHASE_LABEL[t].toUpperCase()} {counts[t]}
-          </span>
-        ))}
+        {PHASE_ORDER.map(t => {
+          const c = PHASE_HEX[t]
+          const has = counts[t] > 0
+          return (
+            <span
+              key={t}
+              className="font-mono uppercase inline-flex items-center"
+              style={{
+                gap: 5, padding: '2px 8px', borderRadius: 20,
+                fontSize: '0.42rem', letterSpacing: '0.08em', fontWeight: 600,
+                background: has ? `${c}33` : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${has ? `${c}80` : 'rgba(255,255,255,0.08)'}`,
+                color: has ? c : '#7a7a82',
+              }}
+            >
+              <span className="rounded-full" style={{ width: 4, height: 4, background: has ? c : '#7a7a82', boxShadow: has ? `0 0 4px ${c}` : undefined }} />
+              {PHASE_LABEL[t]} {counts[t]}
+            </span>
+          )
+        })}
       </div>
 
       {/* Day list */}
@@ -829,16 +951,19 @@ function DaysTabContent({
 
 function PhaseChip({ type }: { type: ShootDayType }) {
   const c = PHASE_HEX[type]
+  // Cinema Glass chip — phase-tinted bg @ 0.20, border @ 0.50, mono caps.
   return (
     <span
-      className="font-mono uppercase"
+      className="font-mono uppercase inline-flex items-center"
       style={{
-        fontSize: '0.42rem', letterSpacing: '0.1em',
-        padding: '3px 8px', borderRadius: 20,
-        background: `${c}14`, border: `1px solid ${c}59`, color: c,
+        gap: 4,
+        fontSize: '0.42rem', letterSpacing: '0.08em', fontWeight: 600,
+        padding: '2px 8px', borderRadius: 20,
+        background: `${c}33`, border: `1px solid ${c}80`, color: c,
         flexShrink: 0,
       }}
     >
+      <span className="rounded-full" style={{ width: 4, height: 4, background: c, boxShadow: `0 0 4px ${c}` }} />
       {PHASE_LABEL[type]}
     </span>
   )
@@ -851,16 +976,22 @@ function ShootDayRow({
   locationName: string | null
   onTap: () => void
 }) {
+  // Per-row tile-rgb keyed to the day's phase so each row glows the
+  // phase color (Prep amber / Shoot indigo / Post teal) — cinema-glass
+  // .glass-tile cascade with --tile-rgb override.
+  const phaseRgb: Record<ShootDayType, string> = {
+    pre:  '232, 160, 32',
+    prod: '100, 112, 243',
+    post: '0, 184, 148',
+  }
   return (
     <button
       type="button"
       onClick={() => { haptic('light'); onTap() }}
-      className="w-full text-left active:opacity-80 transition-opacity"
+      className="glass-tile-sm w-full text-left active:opacity-80 transition-opacity"
       style={{
-        padding: '12px 14px', borderRadius: 14,
-        background: 'rgba(10,10,18,0.42)',
-        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255,255,255,0.07)',
+        ['--tile-rgb' as string]: phaseRgb[day.type],
+        padding: '12px 14px',
         display: 'grid',
         gridTemplateColumns: '1fr auto',
         gridTemplateRows: 'auto auto',
@@ -868,14 +999,14 @@ function ShootDayRow({
         alignItems: 'center',
       }}
     >
-      <div style={{ fontSize: '0.85rem', color: '#e8e8f0', fontWeight: 500 }}>
+      <div style={{ fontSize: '0.85rem', color: '#ebebef', fontWeight: 500 }}>
         {shootDayFormatDate(day.date)}
       </div>
       <PhaseChip type={day.type} />
       <div
         className="font-mono uppercase"
         style={{
-          fontSize: '0.42rem', letterSpacing: '0.08em', color: '#62627a',
+          fontSize: '0.42rem', letterSpacing: '0.08em', color: '#7a7a82',
           gridColumn: '1 / span 2',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}

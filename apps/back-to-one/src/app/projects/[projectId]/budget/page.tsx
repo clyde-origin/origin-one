@@ -89,6 +89,45 @@ function formatPercent(n: number): string {
   return `${Math.round(n * 100)}%`
 }
 
+// V2 — gallery's signature category palette (gallery phone #10). Hashed
+// deterministically off account id so the same account always keeps the
+// same hue across reloads + every project, while preserving the
+// magenta / indigo / rose / teal / orange / amber / silver rhythm.
+const BGT_CAT_PALETTE: ReadonlyArray<readonly [number, number, number]> = [
+  [196, 90, 220],   // magenta — Above-the-Line
+  [100, 112, 243],  // indigo  — Crew
+  [232, 80, 122],   // rose    — Cast
+  [0, 184, 148],    // teal    — Equipment
+  [240, 128, 48],   // orange  — Locations
+  [245, 165, 50],   // amber   — Production
+  [170, 170, 180],  // silver  — Post
+]
+
+function bgtCatRgb(seed: string): readonly [number, number, number] {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return BGT_CAT_PALETTE[h % BGT_CAT_PALETTE.length]!
+}
+
+function bgtRgbCss(rgb: readonly [number, number, number]): string {
+  return `${rgb[0]}, ${rgb[1]}, ${rgb[2]}`
+}
+
+// Compact USD for category cards & summary split (drops cents above $100).
+function formatUSDCompact(n: number): string {
+  if (!Number.isFinite(n)) return '$0'
+  const sign = n < 0 ? '-' : ''
+  const abs = Math.abs(n)
+  return `${sign}$${Math.round(abs).toLocaleString('en-US')}`
+}
+
+// Short date for transaction rows ("Apr 26").
+function formatTxDate(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 // ── VersionPills ────────────────────────────────────────────────────────
 
 function VersionPills({
@@ -135,19 +174,21 @@ function VersionPill({
 }) {
   const longPress = useLongPress(() => { haptic('medium'); onLongPress() }, 500)
   const locked = version.state === 'locked'
+  // Cinema Glass — active pill wears .sheen-title + accent inset border
+  // (matches the Timeline mode-toggle treatment).
   return (
     <button
       type="button"
       onClick={onTap}
       {...longPress}
-      className="font-mono uppercase"
+      className={`font-mono uppercase ${active ? 'sheen-title' : ''}`}
       style={{
         flex: 1,
         padding: '7px 10px', borderRadius: 999,
-        fontSize: 10, letterSpacing: '0.06em',
-        background: active ? `${accent}24` : 'rgba(255,255,255,0.02)',
-        border: `1px solid ${active ? `${accent}66` : 'rgba(255,255,255,0.08)'}`,
-        color: active ? accent : '#a0a0b8',
+        fontSize: 10, letterSpacing: '0.06em', fontWeight: 600,
+        ...(active
+          ? { boxShadow: `inset 0 0 0 1px rgba(var(--accent-rgb), 0.32)` }
+          : { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', color: '#a0a0b8' }),
         cursor: 'pointer',
         userSelect: 'none',
         WebkitUserSelect: 'none',
@@ -401,6 +442,9 @@ function VariablesStrip({
   schedule: { prepDays: number; shootDays: number; postDays: number }
   vars: Record<string, string>
 }) {
+  // Cinema Glass — phase chips wear the canonical chip alpha
+  // (bg @ 0.20, border @ 0.50) + glowing phase dot. Custom variables
+  // collapse to the neutral glass chip.
   return (
     <div
       className="flex flex-wrap"
@@ -415,15 +459,16 @@ function VariablesStrip({
         return (
           <span
             key={t}
-            className="font-mono inline-flex items-center"
+            className="font-mono uppercase inline-flex items-center"
             style={{
-              gap: 6, padding: '4px 10px', borderRadius: 999,
-              fontSize: 10, letterSpacing: '0.04em',
-              background: `${hex}1a`, border: `1px solid ${hex}38`, color: hex,
+              gap: 5, padding: '3px 9px', borderRadius: 999,
+              fontSize: 10, letterSpacing: '0.06em', fontWeight: 600,
+              background: `${hex}33`, border: `1px solid ${hex}80`, color: hex,
             }}
           >
-            <span style={{ opacity: 0.85 }}>{PHASE_LABEL[t]}</span>
-            <span style={{ fontWeight: 600 }}>{value}</span>
+            <span className="rounded-full" style={{ width: 4, height: 4, background: hex, boxShadow: `0 0 4px ${hex}` }} />
+            <span>{PHASE_LABEL[t]}</span>
+            <span>{value}</span>
           </span>
         )
       })}
@@ -432,7 +477,7 @@ function VariablesStrip({
           key={name}
           className="font-mono inline-flex items-center"
           style={{
-            gap: 6, padding: '4px 10px', borderRadius: 999,
+            gap: 6, padding: '3px 10px', borderRadius: 999,
             fontSize: 10, letterSpacing: '0.04em',
             background: 'rgba(255,255,255,0.04)',
             border: '1px solid rgba(255,255,255,0.10)',
@@ -614,45 +659,68 @@ function AccountCard({
     ? visibleAccountLines.reduce((s, l) => s + (computedByLine.get(l.id)?.total ?? 0), 0)
     : subtotal?.total ?? 0
 
+  // V2 — wear .bgt-cat-card per gallery #10 visual treatment. Per-account
+  // --cat-rgb hashed off account.id (deterministic). Header row carries
+  // {code · name} + spent% (cat-tinted), then a tinted progress bar, then
+  // a spent / budget amounts row. account.code is preserved as a small
+  // mono prefix on the name line — V2 is visual-only, so copy stays.
+  // Expanded state keeps the V1 line-row body verbatim.
+  const catRgb = bgtCatRgb(account.id)
+  const catRgbCss = bgtRgbCss(catRgb)
+  const accountActuals = subtotal?.totalActuals ?? 0
+  const denom = total > 0 ? total : 0
+  const pct = denom > 0 ? Math.round((accountActuals / denom) * 100) : 0
+  const fillPct = Math.min(100, Math.max(0, pct))
   return (
     <div
-      style={{
-        background: 'rgba(15,15,25,0.6)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        borderRadius: 14,
-        overflow: 'hidden',
-      }}
+      className={`bgt-cat-card${expanded ? ' active' : ''}`}
+      style={{ ['--cat-rgb' as string]: catRgbCss }}
     >
       <button
         type="button"
         onClick={onToggle}
         className="w-full text-left"
         style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '12px 14px',
-          background: 'transparent', border: 'none', cursor: 'pointer',
+          display: 'flex', flexDirection: 'column', gap: 6,
+          padding: 0, background: 'transparent', border: 'none', cursor: 'pointer',
           color: 'inherit',
         }}
       >
-        <span
-          className="font-mono"
-          style={{ fontSize: 10, color: '#62627a', minWidth: 24 }}
-        >{account.code}</span>
-        <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#fff' }}>{account.name}</span>
-        <span
-          className="font-mono"
-          style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}
-        >{formatUSD(total)}</span>
-        <span
-          style={{
-            color: '#62627a', fontSize: 12,
-            transition: 'transform 0.2s',
-            transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
-          }}
-        >›</span>
+        <div className="bgt-cat-head">
+          <span className="bgt-cat-name">
+            <span
+              className="font-mono"
+              style={{ fontSize: '0.74em', color: 'var(--fg-mono)', marginRight: 6 }}
+            >{account.code}</span>
+            {account.name}
+          </span>
+          <span
+            className="bgt-cat-pct"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <span>{pct}%</span>
+            <span
+              aria-hidden
+              style={{
+                color: 'var(--fg-mono)', fontSize: 12,
+                transition: 'transform 0.2s',
+                transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+              }}
+            >›</span>
+          </span>
+        </div>
+        <div className="bgt-cat-bar">
+          <div className="bgt-cat-bar-fill" style={{ width: `${fillPct}%` }} />
+        </div>
+        <div className="bgt-cat-amounts">
+          <span className="bgt-cat-spent">{formatUSDCompact(accountActuals)}</span>
+          <span>{formatUSDCompact(total)}</span>
+        </div>
       </button>
       {expanded && accountLines.length > 0 && (
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', padding: '4px 6px 6px' }}>
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 4, padding: '4px 0 0' }}>
           {visibleAccountLines.length === 0 ? (
             <div
               className="font-mono"
@@ -733,6 +801,69 @@ function OverflowMenu({
           color: '#a0a0b8', cursor: 'pointer',
         }}
       >Cancel</button>
+    </div>
+  )
+}
+
+// ── BudgetSummaryCard — V2 hero card (gallery phone #10) ────────────────
+
+function BudgetSummaryCard({
+  grandTotal, grandActuals, shootDays,
+}: {
+  grandTotal: number
+  grandActuals: number
+  shootDays: ShootDay[]
+}) {
+  const remaining = Math.max(0, grandTotal - grandActuals)
+  const spentPct = grandTotal > 0 ? Math.round((grandActuals / grandTotal) * 100) : 0
+  const remainingPct = grandTotal > 0 ? Math.max(0, 100 - spentPct) : 0
+  const fillPct = Math.min(100, Math.max(0, spentPct))
+
+  // Days remaining + burn-rate footer, derived from existing shoot-day data.
+  // Shoot days with date >= today are "remaining"; days with date < today
+  // are "elapsed". Burn rate = grandActuals / elapsed-prod-days when there
+  // is at least one elapsed day; otherwise omit the burn rate. Matches the
+  // gallery footer rhythm "12 days remaining · $5,200 / day burn rate".
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const prodDays = shootDays.filter(d => d.type === 'prod')
+  const futureProd = prodDays.filter(d => new Date(d.date) >= today).length
+  const elapsedProd = prodDays.filter(d => new Date(d.date) < today).length
+  const burnRate = elapsedProd > 0 ? grandActuals / elapsedProd : null
+
+  const footerParts: string[] = []
+  if (futureProd > 0) {
+    footerParts.push(`${futureProd} ${futureProd === 1 ? 'day' : 'days'} remaining`)
+  } else if (prodDays.length > 0) {
+    footerParts.push('Production complete')
+  }
+  if (burnRate != null && burnRate > 0) {
+    footerParts.push(`${formatUSDCompact(burnRate)} / day burn rate`)
+  }
+  const foot = footerParts.join(' · ')
+
+  return (
+    <div className="bgt-summary">
+      <div className="bgt-summary-total-row">
+        <span className="bgt-summary-total-label">Total</span>
+        <span className="bgt-summary-total">{formatUSDCompact(grandTotal)}</span>
+      </div>
+      <div className="bgt-summary-bar">
+        <div className="bgt-summary-bar-fill" style={{ width: `${fillPct}%` }} />
+      </div>
+      <div className="bgt-summary-split">
+        <div className="bgt-summary-split-cell">
+          <span className="bgt-summary-split-label">Spent</span>
+          <span className="bgt-summary-split-value">{formatUSDCompact(grandActuals)}</span>
+          <span className="bgt-summary-split-pct">{spentPct}%</span>
+        </div>
+        <div className="bgt-summary-split-cell right">
+          <span className="bgt-summary-split-label">Remaining</span>
+          <span className="bgt-summary-split-value">{formatUSDCompact(remaining)}</span>
+          <span className="bgt-summary-split-pct">{remainingPct}%</span>
+        </div>
+      </div>
+      {foot && <div className="bgt-summary-foot">{foot}</div>}
     </div>
   )
 }
@@ -945,6 +1076,44 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
     return set
   }, [budget, activeTags])
 
+  // V2 — Recent Transactions. Pulled from existing `budget.expenses`; no
+  // new query / endpoint. Each row resolves up to its top-level account
+  // (parentId chain) so the category pill matches the colors used by the
+  // bgt-cat-card grid above. Latest 5 by occurredOn date desc.
+  const recentTransactions = useMemo(() => {
+    if (!budget) return []
+    const accountById = new Map(budget.accounts.map(a => [a.id, a]))
+    const lineById = new Map(budget.lines.map(l => [l.id, l]))
+    const topAccountFor = (accountId: string): BudgetAccount | null => {
+      let cur = accountById.get(accountId) ?? null
+      // Defensive cap on the climb to avoid pathological cycles in seed data.
+      for (let i = 0; cur && cur.parentId != null && i < 16; i++) {
+        cur = accountById.get(cur.parentId) ?? null
+      }
+      return cur
+    }
+    const sorted = [...budget.expenses].sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1
+      return a.createdAt < b.createdAt ? 1 : -1
+    })
+    return sorted.slice(0, 5).map(exp => {
+      const line = lineById.get(exp.lineId) ?? null
+      const top = line ? topAccountFor(line.accountId) : null
+      const desc = exp.vendor && line
+        ? `${exp.vendor} · ${line.description}`
+        : exp.vendor ?? line?.description ?? 'Expense'
+      const catRgb = top ? bgtRgbCss(bgtCatRgb(top.id)) : '170, 170, 180'
+      return {
+        id: exp.id,
+        date: exp.date,
+        amount: Number(exp.amount),
+        desc,
+        catName: top?.name ?? 'Other',
+        catRgb,
+      }
+    })
+  }, [budget])
+
   const findFormulaLine = (lineId: string) => budget?.lines.find(l => l.id === lineId) ?? null
   const findFormulaAmount = (lineId: string) => {
     if (!budget || !activeVersionId) return undefined
@@ -1087,8 +1256,22 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
     ? budget.lines.find(l => l.id === activeLineId) ?? null
     : null
 
+  // Cinema Glass — feed --accent-rgb / --accent-glow-rgb / --tile-rgb
+  // off the project accent so .sheen-title and any rgba(var(--accent-rgb),…)
+  // consumer reads the project tint. Same pattern as HubContent + Timeline.
+  const [ar, ag, ab] = [parseInt(accent.slice(1, 3), 16), parseInt(accent.slice(3, 5), 16), parseInt(accent.slice(5, 7), 16)]
+  const glowR = Math.min(255, ar + 20), glowG = Math.min(255, ag + 20), glowB = Math.min(255, ab + 20)
+
   return (
-    <div className="screen">
+    <div
+      className="screen"
+      style={{
+        ['--accent-rgb' as string]: `${ar}, ${ag}, ${ab}`,
+        ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
+        ['--tile-rgb' as string]: `${ar}, ${ag}, ${ab}`,
+        ['--accent' as string]: accent,
+      }}
+    >
       <PageHeader
         projectId={projectId}
         title="Budget"
@@ -1098,8 +1281,12 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
             <span
               className="font-mono uppercase"
               style={{
-                fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12,
-                background: `${statusHex(project.status)}18`, color: statusHex(project.status),
+                fontSize: '0.42rem', letterSpacing: '0.08em',
+                padding: '1px 7px', borderRadius: 20,
+                background: `${statusHex(project.status)}33`,
+                border: `1px solid ${statusHex(project.status)}80`,
+                color: statusHex(project.status),
+                fontWeight: 600,
               }}
             >{projectStatusLabel(project.status)}</span>
           </div>
@@ -1174,52 +1361,16 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
           >Computing…</div>
         ) : (
           <>
-            {/* Project totals block */}
-            <div style={{ padding: '4px 20px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-              <div
-                className="flex items-end justify-between"
-                style={{ marginTop: 14, gap: 16 }}
-              >
-                <div>
-                  <div
-                    className="font-mono uppercase"
-                    style={{ fontSize: 9, letterSpacing: '0.12em', color: '#62627a', marginBottom: 4 }}
-                  >Working Total</div>
-                  <div
-                    className="font-mono"
-                    style={{ fontSize: 18, fontWeight: 600, color: '#fff' }}
-                  >{formatUSD(rollup.grandTotal)}</div>
-                </div>
-                <div>
-                  <div
-                    className="font-mono uppercase"
-                    style={{ fontSize: 9, letterSpacing: '0.12em', color: '#62627a', marginBottom: 4 }}
-                  >Actuals</div>
-                  <div
-                    className="font-mono"
-                    style={{ fontSize: 18, fontWeight: 600, color: accent }}
-                  >{formatUSD(rollup.grandActuals)}</div>
-                  {rollup.grandTotal > 0 && (
-                    <div className="font-mono" style={{ fontSize: 10, color: '#a0a0b8', marginTop: 2 }}>
-                      {Math.round((rollup.grandActuals / rollup.grandTotal) * 100)}% spent
-                      <div
-                        style={{
-                          marginTop: 4, width: 80, height: 3, borderRadius: 2, overflow: 'hidden',
-                          background: 'rgba(255,255,255,0.06)', position: 'relative',
-                        }}
-                      >
-                        <div
-                          style={{
-                            position: 'absolute', inset: 0,
-                            width: `${Math.min(100, Math.round((rollup.grandActuals / rollup.grandTotal) * 100))}%`,
-                            background: accent, borderRadius: 2,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+            {/* V2 hero summary — Total → progress bar → Spent / Remaining
+                split → footer days/burn-rate. Same data as the V1 two-col
+                Working Total / Actuals row, restructured to match gallery
+                phone #10. */}
+            <div style={{ padding: '14px 16px 14px' }}>
+              <BudgetSummaryCard
+                grandTotal={rollup.grandTotal}
+                grandActuals={rollup.grandActuals}
+                shootDays={shootDays}
+              />
             </div>
 
             {/* Version pills (long-press → menu) */}
@@ -1330,6 +1481,28 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
                     />
                   )
                 })}
+
+                {/* V2 — Recent Transactions glass section (gallery #10).
+                    Pulled from `budget.expenses` — no new query. Hidden
+                    until at least one expense exists. */}
+                {recentTransactions.length > 0 && (
+                  <>
+                    <h2 className="bgt-section-header">Recent Transactions</h2>
+                    <div className="bgt-tx-list">
+                      {recentTransactions.map(tx => (
+                        <div key={tx.id} className="bgt-tx-row">
+                          <span className="bgt-tx-date">{formatTxDate(tx.date)}</span>
+                          <span className="bgt-tx-amount">-{formatUSDCompact(tx.amount)}</span>
+                          <span className="bgt-tx-desc">{tx.desc}</span>
+                          <span
+                            className="bgt-tx-cat-pill"
+                            style={{ ['--cat-rgb' as string]: tx.catRgb }}
+                          >{tx.catName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -1357,40 +1530,32 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
       </div>
 
       {/* Topsheet handle — fixed bottom of the budget surface, above
-          ActionBar. Tap to open. PR 8 had this slot as decoration in
-          the mockup; PR 10 wires it. */}
+          ActionBar. Cinema-glass: .glass-tile-sm + sheen-title total. */}
       {budget && rollup && topsheetData && (
         <button
           type="button"
           onClick={() => { haptic('light'); setTopsheetOpen(true) }}
-          className="font-mono"
+          className="glass-tile-sm font-mono"
           style={{
-            // Sit above the ActionBar (cluster height + padding) and
-            // above the page content. ActionBar handles env(safe-area).
             position: 'fixed',
             left: 0, right: 0,
             bottom: 'calc(68px + 52px + 14px + env(safe-area-inset-bottom, 0px))',
             margin: '0 16px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '12px 16px', borderRadius: 14,
-            background: 'rgba(15,15,25,0.92)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            border: '1px solid rgba(255,255,255,0.10)',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.40)',
-            color: '#e8e8f0', fontSize: 12,
+            padding: '12px 16px',
+            color: '#ebebef', fontSize: 12,
             cursor: 'pointer', zIndex: 30,
           }}
         >
           <div className="flex flex-col" style={{ alignItems: 'flex-start', gap: 2 }}>
             <span
               className="font-mono uppercase"
-              style={{ fontSize: 9, color: '#62627a', letterSpacing: '0.08em' }}
+              style={{ fontSize: 9, color: '#7a7a82', letterSpacing: '0.08em' }}
             >Grand Total · {(() => {
               const v = budget.versions.find(x => x.id === activeVersionId)
               return v?.name ?? '—'
             })()}</span>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>
+            <span className="sheen-title" style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>
               {(() => {
                 const total = rollup.grandTotal
                 if (total >= 100) return `$${Math.round(total).toLocaleString('en-US')}`
@@ -1398,7 +1563,7 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
               })()}
             </span>
           </div>
-          <span style={{ color: '#62627a', fontSize: 12 }}>▴ topsheet</span>
+          <span style={{ color: '#7a7a82', fontSize: 12 }}>▴ topsheet</span>
         </button>
       )}
 

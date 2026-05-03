@@ -10,21 +10,33 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { haptic } from '@/lib/utils/haptics'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
-import { DEPARTMENTS, getProjectColor, statusHex, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
+import { DEPARTMENTS, getProjectColor, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
-import type { InventoryItem, InventoryItemStatus, ImportSource, TeamMember } from '@/types'
+import type { InventoryItem, InventoryItemStatus, TeamMember } from '@/types'
 
 // ── Status palette (BRAND_TOKENS § Inventory Item Status) ─────────────
 // Inline per the Locations / Art convention. The phase-color reuse for
 // ordered/packed/returned is documented in BRAND_TOKENS.md.
+// Alphas match the cinema-glass chip pattern (bg @ 0.10, border @ 0.22,
+// color @ 0.9 implied) per DESIGN_LANGUAGE.md status-pill rule.
 
 const STATUS_COLORS: Record<InventoryItemStatus, { color: string; border: string; bg: string }> = {
-  needed:   { color: '#e84848', border: 'rgba(232, 72, 72, 0.35)',  bg: 'rgba(232, 72, 72, 0.08)' },
-  ordered:  { color: '#e8a020', border: 'rgba(232, 160, 32, 0.35)', bg: 'rgba(232, 160, 32, 0.08)' },
-  arrived:  { color: '#4ab8e8', border: 'rgba(74, 184, 232, 0.35)', bg: 'rgba(74, 184, 232, 0.08)' },
-  packed:   { color: '#6470f3', border: 'rgba(100, 112, 243, 0.35)', bg: 'rgba(100, 112, 243, 0.08)' },
-  returned: { color: '#00b894', border: 'rgba(0, 184, 148, 0.35)',   bg: 'rgba(0, 184, 148, 0.08)' },
+  needed:   { color: '#e84848', border: 'rgba(232, 72, 72, 0.22)',  bg: 'rgba(232, 72, 72, 0.10)' },
+  ordered:  { color: '#e8a020', border: 'rgba(232, 160, 32, 0.22)', bg: 'rgba(232, 160, 32, 0.10)' },
+  arrived:  { color: '#4ab8e8', border: 'rgba(74, 184, 232, 0.22)', bg: 'rgba(74, 184, 232, 0.10)' },
+  packed:   { color: '#6470f3', border: 'rgba(100, 112, 243, 0.22)', bg: 'rgba(100, 112, 243, 0.10)' },
+  returned: { color: '#00b894', border: 'rgba(0, 184, 148, 0.22)',   bg: 'rgba(0, 184, 148, 0.10)' },
+}
+
+// V2: --status-rgb triplets feeding `.inv-status-pill` and `.inv-thumb`
+// gradients per gallery phone #39. Mirrors STATUS_COLORS hex values.
+const STATUS_RGB: Record<InventoryItemStatus, string> = {
+  needed:   '232, 72, 72',
+  ordered:  '232, 160, 32',
+  arrived:  '74, 184, 232',
+  packed:   '100, 112, 243',
+  returned: '0, 184, 148',
 }
 
 const STATUS_LABEL: Record<InventoryItemStatus, string> = {
@@ -39,6 +51,23 @@ const TOOLTIP_BORDER = 'rgba(255,255,255,0.08)'
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
+// Decompose a #rrggbb hex into a [r,g,b] triplet so the screen root can set
+// `--tile-rgb` / `--accent-rgb` / `--accent-glow-rgb` for the cinema-glass
+// classes (`glass-tile`, `sheen-title`, `ai-meta-pill`) to consume.
+function hexToRgb(hex: string | null | undefined): [number, number, number] {
+  const h = (hex && /^#[0-9a-f]{6}$/i.test(hex)) ? hex : '#c45adc'
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
+}
+
+// Project status → ai-meta-pill phase modifier (.pre / .prod / .post).
+// development + pre_production both ride pre amber; archived collapses to
+// pre as a neutral fallback (the pill is omitted upstream when project is null).
+function statusToPhase(s: string | undefined): 'pre' | 'prod' | 'post' {
+  if (s === 'production') return 'prod'
+  if (s === 'post_production') return 'post'
+  return 'pre'
+}
+
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/)
   if (parts.length === 0) return '??'
@@ -46,163 +75,42 @@ function getInitials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-function shortName(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length <= 1) return name
-  return `${parts[0]} ${parts[parts.length - 1][0]}.`
-}
-
 function capitalize(s: string): string {
   if (!s) return s
   return s[0].toUpperCase() + s.slice(1)
 }
 
-// ── StatusChip ─────────────────────────────────────────────────────────
-
-function StatusChip({ status }: { status: InventoryItemStatus }) {
-  const c = STATUS_COLORS[status]
-  return (
-    <span
-      className="font-mono uppercase"
-      style={{
-        fontSize: '0.42rem', letterSpacing: '0.1em',
-        padding: '3px 8px', borderRadius: 20,
-        background: c.bg, border: `1px solid ${c.border}`, color: c.color,
-        flexShrink: 0,
-      }}
-    >
-      {STATUS_LABEL[status]}
-    </span>
-  )
-}
-
-// ── AssigneeChip ───────────────────────────────────────────────────────
-
-function AssigneeChip({ member }: { member: TeamMember | null }) {
-  if (!member) {
-    return (
-      <span
-        className="font-mono uppercase"
-        style={{
-          fontSize: '0.42rem', letterSpacing: '0.08em',
-          padding: '3px 9px', borderRadius: 20,
-          background: 'transparent',
-          border: '1px dashed rgba(255,255,255,0.18)',
-          color: 'rgba(255,255,255,0.35)',
-        }}
-      >
-        + Assign
-      </span>
-    )
-  }
-  const initials = getInitials(member.User.name)
-  return (
-    <div className="flex items-center" style={{ gap: 6 }}>
-      <div
-        className="font-mono"
-        style={{
-          width: 22, height: 22, borderRadius: '50%',
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.12)',
-          color: 'rgba(255,255,255,0.7)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '0.46rem', letterSpacing: '0.04em', fontWeight: 600,
-        }}
-      >
-        {initials}
-      </div>
-      <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.7)' }}>
-        {shortName(member.User.name)}
-      </span>
-    </div>
-  )
-}
-
-// ── ImportedTag ────────────────────────────────────────────────────────
-
-function ImportedTag({ source }: { source: ImportSource }) {
-  if (source === 'manual') return null
-  return (
-    <span
-      className="font-mono uppercase"
-      style={{
-        fontSize: '0.36rem', letterSpacing: '0.1em',
-        padding: '2px 6px', borderRadius: 4,
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        color: 'rgba(255,255,255,0.4)',
-        flexShrink: 0,
-      }}
-      title={source === 'pdf' ? 'Imported from PDF' : 'Imported from Excel'}
-    >
-      Imported
-    </span>
-  )
-}
-
 // ── InventoryItemRow ───────────────────────────────────────────────────
-
-function InventoryItemRow({
-  item, assignee, onTap,
-}: {
-  item: InventoryItem
-  assignee: TeamMember | null
-  onTap: () => void
-}) {
+// V2 (reskin/v2-tab-list): inv-row anatomy from gallery phone #39 —
+// 52px thumb (status-tinted gradient placeholder; no thumbnail field on
+// InventoryItem yet) + inv-info column (name + dept · qty meta) + right
+// inv-status-pill driven by --status-rgb. Notes / assignee / source
+// are surfaced in the detail sheet rather than the row.
+function InventoryItemRow({ item, onTap }: { item: InventoryItem; onTap: () => void }) {
+  const rgb = STATUS_RGB[item.status]
+  const dept = item.department ?? 'Other'
+  const unitLabel = item.quantity === 1 ? 'unit' : 'units'
   return (
-    <div
-      onClick={onTap}
-      className="cursor-pointer active:opacity-90 transition-opacity"
-      style={{
-        padding: 12, borderRadius: 12,
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.06)',
-      }}
-    >
-      <div className="flex items-start" style={{ gap: 10 }}>
-        <div className="flex-1 min-w-0">
-          <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#fff', lineHeight: 1.25 }}>
-            {item.name}
-          </div>
-          <div
-            className="flex items-center"
-            style={{ gap: 6, marginTop: 5, fontSize: '0.56rem', color: 'rgba(255,255,255,0.4)', flexWrap: 'wrap' }}
-          >
-            <span style={{ fontWeight: 500, color: 'rgba(255,255,255,0.55)' }}>×{item.quantity}</span>
-            {item.source && (
-              <>
-                <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
-                <span>{item.source}</span>
-              </>
-            )}
-            <ImportedTag source={item.importSource} />
-          </div>
-        </div>
-        <StatusChip status={item.status} />
+    <div onClick={onTap} className="inv-row">
+      <div
+        className="inv-thumb"
+        style={{ ['--thumb-rgb' as string]: rgb }}
+      >
+        <div className="letterbox-top" />
+        <div className="letterbox-bottom" />
       </div>
-
-      {(item.notes || assignee !== null || item.assigneeId === null) && (
-        <div
-          className="flex items-center"
-          style={{ marginTop: 10, gap: 12 }}
-        >
-          <div className="flex-1 min-w-0" style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>
-            {item.notes && (
-              <span
-                style={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 1,
-                  WebkitBoxOrient: 'vertical' as const,
-                  overflow: 'hidden',
-                }}
-              >
-                {item.notes}
-              </span>
-            )}
-          </div>
-          <AssigneeChip member={assignee} />
+      <div className="inv-info">
+        <div className="inv-name">{item.name}</div>
+        <div className="inv-meta">
+          {dept} · {item.quantity} {unitLabel}
         </div>
-      )}
+      </div>
+      <span
+        className="inv-status-pill"
+        style={{ ['--status-rgb' as string]: rgb }}
+      >
+        {STATUS_LABEL[item.status]}
+      </span>
     </div>
   )
 }
@@ -318,14 +226,14 @@ function InventoryDetailSheet({
 
   const inputStyle: React.CSSProperties = {
     background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.05)',
+    border: '1px solid var(--border)',
     borderRadius: 7, padding: '10px 12px',
-    color: '#dddde8', fontSize: '0.82rem',
+    color: 'var(--fg)', fontSize: '0.82rem',
     width: '100%', outline: 'none',
   }
   const labelStyle: React.CSSProperties = {
     fontFamily: 'var(--font-geist-mono)',
-    fontSize: '0.44rem', color: 'rgba(255,255,255,0.32)',
+    fontSize: '0.44rem', color: 'var(--fg-mono)',
     letterSpacing: '0.1em', textTransform: 'uppercase',
     display: 'block', marginBottom: 6,
   }
@@ -609,14 +517,14 @@ export default function InventoryPage({ params }: { params: { projectId: string 
 
   const colors = deriveProjectColors(project?.color || getProjectColor(projectId) || DEFAULT_PROJECT_HEX)
   const accent = colors.primary
+  // Cinema-glass tokens consumed by .glass-tile / .sheen-title / .ai-meta-pill.
+  const [pr, pg, pb] = hexToRgb(accent)
+  const glowR = Math.min(255, pr + 20)
+  const glowG = Math.min(255, pg + 30)
+  const glowB = Math.min(255, pb + 16)
 
   const allItems = (items ?? []) as InventoryItem[]
   const allCrew = (crew ?? []) as TeamMember[]
-  const crewById = useMemo(() => {
-    const m = new Map<string, TeamMember>()
-    for (const c of allCrew) m.set(c.id, c)
-    return m
-  }, [allCrew])
 
   const [activeTab, setActiveTab] = useState<string>('Camera')
   const [selected, setSelected] = useState<InventoryItem | null>(null)
@@ -634,51 +542,39 @@ export default function InventoryPage({ params }: { params: { projectId: string 
     return m
   }, [allItems])
 
-  const totalNeeded = useMemo(
-    () => allItems.filter(i => i.status === 'needed').length,
-    [allItems],
-  )
-
   const tabItems = useMemo(
     () => allItems.filter(i => (i.department ?? 'Other') === activeTab),
     [allItems, activeTab],
   )
 
   return (
-    <div className="screen">
+    <div
+      className="screen"
+      style={{
+        ['--tile-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
+      } as React.CSSProperties}
+    >
       <PageHeader
         projectId={projectId}
         title="Inventory"
         meta={project ? (
           <div className="flex flex-col items-center gap-1.5">
             <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
-            <span
-              className="font-mono uppercase"
-              style={{
-                fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12,
-                background: `${statusHex(project.status)}18`, color: statusHex(project.status),
-              }}
-            >{projectStatusLabel(project.status)}</span>
+            <span className={`ai-meta-pill ${statusToPhase(project.status)}`}>
+              <span className="phase-dot" />
+              {projectStatusLabel(project.status)}
+            </span>
           </div>
         ) : ''}
         noBorder
       />
 
-      {/* Page meta line */}
-      <div
-        className="flex items-center justify-center font-mono uppercase flex-shrink-0"
-        style={{
-          gap: 8, fontSize: '0.46rem', letterSpacing: '0.1em',
-          color: 'rgba(255,255,255,0.32)',
-          padding: '0 16px 16px',
-        }}
-      >
-        <span>13 departments</span>
-        <span style={{ opacity: 0.5 }}>·</span>
-        <span>{allItems.length} items</span>
-        <span style={{ opacity: 0.5 }}>·</span>
-        <span>{totalNeeded} needed</span>
-      </div>
+      {/* V2 (reskin/v2-tab-list): page meta line dropped — gallery moves
+          counts into the dept-pill row (each pill shows its dept's count
+          chip); the total/needed counts are now derivable per-section
+          from the inv-section-header groups. */}
 
       {/* Actions row — Import (disabled w/ tooltip). Add item lives on the global ActionBar +. */}
       <div className="flex flex-shrink-0" style={{ gap: 8, padding: '0 16px 12px' }}>
@@ -734,10 +630,11 @@ export default function InventoryPage({ params }: { params: { projectId: string 
         </div>
       </div>
 
-      {/* Tab bar — 13 departments, horizontal scroll */}
+      {/* Tab bar — 13 departments, horizontal scroll. Active chip uses
+          project accent so the whole route reads as project-tinted. */}
       <div
         className="flex-shrink-0 overflow-x-auto no-scrollbar"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+        style={{ borderBottom: '1px solid var(--border)' }}
       >
         <div className="flex" style={{ gap: 6, padding: '0 16px 12px' }}>
           {DEPARTMENTS.map(d => {
@@ -750,9 +647,9 @@ export default function InventoryPage({ params }: { params: { projectId: string 
                 className="font-mono uppercase flex items-center cursor-pointer transition-colors flex-shrink-0"
                 style={{
                   gap: 6, padding: '7px 12px', borderRadius: 20,
-                  background: isActive ? 'rgba(100, 112, 243, 0.12)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${isActive ? 'rgba(100, 112, 243, 0.4)' : 'rgba(255,255,255,0.06)'}`,
-                  color: isActive ? '#c9ceff' : 'rgba(255,255,255,0.5)',
+                  background: isActive ? `rgba(${pr}, ${pg}, ${pb}, 0.12)` : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${isActive ? `rgba(${pr}, ${pg}, ${pb}, 0.40)` : 'rgba(255,255,255,0.06)'}`,
+                  color: isActive ? accent : 'var(--fg-mono)',
                   fontSize: '0.5rem', letterSpacing: '0.08em',
                 }}
               >
@@ -762,8 +659,8 @@ export default function InventoryPage({ params }: { params: { projectId: string 
                   style={{
                     fontSize: 10,
                     padding: '1px 6px', borderRadius: 9,
-                    background: isActive ? 'rgba(100, 112, 243, 0.22)' : 'rgba(255,255,255,0.05)',
-                    color: isActive ? '#c9ceff' : 'rgba(255,255,255,0.4)',
+                    background: isActive ? `rgba(${pr}, ${pg}, ${pb}, 0.22)` : 'rgba(255,255,255,0.05)',
+                    color: isActive ? accent : 'var(--fg-mono)',
                   }}
                 >{count}</span>
               </button>
@@ -772,34 +669,17 @@ export default function InventoryPage({ params }: { params: { projectId: string 
         </div>
       </div>
 
-      {/* Scroll area */}
+      {/* Scroll area — V2: items grouped by status within the active
+          dept tab. Section headers carry the sheen-extrusion treatment;
+          rows live inside .inv-rows. */}
       <div
         className="flex-1 overflow-y-auto no-scrollbar"
-        style={{ WebkitOverflowScrolling: 'touch', padding: '14px 16px 100px' }}
+        style={{ WebkitOverflowScrolling: 'touch', padding: '4px 16px 100px' }}
       >
-        {/* List header */}
-        <div className="flex items-end justify-between" style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#dddde8' }}>{activeTab}</div>
-          <div
-            className="font-mono uppercase"
-            style={{ fontSize: '0.42rem', color: 'rgba(255,255,255,0.32)', letterSpacing: '0.1em' }}
-          >
-            {tabItems.length} items
-          </div>
-        </div>
-
-        {/* Item list */}
         {isLoading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 10 }}>
             {[0, 1, 2].map(i => (
-              <div
-                key={i}
-                style={{
-                  height: 80, borderRadius: 12,
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                }}
-              />
+              <div key={i} className="inv-row sk-block" style={{ height: 68 }} />
             ))}
           </div>
         ) : tabItems.length === 0 ? (
@@ -807,23 +687,31 @@ export default function InventoryPage({ params }: { params: { projectId: string 
             className="flex flex-col items-center justify-center text-center"
             style={{ gap: 8, padding: '40px 20px' }}
           >
-            <div className="font-mono" style={{ fontSize: '0.56rem', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.06em', lineHeight: 1.6 }}>
+            <div className="font-mono" style={{ fontSize: '0.56rem', color: 'var(--fg-mono)', letterSpacing: '0.06em', lineHeight: 1.6 }}>
               No items in {activeTab} yet.
               <br />
               Tap + to start.
             </div>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {tabItems.map(item => (
-              <InventoryItemRow
-                key={item.id}
-                item={item}
-                assignee={item.assigneeId ? crewById.get(item.assigneeId) ?? null : null}
-                onTap={() => { haptic('light'); setSelected(item) }}
-              />
-            ))}
-          </div>
+          ALL_STATUSES.map(s => {
+            const sectionItems = tabItems.filter(i => i.status === s)
+            if (sectionItems.length === 0) return null
+            return (
+              <div key={s} className="inv-section">
+                <h2 className="inv-section-header">{STATUS_LABEL[s]}</h2>
+                <div className="inv-rows">
+                  {sectionItems.map(item => (
+                    <InventoryItemRow
+                      key={item.id}
+                      item={item}
+                      onTap={() => { haptic('light'); setSelected(item) }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )
+          })
         )}
       </div>
 

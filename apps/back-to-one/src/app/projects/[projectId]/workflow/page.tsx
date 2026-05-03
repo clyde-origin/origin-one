@@ -23,7 +23,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
+import { getProjectColor, statusLabel } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { initials } from '@/lib/utils/formatting'
 import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
@@ -39,21 +39,26 @@ const TYPE_LABELS: Record<string, string> = {
   sound: 'Sound', delivery: 'Delivery', other: 'Other',
 }
 
+// Per-node tag colors. Hex values match the gallery's `--tag-rgb`
+// declarations on each `.wf-node` (hub-full-preview-v2.html row 17).
+// vfx is not in the gallery's mapping; it inherits the cyan from the
+// thread `obj-milestone` token (#22d4d4) which is the closest non-phase
+// non-collision available to OMC's "VFX" production semantic.
 const TYPE_COLORS: Record<string, string> = {
-  ingest: '#3498DB', edit: '#9B59B6', color: '#E74C3C', vfx: '#1ABC9C',
-  sound: '#F39C12', delivery: '#27AE60', other: 'rgba(255,255,255,0.4)',
+  ingest: '#f5a532', edit: '#9b6ef3', color: '#e8507a', vfx: '#22d4d4',
+  sound: '#f5a532', delivery: '#00b894', other: '#aaaab4',
+}
+const TYPE_RGB: Record<string, string> = {
+  ingest:   '245, 165, 50',
+  edit:     '155, 110, 243',
+  color:    '232, 80, 122',
+  vfx:      '34, 212, 212',
+  sound:    '245, 165, 50',
+  delivery: '0, 184, 148',
+  other:    '170, 170, 180',
 }
 
 const ALL_TYPES: NodeType[] = ['ingest', 'edit', 'color', 'vfx', 'sound', 'delivery', 'other']
-
-function typeBadgeStyle(type: string) {
-  const c = TYPE_COLORS[type] ?? TYPE_COLORS.other
-  return {
-    background: `${c}1f`, border: `1px solid ${c}40`, color: c,
-    fontFamily: "'Geist Mono', monospace", fontSize: '8px', letterSpacing: '0.1em',
-    textTransform: 'uppercase' as const, padding: '3px 8px', borderRadius: 20, flexShrink: 0,
-  }
-}
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -63,7 +68,26 @@ function stableColor(s: string) {
   return `hsl(${((h % 360) + 360) % 360}, 55%, 50%)`
 }
 
+// Decompose a #rrggbb hex into a [r,g,b] triplet so the screen root can set
+// `--accent-rgb` / `--accent-glow-rgb` for `.sheen-title` and `.ai-meta-pill`.
+function hexToRgb(hex: string | null | undefined): [number, number, number] {
+  const h = (hex && /^#[0-9a-f]{6}$/i.test(hex)) ? hex : '#c45adc'
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
+}
+
+// Project status → ai-meta-pill phase modifier (.pre / .prod / .post).
+function statusToPhase(s: string | undefined): 'pre' | 'prod' | 'post' {
+  if (s === 'production') return 'prod'
+  if (s === 'post_production') return 'post'
+  return 'pre'
+}
+
 // ── Node Card ──────────────────────────────────────────────
+// V2 (reskin/v2-workflow): rectangular .wf-node card per audit. Tag in
+// its own top row, body holds title + tool, right column carries the
+// assignee avatar + name+role stack. Tag tint flows from --tag-rgb;
+// the screen's --accent-rgb stays the project accent so connector pills
+// render in project color rather than per-node tint.
 
 function NodeCard({
   node, crew, onTap, onAssign, threadEntry,
@@ -75,70 +99,59 @@ function NodeCard({
     ? crew.find((m: any) => m.userId === node.assigneeId || m.User?.id === node.assigneeId)
     : null
   const user = person?.User ?? person
+  const tagRgb = TYPE_RGB[node.type] ?? TYPE_RGB.other
 
   return (
     <div
-      style={{
-        position: 'relative',
-        width: '100%', background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16,
-        padding: '12px 14px', cursor: 'pointer', transition: 'background 0.15s',
-      }}
+      className="wf-node"
+      style={{ ['--tag-rgb' as string]: tagRgb } as React.CSSProperties}
       onClick={() => onTap(node)}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: node.software ? 5 : 0 }}>
-        <span style={typeBadgeStyle(node.type)}>{TYPE_LABELS[node.type] ?? 'Other'}</span>
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#fff', flex: 1, lineHeight: 1.2 }}>{node.label}</span>
+      <span className="wf-node-tag">{TYPE_LABELS[node.type] ?? 'Other'}</span>
 
-        {user ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, cursor: 'pointer' }}
-            onClick={(e) => { e.stopPropagation(); onAssign(node) }}>
-            <div style={{
-              width: 24, height: 24, borderRadius: '50%',
+      <div className="wf-node-body">
+        <div className="wf-node-title">{node.label}</div>
+        {node.software && <div className="wf-node-tool">{node.software}</div>}
+      </div>
+
+      {user ? (
+        <div
+          className="wf-node-assignee"
+          onClick={(e) => { e.stopPropagation(); onAssign(node) }}
+        >
+          <div
+            className="wf-node-avatar"
+            style={{
               background: `${stableColor(user.name ?? '')}22`,
               border: `1px solid ${stableColor(user.name ?? '')}44`,
               color: stableColor(user.name ?? ''),
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 9, fontWeight: 700, flexShrink: 0,
-            }}>
-              {initials(user.name ?? '?')}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.05em', color: 'rgba(255,255,255,0.45)', maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {(user.name ?? '').split(' ')[0]}
-              </span>
-              {person?.role && (
-                <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 8, letterSpacing: '0.05em', color: 'rgba(255,255,255,0.22)', textTransform: 'uppercase', maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {person.role}
-                </span>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div
-            style={{
-              width: 24, height: 24, borderRadius: '50%',
-              border: '1.5px dashed rgba(255,255,255,0.15)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 13, fontWeight: 300, color: 'rgba(255,255,255,0.2)',
-              flexShrink: 0, cursor: 'pointer',
             }}
-            onClick={(e) => { e.stopPropagation(); onAssign(node) }}>
-            +
+          >
+            {initials(user.name ?? '?')}
           </div>
-        )}
-      </div>
-      {node.software && (
-        <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: '#E07B60', letterSpacing: '0.05em', marginTop: 2, opacity: 0.75 }}>
-          {node.software}
+          <div className="wf-node-name-block">
+            <span className="wf-node-name">{(user.name ?? '').split(' ')[0]}</span>
+            {person?.role && <span className="wf-node-role">{person.role}</span>}
+          </div>
+        </div>
+      ) : (
+        <div
+          className="wf-node-assignee"
+          onClick={(e) => { e.stopPropagation(); onAssign(node) }}
+        >
+          <div className="wf-node-avatar is-empty">+</div>
         </div>
       )}
+
       <ThreadRowBadge entry={threadEntry} />
     </div>
   )
 }
 
 // ── Connector ──────────────────────────────────────────────
+// V2 (reskin/v2-workflow): single mono-caps `.wf-connector-pill` with
+// `.wf-arrow ›` glyph inside, sitting on a centred hairline drawn by
+// `.wf-connector::before`. Tap-to-edit format conversion remains.
 
 function Connector({
   edge, accent, openId, onToggle, onUpdateEdge,
@@ -166,31 +179,26 @@ function Connector({
   }, [edge, onUpdateEdge])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-      <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.1)' }} />
-
-      {hasFormat ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '3px 0' }}
-          onClick={() => onToggle(eid)}>
-          <span style={{
-            fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.07em',
-            textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)',
-            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
-            borderRadius: 20, padding: '3px 10px',
-          }}>
+    <>
+      <div className="wf-connector">
+        {hasFormat ? (
+          <div
+            className="wf-connector-pill"
+            onClick={() => onToggle(eid)}
+          >
             {formatLabel}
-          </span>
-          <span style={{ fontSize: 10, color: isOpen ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.18)', transition: 'transform 0.2s', transform: isOpen ? 'rotate(90deg)' : 'none', lineHeight: 1 }}>
-            ›
-          </span>
-        </div>
-      ) : edge ? (
-        <div
-          style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.08em', color: 'rgba(255,255,255,0.14)', cursor: 'pointer', padding: '4px 0' }}
-          onClick={() => onToggle(eid)}>
-          + format
-        </div>
-      ) : null}
+            <span className="wf-arrow" style={{ transition: 'transform 0.2s', transform: isOpen ? 'rotate(90deg)' : undefined }}>›</span>
+          </div>
+        ) : edge ? (
+          <div
+            className="wf-connector-pill is-empty"
+            onClick={() => onToggle(eid)}
+          >
+            + format
+            <span className="wf-arrow">›</span>
+          </div>
+        ) : null}
+      </div>
 
       {edge && isOpen && (
         <div style={{
@@ -247,9 +255,7 @@ function Connector({
           </div>
         </div>
       )}
-
-      <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.1)' }} />
-    </div>
+    </>
   )
 }
 
@@ -261,17 +267,19 @@ function DeliverableRow({ del, onTap, threadEntry }: { del: any; onTap: (d: any)
 
   return (
     <div
+      className="glass-tile"
       style={{
         position: 'relative',
         display: 'flex', alignItems: 'center', gap: 12,
-        padding: '10px 12px', borderRadius: 12,
-        background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
+        padding: '10px 12px',
         marginBottom: 7, cursor: 'pointer', transition: 'background 0.15s',
       }}
       onClick={() => onTap(del)}
     >
+      <div className="letterbox-top" />
+      <div className="letterbox-bottom" />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {del.title}
         </div>
         {specs1 && (
@@ -285,10 +293,10 @@ function DeliverableRow({ del, onTap, threadEntry }: { del: any; onTap: (d: any)
           </div>
         )}
       </div>
-      <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
+      <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, fontWeight: 700, color: 'var(--fg-mono)', flexShrink: 0 }}>
         {del.length || '—'}
       </div>
-      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.13)', flexShrink: 0 }}>›</div>
+      <div style={{ fontSize: 13, color: 'var(--fg-mono)', opacity: 0.4, flexShrink: 0 }}>›</div>
       <ThreadRowBadge entry={threadEntry} />
     </div>
   )
@@ -795,21 +803,37 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
     deleteDel.mutate(id)
   }
 
+  // Cinema-glass tokens for screen-root sheen-title / ai-meta-pill consumers
+  // (e.g. project status pill in the header). Per-node tiles override these
+  // with their own --tag-rgb.
+  const [pr, pg, pb] = hexToRgb(accent)
+  const glowR = Math.min(255, pr + 20)
+  const glowG = Math.min(255, pg + 30)
+  const glowB = Math.min(255, pb + 16)
+
   return (
-    <div className="screen">
+    <div
+      className="screen"
+      style={{
+        ['--tile-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
+      } as React.CSSProperties}
+    >
       <PageHeader projectId={projectId} title="Workflow" meta={project ? (
         <div className="flex flex-col items-center gap-1.5">
           <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
-          <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>
+          <span className={`ai-meta-pill ${statusToPhase(project.status)}`}>
+            <span className="phase-dot" />
             {statusLabel(project.status)}
           </span>
         </div>
       ) : ''} />
 
-      {/* Node count */}
+      {/* V2: sheen-adjacent count subtitle (.wf-count) per gallery #41. */}
       {nodes.length > 0 && (
-        <div style={{ padding: '6px 24px 2px', fontFamily: "'Geist Mono', monospace", fontSize: '0.52rem', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-          {nodes.length} node{nodes.length !== 1 ? 's' : ''}
+        <div className="wf-count" style={{ padding: '6px 24px 2px' }}>
+          {nodes.length} Node{nodes.length !== 1 ? 's' : ''}
         </div>
       )}
 
@@ -835,80 +859,112 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
               </div>
             </div>
           ) : (
-            <>
-              {/* ── Flow chain ── */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, padding: '8px 24px 0' }}>
-                {nodes.map((node: any, i: number) => (
-                  <div key={node.id} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <NodeCard
-                      node={node}
-                      crew={crew}
-                      onTap={(n) => { haptic('light'); setSelectedNode(n) }}
-                      onAssign={(n) => { haptic('light'); setAssignNode(n) }}
-                      threadEntry={threadByWorkflowNodeId.get(node.id)}
-                    />
-                    {i < nodes.length - 1 && (
-                      <Connector
-                        edge={getEdgeBetween(node.id, nodes[i + 1].id)}
-                        accent={accent}
-                        openId={openConnector}
-                        onToggle={(id) => setOpenConnector(prev => prev === id ? null : id)}
-                        onUpdateEdge={handleUpdateEdge}
+            (() => {
+              // V2: nest deliverables under the Final Delivery node when
+              // the last node carries type='delivery' AND there are
+              // deliverables — gallery anatomy. The standalone Deliverables
+              // section below stays so the data is editable for projects
+              // whose chains don't end with a delivery node, and so the
+              // create affordance has a stable home.
+              const lastNode = nodes[nodes.length - 1]
+              const nestUnderLast = lastNode && lastNode.type === 'delivery' && deliverables.length > 0
+              return (
+              <>
+                {/* ── Flow chain ── */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 0, padding: '8px 24px 0' }}>
+                  {nodes.map((node: any, i: number) => (
+                    <div key={node.id} style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+                      <NodeCard
+                        node={node}
+                        crew={crew}
+                        onTap={(n) => { haptic('light'); setSelectedNode(n) }}
+                        onAssign={(n) => { haptic('light'); setAssignNode(n) }}
+                        threadEntry={threadByWorkflowNodeId.get(node.id)}
                       />
-                    )}
-                  </div>
-                ))}
+                      {nestUnderLast && i === nodes.length - 1 && (
+                        <div className="wf-node-deliverables">
+                          <span className="wf-node-deliverables-label">
+                            Deliverables · {deliverables.length}
+                          </span>
+                          {deliverables.map((d: any) => {
+                            const specs = [d.format, d.resolution, d.aspectRatio].filter(Boolean).join(' · ')
+                            return (
+                              <div
+                                key={d.id}
+                                className="wf-node-deliverable-row"
+                                onClick={() => { haptic('light'); setSelectedDel(d) }}
+                              >
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div className="wf-node-deliverable-name">{d.title}</div>
+                                  {specs && <div className="wf-node-deliverable-specs">{specs}</div>}
+                                </div>
+                                <div className="wf-node-deliverable-runtime">{d.length || '—'}</div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                      {i < nodes.length - 1 && (
+                        <Connector
+                          edge={getEdgeBetween(node.id, nodes[i + 1].id)}
+                          accent={accent}
+                          openId={openConnector}
+                          onToggle={(id) => setOpenConnector(prev => prev === id ? null : id)}
+                          onUpdateEdge={handleUpdateEdge}
+                        />
+                      )}
+                    </div>
+                  ))}
 
-                {/* Add node button */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-                  <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.1)' }} />
-                </div>
-                <div
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginTop: 4, cursor: 'pointer' }}
-                  onClick={() => { haptic('light'); setCreating(true) }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: '50%', border: '1.5px dashed rgba(255,255,255,0.15)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 20, fontWeight: 300, color: 'rgba(255,255,255,0.2)', transition: 'all 0.15s',
-                  }}>+</div>
-                  <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)' }}>
-                    Add Node
-                  </span>
-                </div>
-              </div>
-
-              {/* ── Deliverables section ── */}
-              <div style={{ margin: '24px 24px 0', paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)' }}>
-                    Deliverables
-                  </span>
-                  <span
-                    style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: accent, cursor: 'pointer', opacity: 0.7 }}
-                    onClick={() => { haptic('light'); setCreatingDel(true) }}>
-                    + Add
-                  </span>
-                </div>
-
-                {deliverables.length === 0 ? (
+                  {/* Add node button */}
                   <div
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      padding: '14px 12px', borderRadius: 12,
-                      border: '1.5px dashed rgba(255,255,255,0.08)', cursor: 'pointer',
-                    }}
-                    onClick={() => { haptic('light'); setCreatingDel(true) }}>
-                    <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.18)' }}>
-                      + Add first deliverable
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginTop: 14, cursor: 'pointer' }}
+                    onClick={() => { haptic('light'); setCreating(true) }}>
+                    <div style={{
+                      width: 40, height: 40, borderRadius: '50%', border: '1.5px dashed rgba(255,255,255,0.15)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 20, fontWeight: 300, color: 'rgba(255,255,255,0.2)', transition: 'all 0.15s',
+                    }}>+</div>
+                    <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)' }}>
+                      Add Node
                     </span>
                   </div>
-                ) : (
-                  deliverables.map((d: any) => (
-                    <DeliverableRow key={d.id} del={d} onTap={(del) => { haptic('light'); setSelectedDel(del) }} threadEntry={threadByDeliverableId.get(d.id)} />
-                  ))
-                )}
-              </div>
-            </>
+                </div>
+
+                {/* ── Deliverables section ── */}
+                <div style={{ margin: '24px 24px 0', paddingTop: 20, borderTop: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <span className="sheen-title" style={{ fontSize: '0.84rem', fontWeight: 700, letterSpacing: '-0.01em' }}>
+                      Deliverables
+                    </span>
+                    <span
+                      style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: accent, cursor: 'pointer', opacity: 0.7 }}
+                      onClick={() => { haptic('light'); setCreatingDel(true) }}>
+                      + Add
+                    </span>
+                  </div>
+
+                  {deliverables.length === 0 ? (
+                    <div
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        padding: '14px 12px', borderRadius: 12,
+                        border: '1.5px dashed rgba(255,255,255,0.08)', cursor: 'pointer',
+                      }}
+                      onClick={() => { haptic('light'); setCreatingDel(true) }}>
+                      <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.18)' }}>
+                        + Add first deliverable
+                      </span>
+                    </div>
+                  ) : (
+                    deliverables.map((d: any) => (
+                      <DeliverableRow key={d.id} del={d} onTap={(del) => { haptic('light'); setSelectedDel(del) }} threadEntry={threadByDeliverableId.get(d.id)} />
+                    ))
+                  )}
+                </div>
+              </>
+              )
+            })()
           )
         )}
       </div>

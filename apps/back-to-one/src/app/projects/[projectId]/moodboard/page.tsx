@@ -22,7 +22,7 @@ import { StorageImage } from '@/components/ui/StorageImage'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
+import { getProjectColor, statusLabel } from '@/lib/utils/phase'
 import { MOODBOARD_GRADIENTS } from '@/lib/utils/gradients'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
@@ -31,6 +31,18 @@ import type { MoodboardRef, MoodboardTab } from '@/types'
 
 type MoodCat = MoodboardRef['cat']
 const GRADIENTS = MOODBOARD_GRADIENTS
+
+// Map ProjectStatus enum to the .ai-meta-pill modifier ('pre' / 'prod' / 'post').
+// Cinema Glass chip pattern (DESIGN_LANGUAGE.md) only ships these three.
+function statusToPhase(s: string | undefined): 'pre' | 'prod' | 'post' | '' {
+  switch (s) {
+    case 'development':
+    case 'pre_production': return 'pre'
+    case 'production': return 'prod'
+    case 'post_production': return 'post'
+    default: return ''
+  }
+}
 
 const CATEGORIES: { key: MoodCat; label: string }[] = [
   { key: 'tone',    label: 'Tone' },
@@ -72,58 +84,61 @@ function TabBar({
   }
 
   return (
-    <div className="flex items-center gap-1 px-3.5 pt-2 pb-1 overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-      {/* "All" tab */}
+    // .ai-dept-filters / .dept-pill — gallery #25 tag-filter row. Same
+    // controls as V1 (active tab + tap-to-rename + add-tab), restyled
+    // to the canonical filter-pill aesthetic used across V2 routes.
+    <div className="ai-dept-filters" style={{ WebkitOverflowScrolling: 'touch' }}>
+      {/* "All" pill */}
       <button
+        type="button"
         onClick={() => onSelect(null)}
-        className="shrink-0 font-mono text-xs tracking-wider uppercase px-3 py-1.5 rounded-md border transition-colors"
-        style={activeTabId === null
-          ? { background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)', color: '#fff' }
-          : { background: 'transparent', borderColor: 'transparent', color: '#62627a' }
-        }
-      >All</button>
+        className={`dept-pill${activeTabId === null ? ' active' : ''}`}
+      >
+        <span>All</span>
+      </button>
 
       {tabs.map(tab => (
-        <div key={tab.id} className="shrink-0 relative group">
-          {editingId === tab.id ? (
-            <input
-              ref={inputRef}
-              value={editValue}
-              onChange={e => setEditValue(e.target.value)}
-              onBlur={commitRename}
-              onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setEditingId(null) }}
-              className="font-mono text-xs tracking-wider uppercase px-3 py-1.5 rounded-md border bg-surface2 border-accent/40 text-text outline-none"
-              style={{ width: Math.max(60, editValue.length * 8 + 30) }}
-            />
-          ) : (
-            <button
-              onClick={() => {
-                if (activeTabId === tab.id) {
-                  // Double-tap active tab → rename
-                  setEditValue(tab.name)
-                  setEditingId(tab.id)
-                } else {
-                  onSelect(tab.id)
-                }
-              }}
-              onContextMenu={e => { e.preventDefault(); onDelete(tab.id) }}
-              className="font-mono text-xs tracking-wider uppercase px-3 py-1.5 rounded-md border transition-colors"
-              style={activeTabId === tab.id
-                ? { background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.15)', color: '#fff' }
-                : { background: 'transparent', borderColor: 'transparent', color: '#62627a' }
+        editingId === tab.id ? (
+          <input
+            key={tab.id}
+            ref={inputRef}
+            value={editValue}
+            onChange={e => setEditValue(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setEditingId(null) }}
+            className="dept-pill"
+            style={{ width: Math.max(60, editValue.length * 8 + 30), background: 'rgba(255,255,255,0.06)' }}
+          />
+        ) : (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => {
+              if (activeTabId === tab.id) {
+                // Double-tap active tab → rename
+                setEditValue(tab.name)
+                setEditingId(tab.id)
+              } else {
+                onSelect(tab.id)
               }
-            >{tab.name}</button>
-          )}
-        </div>
+            }}
+            onContextMenu={e => { e.preventDefault(); onDelete(tab.id) }}
+            className={`dept-pill${activeTabId === tab.id ? ' active' : ''}`}
+          >
+            <span>{tab.name}</span>
+          </button>
+        )
       ))}
 
-      {/* + button */}
+      {/* + add tab */}
       <button
+        type="button"
         onClick={onAdd}
-        className="shrink-0 w-7 h-7 flex items-center justify-center rounded-md border transition-colors active:opacity-70"
-        style={{ borderColor: 'rgba(255,255,255,0.1)', color: '#62627a' }}
+        className="dept-pill"
+        style={{ borderStyle: 'dashed' }}
+        aria-label="Add board"
       >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+        <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
           <path d="M5 1V9M1 5H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       </button>
@@ -133,8 +148,20 @@ function TabBar({
 
 // ── Ref Card ──────────────────────────────────────────────
 
+// Mosaic variant assignment — gallery #25 uses a heterogeneous 3-col
+// mosaic with `wide` and `tall` tile sizes interleaved among square
+// tiles (positions 0/7 wide, position 3 tall in the gallery). Deterministic
+// by index so the layout stays stable across reloads regardless of data.
+function tileVariant(idx: number): '' | 'wide' | 'tall' {
+  const m = idx % 11
+  if (m === 0 || m === 7) return 'wide'
+  if (m === 3) return 'tall'
+  return ''
+}
+
 function RefCard({
   item,
+  idx,
   onTap,
   onLongPress,
   isDragging,
@@ -142,6 +169,7 @@ function RefCard({
   threadEntry,
 }: {
   item: MoodboardRef
+  idx: number
   onTap: (r: MoodboardRef) => void
   onLongPress?: () => void
   isDragging?: boolean
@@ -151,6 +179,7 @@ function RefCard({
   const [imgError, setImgError] = useState(false)
   const showImage = item.imageUrl && !item.imageUrl.startsWith('blob:') && !imgError
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const variant = tileVariant(idx)
 
   const handleTouchStart = () => {
     longPressTimer.current = setTimeout(() => {
@@ -162,39 +191,46 @@ function RefCard({
     if (longPressTimer.current) clearTimeout(longPressTimer.current)
   }
 
+  // Image fallback: gradient under the tile via --tile-bg (consumed by
+  // .oa-tone-tile background var). When the ref has an uploaded image, it
+  // sits above the gradient via inset-positioned StorageImage.
+  const tileBg = item.gradient || GRADIENTS[0]
+  const tileStyle = {
+    ['--tile-bg' as string]: tileBg,
+    ...(isDragging ? { opacity: 0.6, transform: 'scale(1.04)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' } : {}),
+  } as React.CSSProperties
+
   return (
-    // Outer wrapper keeps the card's overflow-hidden (image + corners) while
-    // giving the -6/-6 ThreadRowBadge an overflow-visible positioning context.
-    <div style={{ position: 'relative' }}>
-    <div
-      className="rounded-lg border border-border overflow-hidden cursor-pointer active:opacity-80 transition-all"
-      style={isDragging ? { opacity: 0.6, transform: 'scale(1.04)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' } : {}}
-      onClick={() => !isDragging && onTap(item)}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchEnd}
-      onMouseDown={handleTouchStart}
-      onMouseUp={handleTouchEnd}
-      onMouseLeave={handleTouchEnd}
-      {...dragHandleProps}
-    >
-      {showImage ? (
-        <StorageImage
-          url={item.imageUrl!}
-          alt={item.title}
-          className="h-28 w-full object-cover"
-          onError={() => setImgError(true)}
-          placeholder={<div className="h-28 w-full" style={{ background: item.gradient || GRADIENTS[0] }} />}
-        />
-      ) : (
-        <div className="h-28 w-full" style={{ background: item.gradient || GRADIENTS[0] }} />
-      )}
-      <div className="px-3 py-2.5 bg-surface">
-        <div className="text-sm font-medium text-text truncate">{item.title}</div>
-        {item.note && <div className="font-mono text-xs text-muted truncate mt-0.5">{item.note}</div>}
+    // Outer wrapper gives the -6/-6 ThreadRowBadge an overflow-visible
+    // positioning context while the tile clips its image.
+    <div style={{ position: 'relative' }} className={variant === 'wide' ? 'col-span-2' : variant === 'tall' ? 'row-span-2' : ''}>
+      <div
+        className={`oa-tone-tile${variant ? ` ${variant}` : ''}`}
+        style={tileStyle}
+        onClick={() => !isDragging && onTap(item)}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        onMouseDown={handleTouchStart}
+        onMouseUp={handleTouchEnd}
+        onMouseLeave={handleTouchEnd}
+        {...dragHandleProps}
+      >
+        {showImage && (
+          <StorageImage
+            url={item.imageUrl!}
+            alt={item.title}
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={() => setImgError(true)}
+          />
+        )}
+        {/* Caption overlay — gallery wants the title (and optional note) on
+            the image as a corner tag, not as a row below. */}
+        <span className="oa-tone-tile-tag">
+          {item.title}{item.note ? ` · ${item.note}` : ''}
+        </span>
       </div>
-    </div>
-    <ThreadRowBadge entry={threadEntry} />
+      <ThreadRowBadge entry={threadEntry} />
     </div>
   )
 }
@@ -520,7 +556,10 @@ function ReorderableGrid({
   const [touchDragIdx, setTouchDragIdx] = useState<number | null>(null)
 
   return (
-    <div className="grid grid-cols-2 gap-2 px-3.5">
+    // 3-col mosaic — tile sizes (wide/tall/normal) come from RefCard's
+    // tileVariant(idx). grid-auto-flow: dense (in .oa-tone-mosaic) packs
+    // around the larger tiles. Px-side padding mirrors the V1 grid gutters.
+    <div className="oa-tone-mosaic" style={{ padding: '0 14px' }}>
       {ordered.map((ref, idx) => (
         <div
           key={ref.id}
@@ -528,9 +567,18 @@ function ReorderableGrid({
           onDragStart={() => handleDragStart(idx)}
           onDragOver={(e) => handleDragOver(e, idx)}
           onDragEnd={handleDrop}
+          style={{
+            // Span class can't be applied to the drag wrapper because the
+            // .oa-tone-tile inside owns its own grid-row/column span via
+            // `.wide` / `.tall`. Mirror the wrapper here so the drag
+            // hit-target matches the tile's footprint.
+            ...(tileVariant(idx) === 'wide' ? { gridColumn: 'span 2' } : {}),
+            ...(tileVariant(idx) === 'tall' ? { gridRow: 'span 2' } : {}),
+          }}
         >
           <RefCard
             item={ref}
+            idx={idx}
             onTap={onTap}
             isDragging={dragIdx === idx}
             onLongPress={() => {
@@ -614,15 +662,28 @@ export default function MoodboardPage({ params }: { params: { projectId: string 
     reorder.mutate(updates)
   }
 
+  // Cinema Glass project tokens — set once at the .screen root so every
+  // .glass-tile (--tile-rgb) and .sheen-title (--accent-rgb / glow)
+  // descendant inherits the project hue.
+  const pr = parseInt(accent.slice(1, 3), 16)
+  const pg = parseInt(accent.slice(3, 5), 16)
+  const pb = parseInt(accent.slice(5, 7), 16)
+  const projectStyle = {
+    ['--tile-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+    ['--accent-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+    ['--accent-glow-rgb' as string]: `${Math.min(255, pr + 20)}, ${Math.min(255, pg + 30)}, ${Math.min(255, pb + 16)}`,
+  } as React.CSSProperties
+
   return (
-    <div className="screen">
+    <div className="screen" style={projectStyle}>
       <PageHeader
         projectId={projectId}
         title="Moodboard"
         meta={project ? (
           <div className="flex flex-col items-center gap-1.5">
             <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
-            <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>
+            <span className={`ai-meta-pill ${statusToPhase(project.status)}`}>
+              <span className="phase-dot" />
               {statusLabel(project.status)}
             </span>
           </div>

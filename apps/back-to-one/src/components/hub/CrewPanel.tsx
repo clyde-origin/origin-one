@@ -10,7 +10,7 @@ import {
 } from '@/lib/hooks/useOriginOne'
 import { CrewAvatar } from '@/components/ui'
 import { haptic } from '@/lib/utils/haptics'
-import { DEPARTMENTS } from '@/lib/utils/phase'
+import { DEPARTMENTS, DEPT_COLORS } from '@/lib/utils/phase'
 import { formatUSD } from '@/lib/utils/currency'
 import { useViewerRole } from '@/lib/auth/useViewerRole'
 import { InviteCrewSheet } from '@/components/crew/InviteCrewSheet'
@@ -27,17 +27,19 @@ const spring = { type: 'spring' as const, stiffness: 400, damping: 40 }
 
 function TimecardsLabelButton({ accent, onClick }: { accent: string; onClick: () => void }) {
   const [hover, setHover] = useState(false)
+  // V2: button label is title-case display text. Mono-uppercase is reserved
+  // for field labels only; "Timecards" reads as a real word, not "TIMECARDS".
   return (
     <button
       type="button"
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className="font-mono uppercase active:opacity-60"
+      className="font-mono active:opacity-60"
       style={{
-        fontSize: 11,
-        letterSpacing: '0.08em',
-        color: hover ? accent : '#a0a0b8',
+        fontSize: 12,
+        letterSpacing: 0,
+        color: hover ? accent : 'var(--fg-mono)',
         background: 'transparent',
         border: 'none',
         padding: '6px 8px',
@@ -52,7 +54,7 @@ function TimecardsLabelButton({ accent, onClick }: { accent: string; onClick: ()
 
 function TimecardsIconButton({ accent, onClick }: { accent: string; onClick: () => void }) {
   const [hover, setHover] = useState(false)
-  const color = hover ? accent : '#a0a0b8'
+  const color = hover ? accent : 'var(--fg-mono)'
   return (
     <button
       type="button"
@@ -170,7 +172,10 @@ function CrewDetail({ member, accent, projectId, onBack, onRemoved, onTimecards 
       <div className="flex flex-col items-center px-5 pb-5 flex-shrink-0">
         <CrewAvatar name={member.User.name} size={56} avatarUrl={member.User.avatarUrl} />
         <div className="mt-3 text-center">
-          <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#dddde8' }}>{member.User.name}</div>
+          {/* Profile name — cream display text, NOT accent sheen. The sheen
+              treatment is reserved for actual section / module / dept headers;
+              person names are display content. (Crew V2 fix.) */}
+          <div style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '0.01em', color: 'var(--fg)' }}>{member.User.name}</div>
           <div className="text-text2 mt-0.5" style={{ fontSize: '0.82rem' }}>{member.User.email}</div>
         </div>
       </div>
@@ -178,7 +183,7 @@ function CrewDetail({ member, accent, projectId, onBack, onRemoved, onTimecards 
       {/* Role field */}
       <div className="flex-1 overflow-y-auto px-5" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 14 }}>
-          <div className="font-mono uppercase" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.08em', marginBottom: 6 }}>Role</div>
+          <div className="font-mono uppercase" style={{ fontSize: '0.44rem', color: 'var(--fg-mono)', letterSpacing: '0.08em', marginBottom: 6 }}>Role</div>
           <input
             type="text"
             value={role}
@@ -187,7 +192,7 @@ function CrewDetail({ member, accent, projectId, onBack, onRemoved, onTimecards 
             autoComplete="off"
             spellCheck={false}
             className="w-full outline-none focus:border-white/20"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', color: '#dddde8', fontSize: '0.82rem' }}
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 7, padding: '10px 12px', color: 'var(--fg)', fontSize: '0.82rem' }}
           />
         </div>
       </div>
@@ -201,13 +206,13 @@ function CrewDetail({ member, accent, projectId, onBack, onRemoved, onTimecards 
           </button>
         ) : (
           <div className="py-3">
-            <p className="text-center mb-3" style={{ fontSize: '0.78rem', color: '#dddde8' }}>
+            <p className="text-center mb-3" style={{ fontSize: '0.78rem', color: 'var(--fg)' }}>
               Remove {member.User.name} from this project?
             </p>
             <div className="flex gap-3">
               <button onClick={() => setShowConfirm(false)}
                 className="flex-1 py-3 rounded-lg font-semibold active:opacity-80"
-                style={{ fontSize: '0.78rem', background: 'rgba(255,255,255,0.06)', color: '#a0a0b8' }}>
+                style={{ fontSize: '0.78rem', background: 'rgba(255,255,255,0.06)', color: 'var(--fg-mono)' }}>
                 Cancel
               </button>
               <button onClick={() => { haptic('warning'); remove.mutate(member.id); onRemoved() }}
@@ -225,23 +230,41 @@ function CrewDetail({ member, accent, projectId, onBack, onRemoved, onTimecards 
 
 // ── CREW CELL (avatar + name + role, horizontal grid) ───
 
-function CrewCell({ member, onTap }: { member: TeamMember; onTap: () => void }) {
+function CrewCell({ member, onTap, deptRgb }: { member: TeamMember; onTap: () => void; deptRgb?: [number, number, number] }) {
+  // V2: when a dept rgb is supplied (caller knows the dept context — e.g. the
+  // groupByDepartment block above), wrap the avatar in a dept-tinted ring so
+  // Camera-dept members read as indigo instead of the name-hash color
+  // CrewAvatar derives on its own.
+  const avatar = deptRgb ? (
+    <div style={{
+      width: 44, height: 44, borderRadius: '50%',
+      background: `rgba(${deptRgb[0]},${deptRgb[1]},${deptRgb[2]},0.18)`,
+      border: `1px solid rgba(${deptRgb[0]},${deptRgb[1]},${deptRgb[2]},0.45)`,
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden', flexShrink: 0,
+    }}>
+      <CrewAvatar name={member.User.name} size={42} avatarUrl={member.User.avatarUrl} />
+    </div>
+  ) : (
+    <CrewAvatar name={member.User.name} size={42} avatarUrl={member.User.avatarUrl} />
+  )
   return (
     <div
       className="flex flex-col items-center cursor-pointer active:opacity-70"
       style={{ width: 68, gap: 4 }}
       onClick={onTap}
     >
-      <CrewAvatar name={member.User.name} size={42} avatarUrl={member.User.avatarUrl} />
+      {avatar}
       <div className="text-center w-full" style={{
-        fontSize: '0.62rem', fontWeight: 500, color: '#dddde8', lineHeight: 1.25,
+        fontSize: '0.62rem', fontWeight: 500, color: 'var(--fg)', lineHeight: 1.25,
         display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
         overflow: 'hidden', wordBreak: 'break-word' as const,
       }}>
         {member.User.name}
       </div>
-      <div className="text-center w-full" style={{
-        fontSize: '0.48rem', color: '#62627a', lineHeight: 1.2, marginTop: -1,
+      <div className="text-center w-full capitalize" style={{
+        fontSize: '0.48rem', color: 'var(--fg-mono)', lineHeight: 1.2, marginTop: -1,
       }}>
         {member.role}
       </div>
@@ -255,7 +278,7 @@ function CrewCell({ member, onTap }: { member: TeamMember; onTap: () => void }) 
 const STATUS_DOT: Record<string, string> = {
   approved:  '#00b894',
   submitted: '#6470f3',
-  draft:     '#62627a',
+  draft:     'var(--fg-mono)',
   reopened:  '#e8a020',
 }
 // Reopened cells get a tinted background for at-a-glance queue spotting.
@@ -323,20 +346,20 @@ function WeekNavBar({
           borderRadius: 8,
           fontFamily: "'Geist Mono', monospace",
           fontSize: 11,
-          color: '#a0a0b8',
+          color: 'var(--fg-mono)',
           letterSpacing: '0.04em',
         }}
       >
         <button
           onClick={() => { haptic('light'); onPrevWeek() }}
           aria-label="Previous week"
-          style={{ background: 'transparent', border: 'none', color: '#62627a', cursor: 'pointer', padding: '0 2px' }}
+          style={{ background: 'transparent', border: 'none', color: 'var(--fg-mono)', cursor: 'pointer', padding: '0 2px' }}
         >‹</button>
         <span>{formatWeekLabel(weekStart, weekEnd)}</span>
         <button
           onClick={() => { haptic('light'); onNextWeek() }}
           aria-label="Next week"
-          style={{ background: 'transparent', border: 'none', color: '#62627a', cursor: 'pointer', padding: '0 2px' }}
+          style={{ background: 'transparent', border: 'none', color: 'var(--fg-mono)', cursor: 'pointer', padding: '0 2px' }}
         >›</button>
       </div>
       <div style={{ width: 44 }} /> {/* spacer, balances the back button */}
@@ -349,21 +372,23 @@ function StatusPill({ status }: { status: string }) {
   const palette: Record<string, { bg: string; color: string; label: string; prefix?: string }> = {
     approved:  { bg: 'rgba(0,184,148,0.14)',   color: '#00b894', label: 'Approved' },
     submitted: { bg: 'rgba(100,112,243,0.14)', color: '#6470f3', label: 'Submitted' },
-    draft:     { bg: 'rgba(98,98,122,0.18)',   color: '#a0a0b8', label: 'Draft' },
+    draft:     { bg: 'rgba(98,98,122,0.18)',   color: 'var(--fg-mono)', label: 'Draft' },
     reopened:  { bg: 'rgba(232,160,32,0.16)',  color: '#e8a020', label: 'Reopened', prefix: '⟲ ' },
   }
   const p = palette[status] ?? palette.draft
+  // V2: pill content reads in title case ("Approved" / "Submitted" / "Draft" /
+  // "Reopened"). Mono-uppercase is reserved for field labels only.
   return (
     <span
-      className="font-mono uppercase"
+      className="font-mono"
       style={{
         display: 'inline-flex',
         alignItems: 'center',
         gap: 4,
         padding: '2px 8px',
         borderRadius: 999,
-        fontSize: 9,
-        letterSpacing: '0.08em',
+        fontSize: 10,
+        letterSpacing: 0,
         background: p.bg,
         color: p.color,
       }}
@@ -476,10 +501,10 @@ function ProducerOverview({
         onNextWeek={() => setWeekStart(addDaysUTC(weekStart, 7))}
       />
 
-      {/* Title block */}
-      <div className="px-5 pb-4 flex-shrink-0">
-        <div style={{ fontSize: 22, fontWeight: 600, color: '#fff', marginBottom: 4 }}>Timecards</div>
-        <div className="font-mono uppercase" style={{ fontSize: 11, color: '#a0a0b8', letterSpacing: '0.06em' }}>
+      {/* Title block — sheen "Timecards" per DESIGN_LANGUAGE.md page-title rule. */}
+      <div className="px-5 pb-4 flex-shrink-0 flex flex-col items-center">
+        <div className="sheen-title" style={{ fontSize: '1.05rem', fontWeight: 700, letterSpacing: '0.02em', marginBottom: 4 }}>Timecards</div>
+        <div className="font-mono uppercase" style={{ fontSize: 11, color: 'var(--fg-mono)', letterSpacing: '0.06em' }}>
           {eligibleCount} crew
         </div>
         {/* Weekly dollar total + coverage note. Hidden entirely when the week
@@ -488,12 +513,12 @@ function ProducerOverview({
           <>
             <div
               className="font-mono"
-              style={{ fontSize: 12, color: '#dddde8', marginTop: 6 }}
+              style={{ fontSize: 12, color: 'var(--fg)', marginTop: 6 }}
             >
               {formatUSD(weekTotals.dollarTotal)} this week
             </div>
             <div
-              style={{ fontSize: 10, color: '#62627a', marginTop: 2 }}
+              style={{ fontSize: 10, color: 'var(--fg-mono)', marginTop: 2 }}
             >
               {weekTotals.entriesWithRate} of {weekTotals.totalEntries} entries have rates
             </div>
@@ -505,18 +530,12 @@ function ProducerOverview({
       <div className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch', padding: '0 16px 24px' }}>
         {grouped.map(({ department, members }) => (
           <div key={department ?? '__none'} style={{ marginBottom: 18 }}>
-            <div
-              className="font-mono uppercase"
-              style={{
-                fontSize: 10,
-                letterSpacing: '0.12em',
-                color: accent,
-                padding: '8px 4px 6px',
-                borderBottom: '1px solid rgba(255,255,255,0.08)',
-                marginBottom: 4,
-              }}
-            >
-              {department ?? 'Untagged'}
+            {/* Sheen department divider — per the Hub PR convention every
+                centered section/dept header uses the .sheen-title treatment. */}
+            <div className="flex flex-col items-center" style={{ padding: '8px 4px 8px', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: 4 }}>
+              <span className="sheen-title" style={{ fontSize: '0.74rem', fontWeight: 700, letterSpacing: '-0.01em' }}>
+                {department ?? 'Untagged'}
+              </span>
             </div>
             {/* column header */}
             <div
@@ -527,7 +546,7 @@ function ProducerOverview({
                 padding: '6px 4px 4px',
                 fontFamily: "'Geist Mono', monospace",
                 fontSize: 9,
-                color: '#62627a',
+                color: 'var(--fg-mono)',
                 letterSpacing: '0.1em',
               }}
             >
@@ -560,7 +579,7 @@ function ProducerOverview({
                 >
                   <div className="flex items-center gap-2" style={{ fontSize: 13, fontWeight: 500 }}>
                     <CrewAvatar name={m.User.name} size={22} avatarUrl={m.User.avatarUrl} />
-                    <span style={{ color: '#dddde8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {m.User.name}
                     </span>
                   </div>
@@ -574,13 +593,13 @@ function ProducerOverview({
                             textAlign: 'center',
                             fontFamily: "'Geist Mono', monospace",
                             fontSize: 10,
-                            color: '#62627a',
+                            color: 'var(--fg-mono)',
                             padding: '3px 0',
                           }}
                         >—</div>
                       )
                     }
-                    const dotColor = STATUS_DOT[cell.status] ?? '#62627a'
+                    const dotColor = STATUS_DOT[cell.status] ?? 'var(--fg-mono)'
                     const isReopened = cell.status === 'reopened'
                     return (
                       <div
@@ -769,8 +788,13 @@ function IndividualWeekView({
             marginBottom: 14,
           }}
         >{avatarInitials}</div>
-        <div style={{ fontSize: 22, fontWeight: 600, color: '#fff', marginBottom: 4 }}>{member.User.name}</div>
-        <div className="font-mono uppercase" style={{ fontSize: 11, color: '#a0a0b8', letterSpacing: '0.06em' }}>
+        {/* Profile name — cream display text, NOT accent sheen. The sheen
+            treatment is reserved for actual section / module / dept headers;
+            person names are display content. (Crew V2 fix.) */}
+        <div style={{ fontSize: '1.05rem', fontWeight: 700, letterSpacing: '0.01em', color: 'var(--fg)', marginBottom: 4 }}>{member.User.name}</div>
+        {/* Department + project — title-case display text. Mono uppercase is
+            reserved for field labels. */}
+        <div className="font-mono" style={{ fontSize: 11, color: 'var(--fg-mono)', letterSpacing: 0 }}>
           {department} · {projectName}
         </div>
       </div>
@@ -780,7 +804,7 @@ function IndividualWeekView({
         className="flex items-center justify-between px-5 pb-2 flex-shrink-0"
         style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 16, paddingBottom: 10 }}
       >
-        <div className="font-mono uppercase" style={{ fontSize: 10, letterSpacing: '0.12em', color: '#62627a' }}>
+        <div className="font-mono uppercase" style={{ fontSize: 10, letterSpacing: '0.12em', color: 'var(--fg-mono)' }}>
           Week · {formatHours(totalHours)} h total
         </div>
         {reopenedCount > 0 && (
@@ -811,10 +835,10 @@ function IndividualWeekView({
             >
               <div
                 className="font-mono uppercase"
-                style={{ minWidth: 68, fontSize: 10, letterSpacing: '0.08em', color: '#62627a', paddingTop: 3 }}
+                style={{ minWidth: 68, fontSize: 10, letterSpacing: '0.08em', color: 'var(--fg-mono)', paddingTop: 3 }}
               >
                 <div>{label.weekday}</div>
-                <div style={{ color: '#a0a0b8', marginTop: 2 }}>{label.date}</div>
+                <div style={{ color: 'var(--fg-mono)', marginTop: 2 }}>{label.date}</div>
               </div>
               <div style={{ flex: 1 }}>
                 {isAddingThis ? (
@@ -885,7 +909,7 @@ function IndividualWeekView({
                   />
                 ) : (
                   /* Empty day */
-                  <div style={{ fontSize: 13, color: '#62627a', paddingTop: 3 }}>
+                  <div style={{ fontSize: 13, color: 'var(--fg-mono)', paddingTop: 3 }}>
                     {isSelfView ? (
                       <button
                         onClick={() => { haptic('light'); setAddingForDayIdx(dayIdx) }}
@@ -1027,7 +1051,7 @@ function EntryEditor({
                 padding: '4px 10px', borderRadius: 6,
                 background: active ? `${accent}20` : 'rgba(255,255,255,0.04)',
                 border: `1px solid ${active ? `${accent}60` : 'rgba(255,255,255,0.08)'}`,
-                color: active ? accent : '#62627a',
+                color: active ? accent : 'var(--fg-mono)',
                 cursor: 'pointer',
               }}
             >{u}</button>
@@ -1042,7 +1066,7 @@ function EntryEditor({
           style={{
             fontSize: 9,
             letterSpacing: '0.1em',
-            color: '#62627a',
+            color: 'var(--fg-mono)',
             marginBottom: 4,
           }}
         >Rate (per {rateUnit})</label>
@@ -1056,7 +1080,7 @@ function EntryEditor({
               top: '50%',
               transform: 'translateY(-50%)',
               fontSize: 14,
-              color: '#62627a',
+              color: 'var(--fg-mono)',
               pointerEvents: 'none',
             }}
           >$</span>
@@ -1104,7 +1128,7 @@ function EntryEditor({
           border: '1px solid rgba(255,255,255,0.06)',
           borderRadius: 6,
           padding: '8px 10px',
-          color: '#dddde8',
+          color: 'var(--fg)',
           fontSize: 12,
           lineHeight: 1.55,
           outline: 'none',
@@ -1120,7 +1144,7 @@ function EntryEditor({
             fontSize: 10, letterSpacing: '0.08em',
             padding: '6px 12px', borderRadius: 6,
             background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
-            color: '#a0a0b8', cursor: 'pointer',
+            color: 'var(--fg-mono)', cursor: 'pointer',
           }}
         >Cancel</button>
         <button
@@ -1132,7 +1156,7 @@ function EntryEditor({
             padding: '6px 12px', borderRadius: 6,
             background: canSave ? `${accent}20` : 'rgba(255,255,255,0.04)',
             border: `1px solid ${canSave ? `${accent}60` : 'rgba(255,255,255,0.06)'}`,
-            color: canSave ? accent : '#62627a',
+            color: canSave ? accent : 'var(--fg-mono)',
             cursor: canSave ? 'pointer' : 'not-allowed',
           }}
         >Save</button>
@@ -1211,7 +1235,7 @@ function EntryCard({
           className="font-mono"
           style={{
             fontSize: 11,
-            color: '#a0a0b8',
+            color: 'var(--fg-mono)',
             marginBottom: 8,
           }}
         >
@@ -1220,7 +1244,7 @@ function EntryCard({
       )}
 
       {/* Description */}
-      <div style={{ fontSize: 12, color: '#a0a0b8', lineHeight: 1.5, marginBottom: showLockedHint || showAwaiting ? 0 : 8 }}>
+      <div style={{ fontSize: 12, color: 'var(--fg-mono)', lineHeight: 1.5, marginBottom: showLockedHint || showAwaiting ? 0 : 8 }}>
         {entry.description}
       </div>
 
@@ -1245,7 +1269,7 @@ function EntryCard({
           {entry.reopenReason}
           <span
             className="block"
-            style={{ marginTop: 6, fontSize: 10, color: '#62627a', fontStyle: 'italic' }}
+            style={{ marginTop: 6, fontSize: 10, color: 'var(--fg-mono)', fontStyle: 'italic' }}
           >— {reopenerName}</span>
         </div>
       )}
@@ -1254,13 +1278,13 @@ function EntryCard({
       {showLockedHint && (
         <div
           className="font-mono uppercase"
-          style={{ fontSize: 9, letterSpacing: '0.1em', color: '#62627a', marginTop: 8 }}
+          style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--fg-mono)', marginTop: 8 }}
         >Locked</div>
       )}
       {showAwaiting && (
         <div
           className="font-mono uppercase"
-          style={{ fontSize: 9, letterSpacing: '0.1em', color: '#62627a', marginTop: 8 }}
+          style={{ fontSize: 9, letterSpacing: '0.1em', color: 'var(--fg-mono)', marginTop: 8 }}
         >Awaiting submission</div>
       )}
 
@@ -1286,7 +1310,7 @@ function EntryCard({
                 fontSize: 10, letterSpacing: '0.08em',
                 padding: '6px 12px', borderRadius: 6,
                 background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
-                color: '#a0a0b8', cursor: pending ? 'not-allowed' : 'pointer',
+                color: 'var(--fg-mono)', cursor: pending ? 'not-allowed' : 'pointer',
               }}
             >Edit</button>
           )}
@@ -1377,7 +1401,7 @@ function ReopenReasonInput({
           border: '1px solid rgba(255,255,255,0.06)',
           borderRadius: 6,
           padding: '8px 10px',
-          color: '#dddde8',
+          color: 'var(--fg)',
           fontSize: 12,
           lineHeight: 1.5,
           outline: 'none',
@@ -1393,7 +1417,7 @@ function ReopenReasonInput({
             fontSize: 10, letterSpacing: '0.08em',
             padding: '6px 12px', borderRadius: 6,
             background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
-            color: '#a0a0b8', cursor: 'pointer',
+            color: 'var(--fg-mono)', cursor: 'pointer',
           }}
         >Cancel</button>
         <button
@@ -1405,7 +1429,7 @@ function ReopenReasonInput({
             padding: '6px 12px', borderRadius: 6,
             background: canConfirm ? 'rgba(232,160,32,0.16)' : 'rgba(255,255,255,0.04)',
             border: `1px solid ${canConfirm ? 'rgba(232,160,32,0.5)' : 'rgba(255,255,255,0.06)'}`,
-            color: canConfirm ? '#e8a020' : '#62627a',
+            color: canConfirm ? '#e8a020' : 'var(--fg-mono)',
             cursor: canConfirm ? 'pointer' : 'not-allowed',
           }}
         >Confirm reopen</button>
@@ -1530,12 +1554,12 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                 <span style={{
                   flex: 1,
                   fontSize: 11,
-                  color: '#62627a',
+                  color: 'var(--fg-mono)',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
                 }}>
-                  Viewing as <span style={{ color: '#a0a0b8' }}>{currentViewerMember.User.name}</span> — typed name not found, showing fallback.
+                  Viewing as <span style={{ color: 'var(--fg-mono)' }}>{currentViewerMember.User.name}</span> — typed name not found, showing fallback.
                 </span>
                 <button
                   type="button"
@@ -1547,7 +1571,7 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                     border: 'none',
                     cursor: 'pointer',
                     padding: 4,
-                    color: '#62627a',
+                    color: 'var(--fg-mono)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -1570,11 +1594,11 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
               transition={{ duration: 0.2 }}
               style={{ display: layer === 'list' ? 'flex' : 'none' }}
             >
-              {/* Header */}
+              {/* Header — sheen "Crew" title per DESIGN_LANGUAGE.md. */}
               <div className="flex items-center px-5 pt-3 pb-3 flex-shrink-0">
                 <div className="flex-1">
-                  <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#dddde8' }}>Crew</div>
-                  <div className="font-mono" style={{ fontSize: '0.48rem', color: '#62627a', marginTop: 2 }}>{allCrew.length} members</div>
+                  <div className="sheen-title" style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '0.01em' }}>Crew</div>
+                  <div className="font-mono" style={{ fontSize: '0.48rem', color: 'var(--fg-mono)', marginTop: 2 }}>{allCrew.length} members</div>
                 </div>
                 <TimecardsLabelButton
                   accent={accent}
@@ -1583,9 +1607,9 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                 {viewerRole === 'producer' && (
                   <button
                     onClick={() => { haptic('light'); setInviteOpen(true) }}
-                    className="font-mono uppercase"
+                    className="font-mono"
                     style={{
-                      fontSize: '0.5rem', letterSpacing: '0.08em',
+                      fontSize: '0.62rem', letterSpacing: 0,
                       padding: '6px 10px', marginRight: 4, borderRadius: 8,
                       background: `${accent}1a`, border: `1px solid ${accent}40`,
                       color: accent, cursor: 'pointer',
@@ -1601,26 +1625,38 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
 
               {/* Crew grid — grouped by department */}
               <div className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch', padding: '0 16px 20px' }}>
-                {groupByDepartment(allCrew).map(({ department, members }) => (
+                {groupByDepartment(allCrew).map(({ department, members }) => {
+                  // V2: dept-tinted avatar — Camera dept members read as
+                  // indigo, G&E as gold, etc. Resolves the dept hex via
+                  // DEPT_COLORS (BRAND_TOKENS.md). null department → no tint
+                  // (pass-through to default CrewAvatar coloring).
+                  const deptHex = department ? DEPT_COLORS[department] : null
+                  const deptRgb: [number, number, number] | undefined = deptHex
+                    ? [
+                        parseInt(deptHex.slice(1, 3), 16),
+                        parseInt(deptHex.slice(3, 5), 16),
+                        parseInt(deptHex.slice(5, 7), 16),
+                      ]
+                    : undefined
+                  return (
                   <div key={department ?? '__none'} style={{ marginTop: 16 }}>
-                    {/* Section header */}
-                    <div style={{ marginBottom: 10 }}>
-                      <div className="uppercase" style={{
-                        fontSize: 13, fontWeight: 600, color: accent,
-                        letterSpacing: '0.08em', paddingBottom: 6,
-                      }}>
+                    {/* Sheen section divider — per the Hub PR convention every
+                        centered section/dept header uses the .sheen-title treatment. */}
+                    <div className="flex flex-col items-center" style={{ marginBottom: 10 }}>
+                      <span className="sheen-title" style={{ fontSize: '0.84rem', fontWeight: 700, letterSpacing: '-0.01em' }}>
                         {department ?? 'Crew (untagged)'}
-                      </div>
-                      <div style={{ height: 1, background: `${accent}20` }} />
+                      </span>
+                      <div style={{ height: 1, width: '100%', background: `${accent}20`, marginTop: 6 }} />
                     </div>
                     {/* Avatar row — wrapping flex */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
                       {members.map(m => (
-                        <CrewCell key={m.id} member={m} onTap={() => { haptic('light'); setSelectedMember(m); setLayer('detail') }} />
+                        <CrewCell key={m.id} member={m} deptRgb={deptRgb} onTap={() => { haptic('light'); setSelectedMember(m); setLayer('detail') }} />
                       ))}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </motion.div>
 
@@ -1644,12 +1680,12 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                   <div style={{ padding: '0 20px 16px' }}>
                     <button
                       onClick={() => { haptic('light'); setAddRoleOpen(true) }}
-                      className="font-mono uppercase"
+                      className="font-mono"
                       style={{
                         width: '100%', padding: '10px',
                         background: `${accent}1a`, border: `1px solid ${accent}40`,
-                        borderRadius: 8, color: accent, fontSize: '0.7rem',
-                        letterSpacing: '0.08em', cursor: 'pointer',
+                        borderRadius: 8, color: accent, fontSize: '0.82rem',
+                        letterSpacing: 0, cursor: 'pointer',
                       }}
                     >
                       + Add role

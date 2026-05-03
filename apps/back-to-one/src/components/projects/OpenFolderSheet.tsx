@@ -143,6 +143,8 @@ export function OpenFolderSheet({
     setTransformOriginPx(`${x}px ${y}px`)
   }, [open, originPoint])
 
+  const isArchiveVariant = folder?.id === ARCHIVE_FOLDER_ID
+
   return (
     <AnimatePresence>
       {open && folder && (
@@ -153,19 +155,9 @@ export function OpenFolderSheet({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.06 }}
           transition={{ duration: 0.32, ease: [0.32, 0.72, 0, 1] }}
+          className={`folder-open-sheet${isArchiveVariant ? ' archive-tone' : ''}`}
           style={{
-            position: 'fixed',
-            top: 156,
-            bottom: 'calc(68px + 52px + 64px + env(safe-area-inset-bottom, 0px))',
             transformOrigin: transformOriginPx,
-            left: 14, right: 14,
-            zIndex: 12,
-            background: 'rgba(10,10,18,0.78)',
-            backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)',
-            border: `1px solid ${hexToRgba(accent, 0.3)}`,
-            borderRadius: 20, overflow: 'hidden',
-            display: 'flex', flexDirection: 'column',
-            boxShadow: '0 -1px 0 rgba(255,255,255,0.05), 0 32px 80px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
           }}
         >
           {/* Accent line */}
@@ -194,7 +186,7 @@ export function OpenFolderSheet({
                 {emptyMessage ?? 'No projects yet — drop one in from the home grid'}
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '14px 12px' }}>
                 {folderList.map(f => (
                   <FolderTile
                     key={f.id}
@@ -205,7 +197,7 @@ export function OpenFolderSheet({
                 ))}
                 {editMode && folder?.id !== ARCHIVE_FOLDER_ID && (
                   <div style={{
-                    gridColumn: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    gridColumn: 'span 3', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                     padding: '8px 14px', background: 'rgba(196,90,220,0.08)', border: '1px solid rgba(196,90,220,0.18)',
                     borderRadius: 20, marginBottom: 2,
                   }}>
@@ -261,7 +253,7 @@ export function OpenFolderSheet({
                       <div
                         data-move-out-target={MOVE_OUT_TARGET_ID}
                         style={{
-                          gridColumn: 'span 2',
+                          gridColumn: 'span 3',
                           display: 'flex',
                           justifyContent: 'center',
                           padding: '6px 2px 2px',

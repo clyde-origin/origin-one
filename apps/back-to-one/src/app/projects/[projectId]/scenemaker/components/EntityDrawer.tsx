@@ -18,6 +18,25 @@ export const ENTITY_COLORS = {
   props:      { base: '#FCD34D', bg: 'rgba(252,211,77,0.10)',   border: 'rgba(252,211,77,0.22)',  bgLight: 'rgba(252,211,77,0.08)' },
 } as const
 
+// Scene-tinted palette mirrors Casting V2 (#141): one of 8 hues hashed per
+// entity.id so chips read as their own scene rather than a flat type color.
+const SCENE_PALETTE: ReadonlyArray<[number, number, number]> = [
+  [240, 128, 48],
+  [232, 80, 122],
+  [245, 165, 50],
+  [155, 110, 243],
+  [80, 216, 152],
+  [100, 112, 243],
+  [240, 112, 80],
+  [168, 212, 40],
+]
+
+function sceneRgbFor(id: string): [number, number, number] {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash)
+  return SCENE_PALETTE[Math.abs(hash) % SCENE_PALETTE.length]
+}
+
 export type EntityType = 'characters' | 'locations' | 'props'
 
 export interface EntityItem {
@@ -124,13 +143,12 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
             onClick={onClose}
           />
 
-          {/* Drawer */}
+          {/* Drawer — Cinema Glass: 20px top radius + glass-tile background +
+              accent-tinted top hairline. */}
           <motion.div
             key="entity-drawer"
-            className="fixed bottom-0 left-0 right-0"
+            className="fixed bottom-0 left-0 right-0 sm-entity-sheet"
             style={{
-              background: '#111', borderTop: '1px solid rgba(255,255,255,0.07)',
-              borderRadius: '24px 24px 0 0',
               paddingBottom: 'calc(34px + env(safe-area-inset-bottom, 0px))',
               zIndex: 41,
             }}
@@ -146,12 +164,12 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
             }}
           >
             {/* Handle */}
-            <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.13)', borderRadius: 2, margin: '12px auto 14px' }} />
+            <div className="sm-entity-handle" />
 
-            {/* Header */}
-            <div className="flex items-center justify-between" style={{ padding: '0 20px 13px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-              <span style={{ fontSize: 16, fontWeight: 600, color: '#fff' }}>{label}</span>
-              <span className="font-mono" style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.06em' }}>{countLabel}</span>
+            {/* Header — mono-caps section label + accent-tinted count pill. */}
+            <div className="sm-entity-header">
+              <span className="sm-entity-header-label">{label}</span>
+              <span className="sm-entity-count">{countLabel}</span>
             </div>
 
             {/* Circle row or empty state */}
@@ -159,12 +177,8 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
               <div className="flex flex-col items-center" style={{ padding: '24px 20px 8px', gap: 10 }}>
                 <div className="flex flex-col items-center" style={{ gap: 7, cursor: 'pointer' }}
                   onClick={() => { haptic('light'); setCreating(true) }}>
-                  <div className="flex items-center justify-center" style={{
-                    width: 56, height: 56, borderRadius: '50%',
-                    border: `1.5px dashed ${colors.border}`, color: colors.base,
-                    fontSize: 24, fontWeight: 300,
-                  }}>+</div>
-                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.18)' }}>Add</span>
+                  <div className="sm-entity-add">+</div>
+                  <span className="sm-entity-chip-label">Add</span>
                 </div>
                 <p className="font-mono" style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.06em', textAlign: 'center' }}>
                   No {label.toLowerCase()} added yet.
@@ -172,50 +186,42 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
               </div>
             ) : (
               <div className="no-scrollbar" style={{ display: 'flex', alignItems: 'flex-start', gap: 14, padding: '16px 20px 4px', overflowX: 'auto' }}>
-                {items.map(item => (
-                  <div key={item.id} className="flex flex-col items-center flex-shrink-0 cursor-pointer" style={{ gap: 7 }}
-                    onClick={() => { haptic('light'); setEditingEntity(item) }}>
-                    {/* Relative wrapper on the circle only — keeps the -6/-6 badge
-                        anchored to the avatar edge, not under the label below. */}
-                    <div style={{ position: 'relative' }}>
-                      {item.imageUrl ? (
-                        <StorageImage url={item.imageUrl} alt={item.name} style={{
-                          width: 56, height: 56, borderRadius: '50%', objectFit: 'cover',
-                          border: `1.5px solid ${colors.border}`,
-                        }} placeholder={
-                          <div className="flex items-center justify-center" style={{
-                            width: 56, height: 56, borderRadius: '50%',
-                            background: colors.bg, border: `1.5px solid ${colors.border}`,
-                            color: colors.base, fontSize: 18, fontWeight: 700,
-                          }}>
+                {items.map(item => {
+                  const [r, g, b] = sceneRgbFor(item.id)
+                  const chipStyle = { ['--chip-rgb' as string]: `${r}, ${g}, ${b}` } as React.CSSProperties
+                  return (
+                    <div key={item.id} className="flex flex-col items-center flex-shrink-0 cursor-pointer" style={{ gap: 7 }}
+                      onClick={() => { haptic('light'); setEditingEntity(item) }}>
+                      {/* Relative wrapper on the circle only — keeps the -6/-6 badge
+                          anchored to the avatar edge, not under the label below. */}
+                      <div style={{ position: 'relative' }}>
+                        {item.imageUrl ? (
+                          <StorageImage url={item.imageUrl} alt={item.name}
+                            className="sm-entity-chip-img"
+                            style={chipStyle}
+                            placeholder={
+                              <div className="sm-entity-chip" style={chipStyle}>
+                                {getInitials(item.name)}
+                              </div>
+                            } />
+                        ) : (
+                          <div className="sm-entity-chip" style={chipStyle}>
                             {getInitials(item.name)}
                           </div>
-                        } />
-                      ) : (
-                        <div className="flex items-center justify-center" style={{
-                          width: 56, height: 56, borderRadius: '50%',
-                          background: colors.bg, border: `1.5px solid ${colors.border}`,
-                          color: colors.base, fontSize: 18, fontWeight: 700,
-                        }}>
-                          {getInitials(item.name)}
-                        </div>
-                      )}
-                      <ThreadRowBadge entry={threadByTileId.get(item.id)} />
+                        )}
+                        <ThreadRowBadge entry={threadByTileId.get(item.id)} />
+                      </div>
+                      <span className="sm-entity-chip-label">
+                        {item.name.split(/\s+/)[0]}
+                      </span>
                     </div>
-                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', maxWidth: 64, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {item.name.split(/\s+/)[0]}
-                    </span>
-                  </div>
-                ))}
+                  )
+                })}
                 {/* + circle */}
                 <div className="flex flex-col items-center flex-shrink-0 cursor-pointer" style={{ gap: 7 }}
                   onClick={() => { haptic('light'); setCreating(true) }}>
-                  <div className="flex items-center justify-center" style={{
-                    width: 56, height: 56, borderRadius: '50%',
-                    border: `1.5px dashed ${colors.border}`, color: colors.base,
-                    fontSize: 24, fontWeight: 300,
-                  }}>+</div>
-                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.18)' }}>Add</span>
+                  <div className="sm-entity-add">+</div>
+                  <span className="sm-entity-chip-label">Add</span>
                 </div>
               </div>
             )}

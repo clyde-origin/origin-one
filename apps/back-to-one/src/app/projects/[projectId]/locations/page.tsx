@@ -4,11 +4,10 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useProject, useLocations, useCreateLocation, useUpdateLocation, useDeleteLocation } from '@/lib/hooks/useOriginOne'
-import { PageHeader } from '@/components/ui/PageHeader'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
+import { getProjectColor, statusLabel } from '@/lib/utils/phase'
 import { EmptyCTA } from '@/components/ui/EmptyState'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
@@ -29,86 +28,92 @@ import type { Location, LocationStatus } from '@/types'
 // ── Constants ────────────────────────────────────────────
 
 const STATUSES: { value: LocationStatus; label: string; color: string }[] = [
-  { value: 'unscouted', label: 'Unscouted', color: '#62627a' },
+  { value: 'unscouted', label: 'Unscouted', color: '#aaaab4' },
   { value: 'scouting',  label: 'Scouting',  color: '#e8a020' },
-  { value: 'in_talks',  label: 'In Talks',  color: '#9b6de0' },
+  { value: 'in_talks',  label: 'In Talks',  color: '#6470f3' },
   { value: 'confirmed', label: 'Confirmed', color: '#00b894' },
-  { value: 'passed',    label: 'Passed',    color: '#8a4a4a' },
+  { value: 'passed',    label: 'Passed',    color: '#e84848' },
 ]
 
 function statusColor(s: string) {
-  return STATUSES.find(x => x.value === s)?.color ?? '#62627a'
+  return STATUSES.find(x => x.value === s)?.color ?? '#aaaab4'
 }
 function statusDisplay(s: string) {
   return STATUSES.find(x => x.value === s)?.label ?? s
 }
 
+// Maps ProjectStatus enum (development | pre_production | production | post_production | archived)
+// onto the cinema-glass .ai-meta-pill phase classes (.pre / .prod / .post).
+function phaseClass(status: string | undefined): 'pre' | 'prod' | 'post' | '' {
+  if (status === 'pre_production' || status === 'development') return 'pre'
+  if (status === 'production') return 'prod'
+  if (status === 'post_production') return 'post'
+  return ''
+}
+
+function hexToRgb(hex: string | null | undefined): [number, number, number] {
+  const h = hex || '#444444'
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
+}
+
 // ── Location Card ────────────────────────────────────────
 
-function LocationCard({ loc, projectId, accent, onTap, threadEntry }: { loc: Location; projectId: string; accent: string; onTap: (l: Location) => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
-  const sc = statusColor(loc.status)
-  return (
-    // Wrapper preserves the card's overflow:hidden (image clipping) while
-    // providing an overflow-visible positioning context for the ThreadRowBadge
-    // so it can float over the card's bottom-right edge at -6/-6.
-    <div style={{ position: 'relative' }}>
-    <div
-      className="flex cursor-pointer active:opacity-90 transition-opacity"
-      style={{
-        background: 'rgba(10,10,18,0.42)',
-        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255,255,255,0.07)',
-        borderRadius: 12,
-        overflow: 'hidden',
-      }}
-      onClick={() => onTap(loc)}
-    >
-      {/* Hero — most-recent attachment (with +N badge if multiple), or placeholder */}
-      <div style={{ width: 96, height: 96, flexShrink: 0 }}>
-        <EntityAttachmentCover
-          projectId={projectId}
-          attachedToType="location"
-          attachedToId={loc.id}
-          size={96}
-          alt={loc.name}
-        />
-      </div>
+// Per-location hero gradient palette. Gallery (#27 Locations) tints each
+// loc-image-hero with a locale-specific dark gradient (Ravine Edge ochre,
+// Lohm's Apartment indigo, City Plaza ember, Studio C teal). Live data has
+// no scene-color metadata, so we hash the location id deterministically into
+// this palette — same location always reads the same hue.
+const LOC_HERO_GRADIENTS: string[] = [
+  'linear-gradient(165deg, #2a1a0d 0%, #4a2a1a 35%, #1a0a05 100%)',  // ochre / earth
+  'linear-gradient(165deg, #0d0a1f 0%, #1a1228 60%, #0a0815 100%)',  // indigo / dusk
+  'linear-gradient(165deg, #1a0d05 0%, #3a2510 50%, #0a0500 100%)',  // ember
+  'linear-gradient(165deg, #0d1a1a 0%, #1a2828 50%, #0a1212 100%)',  // teal / studio
+  'linear-gradient(165deg, #1f0d1a 0%, #2c1428 60%, #100716 100%)',  // plum
+  'linear-gradient(165deg, #1a1505 0%, #2c220c 50%, #100a02 100%)',  // mustard
+]
+function locGradientFor(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash)
+  return LOC_HERO_GRADIENTS[Math.abs(hash) % LOC_HERO_GRADIENTS.length]
+}
 
-      {/* Info */}
-      <div style={{ flex: 1, padding: '10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minWidth: 0 }}>
-        <div>
-          <div className="flex items-start justify-between gap-2">
-            <span className="truncate" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#dddde8' }}>{loc.name}</span>
-            <span className="font-mono uppercase flex-shrink-0" style={{
-              fontSize: '0.36rem', letterSpacing: '0.06em',
-              padding: '2px 7px', borderRadius: 10,
-              background: `${sc}18`, color: sc,
-            }}>{statusDisplay(loc.status)}</span>
-          </div>
-          {loc.address && (
-            <div className="truncate" style={{ fontSize: '0.56rem', color: '#a0a0b8', marginTop: 2 }}>{loc.address}</div>
-          )}
+function LocationCard({ loc, projectId, onTap, threadEntry }: { loc: Location; projectId: string; onTap: (l: Location) => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
+  return (
+    // Wrapper gives the -6/-6 ThreadRowBadge an overflow-visible positioning
+    // context while the card itself clips its image hero.
+    <div style={{ position: 'relative' }}>
+      <div
+        className="loc-card"
+        onClick={() => onTap(loc)}
+        style={{ ['--loc-bg' as string]: locGradientFor(loc.id) } as React.CSSProperties}
+      >
+        {/* Title at top — sheen+extrusion treatment via .loc-title */}
+        <div className="loc-title">{loc.name}</div>
+
+        {/* 16:9 hero image with letterbox bars (cinema frame) */}
+        <div className="loc-image-hero">
+          <div className="letterbox-top" />
+          <EntityAttachmentCover
+            projectId={projectId}
+            attachedToType="location"
+            attachedToId={loc.id}
+            size="100%"
+            alt={loc.name}
+          />
+          <div className="letterbox-bottom" />
         </div>
-        <div className="flex items-center justify-between" style={{ marginTop: 6 }}>
-          {loc.shootDates ? (
-            <span className="font-mono" style={{ fontSize: '0.44rem', color: '#62627a', letterSpacing: '0.04em' }}>{loc.shootDates}</span>
-          ) : <span />}
-          <button
-            onClick={(e) => { e.stopPropagation() }}
-            style={{
-              fontSize: '0.38rem', fontFamily: 'var(--font-geist-mono)',
-              letterSpacing: '0.06em', textTransform: 'uppercase',
-              padding: '3px 8px', borderRadius: 10,
-              background: loc.approved ? '#00b89418' : '#e8a02018',
-              border: `1px solid ${loc.approved ? '#00b89440' : '#e8a02040'}`,
-              color: loc.approved ? '#00b894' : '#e8a020',
-              cursor: 'pointer',
-            }}
-          >{loc.approved ? 'Approved' : 'Option'}</button>
+
+        {/* Meta — address + dates row + approval pill + status pill */}
+        <div className="loc-meta">
+          {loc.address && <span className="loc-address">{loc.address}</span>}
+          <div className="loc-dates-row">
+            {loc.shootDates && <span className="loc-dates">{loc.shootDates}</span>}
+            {loc.approved && <span className="loc-approval approved">Approved</span>}
+            <span className={`loc-status-pill ${loc.status}`}>{statusDisplay(loc.status)}</span>
+          </div>
         </div>
       </div>
-    </div>
-    <ThreadRowBadge entry={threadEntry} />
+      <ThreadRowBadge entry={threadEntry} />
     </div>
   )
 }
@@ -161,12 +166,12 @@ function CreateLocationSheet({ open, projectId, accent, onSave, onClose }: {
     background: 'rgba(255,255,255,0.04)',
     border: '1px solid rgba(255,255,255,0.05)',
     borderRadius: 7, padding: '10px 12px',
-    color: '#dddde8', fontSize: '0.82rem',
+    color: 'var(--fg)', fontSize: '0.82rem',
     width: '100%', outline: 'none',
   }
 
   const labelStyle = {
-    fontSize: '0.44rem', color: '#62627a',
+    fontSize: '0.44rem', color: 'var(--fg-mono)',
     letterSpacing: '0.08em', marginBottom: 6,
     textTransform: 'uppercase' as const,
     fontFamily: 'var(--font-geist-mono)',
@@ -179,7 +184,7 @@ function CreateLocationSheet({ open, projectId, accent, onSave, onClose }: {
         <>
           <motion.div key="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={handleClose}
-            style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)' }}
+            style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
           />
           <motion.div key="sheet"
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
@@ -187,20 +192,21 @@ function CreateLocationSheet({ open, projectId, accent, onSave, onClose }: {
             drag="y" dragConstraints={{ top: 0 }} dragElastic={0.1} onDragEnd={handleDragEnd}
             style={{
               position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 51,
-              background: '#0e0e1a', borderRadius: '20px 20px 0 0',
+              background: '#0e0e1a', borderRadius: '24px 24px 0 0',
               maxHeight: 'calc(100dvh - 100px)', overflowY: 'auto',
               paddingBottom: 'env(safe-area-inset-bottom, 24px)',
+              boxShadow: '0 -8px 32px rgba(0,0,0,0.55)',
             }}
           >
-            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)', margin: '12px auto 0' }} />
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.12)', margin: '12px auto 0' }} />
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <span style={{ fontWeight: 800, fontSize: '1rem', color: '#dddde8' }}>New Location</span>
+              <span className="sheen-title" style={{ fontWeight: 700, fontSize: '1rem', letterSpacing: '0.01em' }}>New Location</span>
               <button onClick={handleSave} style={{
                 fontFamily: 'var(--font-geist-mono)', fontSize: '0.48rem', letterSpacing: '0.06em', textTransform: 'uppercase',
                 padding: '5px 10px', borderRadius: 20, cursor: canSave ? 'pointer' : 'default',
                 background: canSave ? `${accent}1a` : 'rgba(255,255,255,0.04)',
                 border: `1px solid ${canSave ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
-                color: canSave ? accent : '#62627a',
+                color: canSave ? accent : 'var(--fg-mono)',
               }}>Save</button>
             </div>
             <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -240,8 +246,8 @@ function CreateLocationSheet({ open, projectId, accent, onSave, onClose }: {
                     fontFamily: 'var(--font-geist-mono)', fontSize: '0.44rem', letterSpacing: '0.06em', textTransform: 'uppercase',
                     padding: '4px 10px', borderRadius: 20, cursor: 'pointer',
                     background: approved ? '#00b8941a' : 'rgba(255,255,255,0.04)',
-                    border: `1px solid ${approved ? '#00b89440' : 'rgba(255,255,255,0.05)'}`,
-                    color: approved ? '#00b894' : '#62627a',
+                    border: `1px solid ${approved ? '#00b89438' : 'rgba(255,255,255,0.05)'}`,
+                    color: approved ? '#00b894' : 'var(--fg-mono)',
                   }}>{approved ? '✓ Approved' : 'Approved'}</button>
                 </div>
                 <div className="flex gap-2">
@@ -250,8 +256,8 @@ function CreateLocationSheet({ open, projectId, accent, onSave, onClose }: {
                       flex: 1, fontFamily: 'var(--font-geist-mono)', fontSize: '0.40rem', letterSpacing: '0.06em', textTransform: 'uppercase',
                       padding: '7px 4px', borderRadius: 8, cursor: 'pointer',
                       background: status === s.value ? `${s.color}1a` : 'rgba(255,255,255,0.04)',
-                      border: `1px solid ${status === s.value ? `${s.color}40` : 'rgba(255,255,255,0.05)'}`,
-                      color: status === s.value ? s.color : '#62627a',
+                      border: `1px solid ${status === s.value ? `${s.color}38` : 'rgba(255,255,255,0.05)'}`,
+                      color: status === s.value ? s.color : 'var(--fg-mono)',
                     }}>{s.label}</button>
                   ))}
                 </div>
@@ -298,12 +304,12 @@ function LocationDetailSheet({ loc, accent, projectId, onUpdate, onDelete, onClo
     background: 'rgba(255,255,255,0.04)',
     border: '1px solid rgba(255,255,255,0.05)',
     borderRadius: 7, padding: '10px 12px',
-    color: '#dddde8', fontSize: '0.78rem',
+    color: 'var(--fg)', fontSize: '0.78rem',
     width: '100%', outline: 'none',
   }
 
   const labelStyle = {
-    fontSize: '0.44rem', color: '#62627a',
+    fontSize: '0.44rem', color: 'var(--fg-mono)',
     letterSpacing: '0.08em', marginBottom: 6,
     textTransform: 'uppercase' as const,
     fontFamily: 'var(--font-geist-mono)',
@@ -331,11 +337,19 @@ function LocationDetailSheet({ loc, accent, projectId, onUpdate, onDelete, onClo
         variant="sheet"
       />
 
-      {/* Name */}
-      <input type="text" value={name} onChange={e => setName(e.target.value)}
-        onBlur={() => { if (name !== loc.name) save({ name }) }}
-        style={{ ...inputStyle, fontSize: '1.1rem', fontWeight: 700, background: 'transparent', border: 'none', padding: '0 0 8px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
-      />
+      {/* Sheen detail name + status eyebrow — DESIGN_LANGUAGE.md detail-name */}
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginTop: 6, paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <input type="text" value={name} onChange={e => setName(e.target.value)}
+          onBlur={() => { if (name !== loc.name) save({ name }) }}
+          className="sheen-title"
+          style={{ flex: 1, fontSize: '1.05rem', fontWeight: 700, letterSpacing: '0.02em', background: 'transparent', border: 'none', padding: 0, outline: 'none' }}
+        />
+        <span className="font-mono uppercase flex-shrink-0" style={{
+          fontSize: '0.40rem', letterSpacing: '0.08em',
+          padding: '3px 8px', borderRadius: 10,
+          background: `${sc}1a`, border: `1px solid ${sc}38`, color: sc,
+        }}>{statusDisplay(status)}</span>
+      </div>
 
       {/* Status pills */}
       <div style={{ marginTop: 14, marginBottom: 14 }}>
@@ -346,8 +360,8 @@ function LocationDetailSheet({ loc, accent, projectId, onUpdate, onDelete, onClo
               flex: 1, fontFamily: 'var(--font-geist-mono)', fontSize: '0.40rem', letterSpacing: '0.06em', textTransform: 'uppercase',
               padding: '7px 4px', borderRadius: 8, cursor: 'pointer',
               background: status === s.value ? `${s.color}1a` : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${status === s.value ? `${s.color}40` : 'rgba(255,255,255,0.05)'}`,
-              color: status === s.value ? s.color : '#62627a',
+              border: `1px solid ${status === s.value ? `${s.color}38` : 'rgba(255,255,255,0.05)'}`,
+              color: status === s.value ? s.color : 'var(--fg-mono)',
             }}>{s.label}</button>
           ))}
         </div>
@@ -361,15 +375,15 @@ function LocationDetailSheet({ loc, accent, projectId, onUpdate, onDelete, onClo
             flex: 1, fontFamily: 'var(--font-geist-mono)', fontSize: '0.44rem', letterSpacing: '0.06em', textTransform: 'uppercase',
             padding: '8px 4px', borderRadius: 8, cursor: 'pointer',
             background: !approved ? '#e8a0201a' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${!approved ? '#e8a02040' : 'rgba(255,255,255,0.05)'}`,
-            color: !approved ? '#e8a020' : '#62627a',
+            border: `1px solid ${!approved ? '#e8a02038' : 'rgba(255,255,255,0.05)'}`,
+            color: !approved ? '#e8a020' : 'var(--fg-mono)',
           }}>Option</button>
           <button onClick={() => { setApproved(true); save({ approved: true }) }} style={{
             flex: 1, fontFamily: 'var(--font-geist-mono)', fontSize: '0.44rem', letterSpacing: '0.06em', textTransform: 'uppercase',
             padding: '8px 4px', borderRadius: 8, cursor: 'pointer',
             background: approved ? '#00b8941a' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${approved ? '#00b89440' : 'rgba(255,255,255,0.05)'}`,
-            color: approved ? '#00b894' : '#62627a',
+            border: `1px solid ${approved ? '#00b89438' : 'rgba(255,255,255,0.05)'}`,
+            color: approved ? '#00b894' : 'var(--fg-mono)',
           }}>Approved</button>
         </div>
       </div>
@@ -422,8 +436,8 @@ function LocationDetailSheet({ loc, accent, projectId, onUpdate, onDelete, onClo
       {/* Delete */}
       <button onClick={() => { haptic('warning'); onDelete(); onClose() }} style={{
         marginTop: 20, width: '100%', padding: '10px', borderRadius: 8,
-        background: 'rgba(232,86,74,0.08)', border: '1px solid rgba(232,86,74,0.2)',
-        color: '#e8564a', fontFamily: 'var(--font-geist-mono)', fontSize: '0.44rem',
+        background: 'rgba(232,72,72,0.10)', border: '1px solid rgba(232,72,72,0.22)',
+        color: '#e84848', fontFamily: 'var(--font-geist-mono)', fontSize: '0.44rem',
         letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer',
       }}>Delete Location</button>
 
@@ -519,19 +533,57 @@ export default function LocationsPage({ params }: { params: { projectId: string 
     setShowAddTab(false)
   }
 
+  // Cinema Glass: project accent triplet drives the sheen-title gradient and
+  // glass-tile tint. +20/+30/+16 lights the spec's accent-glow apex without a
+  // separate token export.
+  const [pr, pg, pb] = hexToRgb(accent)
+  const glowR = Math.min(255, pr + 20)
+  const glowG = Math.min(255, pg + 30)
+  const glowB = Math.min(255, pb + 16)
+
+  const phase = phaseClass(project?.status)
+
   return (
-    <div className="screen">
-      <PageHeader projectId={projectId} title="Locations"
-        meta={project ? (
-          <div className="flex flex-col items-center gap-1.5">
-            <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
-            <span className="font-mono uppercase" style={{
-              fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12,
-              background: `${statusHex(project.status)}18`, color: statusHex(project.status),
-            }}>{statusLabel(project.status)}</span>
-          </div>
-        ) : ''}
-      />
+    <div
+      className="screen"
+      style={{
+        ['--tile-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
+      } as React.CSSProperties}
+    >
+      {/* Cinema Glass page header — sheen Locations title + project meta + phase pill.
+          Inlines the .ai-header pattern (DESIGN_LANGUAGE.md page header) so the title
+          can carry the .sheen-title treatment. PageHeader is a shared component reskin
+          deferred to its own PR. */}
+      <div
+        className="hub-topbar relative flex flex-col items-center justify-end px-5 flex-shrink-0 sticky top-0 z-20"
+        style={{
+          minHeight: 100,
+          paddingTop: 'calc(var(--safe-top) + 10px)',
+          paddingBottom: 12,
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          overflow: 'hidden',
+        }}
+      >
+        <div className="flex flex-col items-center text-center" style={{ maxWidth: '70%', position: 'relative' }}>
+          <h1 className="sheen-title leading-none truncate" style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
+            Locations
+          </h1>
+          {project && (
+            <div className="flex flex-col items-center gap-1.5" style={{ marginTop: 4 }}>
+              <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
+              {phase && (
+                <span className={`ai-meta-pill ${phase}`}>
+                  <span className="phase-dot" />
+                  {statusLabel(project.status)}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Count row + Scripted Locations dropdown — creative-side bridge into
           the shared Entity sheet (same sheet as Scenemaker EntityDrawer).
@@ -540,7 +592,7 @@ export default function LocationsPage({ params }: { params: { projectId: string 
           Mirrors the Characters dropdown on the Casting page. */}
       {(allLocations.length > 0 || scriptLocations.length > 0) && (
         <div style={{ padding: '6px 20px 2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
-          <span className="font-mono" style={{ fontSize: '0.52rem', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          <span className="font-mono" style={{ fontSize: '0.52rem', color: 'var(--fg-mono)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
             {allLocations.length} booked · {scriptLocations.length} scripted
           </span>
           <button
@@ -548,8 +600,8 @@ export default function LocationsPage({ params }: { params: { projectId: string 
             className="font-mono uppercase"
             style={{
               fontSize: '0.52rem', letterSpacing: '0.12em', color: accent,
-              background: `${accent}14`,
-              border: `1px solid ${accent}`,
+              background: `${accent}1a`,
+              border: `1px solid ${accent}55`,
               borderRadius: 999,
               padding: '4px 10px',
               cursor: 'pointer',
@@ -570,14 +622,15 @@ export default function LocationsPage({ params }: { params: { projectId: string 
                 style={{
                   position: 'absolute', top: '100%', right: 20, zIndex: 31,
                   marginTop: 4, minWidth: 200, maxHeight: 320, overflowY: 'auto',
-                  background: '#141420',
-                  border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10,
+                  background: 'rgba(14,14,26,0.96)',
+                  backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+                  border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12,
                   padding: '6px 0',
                   boxShadow: '0 18px 40px rgba(0,0,0,0.55)',
                 }}
               >
                 {scriptLocations.length === 0 ? (
-                  <div className="font-mono" style={{ padding: '8px 14px', fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
+                  <div className="font-mono" style={{ padding: '8px 14px', fontSize: 10, color: 'var(--fg-mono)' }}>
                     No scripted locations yet
                   </div>
                 ) : scriptLocations.map(s => (
@@ -592,7 +645,7 @@ export default function LocationsPage({ params }: { params: { projectId: string 
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                       padding: '8px 14px', background: 'transparent', border: 'none',
-                      cursor: 'pointer', textAlign: 'left', color: '#dddde8',
+                      cursor: 'pointer', textAlign: 'left', color: 'var(--fg)',
                       fontSize: 13, fontFamily: "'Geist', sans-serif",
                     }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)' }}
@@ -633,9 +686,9 @@ export default function LocationsPage({ params }: { params: { projectId: string 
             letterSpacing: '0.06em', textTransform: 'uppercase',
             padding: '5px 12px', borderRadius: 20, cursor: 'pointer',
             whiteSpace: 'nowrap', flexShrink: 0,
-            background: activeTab === tab ? `${accent}1a` : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${activeTab === tab ? `${accent}40` : 'rgba(255,255,255,0.05)'}`,
-            color: activeTab === tab ? accent : '#62627a',
+            background: activeTab === tab ? `${accent}1f` : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${activeTab === tab ? `${accent}55` : 'rgba(255,255,255,0.05)'}`,
+            color: activeTab === tab ? accent : 'var(--fg-mono)',
           }}>{tab}{tab !== 'All' ? ` (${allLocations.filter(l => l.sceneTab === tab).length})` : ''}</button>
         ))}
         {/* Add Scene tab */}
@@ -649,7 +702,7 @@ export default function LocationsPage({ params }: { params: { projectId: string 
                 fontFamily: 'var(--font-geist-mono)', fontSize: '0.44rem',
                 width: 80, padding: '5px 8px', borderRadius: 8,
                 background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
-                color: '#dddde8', outline: 'none',
+                color: 'var(--fg)', outline: 'none',
               }}
             />
             <button onClick={handleAddTab} style={{
@@ -665,7 +718,7 @@ export default function LocationsPage({ params }: { params: { projectId: string 
             whiteSpace: 'nowrap', flexShrink: 0,
             background: 'rgba(255,255,255,0.02)',
             border: '1px dashed rgba(255,255,255,0.1)',
-            color: '#62627a',
+            color: 'var(--fg-mono)',
           }}>+ Scene</button>
         )}
       </div>
@@ -673,13 +726,14 @@ export default function LocationsPage({ params }: { params: { projectId: string 
       {/* Content */}
       <div className="flex-1 overflow-y-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch', padding: '12px 16px 120px' }}>
         {isLoading ? (
-          <div className="flex flex-col gap-3">
-            {[0, 1, 2].map(i => (
-              <div key={i} className="flex" style={{ background: 'rgba(10,10,18,0.42)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ width: 96, height: 96, background: 'rgba(255,255,255,0.03)' }} />
-                <div style={{ flex: 1, padding: '12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ width: 120, height: 12, borderRadius: 4, background: 'rgba(255,255,255,0.06)' }} />
-                  <div style={{ width: 180, height: 10, borderRadius: 4, background: 'rgba(255,255,255,0.04)' }} />
+          <div className="loc-grid">
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} className="loc-card" style={{ padding: 0 }}>
+                <div className="sk-block" style={{ width: '60%', height: 11, margin: '10px auto 8px', borderRadius: 4 }} />
+                <div className="sk-block" style={{ width: '100%', aspectRatio: '16 / 9', borderRadius: 0 }} />
+                <div style={{ padding: '8px 8px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                  <div className="sk-block" style={{ width: '70%', height: 7 }} />
+                  <div className="sk-block" style={{ width: '50%', height: 8 }} />
                 </div>
               </div>
             ))}
@@ -693,9 +747,9 @@ export default function LocationsPage({ params }: { params: { projectId: string 
             onAdd={() => { haptic('light'); setShowCreate(true) }}
           />
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="loc-grid">
             {filtered.map(loc => (
-              <LocationCard key={loc.id} loc={loc} projectId={projectId} accent={accent} onTap={setSelected} threadEntry={threadByLocationId.get(loc.id)} />
+              <LocationCard key={loc.id} loc={loc} projectId={projectId} onTap={setSelected} threadEntry={threadByLocationId.get(loc.id)} />
             ))}
           </div>
         )}
@@ -721,7 +775,7 @@ export default function LocationsPage({ params }: { params: { projectId: string 
           <>
             <motion.div key="detail-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setSelected(null)}
-              style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)' }}
+              style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
             />
             <motion.div key="detail-sheet"
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
@@ -730,12 +784,13 @@ export default function LocationsPage({ params }: { params: { projectId: string 
               onDragEnd={(_, info) => { if (info.offset.y > 100) setSelected(null) }}
               style={{
                 position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 51,
-                background: '#0e0e1a', borderRadius: '20px 20px 0 0',
+                background: '#0e0e1a', borderRadius: '24px 24px 0 0',
                 maxHeight: 'calc(100dvh - 60px)', overflowY: 'auto',
                 paddingBottom: 'env(safe-area-inset-bottom, 24px)',
+                boxShadow: '0 -8px 32px rgba(0,0,0,0.55)',
               }}
             >
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)', margin: '12px auto 16px' }} />
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.12)', margin: '12px auto 16px' }} />
               <LocationDetailSheet
                 loc={selected}
                 accent={accent}

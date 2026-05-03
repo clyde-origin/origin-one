@@ -12,13 +12,11 @@ import {
   useAssignTalent,
   useDeleteCastRole,
 } from '@/lib/hooks/useOriginOne'
-import { LoadingState } from '@/components/ui'
-import { PageHeader } from '@/components/ui/PageHeader'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { StorageImage } from '@/components/ui/StorageImage'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
-import { getProjectColor, statusHex, statusLabel } from '@/lib/utils/phase'
+import { getProjectColor, statusLabel } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
@@ -63,81 +61,183 @@ interface CastRoleData {
   updatedAt: string
 }
 
-// ── Cast Row ───────────────────────────────────────────────
+// Maps ProjectStatus enum onto cinema-glass .ai-meta-pill classes.
+function phaseClass(status: string | undefined): 'pre' | 'prod' | 'post' | '' {
+  if (status === 'pre_production' || status === 'development') return 'pre'
+  if (status === 'production') return 'prod'
+  if (status === 'post_production') return 'post'
+  return ''
+}
 
-function CastRow({ role, accent, onTap, threadEntry }: { role: CastRoleData; accent: string; onTap: () => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
-  if (role.cast && role.talent) {
-    return (
-      <div
-        style={{
-          position: 'relative',
-          display: 'flex', alignItems: 'center', gap: 14,
-          padding: '11px 14px', borderRadius: 14,
-          border: `1px solid ${accent}1e`, background: `${accent}0d`,
-          marginBottom: 7, cursor: 'pointer', transition: 'background 0.15s',
-        }}
+function hexToRgb(hex: string | null | undefined): [number, number, number] {
+  const h = hex || '#444444'
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
+}
+
+// Scene-color palette per character. The gallery (#29 CASTING) tints each
+// cast-card with a `--scene-rgb` derived from the character's signature scene
+// (Eli amber, Mara rose, etc.). Live data has no scene-color metadata yet, so
+// we hash the role.id deterministically into this palette — same role always
+// gets the same color across reloads, characters within the same project read
+// as visually distinct.
+const SCENE_PALETTE: [number, number, number][] = [
+  [240, 128, 48],   // amber (Eli)
+  [232, 80, 122],   // rose (Mara)
+  [245, 165, 50],   // ochre (The Voice)
+  [155, 110, 243],  // violet (Eli's Mother)
+  [80, 216, 152],   // mint (Park Ranger)
+  [100, 112, 243],  // indigo (Hiker)
+  [240, 112, 80],   // coral (Driver)
+  [168, 212, 40],   // lime (Conv. Clerk)
+]
+const UNCAST_RGB: [number, number, number] = [122, 122, 130] // gray
+
+function sceneRgbFor(role: CastRoleData): [number, number, number] {
+  if (!role.cast) return UNCAST_RGB
+  let hash = 0
+  for (let i = 0; i < role.id.length; i++) hash = role.id.charCodeAt(i) + ((hash << 5) - hash)
+  return SCENE_PALETTE[Math.abs(hash) % SCENE_PALETTE.length]
+}
+
+// Filter-pill label derivation: maps the live `role.section` string
+// (Principal Cast / Talent / Background) into the gallery's pill labels
+// (Leads / Supporting / Day Players). Falls back to the literal section name
+// when no mapping applies. Sections without explicit mapping render under
+// their live name.
+function pillLabelFor(section: string): string {
+  if (section === 'Principal Cast' || section === 'Principal Talent') return 'Leads'
+  if (section === 'Talent') return 'Supporting'
+  if (section === 'Background') return 'Day Players'
+  return section
+}
+
+// ── Cast Card ──────────────────────────────────────────────
+
+function CastCard({ role, onTap, threadEntry }: { role: CastRoleData; onTap: () => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
+  const isCast = role.cast && !!role.talent
+  const [r, g, b] = sceneRgbFor(role)
+  const sceneRgbStr = `${r}, ${g}, ${b}`
+  // Role pill copy: Leads → "Lead", Supporting → "Supporting", Day Players →
+  // "Day Player", Uncast → "Uncast". Singularises pill copy per gallery.
+  const pillFromSection = pillLabelFor(role.section || 'Principal Cast')
+  const rolePillLabel = !isCast
+    ? 'Uncast'
+    : pillFromSection === 'Leads'
+      ? 'Lead'
+      : pillFromSection === 'Day Players'
+        ? 'Day Player'
+        : pillFromSection
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
         onClick={onTap}
+        className="cursor-pointer active:opacity-90 transition-opacity w-full"
+        style={{
+          // .cast-card per spec: subtle hairline + soft shadow, NOT the
+          // project-tinted glass-tile (cards stand apart from each other
+          // by their per-character scene-rgb).
+          position: 'relative',
+          display: 'flex', flexDirection: 'column', gap: 6,
+          padding: 8, borderRadius: 12,
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid var(--border)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 4px 14px -8px rgba(0,0,0,0.55)',
+          textAlign: 'center',
+          color: 'inherit',
+          font: 'inherit',
+          ...(isCast ? {} : { filter: 'saturate(0.6)', borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.14)' }),
+        }}
       >
+        {/* Hero color block — 4:5 portrait, scene-color gradient, letterbox
+            bars top/bottom (cinema identity). Role pill sits absolute
+            top-right INSIDE the hero per gallery. */}
         <div style={{
-          width: 52, height: 52, borderRadius: '50%',
-          background: `${accent}20`, border: `1.5px solid ${accent}45`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 16, fontWeight: 700, flexShrink: 0, color: accent,
+          position: 'relative',
+          aspectRatio: '4 / 5',
+          borderRadius: 8,
           overflow: 'hidden',
+          border: '1px solid rgba(0,0,0,0.45)',
+          background: isCast
+            ? `linear-gradient(165deg, rgba(${sceneRgbStr},0.70) 0%, rgba(${sceneRgbStr},0.32) 50%, rgba(8,8,14,0.92) 100%)`
+            : 'linear-gradient(165deg, #14141a 0%, #1c1c24 50%, #0a0a10 100%)',
         }}>
-          {role.talent.imageUrl ? (
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'rgba(0,0,0,0.6)', zIndex: 2 }} />
+          {isCast && role.talent?.imageUrl ? (
             <StorageImage
               url={role.talent.imageUrl}
               alt={role.talent.name}
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               onError={(ev) => { (ev.target as HTMLImageElement).style.display = 'none' }}
             />
+          ) : isCast ? (
+            <div style={{
+              position: 'absolute', inset: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 28, fontWeight: 700, color: `rgb(${sceneRgbStr})`,
+              fontFamily: "'Geist Mono', monospace",
+            }}>{role.talent?.initials}</div>
           ) : (
-            role.talent.initials
+            // Uncast plus marker — matches .cast-card-uncast-plus in spec.
+            <div style={{
+              position: 'absolute', inset: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                border: '1px dashed rgba(255,255,255,0.30)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'rgba(255,255,255,0.40)',
+                fontFamily: "'Geist Mono', monospace",
+                fontSize: '0.90rem', fontWeight: 300, lineHeight: 1,
+              }}>+</div>
+            </div>
           )}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#fff', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {role.talent.name}
-          </div>
-          <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {role.role}
-          </div>
-        </div>
-        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.13)', flexShrink: 0 }}>›</div>
-        <ThreadRowBadge entry={threadEntry} />
-      </div>
-    )
-  }
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, background: 'rgba(0,0,0,0.6)', zIndex: 2 }} />
 
-  // Uncast row: no Talent.id yet, so no cast thread bucket exists.
-  // Badge is inherently absent — no badge rendered.
-  return (
-    <div
-      style={{
-        position: 'relative',
-        display: 'flex', alignItems: 'center', gap: 14,
-        padding: '11px 14px', borderRadius: 14,
-        border: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)',
-        marginBottom: 7, cursor: 'pointer', transition: 'background 0.15s',
-      }}
-      onClick={onTap}
-    >
-      <div style={{
-        width: 52, height: 52, borderRadius: '50%',
-        background: 'rgba(255,255,255,0.03)', border: '1.5px dashed rgba(255,255,255,0.1)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 22, fontWeight: 300, color: 'rgba(255,255,255,0.15)', flexShrink: 0,
-      }}>+</div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.18)', fontStyle: 'italic' }}>
-          Uncast
+          {/* Role pill — absolute top-right INSIDE the hero. Tinted with
+              the character's scene rgb per gallery (LEAD amber, SUPPORTING
+              in character color, DAY PLAYER blue, UNCAST gray). */}
+          <span className="font-mono uppercase" style={{
+            position: 'absolute', top: 12, right: 12, zIndex: 4,
+            padding: '2px 6px', borderRadius: 4,
+            fontSize: '0.36rem', letterSpacing: '0.10em',
+            color: `rgb(${sceneRgbStr})`,
+            background: `rgba(${sceneRgbStr}, 0.12)`,
+            border: `1px solid rgba(${sceneRgbStr}, 0.32)`,
+          }}>{rolePillLabel}</span>
         </div>
-        <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {role.role}
-        </div>
-      </div>
-      <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.13)', flexShrink: 0 }}>›</div>
+
+        {/* Character name — large semi-bold, scene-color sheen gradient, uppercase. */}
+        <div
+          className="truncate"
+          style={{
+            fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.02em',
+            textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.05,
+            background: `linear-gradient(180deg,
+              rgba(${sceneRgbStr}, 1) 0%,
+              rgba(${sceneRgbStr}, 0.92) 55%,
+              rgba(${sceneRgbStr}, 0.72) 100%)`,
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            color: 'transparent',
+            filter: `drop-shadow(0 1px 0 rgba(0,0,0,0.45)) drop-shadow(0 0 6px rgba(${sceneRgbStr}, 0.22))`,
+            padding: '0 2px',
+          }}
+        >{role.role}</div>
+
+        {/* Actor name — mono caps in --fg-mono. */}
+        <div
+          className="font-mono uppercase truncate"
+          style={{
+            fontSize: '0.42rem', letterSpacing: '0.10em',
+            color: 'var(--fg-mono)', textAlign: 'center',
+          }}
+        >{isCast ? role.talent?.name : 'Uncast'}</div>
+      </button>
+      <ThreadRowBadge entry={threadEntry} />
     </div>
   )
 }
@@ -152,7 +252,7 @@ function Collapsible({ title, defaultOpen, children }: { title: string; defaultO
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 0 10px', cursor: 'pointer', userSelect: 'none' }}
         onClick={() => { haptic('light'); setOpen(o => !o) }}
       >
-        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}>
+        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'var(--fg-mono)' }}>
           {title}
         </span>
         <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', transition: 'transform 0.2s ease', transform: open ? 'rotate(90deg)' : 'none', lineHeight: 1 }}>
@@ -176,7 +276,7 @@ function InfoRow({
   const [v, setV] = useState(value)
   return (
     <div style={{ display: 'flex', alignItems: alignStart ? 'flex-start' : 'center', justifyContent: 'space-between', gap: 12, padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-      <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.22)', flexShrink: 0, minWidth: 72, paddingTop: alignStart ? 3 : 0 }}>
+      <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--fg-mono)', flexShrink: 0, minWidth: 72, paddingTop: alignStart ? 3 : 0 }}>
         {label}
       </span>
       <input
@@ -186,7 +286,7 @@ function InfoRow({
         onBlur={() => { if (v !== value) onSave(v) }}
         placeholder={placeholder}
         style={{
-          fontSize: 13, color: 'rgba(255,255,255,0.65)', background: 'transparent',
+          fontSize: 13, color: 'var(--fg)', background: 'transparent',
           border: 'none', outline: 'none', textAlign: 'right', flex: 1,
           fontFamily: "'Geist', sans-serif",
           borderBottom: '1px solid transparent', paddingBottom: 1,
@@ -217,7 +317,7 @@ function ShootDaysEditor({ dates, onSave }: { dates: string[]; onSave: (d: strin
 
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '8px 0 6px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-      <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.22)', flexShrink: 0, minWidth: 72, paddingTop: 3 }}>
+      <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--fg-mono)', flexShrink: 0, minWidth: 72, paddingTop: 3 }}>
         Shoot Days
       </span>
       <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
@@ -229,7 +329,7 @@ function ShootDaysEditor({ dates, onSave }: { dates: string[]; onSave: (d: strin
               fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.07em',
               textTransform: 'uppercase', padding: '4px 9px', borderRadius: 20,
               border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)',
-              color: 'rgba(255,255,255,0.45)', cursor: 'pointer',
+              color: 'var(--fg-mono)', cursor: 'pointer',
             }}>
             {d} ×
           </span>
@@ -245,7 +345,7 @@ function ShootDaysEditor({ dates, onSave }: { dates: string[]; onSave: (d: strin
               fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.07em',
               textTransform: 'uppercase', padding: '4px 9px', borderRadius: 20,
               border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)',
-              color: '#fff', outline: 'none', width: 70,
+              color: 'var(--fg)', outline: 'none', width: 70,
             }}
           />
         ) : (
@@ -254,7 +354,7 @@ function ShootDaysEditor({ dates, onSave }: { dates: string[]; onSave: (d: strin
             style={{
               fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.07em',
               textTransform: 'uppercase', padding: '4px 9px', borderRadius: 20,
-              border: '1px dashed rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.3)',
+              border: '1px dashed rgba(255,255,255,0.15)', color: 'var(--fg-mono)',
               cursor: 'pointer',
             }}>
             + Day
@@ -322,6 +422,18 @@ function CastDetailSheet({
 
   if (!role) return null
 
+  const sectionLabel = role.section || 'Principal Cast'
+  const [r, g, b] = sceneRgbFor(role)
+  const sceneRgbStr = `${r}, ${g}, ${b}`
+  const pillFromSection = pillLabelFor(sectionLabel)
+  const rolePillLabel = !role.cast
+    ? 'Uncast'
+    : pillFromSection === 'Leads'
+      ? 'Lead'
+      : pillFromSection === 'Day Players'
+        ? 'Day Player'
+        : pillFromSection
+
   return (
     <>
       <SheetHeader
@@ -335,21 +447,67 @@ function CastDetailSheet({
         }
       />
 
-      {/* Role section */}
-      <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)', marginBottom: 10 }}>
-          Role
+      {/* V2: Hero color block — full-width 4:5 portrait, scene-color
+          gradient, letterbox bars top/bottom (cinema identity). Photo, when
+          present, crops into the rounded hero. */}
+      <div style={{ padding: '8px 20px 0' }}>
+        <div style={{
+          position: 'relative',
+          aspectRatio: '4 / 5',
+          maxHeight: 280,
+          borderRadius: 16,
+          overflow: 'hidden',
+          border: '1px solid var(--border)',
+          background: role.cast
+            ? `linear-gradient(165deg, rgba(${sceneRgbStr},0.70) 0%, rgba(${sceneRgbStr},0.32) 50%, rgba(8,8,14,0.92) 100%)`
+            : 'linear-gradient(165deg, #14141a 0%, #1c1c24 50%, #0a0a10 100%)',
+        }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, background: 'rgba(0,0,0,0.85)', zIndex: 2 }} />
+          {role.cast && role.talent?.imageUrl ? (
+            <StorageImage
+              url={role.talent.imageUrl}
+              alt={role.talent.name}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={(ev) => { (ev.target as HTMLImageElement).style.display = 'none' }}
+            />
+          ) : null}
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 6, background: 'rgba(0,0,0,0.85)', zIndex: 2 }} />
         </div>
+      </div>
+
+      {/* V2: Centered detail-heading beneath hero — sheen character name in
+          project accent, mono-caps actor in --fg-mono, scene-tinted role pill. */}
+      <div className="flex flex-col items-center" style={{ padding: '12px 20px 14px', gap: 4 }}>
         <input
           defaultValue={role.role}
           placeholder="Role name"
           onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== role.role) saveEntity({ name: v }) }}
+          className="sheen-title"
           style={{
-            fontSize: 22, fontWeight: 700, color: '#fff', marginBottom: 8, lineHeight: 1.15,
+            fontSize: '1.05rem', fontWeight: 700, letterSpacing: '0.02em',
+            textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.05,
             width: '100%', background: 'transparent', border: 'none', outline: 'none',
             fontFamily: "'Geist', sans-serif",
           }}
         />
+        <span className="font-mono uppercase" style={{
+          fontSize: '0.42rem', letterSpacing: '0.10em',
+          color: 'var(--fg-mono)', textAlign: 'center',
+        }}>{role.cast && role.talent ? role.talent.name : 'Uncast'}</span>
+        <div className="flex items-center justify-center" style={{ gap: 6, marginTop: 2 }}>
+          <span className="font-mono uppercase" style={{
+            padding: '2px 8px', borderRadius: 20,
+            fontSize: '0.40rem', letterSpacing: '0.10em',
+            color: `rgb(${sceneRgbStr})`,
+            background: `rgba(${sceneRgbStr}, 0.12)`,
+            border: `1px solid rgba(${sceneRgbStr}, 0.32)`,
+          }}>{rolePillLabel}</span>
+        </div>
+      </div>
+
+      {/* Role description — sentence-case body text, no longer wrapped in a
+          framed box (the hero + heading carry the chrome). */}
+      <div style={{ padding: '0 20px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <textarea
           ref={roleDescRef}
           defaultValue={role.roleDesc}
@@ -357,13 +515,13 @@ function CastDetailSheet({
           onBlur={(e) => { const v = e.target.value; if (v !== role.roleDesc) saveEntity({ description: v || null }) }}
           rows={2}
           style={{
-            fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.65, marginBottom: 10,
+            fontSize: 13, color: 'var(--fg)', opacity: 0.7, lineHeight: 1.65,
             width: '100%', background: 'transparent', border: 'none', outline: 'none',
             fontFamily: "'Geist', sans-serif", resize: 'vertical', minHeight: 40,
           }}
         />
         {role.scenes.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
             {role.scenes.map(s => (
               <span key={s} style={{
                 fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.07em',
@@ -381,7 +539,7 @@ function CastDetailSheet({
       {/* Actor section */}
       {role.cast && role.talent ? (
         <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)', marginBottom: 10 }}>
+          <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--fg-mono)', marginBottom: 10 }}>
             Actor
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
@@ -441,7 +599,7 @@ function CastDetailSheet({
               placeholder="Actor name"
               onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== role.talent?.name) saveTalent({ name: v }) }}
               style={{
-                fontSize: 18, fontWeight: 700, color: '#fff', background: 'transparent',
+                fontSize: 18, fontWeight: 700, color: 'var(--fg)', background: 'transparent',
                 border: 'none', outline: 'none', borderBottom: '1px solid rgba(255,255,255,0.1)',
                 width: '100%', paddingBottom: 2, fontFamily: "'Geist', sans-serif",
               }}
@@ -450,15 +608,15 @@ function CastDetailSheet({
           {imageError && (
             <div style={{
               marginBottom: 10, padding: '7px 10px', borderRadius: 8,
-              background: 'rgba(232,72,72,0.06)', border: '0.5px solid rgba(232,72,72,0.25)',
-              color: 'rgba(232,72,72,0.9)', fontFamily: "'Geist Mono', monospace",
+              background: 'rgba(232,72,72,0.10)', border: '1px solid rgba(232,72,72,0.22)',
+              color: '#e84848', fontFamily: "'Geist Mono', monospace",
               fontSize: 11, letterSpacing: '0.04em',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
             }}>
               <span style={{ flex: 1 }}>{imageError}</span>
               <button type="button" onClick={() => setImageError(null)} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                color: 'rgba(232,72,72,0.7)', fontSize: 12,
+                color: '#e84848', fontSize: 12,
               }}>✕</button>
             </div>
           )}
@@ -500,7 +658,7 @@ function CastDetailSheet({
           }}>+</div>
           <span style={{
             fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.1em',
-            textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)',
+            textTransform: 'uppercase', color: 'var(--fg-mono)',
             background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
             borderRadius: 20, padding: '4px 12px',
           }}>
@@ -522,11 +680,11 @@ function CastDetailSheet({
             style={{
               marginTop: 4, padding: '8px 14px', borderRadius: 10,
               background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-              color: '#fff', outline: 'none', fontFamily: "'Geist', sans-serif",
+              color: 'var(--fg)', outline: 'none', fontFamily: "'Geist', sans-serif",
               fontSize: 13, textAlign: 'center', width: '80%',
             }}
           />
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', lineHeight: 1.6, textAlign: 'center' }}>
+          <div style={{ fontSize: 12, color: 'var(--fg-mono)', lineHeight: 1.6, textAlign: 'center' }}>
             Type a name and press enter to assign.
           </div>
         </div>
@@ -534,7 +692,7 @@ function CastDetailSheet({
 
       {/* Notes */}
       <div style={{ padding: '16px 20px 12px' }}>
-        <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)', marginBottom: 8 }}>
+        <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--fg-mono)', marginBottom: 8 }}>
           Notes
         </div>
         <textarea
@@ -554,11 +712,57 @@ function CastDetailSheet({
             width: '100%', background: 'rgba(255,255,255,0.03)',
             border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10,
             padding: '12px 14px', fontFamily: "'Geist', sans-serif",
-            fontSize: 13, color: 'rgba(255,255,255,0.75)', lineHeight: 1.65,
+            fontSize: 13, color: 'var(--fg)', lineHeight: 1.65,
             resize: 'vertical', minHeight: 80, outline: 'none',
           }}
         />
       </div>
+
+      {/* V2: 3-step status row — visual treatment only per brief.
+          Hard-coded labels (Cast Confirmed / Wardrobe Fitted / Camera Test)
+          and placeholder dates ('—'). The data flow that drives real dates
+          is out of scope for this PR; the visual lands now so the surface
+          reads as designed. Each step: post-teal dot (matches DESIGN_LANGUAGE
+          phase-post token) with glow halo + mono-caps label + mono date. */}
+      {role.cast && (
+        <div style={{ padding: '4px 20px 16px' }}>
+          <div
+            className="glass-tile-sm"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 8, padding: '10px 14px',
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            {[
+              { label: 'Cast Confirmed', date: '—' },
+              { label: 'Wardrobe Fitted', date: '—' },
+              { label: 'Camera Test', date: '—' },
+            ].map((step) => (
+              <div
+                key={step.label}
+                className="flex flex-col items-center"
+                style={{ gap: 3, flex: 1, minWidth: 0 }}
+              >
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: 'var(--phase-post)',
+                  boxShadow: '0 0 4px rgba(0,184,148,0.5)',
+                }} />
+                <span className="font-mono uppercase" style={{
+                  fontSize: '0.36rem', letterSpacing: '0.08em',
+                  color: 'var(--fg)', textAlign: 'center',
+                }}>{step.label}</span>
+                <span className="font-mono" style={{
+                  fontSize: '0.34rem', letterSpacing: '0.06em',
+                  color: 'var(--fg-mono)',
+                }}>{step.date}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {PreviewRow}
       {MessageZone}
@@ -569,8 +773,8 @@ function CastDetailSheet({
           onClick={() => { onDelete(role.id); onClose() }}
           style={{
             padding: 11, borderRadius: 10,
-            background: 'rgba(231,76,60,0.07)', border: '1px solid rgba(231,76,60,0.14)',
-            color: 'rgba(231,76,60,0.55)', fontFamily: "'Geist Mono', monospace",
+            background: 'rgba(232,72,72,0.10)', border: '1px solid rgba(232,72,72,0.22)',
+            color: '#e84848', fontFamily: "'Geist Mono', monospace",
             fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase',
             cursor: 'pointer', textAlign: 'center',
           }}>
@@ -603,8 +807,8 @@ function CreateCastSheet({ accent, onClose, onCreate }: { accent: string; onClos
     onClose()
   }
 
-  const fieldLabel = { fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.13em', textTransform: 'uppercase' as const, color: 'rgba(255,255,255,0.25)', display: 'block', marginBottom: 6 }
-  const fieldInput = { width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '11px 14px', fontFamily: "'Geist', sans-serif", fontSize: 14, color: '#fff', outline: 'none' }
+  const fieldLabel = { fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.13em', textTransform: 'uppercase' as const, color: 'var(--fg-mono)', display: 'block', marginBottom: 6 }
+  const fieldInput = { width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '11px 14px', fontFamily: "'Geist', sans-serif", fontSize: 14, color: 'var(--fg)', outline: 'none' }
 
   return (
     <>
@@ -653,6 +857,11 @@ export default function CastingPage({ params }: { params: { projectId: string } 
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  // V2: filter pill state. 'All' | 'Uncast' | live section name (e.g.
+  // 'Principal Cast' / 'Talent' / 'Background'). Pills render with
+  // gallery-style labels (Leads / Supporting / Day Players) via
+  // pillLabelFor(), but the underlying filter key matches live data.
+  const [activeFilter, setActiveFilter] = useState<string>('All')
   // Register the + handler with the global ActionBar.
   useFabAction({ onPress: () => { haptic('light'); setCreating(true) } })
   const [charMenuOpen, setCharMenuOpen] = useState(false)
@@ -700,16 +909,42 @@ export default function CastingPage({ params }: { params: { projectId: string } 
     setCharDetail(null)
   }, [qc, projectId])
 
-  // Group by section
+  // Filter pill counts (per live section + uncast bucket). Counts always
+  // reflect the unfiltered data so pills show "where you could go" totals,
+  // not what's currently visible.
+  const sectionOrder = ['Principal Cast', 'Principal Talent', 'Talent', 'Background']
+  const sectionKeys = Array.from(new Set(roles.map(r => r.section || 'Principal Cast')))
+  const orderedSectionKeys = [
+    ...sectionOrder.filter(s => sectionKeys.includes(s)),
+    ...sectionKeys.filter(s => !sectionOrder.includes(s)),
+  ]
+  const uncastCount = roles.filter(r => !r.cast).length
+  const filterPills: { key: string; label: string; count: number }[] = [
+    { key: 'All', label: 'All', count: roles.length },
+    ...orderedSectionKeys.map(s => ({
+      key: s,
+      label: pillLabelFor(s),
+      count: roles.filter(r => (r.section || 'Principal Cast') === s).length,
+    })),
+    ...(uncastCount > 0 ? [{ key: 'Uncast', label: 'Uncast', count: uncastCount }] : []),
+  ]
+
+  // Apply active filter before grouping.
+  const filteredRoles = activeFilter === 'All'
+    ? roles
+    : activeFilter === 'Uncast'
+      ? roles.filter(r => !r.cast)
+      : roles.filter(r => (r.section || 'Principal Cast') === activeFilter)
+
+  // Group by section (post-filter).
   const grouped: { label: string; members: CastRoleData[] }[] = []
   const groupMap = new Map<string, CastRoleData[]>()
-  for (const r of roles) {
+  for (const r of filteredRoles) {
     const k = r.section || 'Principal Cast'
     if (!groupMap.has(k)) groupMap.set(k, [])
     groupMap.get(k)!.push(r)
   }
   // Preserve stable order: Principal first, then Talent, then Background, then others
-  const sectionOrder = ['Principal Cast', 'Principal Talent', 'Talent', 'Background']
   for (const label of sectionOrder) {
     if (groupMap.has(label)) grouped.push({ label, members: groupMap.get(label)! })
   }
@@ -719,16 +954,56 @@ export default function CastingPage({ params }: { params: { projectId: string } 
 
   const castCount = roles.filter(r => r.cast).length
 
+  // Cinema Glass: project accent triplet drives the sheen-title gradient and
+  // glass-tile tint. +20/+30/+16 lights the spec's accent-glow apex.
+  const [pr, pg, pb] = hexToRgb(accent)
+  const glowR = Math.min(255, pr + 20)
+  const glowG = Math.min(255, pg + 30)
+  const glowB = Math.min(255, pb + 16)
+
+  const phase = phaseClass(project?.status)
+
   return (
-    <div className="screen">
-      <PageHeader projectId={projectId} title="Casting" meta={project ? (
-        <div className="flex flex-col items-center gap-1.5">
-          <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
-          <span className="font-mono uppercase" style={{ fontSize: '0.38rem', padding: '2px 8px', borderRadius: 12, background: `${statusHex(project.status)}18`, color: statusHex(project.status) }}>
-            {statusLabel(project.status)}
-          </span>
+    <div
+      className="screen"
+      style={{
+        ['--tile-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-rgb' as string]: `${pr}, ${pg}, ${pb}`,
+        ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
+      } as React.CSSProperties}
+    >
+      {/* Cinema Glass page header — sheen Casting title + project meta + phase pill.
+          Inlines the .ai-header pattern (DESIGN_LANGUAGE.md page header) so the title
+          can carry the .sheen-title treatment. PageHeader is a shared component reskin
+          deferred to its own PR. */}
+      <div
+        className="hub-topbar relative flex flex-col items-center justify-end px-5 flex-shrink-0 sticky top-0 z-20"
+        style={{
+          minHeight: 100,
+          paddingTop: 'calc(var(--safe-top) + 10px)',
+          paddingBottom: 12,
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          overflow: 'hidden',
+        }}
+      >
+        <div className="flex flex-col items-center text-center" style={{ maxWidth: '70%', position: 'relative' }}>
+          <h1 className="sheen-title leading-none truncate" style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
+            Casting
+          </h1>
+          {project && (
+            <div className="flex flex-col items-center gap-1.5" style={{ marginTop: 4 }}>
+              <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="meta" />
+              {phase && (
+                <span className={`ai-meta-pill ${phase}`}>
+                  <span className="phase-dot" />
+                  {statusLabel(project.status)}
+                </span>
+              )}
+            </div>
+          )}
         </div>
-      ) : ''} />
+      </div>
 
       {/* Count row + Characters dropdown — creative-side bridge into the
           shared character sheet (same sheet as Scenemaker EntityDrawer).
@@ -736,19 +1011,16 @@ export default function CastingPage({ params }: { params: { projectId: string } 
           stay separate from the per-row cast threads. */}
       {roles.length > 0 && (
         <div style={{ padding: '6px 20px 2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
-          <span className="font-mono" style={{ fontSize: '0.52rem', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          <span className="font-mono" style={{ fontSize: '0.52rem', color: 'var(--fg-mono)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
             {roles.length} role{roles.length !== 1 ? 's' : ''} · {castCount} cast
           </span>
           <button
             onClick={() => { haptic('light'); setCharMenuOpen(v => !v) }}
             className="font-mono uppercase"
             style={{
-              // Secondary affordance — pill outline in project accent, not filled.
-              // Transparent w/ ~8% tint so it reads distinct from the count row
-              // without becoming a primary action.
               fontSize: '0.52rem', letterSpacing: '0.12em', color: accent,
-              background: `${accent}14`,
-              border: `1px solid ${accent}`,
+              background: `${accent}1a`,
+              border: `1px solid ${accent}55`,
               borderRadius: 999,
               padding: '4px 10px',
               cursor: 'pointer',
@@ -769,14 +1041,15 @@ export default function CastingPage({ params }: { params: { projectId: string } 
                 style={{
                   position: 'absolute', top: '100%', right: 20, zIndex: 31,
                   marginTop: 4, minWidth: 200, maxHeight: 320, overflowY: 'auto',
-                  background: '#141420',
-                  border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10,
+                  background: 'rgba(14,14,26,0.96)',
+                  backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+                  border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12,
                   padding: '6px 0',
                   boxShadow: '0 18px 40px rgba(0,0,0,0.55)',
                 }}
               >
                 {characters.length === 0 ? (
-                  <div className="font-mono" style={{ padding: '8px 14px', fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
+                  <div className="font-mono" style={{ padding: '8px 14px', fontSize: 10, color: 'var(--fg-mono)' }}>
                     No characters yet
                   </div>
                 ) : characters.map(c => (
@@ -791,7 +1064,7 @@ export default function CastingPage({ params }: { params: { projectId: string } 
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                       padding: '8px 14px', background: 'transparent', border: 'none',
-                      cursor: 'pointer', textAlign: 'left', color: '#dddde8',
+                      cursor: 'pointer', textAlign: 'left', color: 'var(--fg)',
                       fontSize: 13, fontFamily: "'Geist', sans-serif",
                     }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)' }}
@@ -817,13 +1090,67 @@ export default function CastingPage({ params }: { params: { projectId: string } 
         </div>
       )}
 
+      {/* V2: Filter pill row — DESIGN_LANGUAGE.md "filter pill row · plain
+          text+count". Mono-caps via existing pill class shape; active pill
+          gets project accent border + accent text. Hidden until data loads
+          to avoid pill-flash before counts settle. */}
+      {!isLoading && roles.length > 0 && (
+        <div
+          className="flex items-center gap-2 overflow-x-auto no-scrollbar"
+          style={{ padding: '4px 16px 8px', WebkitOverflowScrolling: 'touch' }}
+        >
+          {filterPills.map(p => {
+            const isActive = activeFilter === p.key
+            return (
+              <button
+                key={p.key}
+                onClick={() => { haptic('light'); setActiveFilter(p.key) }}
+                className="font-mono uppercase"
+                style={{
+                  fontSize: '0.40rem', letterSpacing: '0.10em',
+                  padding: '5px 10px', borderRadius: 999, cursor: 'pointer',
+                  whiteSpace: 'nowrap', flexShrink: 0,
+                  background: isActive ? `${accent}1f` : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${isActive ? `${accent}55` : 'var(--border)'}`,
+                  color: isActive ? accent : 'var(--fg-mono)',
+                  fontWeight: 600,
+                }}
+              >
+                {p.label} · {p.count}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', padding: '8px 20px 100px' }}>
-        {isLoading ? <LoadingState /> : (
+        {isLoading ? (
+          // V2: in-page React-Query loading state. Mirrors the SSR Suspense
+          // fallback in `loading.tsx` so the route reads identically whether
+          // it's the suspense fallback or a stale-data refetch. Uses the new
+          // `.sk-grid-3` + `.sk-pill` + `.sk-line` cinema-glass primitives.
+          <>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4, marginBottom: 14 }}>
+              <div className="sk sk-pill" />
+              <div className="sk sk-pill" style={{ width: 70 }} />
+              <div className="sk sk-pill" style={{ width: 90 }} />
+              <div className="sk sk-pill" style={{ width: 80 }} />
+            </div>
+            <div className="sk-grid-3">
+              {[0, 1, 2, 3, 4, 5].map(i => (
+                <div key={i}>
+                  <div className="sk" style={{ aspectRatio: '3 / 4', borderRadius: 8, marginBottom: 6 }} />
+                  <div className={`sk sk-line ${i % 3 === 0 ? 'short' : i % 3 === 1 ? 'long' : 'med'}`} />
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
           roles.length === 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 14, padding: 40 }}>
               <div style={{ width: 56, height: 56, borderRadius: '50%', border: '1.5px dashed rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 300, color: 'rgba(255,255,255,0.15)' }}>+</div>
-              <div style={{ fontSize: 16, fontWeight: 600, color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>No cast yet</div>
-              <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'rgba(255,255,255,0.2)', letterSpacing: '0.07em', textAlign: 'center', lineHeight: 1.7 }}>
+              <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--fg)', textAlign: 'center', opacity: 0.7 }}>No cast yet</div>
+              <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'var(--fg-mono)', letterSpacing: '0.07em', textAlign: 'center', lineHeight: 1.7 }}>
                 Add roles, cast actors.
               </div>
               <div
@@ -840,18 +1167,21 @@ export default function CastingPage({ params }: { params: { projectId: string } 
           ) : (
             grouped.map(({ label, members }) => (
               <div key={label}>
-                <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.2)', marginTop: 14, marginBottom: 8, paddingLeft: 2 }}>
-                  {label}
+                {/* Sheen section divider — DESIGN_LANGUAGE.md section dividers
+                    use the sheen+extrusion title treatment. */}
+                <div className="flex flex-col items-center" style={{ marginTop: 18, marginBottom: 10 }}>
+                  <span className="sheen-title" style={{ fontSize: '0.84rem', fontWeight: 700, letterSpacing: '-0.01em' }}>{label}</span>
                 </div>
-                {members.map(r => (
-                  <CastRow
-                    key={r.id}
-                    role={r}
-                    accent={accent}
-                    onTap={() => { haptic('light'); setSelectedId(r.id) }}
-                    threadEntry={r.talent ? threadByTalentId.get(r.talent.id) : undefined}
-                  />
-                ))}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                  {members.map(r => (
+                    <CastCard
+                      key={r.id}
+                      role={r}
+                      onTap={() => { haptic('light'); setSelectedId(r.id) }}
+                      threadEntry={r.talent ? threadByTalentId.get(r.talent.id) : undefined}
+                    />
+                  ))}
+                </div>
               </div>
             ))
           )

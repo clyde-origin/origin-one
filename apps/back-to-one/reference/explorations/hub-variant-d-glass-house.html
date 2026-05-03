@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Hub — Variant D: Glass House</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:          #04040a;
+  --surface:     rgba(255,255,255,0.04);   /* glass — barely-there fill */
+  --border:      rgba(255,255,255,0.10);
+  --fg:          #ecedf2;
+  --fg-mono:     #7a7c8a;
+  --phase-pre:   #e8a020;
+  --phase-prod:  #6470f3;
+  --phase-post:  #00b894;
+  --phase-prod-rgb: 100, 112, 243;
+  --accent:      #c45adc;
+  --accent-rgb:  196, 90, 220;             /* keep in sync with --accent (#c45adc) */
+  --accent-glow-rgb: 216, 110, 240;        /* lighter accent variant for glow */
+  --radius-sheet: 20px;
+  --radius-card: 14px;
+  --ease:        cubic-bezier(0.34, 1.56, 0.64, 1);  /* slight overshoot */
+  --dur:         260ms;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+body {
+  background: var(--bg);
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--fg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 12px 64px;
+  gap: 18px;
+  letter-spacing: 0;
+}
+
+/* =====================
+   Stress-test row
+   ===================== */
+.stress-row { display: flex; gap: 8px; width: 358px; margin-bottom: 4px; }
+.stress-tile {
+  flex: 1; aspect-ratio: 1/1.4;
+  border-radius: 14px; border: 1px solid var(--border);
+  background: var(--surface);
+  position: relative; overflow: hidden; cursor: pointer;
+  transition: transform var(--dur) var(--ease);
+}
+.stress-tile:hover { transform: translateY(-1px); }
+.stress-tile .accent-bar {
+  position: absolute; top: 0; left: 0; right: 0; height: 18%;
+  background: linear-gradient(180deg, var(--tile-accent) 0%, transparent 100%);
+  opacity: 0.5;
+}
+.stress-tile .accent-dot {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--tile-accent); box-shadow: 0 0 8px var(--tile-accent);
+}
+.stress-tile .label {
+  position: absolute; bottom: 22px; left: 0; right: 0; text-align: center;
+  font-family: 'Geist Mono', monospace; font-size: 0.42rem;
+  color: var(--fg-mono); letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+/* =====================
+   Phone container
+   ===================== */
+.phone {
+  width: 358px; border-radius: 40px; overflow: hidden;
+  border: 1px solid var(--border); background: var(--bg);
+  position: relative;
+  isolation: isolate;
+}
+/* Deep accent glow behind the phone — re-themes with --accent on stress-tile click */
+.phone::before {
+  content: '';
+  position: absolute;
+  inset: -40px;
+  background: radial-gradient(circle at 50% 30%, var(--accent) 0%, transparent 65%);
+  opacity: 0.18;
+  z-index: -1;
+  filter: blur(40px);
+}
+
+.inner { position: relative; z-index: 1; }
+
+/* =====================
+   Topbar
+   ===================== */
+.topbar {
+  padding: 48px 16px 16px;
+  position: relative;
+  z-index: 3;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%),
+    rgba(8,8,16,0.5);
+  backdrop-filter: blur(36px) saturate(130%);
+  -webkit-backdrop-filter: blur(36px) saturate(130%);
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+.back-btn {
+  position: absolute; top: 52px; left: 14px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--surface); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+}
+.proj-name {
+  font-weight: 800; font-size: 1.2rem; letter-spacing: -0.03em;
+  color: var(--fg);
+}
+.proj-sub {
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px; margin-top: 5px;
+}
+.proj-type {
+  font-family: 'Geist Mono', monospace; font-size: 0.38rem;
+  color: var(--fg-mono); letter-spacing: 0.08em; text-transform: uppercase;
+}
+.phase-pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 7px; border-radius: 20px;
+  background: rgba(var(--phase-prod-rgb), 0.12);
+}
+.pdot {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--phase-prod); box-shadow: 0 0 4px var(--phase-prod);
+}
+.plbl {
+  font-family: 'Geist Mono', monospace; font-size: 0.36rem;
+  color: var(--phase-prod); letter-spacing: 0.06em; text-transform: uppercase;
+}
+.crew-row { display: flex; justify-content: center; margin-top: 10px; }
+.av {
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 1.5px solid var(--bg);
+  background: #1a1228;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Geist Mono', monospace; font-size: 0.3rem;
+  color: #a0a0b8; margin-left: -5px;
+}
+.av:first-child { margin-left: 0; }
+.av-m { background: rgba(var(--accent-rgb), 0.15); color: var(--accent); }
+
+/* =====================
+   Mods (content area)
+   ===================== */
+.mods {
+  padding: 18px 14px 100px;
+  display: flex; flex-direction: column; gap: 20px;
+  position: relative;
+  z-index: 2;
+}
+
+/* Module headers */
+.mh {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 3px; margin-bottom: 7px;
+}
+.mh-row { display: flex; align-items: center; gap: 5px; }
+.micon { opacity: 0.45; flex-shrink: 0; }
+.mname {
+  font-weight: 700; font-size: 0.78rem; color: var(--fg);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.mmeta {
+  font-family: 'Geist Mono', monospace; font-size: 0.38rem;
+  color: var(--fg-mono); letter-spacing: 0.06em;
+}
+.mchev { opacity: 0.2; }
+
+/* Section headers */
+.section-hdr {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 3px; margin-bottom: 10px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.section-hdr-row { display: flex; align-items: center; gap: 5px; }
+.section-name {
+  font-weight: 700; font-size: 0.78rem; color: var(--fg);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.section-meta {
+  font-family: 'Geist Mono', monospace; font-size: 0.38rem;
+  color: var(--fg-mono); letter-spacing: 0.06em;
+}
+
+/* =====================
+   Cards — thick frosted glass
+   ===================== */
+.card {
+  background: var(--surface);
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),  /* top hairline catches "light" */
+    0 4px 24px -8px rgba(0,0,0,0.6);
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--dur) var(--ease);
+  cursor: pointer;
+}
+.card:hover { transform: translateY(-1px); }
+
+/* Chromatic aberration — Variant D signature */
+.card::before, .sm-card::before, .tone-card::before, .mini-c::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(90deg,
+    rgba(0, 200, 255, 0.06) 0%,
+    transparent 2px,
+    transparent calc(100% - 2px),
+    rgba(255, 80, 100, 0.06) 100%);
+  mix-blend-mode: screen;
+  z-index: 1;
+}
+
+/* Card content renders above aberration layer */
+.card > *, .sm-card > *, .tone-card > *, .mini-c > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* Task rows */
+.tr {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 9px 11px; border-bottom: 1px solid var(--border);
+}
+.tr:last-child { border-bottom: none; }
+.chk {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 1.5px solid var(--accent); flex-shrink: 0; margin-top: 1px;
+}
+.chk.o { border-color: var(--fg-mono); }
+.tn {
+  font-size: 0.64rem; font-weight: 600; color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.tn.o { color: var(--fg-mono); }
+.td {
+  font-family: 'Geist Mono', monospace; font-size: 0.42rem;
+  color: var(--fg-mono); margin-top: 1px;
+}
+
+/* =====================
+   Timeline tracks
+   ===================== */
+.tracks {
+  padding: 9px 11px 8px;
+  display: flex; flex-direction: column; gap: 3px; position: relative;
+}
+.trow { display: flex; align-items: center; gap: 5px; }
+.tlbl {
+  font-family: 'Geist Mono', monospace; font-size: 0.36rem;
+  color: var(--fg-mono); width: 20px; text-align: right; text-transform: uppercase;
+}
+.tbar {
+  flex: 1; height: 3px; background: var(--border); border-radius: 2px; position: relative;
+}
+.tfill { height: 100%; border-radius: 2px; position: absolute; top: 0; }
+.ms-rows { border-top: 1px solid var(--border); }
+.ms-row {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 11px; border-bottom: 1px solid var(--border);
+}
+.ms-row:last-child { border-bottom: none; }
+.ms-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.ms-date {
+  font-family: 'Geist Mono', monospace; font-size: 0.42rem;
+  color: var(--fg-mono); width: 28px;
+}
+.ms-name { font-size: 0.62rem; font-weight: 600; color: var(--fg); flex: 1; }
+
+/* =====================
+   Creative block
+   ===================== */
+.creative-block { display: flex; flex-direction: column; gap: 10px; }
+
+.sm-tone { display: flex; gap: 8px; height: 130px; }
+.sm-card {
+  flex: 1; background: var(--surface);
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 4px 24px -8px rgba(0,0,0,0.6);
+  padding: 8px 9px;
+  display: flex; flex-direction: column; overflow: hidden;
+  cursor: pointer;
+  position: relative;
+  transition: transform var(--dur) var(--ease);
+}
+.sm-card:hover { transform: translateY(-1px); }
+.sb-row { display: flex; gap: 3px; flex: 1; }
+.sb-c {
+  flex: 1; background: var(--border);
+  border: 1px solid var(--border); border-radius: 5px; overflow: hidden;
+}
+.sb-f { height: 46px; }
+.sb-info { padding: 3px 4px; }
+.sb-id { font-family: 'Geist Mono', monospace; font-size: 0.33rem; color: var(--accent); }
+.sb-d {
+  font-size: 0.36rem; color: var(--fg-mono); line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.sm-ft { display: flex; gap: 4px; margin-top: auto; padding-top: 4px; }
+.vp {
+  font-family: 'Geist Mono', monospace; font-size: 0.33rem; color: var(--fg-mono);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 3px; padding: 1px 3px;
+}
+.sc-ct { font-family: 'Geist Mono', monospace; font-size: 0.33rem; color: var(--fg-mono); }
+
+.tone-card {
+  flex: 1; background: var(--surface);
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 4px 24px -8px rgba(0,0,0,0.6);
+  overflow: hidden; position: relative;
+  cursor: pointer;
+  transition: transform var(--dur) var(--ease);
+}
+.tone-card:hover { transform: translateY(-1px); }
+.tg {
+  display: grid; grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr; height: 100%;
+}
+.tone-ov {
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(2,2,5,0.4), rgba(2,2,5,0.1));
+}
+.tone-icon { position: absolute; top: 7px; left: 7px; opacity: 0.6; }
+.tone-lbl {
+  position: absolute; bottom: 7px; left: 7px;
+  font-family: 'Geist Mono', monospace; font-size: 0.36rem;
+  color: rgba(255,255,255,0.4); letter-spacing: 0.06em; text-transform: uppercase;
+}
+
+/* Mini row (Locations / Art / Casting) */
+.mini-row { display: flex; gap: 8px; }
+.mini-c {
+  flex: 1; background: var(--surface);
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 4px 24px -8px rgba(0,0,0,0.6);
+  padding: 8px 9px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--dur) var(--ease);
+}
+.mini-c:hover { transform: translateY(-1px); }
+.mini-n { font-weight: 700; font-size: 0.58rem; color: var(--fg); margin-bottom: 2px; }
+.mini-m {
+  font-family: 'Geist Mono', monospace; font-size: 0.33rem;
+  color: var(--fg-mono); margin-bottom: 4px;
+}
+.mini-b { height: 2px; background: var(--border); border-radius: 2px; }
+.mini-f { height: 100%; border-radius: 2px; }
+
+/* =====================
+   Glass House refraction ripple — Variant D signature
+   ===================== */
+@keyframes refractionRipple {
+  0%   { transform: translateX(-100%); opacity: 0; }
+  20%  { opacity: 0.6; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+.card .ripple, .sm-card .ripple, .tone-card .ripple, .mini-c .ripple {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,0.10) 45%,
+    rgba(120,200,255,0.12) 50%,
+    rgba(255,180,200,0.10) 55%,
+    transparent 100%);
+  mix-blend-mode: screen;
+  transform: translateX(-100%);
+  opacity: 0;
+  z-index: 3;   /* above content + aberration */
+}
+.card .ripple.active, .sm-card .ripple.active, .tone-card .ripple.active, .mini-c .ripple.active {
+  animation: refractionRipple 1.4s var(--ease);
+}
+
+/* =====================
+   FAB zone
+   ===================== */
+.fab-zone {
+  position: absolute; bottom: 28px; left: 0; right: 0;
+  z-index: 30; display: flex; align-items: center;
+  justify-content: center; height: 52px;
+}
+.side-fab {
+  position: absolute; width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  top: 50%; left: 50%; transform: translate(-50%,-50%);
+}
+.side-fab.chat  { transform: translate(calc(-50% - 104px),-50%); }
+.side-fab.threads { transform: translate(calc(-50% + 104px),-50%); }
+.unread-dot {
+  position: absolute; top: -1px; right: -1px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #4ab8e8; border: 1.5px solid var(--bg);
+}
+.main-fab {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.15),
+    0 4px 20px rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; z-index: 31; flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 220ms var(--ease);
+}
+.main-fab.expanded { transform: rotate(45deg) scale(1.08); }
+
+/* =====================
+   Drawer
+   ===================== */
+.drawer {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: flex-end; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 220ms var(--ease);
+  z-index: 100;
+}
+.drawer.open { opacity: 1; pointer-events: auto; }
+.drawer-inner {
+  width: 358px;
+  background: rgba(8,8,16,0.4);
+  backdrop-filter: blur(40px) saturate(140%);
+  -webkit-backdrop-filter: blur(40px) saturate(140%);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  padding: 24px 18px 36px;
+  transform: translateY(100%);
+  transition: transform 280ms var(--ease);
+}
+.drawer.open .drawer-inner { transform: translateY(0); }
+.drawer-header {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  margin-bottom: 12px;
+}
+.drawer-body { font-size: 0.78rem; color: var(--fg); }
+</style>
+</head>
+<body>
+
+  <!-- Stress-test row -->
+  <div class="stress-row" id="stress-row">
+    <div class="stress-tile" style="--tile-accent: #c45adc;" data-rgb="196,90,220" data-glow-rgb="216,110,240"><span class="accent-bar"></span><span class="label">VIOLET</span><span class="accent-dot"></span></div>
+    <div class="stress-tile" style="--tile-accent: #e8a020;" data-rgb="232,160,32" data-glow-rgb="248,184,72"><span class="accent-bar"></span><span class="label">AMBER</span><span class="accent-dot"></span></div>
+    <div class="stress-tile" style="--tile-accent: #00b894;" data-rgb="0,184,148" data-glow-rgb="64,212,180"><span class="accent-bar"></span><span class="label">TEAL</span><span class="accent-dot"></span></div>
+    <div class="stress-tile" style="--tile-accent: #f07050;" data-rgb="240,112,80" data-glow-rgb="248,144,112"><span class="accent-bar"></span><span class="label">CORAL</span><span class="accent-dot"></span></div>
+  </div>
+
+  <!-- Main hub -->
+  <div class="phone">
+    <div class="inner">
+
+      <!-- Topbar -->
+      <div class="topbar">
+        <div class="back-btn">
+          <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="rgba(255,255,255,0.3)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div style="font-family:'Geist Mono',monospace;font-size:0.38rem;color:var(--fg-mono);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Origin Point</div>
+        <div class="proj-name">Drifting</div>
+        <div class="proj-sub">
+          <span class="proj-type">Narrative Short</span>
+          <div class="phase-pill"><div class="pdot"></div><span class="plbl">Production</span></div>
+        </div>
+        <div class="crew-row">
+          <div class="av" style="margin-left:0">CL</div>
+          <div class="av">JR</div>
+          <div class="av">SK</div>
+          <div class="av">MT</div>
+          <div class="av av-m">+1</div>
+        </div>
+      </div>
+
+      <!-- Module content -->
+      <div class="mods">
+
+        <!-- Timeline module -->
+        <div>
+          <div class="mh">
+            <div class="mh-row">
+              <svg class="micon" width="12" height="12" viewBox="0 0 12 12" fill="none"><line x1="1" y1="6" x2="11" y2="6" stroke="white" stroke-width="1"/><circle cx="2" cy="6" r="1.3" fill="white"/><circle cx="6" cy="6" r="1.3" fill="white"/><circle cx="10" cy="6" r="1.3" fill="white"/></svg>
+              <span class="mname">Timeline</span>
+              <svg class="mchev" width="5" height="8" viewBox="0 0 5 8" fill="none"><path d="M1 1L4 4L1 7" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="mmeta">Shoot in 14 days</span>
+          </div>
+          <div class="card">
+            <!-- Tracks -->
+            <div class="tracks">
+              <div class="trow"><span class="tlbl">Pre</span><div class="tbar"><div class="tfill" style="left:0;width:80%;background:#e8a020;"></div></div></div>
+              <div class="trow"><span class="tlbl">Prod</span><div class="tbar"><div class="tfill" style="left:55%;width:30%;background:#6470f3;"></div></div></div>
+              <div class="trow"><span class="tlbl">Post</span><div class="tbar"><div class="tfill" style="left:70%;width:16%;background:#00b894;opacity:0.4;"></div><div style="position:absolute;top:-3px;bottom:-3px;right:12%;width:1.5px;background:#e8564a;border-radius:1px;"></div></div></div>
+              <div style="position:absolute;left:calc(26px + 55%);top:0;bottom:0;width:1.5px;background:rgba(255,255,255,0.5);border-radius:1px;pointer-events:none;"></div>
+            </div>
+            <!-- Milestones -->
+            <div class="ms-rows">
+              <div class="ms-row"><div class="ms-dot" style="background:#6470f3;box-shadow:0 0 5px #6470f3;"></div><span class="ms-date">Apr 17</span><span class="ms-name">Shoot begins</span></div>
+              <div class="ms-row"><div class="ms-dot" style="background:#00b894;"></div><span class="ms-date">May 02</span><span class="ms-name">Picture lock</span></div>
+              <div class="ms-row"><div class="ms-dot" style="background:#e8564a;"></div><span class="ms-date">May 20</span><span class="ms-name" style="color:#e8564a;">Final delivery</span></div>
+            </div>
+            <div class="ripple"></div>
+          </div>
+        </div>
+
+        <!-- Action Items module -->
+        <div>
+          <div class="mh">
+            <div class="mh-row">
+              <svg class="micon" width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="white" stroke-width="1.1"/><path d="M3.5 6L5.5 8L8.5 4.5" stroke="white" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="mname">Action Items</span>
+              <svg class="mchev" width="5" height="8" viewBox="0 0 5 8" fill="none"><path d="M1 1L4 4L1 7" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="mmeta">3 open</span>
+          </div>
+          <div class="card">
+            <!-- Tasks -->
+            <div class="tr"><div class="chk"></div><div style="flex:1;min-width:0"><div class="tn">Confirm location permits</div><div class="td">Apr 07</div></div></div>
+            <div class="tr"><div class="chk"></div><div style="flex:1;min-width:0"><div class="tn">Send call sheet draft</div><div class="td">Apr 09</div></div></div>
+            <div class="tr"><div class="chk o"></div><div style="flex:1;min-width:0"><div class="tn o">Review color grade pass</div><div class="td">Apr 12 — Jordan R.</div></div></div>
+            <div class="ripple"></div>
+          </div>
+        </div>
+
+        <!-- Creative section -->
+        <div>
+          <div class="section-hdr">
+            <div class="section-hdr-row">
+              <svg class="micon" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 9L5 3L8 9M3.5 7h3" stroke="white" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="4" r="1.5" stroke="white" stroke-width="1"/></svg>
+              <span class="section-name">Creative</span>
+              <svg class="mchev" width="5" height="8" viewBox="0 0 5 8" fill="none"><path d="M1 1L4 4L1 7" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="section-meta">SC.12 · Tone · 3 locations</span>
+          </div>
+
+          <div class="creative-block">
+            <!-- Scenemaker + Tone -->
+            <div class="sm-tone">
+              <div class="sm-card">
+                <div class="sb-row">
+                  <div class="sb-c"><div class="sb-f" style="background:linear-gradient(135deg,#1a1228,#0d1a2a);"></div><div class="sb-info"><div class="sb-id">12A</div><div class="sb-d">Lohm at ravine edge</div></div></div>
+                  <div class="sb-c"><div class="sb-f" style="background:linear-gradient(135deg,#0d1a2a,#1a0d28);"></div><div class="sb-info"><div class="sb-id">12B</div><div class="sb-d">Aleph watching below</div></div></div>
+                  <div class="sb-c"><div class="sb-f" style="background:linear-gradient(135deg,#1a1228,#1a0d1a);"></div><div class="sb-info"><div class="sb-id">12C</div><div class="sb-d">Wide, last light</div></div></div>
+                </div>
+                <div class="sm-ft"><span class="vp">v2</span><span class="sc-ct">10 shots</span></div>
+                <div class="ripple"></div>
+              </div>
+              <!-- full-bleed visual swatch -->
+              <div class="tone-card">
+                <div class="tg">
+                  <div style="background:#1a0d2e;"></div>
+                  <div style="background:#0d1a1a;"></div>
+                  <div style="background:#2a1a0d;"></div>
+                  <div style="background:#0d0d2a;"></div>
+                </div>
+                <div class="tone-ov"></div>
+                <svg class="tone-icon" width="9" height="9" viewBox="0 0 9 9" fill="none"><circle cx="4.5" cy="4.5" r="3.5" stroke="white" stroke-width="1"/><circle cx="4.5" cy="4.5" r="1.5" stroke="white" stroke-width="1"/><circle cx="4.5" cy="4.5" r="0.7" fill="white"/></svg>
+                <span class="tone-lbl">Tone</span>
+                <div class="ripple"></div>
+              </div>
+            </div>
+
+            <!-- Mini row: Locations / Art / Casting -->
+            <div class="mini-row">
+              <div class="mini-c">
+                <div class="mini-n">Locations</div>
+                <div class="mini-m">2 / 3 locked</div>
+                <div class="mini-b"><div class="mini-f" style="width:66%;background:#e8a020;"></div></div>
+                <div class="ripple"></div>
+              </div>
+              <div class="mini-c">
+                <div class="mini-n">Art</div>
+                <div class="mini-m">1 / 4 done</div>
+                <div class="mini-b"><div class="mini-f" style="width:25%;background:#6470f3;"></div></div>
+                <div class="ripple"></div>
+              </div>
+              <div class="mini-c">
+                <div class="mini-n">Casting</div>
+                <div class="mini-m">4 / 4 cast</div>
+                <div class="mini-b"><div class="mini-f" style="width:100%;background:#00b894;"></div></div>
+                <div class="ripple"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /mods -->
+    </div><!-- /inner -->
+
+    <!-- FAB zone -->
+    <div class="fab-zone">
+      <div class="side-fab chat">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="display:block;"><path d="M2 2h10a1 1 0 011 1v5.5a1 1 0 01-1 1H5l-3 2.5V3a1 1 0 011-1z" stroke="rgba(255,255,255,0.55)" stroke-width="1.1" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="main-fab">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="display:block;"><path d="M9 3V15M3 9H15" stroke="rgba(255,255,255,0.9)" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="side-fab threads">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="display:block;"><path d="M2.5 2h9a1 1 0 011 1v5a1 1 0 01-1 1H5.5l-3 2.5V3a1 1 0 011-1z" stroke="rgba(255,255,255,0.55)" stroke-width="1.1" stroke-linejoin="round"/></svg>
+        <div class="unread-dot"></div>
+      </div>
+    </div>
+
+  </div><!-- /phone -->
+
+  <!-- Drawer overlay -->
+  <div id="drawer" class="drawer">
+    <div class="drawer-inner">
+      <div class="drawer-header">Detail Drawer</div>
+      <div class="drawer-body">Tap any card to open. Tap outside to dismiss.</div>
+    </div>
+  </div>
+
+<script>
+// Stress-test row: clicking a tile re-themes the hub accent
+// --accent drives the phone::before glow — updates automatically
+document.querySelectorAll('#stress-row .stress-tile').forEach(tile => {
+  tile.addEventListener('click', () => {
+    const accent = getComputedStyle(tile).getPropertyValue('--tile-accent').trim();
+    const rgb = tile.dataset.rgb;
+    const glowRgb = tile.dataset.glowRgb;
+    const root = document.documentElement.style;
+    root.setProperty('--accent', accent);
+    root.setProperty('--accent-rgb', rgb);
+    root.setProperty('--accent-glow-rgb', glowRgb);
+  });
+});
+
+// Tap card → open drawer
+document.querySelectorAll('.card, .sm-card, .tone-card, .mini-c').forEach(card => {
+  card.addEventListener('click', () => {
+    document.getElementById('drawer').classList.add('open');
+  });
+});
+
+// Tap drawer overlay → close
+document.getElementById('drawer').addEventListener('click', (e) => {
+  if (e.target.id === 'drawer') {
+    document.getElementById('drawer').classList.remove('open');
+  }
+});
+
+// FAB expand/collapse
+const fab = document.querySelector('.main-fab');
+if (fab) {
+  fab.addEventListener('click', () => fab.classList.toggle('expanded'));
+}
+
+// Variant D signature: Glass House refraction ripple
+function variantD_ripple() {
+  document.querySelectorAll('.card .ripple, .sm-card .ripple, .tone-card .ripple, .mini-c .ripple').forEach((ripple, i) => {
+    setTimeout(() => {
+      ripple.classList.add('active');
+      setTimeout(() => ripple.classList.remove('active'), 1500);
+    }, i * 120);
+  });
+}
+setTimeout(variantD_ripple, 600);   // initial sweep on load
+setInterval(variantD_ripple, 10000);
+</script>
+
+</body>
+</html>

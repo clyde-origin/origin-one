@@ -4,7 +4,7 @@ export function HubSkeleton() {
   return (
     <div className="screen">
       {/* Topbar skeleton */}
-      <div className="flex flex-col justify-end px-5 flex-shrink-0 border-b border-border" style={{ minHeight: 100, paddingTop: 'calc(var(--safe-top) + 10px)', paddingBottom: 12, background: 'rgba(4,4,10,0.92)' }}>
+      <div className="hub-topbar flex flex-col justify-end px-5 flex-shrink-0" style={{ minHeight: 100, paddingTop: 'calc(var(--safe-top) + 10px)', paddingBottom: 12 }}>
         <div className="flex items-center justify-between mb-2.5">
           <SkeletonLine w={28} h={28} className="rounded-full" />
           <div className="flex gap-1.5">

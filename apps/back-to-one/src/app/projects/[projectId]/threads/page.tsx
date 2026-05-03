@@ -7,6 +7,12 @@ import { Sheet } from '@/components/ui/Sheet'
 import { StorageImage } from '@/components/ui/StorageImage'
 import { haptic } from '@/lib/utils/haptics'
 import { TV, TA } from '@/lib/thread-tokens'
+// Cinema Glass: thread tokens are SACRED fixed (BRAND_TOKENS Thread System).
+// A thread looks the same in every project — never project-tinted. So the
+// page anchors its sheen / glass-tile rgb vars on TV (thread violet) and a
+// lighter TV apex for the gradient glow.
+const TV_RGB = '124, 58, 237'         // #7C3AED
+const TV_GLOW_RGB = '160, 100, 252'   // brighter apex for sheen-title gradient
 import { MentionInput } from '@/components/ui/MentionInput'
 import { MentionText } from '@/components/ui/MentionText'
 import type { Thread, ThreadMessage, TeamMember } from '@/types'
@@ -119,6 +125,11 @@ function Thumbnail({ ctx, size = 52 }: { ctx: ThreadContext; size?: number }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
     >
+      {/* Cinema-glass cinematic frame — 2px black letterbox bars top + bottom
+          on the thread thumbnail (above content via z:5). The frame-within-
+          frame is the cinema identity; letterbox the content, not the chrome. */}
+      <div className="letterbox-top" style={{ position: 'absolute', top: 0, left: 0, right: 0 }} />
+      <div className="letterbox-bottom" style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }} />
       {ctx.thumbnailType === 'image' && ctx.thumbnailValue?.startsWith('http') ? (
         // Storyboard / moodboard thumbnailValues are Supabase publicUrls
         // against private buckets — must go through StorageImage to be
@@ -188,18 +199,19 @@ function ThreadCard({
   return (
     <div
       onClick={() => { haptic('light'); onTap() }}
+      className={`threads-row glass-tile glass-tile-sm ${thread.unread ? 'threads-row--unread' : ''} ${resolved ? 'threads-row--resolved' : ''}`}
       style={{
         margin: '0 14px 6px',
-        background: 'rgba(255,255,255,0.025)',
-        border: `1px solid ${thread.unread ? 'rgba(124,58,237,0.2)' : 'rgba(255,255,255,0.06)'}`,
-        borderRadius: 12,
+        // Unread rows tint --tile-rgb to TA (thread amber) so the glass-tile
+        // gradient + glow shifts to attention amber. Read rows inherit the
+        // page-level TV (thread violet) tint.
+        ...(thread.unread ? { ['--tile-rgb' as string]: '245, 158, 11' } : {}),
         padding: '10px 12px 10px 10px',
         cursor: 'pointer',
         position: 'relative',
-        overflow: 'hidden',
         display: 'flex', gap: 10, alignItems: 'flex-start',
         opacity: resolved ? 0.4 : 1,
-      }}
+      } as React.CSSProperties}
     >
       {thread.unread && (
         <div style={{
@@ -472,43 +484,79 @@ export default function ThreadsPage({ params }: { params: { projectId: string } 
   const projectName = project?.name ?? ''
 
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column',
-      minHeight: '100vh', background: '#060606', color: '#fff',
-    }}>
-      {/* Page header — matches reference exactly */}
-      <div style={{
+    <div
+      className="threads-screen"
+      style={{
+        display: 'flex', flexDirection: 'column',
+        minHeight: '100vh', background: 'var(--bg)', color: 'var(--fg)',
+        // Cinema Glass: anchor sheen / glass-tile rgb vars on TV (thread
+        // violet). Thread tokens are sacred fixed — never project-derived,
+        // never phase-derived. See BRAND_TOKENS.md "Thread System".
+        ['--accent' as string]: TV,
+        ['--accent-rgb' as string]: TV_RGB,
+        ['--accent-glow-rgb' as string]: TV_GLOW_RGB,
+        ['--tile-rgb' as string]: TV_RGB,
+      } as React.CSSProperties}
+    >
+      {/* Page header — cinema-glass: sheen .ai-title + ai-meta-row pattern.
+          Project name acts as the meta-name eyebrow (TV-tinted per thread
+          identity rules). Active/unread count line preserved from live code
+          even though the gallery doesn't show it — removing it would be a
+          JSX/copy delete which the visual-only contract forbids. */}
+      <div className="ai-header" style={{
         textAlign: 'center',
         padding: '0 20px 0',
         paddingTop: 'calc(var(--safe-top) + 16px)',
         position: 'relative',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
       }}>
-        <div className="font-mono uppercase" style={{
-          fontSize: 9, letterSpacing: '0.16em', color: TV, marginBottom: 3,
-        }}>{projectName}</div>
-        <div style={{
-          fontSize: 22, fontWeight: 700, letterSpacing: '0.05em',
-          textTransform: 'uppercase', lineHeight: 1, marginBottom: 5,
-        }}>Threads</div>
+        <h1 className="sheen-title" style={{
+          fontWeight: 300,
+          fontSize: '1.4rem', letterSpacing: '0.02em', lineHeight: 1.05,
+          margin: 0,
+        }}>Threads</h1>
+        <div className="ai-meta-row" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span className="ai-meta-name font-mono uppercase" style={{
+            fontSize: '0.36rem', letterSpacing: '0.10em', color: TV,
+          }}>{projectName}</span>
+        </div>
         <div className="font-mono" style={{
-          fontSize: 10, color: 'rgba(255,255,255,0.22)',
-          letterSpacing: '0.05em', marginBottom: 12,
+          fontSize: 10, color: 'var(--fg-mono)',
+          letterSpacing: '0.05em', marginTop: 2, marginBottom: 12,
         }}>
           {activeCount} active · {unreadCount} unread
         </div>
-        <div style={{ height: 1, background: 'rgba(255,255,255,0.07)' }} />
+        <div style={{ height: 1, alignSelf: 'stretch', background: 'rgba(255,255,255,0.07)' }} />
       </div>
 
       {/* Scroll area */}
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 32 }}>
         {loadingThreads || loadingCrew ? (
-          <div style={{ padding: 24, textAlign: 'center' }}>
-            <span className="font-mono" style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)' }}>Loading…</span>
+          // Cinema-glass loading: sk-block shimmer silhouette matching the
+          // loaded thread-card silhouette (thumb + chip + snippet + meta col).
+          // DESIGN_LANGUAGE.md: skeleton matches the loaded UI's bones.
+          <div style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="glass-tile glass-tile-sm" style={{
+                padding: '10px 12px 10px 10px', display: 'flex', gap: 10, alignItems: 'flex-start',
+              }}>
+                <div className="sk-block flex-shrink-0" style={{ width: 52, height: 52, borderRadius: 7 }} />
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div className="sk-block" style={{ width: 92, height: 12, borderRadius: 20 }} />
+                  <div className="sk-block" style={{ width: '88%', height: 10 }} />
+                  <div className="sk-block" style={{ width: '64%', height: 10 }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                    <div className="sk-block" style={{ width: 56, height: 8 }} />
+                    <div className="sk-block" style={{ width: 36, height: 8 }} />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : allThreads.length === 0 ? (
           <div style={{ padding: '40px 24px', textAlign: 'center' }}>
-            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', marginBottom: 8 }}>No threads yet</div>
-            <div className="font-mono" style={{ fontSize: 10, color: 'rgba(255,255,255,0.22)', letterSpacing: '0.04em', lineHeight: 1.6 }}>
+            <div style={{ fontSize: 14, color: 'var(--fg)', opacity: 0.5, marginBottom: 8 }}>No threads yet</div>
+            <div className="font-mono" style={{ fontSize: 10, color: 'var(--fg-mono)', letterSpacing: '0.04em', lineHeight: 1.6 }}>
               Start one from any shot, scene, task, or item.
             </div>
           </div>
@@ -577,15 +625,22 @@ export default function ThreadsPage({ params }: { params: { projectId: string } 
   )
 }
 
+// Cinema-glass `.ai-bucket` pattern — rule | label · count | rule. The
+// "Unread" bucket is the today-equivalent attention beat: label lights in
+// thread-amber (TA) instead of var(--accent) because thread surfaces
+// stay anchored in fixed thread tokens, not the local accent.
 function SectionLabel({ label, count, topMargin = 0 }: { label: string; count: number; topMargin?: number }) {
+  const isUnread = label === 'Unread'
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '14px 20px 6px',
-      marginTop: topMargin,
-    }} className="font-mono uppercase">
-      <span style={{ fontSize: 9, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.22)' }}>{label}</span>
-      <span style={{ fontSize: 9, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.22)' }}>{count}</span>
+    <div className="threads-section flex items-center" style={{
+      gap: 10, padding: '14px 20px 6px', marginTop: topMargin,
+    }}>
+      <span className="threads-section-rule flex-1" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
+      <span className="font-mono uppercase flex-shrink-0" style={{
+        fontSize: '0.50rem', letterSpacing: '0.14em', fontWeight: 600,
+        color: isUnread ? TA : 'var(--fg-mono)',
+      }}>{label} · {count}</span>
+      <span className="threads-section-rule flex-1" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
     </div>
   )
 }

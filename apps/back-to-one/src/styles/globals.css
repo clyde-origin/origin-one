@@ -9,12 +9,34 @@
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --safe-left:   env(safe-area-inset-left, 0px);
     --safe-right:  env(safe-area-inset-right, 0px);
+
+    /* Cinema Glass chrome tokens. Surface vars flip in body.light-mode, html.light-mode body below.
+       Project accent rgb stays inline-hex on the JSX (Locations/Art precedent). */
+    --bg:          #07070b;
+    --surface:     rgba(20, 20, 28, 0.42);
+    --border:      rgba(255, 255, 255, 0.08);
+    --fg:          #ebebef;
+    --fg-mono:     #7a7a82;
+    --phase-pre:   #e8a020;
+    --phase-prod:  #6470f3;
+    --phase-prod-rgb: 100, 112, 243;
+    --phase-post:  #00b894;
+  }
+
+  body.light-mode,
+  html.light-mode body {
+    --bg:          #ebe2cd;
+    --surface:     rgba(248, 240, 220, 0.85);
+    --border:      rgba(60, 38, 14, 0.14);
+    --fg:          #1f160a;
+    --fg-mono:     #6a5840;
   }
 
   html {
     height: 100%;
     background: #04040a;
   }
+  html.light-mode { background: #ebe2cd; }
   body {
     min-height: 100dvh;
     width: 100%;
@@ -233,6 +255,390 @@
   color: #444455;
 }
 
+/* ────────────────────────────────────────────────────────────
+   Cinema Glass — Hub re-skin classes.
+   Tokens stay inline-hex on the JSX per the Locations/Art precedent;
+   these classes consume `--tile-rgb` (the project accent triplet) and
+   `--accent-rgb` / `--accent-glow-rgb` (sheen title accent triplet) set
+   inline via style props on the consuming element.
+   ──────────────────────────────────────────────────────────── */
+
+/* Sheen + extrusion title — primary identity heading. Used on the
+   project name and on every module / section header so the panel
+   headers join the project accent. Hue comes from var(--accent), so
+   each project re-tints automatically. Spec: BRAND_TOKENS.md
+   "Sheen+Extrusion Title" + DESIGN_LANGUAGE.md page header pattern.
+   Light-mode collapses to solid sepia (var(--fg)) — white spotlight
+   reads worse than clean sepia against beige. */
+.sheen-title {
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(var(--accent-glow-rgb, 216, 124, 236), 1) 32%,
+    rgb(var(--accent-rgb, 196, 90, 220)) 55%,
+    rgba(var(--accent-rgb, 196, 90, 220), 0.78) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 6px rgba(var(--accent-rgb, 196, 90, 220), 0.22));
+}
+body.light-mode .sheen-title,
+html.light-mode body .sheen-title {
+  background: none;
+  -webkit-text-fill-color: var(--fg);
+  color: var(--fg);
+  filter: none;
+}
+
+/* Glass tile — frosted accent surface used on every Hub card.
+   Per-domain variants change only `--tile-rgb`: project accent for
+   most cards, dept rgb for crew tiles, tag rgb for workflow nodes. */
+.glass-tile {
+  position: relative;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--tile-rgb, 196, 90, 220), 0.16) 0%,
+      rgba(var(--tile-rgb, 196, 90, 220), 0.08) 45%,
+      rgba(var(--tile-rgb, 196, 90, 220), 0.03) 100%),
+    rgba(20, 20, 28, 0.55);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  border: 1px solid rgba(var(--tile-rgb, 196, 90, 220), 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 24px -8px rgba(var(--tile-rgb, 196, 90, 220), 0.32),
+    0 4px 20px -8px rgba(0, 0, 0, 0.55);
+  border-radius: 14px;
+  overflow: hidden;
+}
+body.light-mode .glass-tile, html.light-mode body .glass-tile {
+  background:
+    linear-gradient(180deg,
+      rgba(var(--tile-rgb, 196, 90, 220), 0.10) 0%,
+      rgba(var(--tile-rgb, 196, 90, 220), 0.04) 45%,
+      rgba(var(--tile-rgb, 196, 90, 220), 0.02) 100%),
+    rgba(248, 240, 220, 0.85);
+  border-color: rgba(var(--tile-rgb, 196, 90, 220), 0.30);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    0 0 24px -8px rgba(var(--tile-rgb, 196, 90, 220), 0.20),
+    0 4px 20px -8px rgba(60, 38, 14, 0.18);
+}
+
+/* Inventory chip / Workflow node cascade — same formula, smaller radius. */
+.glass-tile-sm { border-radius: 10px; }
+.glass-tile-xs { border-radius: 8px; }
+
+/* Timeline milestone list — rows share one glass-tile surface with
+   subtle internal dividers. Suppress the last row's divider so the
+   tile boundary handles the bottom edge. */
+.timeline-ms-list > .timeline-ms-row:last-child { border-bottom: 0 !important; }
+
+/* Letterbox bars — cinematic frame. 2px black bars top + bottom on
+   cards. Above content (z:5). The frame-within-frame is the cinema
+   identity — letterbox the content, not the chrome. */
+.letterbox-top,
+.letterbox-bottom {
+  position: relative;
+  height: 2px;
+  background: #000;
+  z-index: 5;
+  flex-shrink: 0;
+}
+
+/* Hub topbar — frosted bg that flips with theme. */
+.hub-topbar {
+  background: rgba(4, 4, 10, 0.65);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+body.light-mode .hub-topbar, html.light-mode body .hub-topbar {
+  background: rgba(248, 240, 220, 0.85);
+  border-bottom: 1px solid rgba(60, 38, 14, 0.14);
+}
+
+/* Phase / status / dept chip patterns — DESIGN_LANGUAGE.md
+   chip pattern: bg = base @ 0.20, border @ 0.50, dot box-shadow.
+   Status pill: bg @ 0.10, border @ 0.22, color @ 0.9. */
+.ai-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 20px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.ai-meta-pill .phase-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+.ai-meta-pill.pre {
+  background: rgba(232, 160, 32, 0.20);
+  border: 1px solid rgba(232, 160, 32, 0.50);
+  color: var(--phase-pre);
+}
+.ai-meta-pill.pre .phase-dot { background: var(--phase-pre); box-shadow: 0 0 4px var(--phase-pre); }
+.ai-meta-pill.prod {
+  background: rgba(var(--phase-prod-rgb), 0.20);
+  border: 1px solid rgba(var(--phase-prod-rgb), 0.50);
+  color: var(--phase-prod);
+}
+.ai-meta-pill.prod .phase-dot { background: var(--phase-prod); box-shadow: 0 0 4px var(--phase-prod); }
+.ai-meta-pill.post {
+  background: rgba(0, 184, 148, 0.20);
+  border: 1px solid rgba(0, 184, 148, 0.50);
+  color: var(--phase-post);
+}
+.ai-meta-pill.post .phase-dot { background: var(--phase-post); box-shadow: 0 0 4px var(--phase-post); }
+
+/* Loading skeleton shimmer — DESIGN_LANGUAGE.md loading section.
+   Linear (not ease) — feels like a film leader, not a UI bounce.
+   2.2s — slow enough to register without feeling jittery.
+   `.sk` is the canonical short name introduced with the v2 loading-state
+   primitives below; `.sk-block` stays as a backward-compat alias for the
+   pre-v2 HubSkeleton + Crew V1 routes. They share the same shimmer rule. */
+.sk-block, .sk {
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.04) 100%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 2.2s linear infinite;
+  border-radius: 4px;
+}
+body.light-mode .sk-block, html.light-mode body .sk-block,
+body.light-mode .sk, html.light-mode body .sk {
+  background: linear-gradient(90deg,
+    rgba(60, 38, 14, 0.06) 0%,
+    rgba(60, 38, 14, 0.14) 50%,
+    rgba(60, 38, 14, 0.06) 100%);
+  background-size: 200% 100%;
+}
+@keyframes sk-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ────────────────────────────────────────────────────────────
+   Scenemaker (One Arc) — route-namespaced V2 chrome.
+   Reuses cinema-glass primitives (.glass-tile, .sheen-title,
+   .letterbox-*) and adds local-only utilities for badges, pills,
+   and the toolbar chips that are unique to this surface.
+   ──────────────────────────────────────────────────────────── */
+
+/* Neutral outline filter pill — Script tab Characters/Locations/Props
+   row. Mono caps, hairline border, --fg-mono color. Active swaps to
+   the project accent (read from --accent on the .screen root). */
+.scenemaker-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 500;
+  padding: 6px 18px;
+  border-radius: 18px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--fg-mono);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.scenemaker-filter-pill.active {
+  background: rgba(var(--accent-rgb, 196, 90, 220), 0.14);
+  border-color: rgba(var(--accent-rgb, 196, 90, 220), 0.40);
+  color: rgb(var(--accent-rgb, 196, 90, 220));
+}
+
+/* Dept-color outline rect badges — scene number + shot tag. The
+   border + text colors come from --tag-rgb set inline per row so
+   one class serves every dept hue. */
+.scenemaker-scene-num,
+.scenemaker-shot-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-geist-mono), monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  border: 1px solid rgba(var(--tag-rgb, 196, 90, 220), 0.55);
+  color: rgb(var(--tag-rgb, 196, 90, 220));
+  background: rgba(var(--tag-rgb, 196, 90, 220), 0.08);
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+.scenemaker-scene-num {
+  font-size: 0.50rem;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  min-width: 24px;
+}
+.scenemaker-shot-num {
+  font-size: 0.46rem;
+  letter-spacing: 0.04em;
+  padding: 3px 7px;
+  min-width: 30px;
+}
+
+/* Aspect / size mono label after the shot tag — fg-mono caps. */
+.scenemaker-aspect-label {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.40rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  flex-shrink: 0;
+}
+
+/* Toolbar chip — PDF / V0 dropdown. Glass pill at xs radius. */
+.scenemaker-toolbar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: var(--fg-mono);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+body.light-mode .scenemaker-toolbar-chip,
+html.light-mode body .scenemaker-toolbar-chip {
+  background: rgba(60, 38, 14, 0.04);
+}
+.scenemaker-toolbar-chip.active {
+  background: rgba(var(--accent-rgb, 196, 90, 220), 0.14);
+  border-color: rgba(var(--accent-rgb, 196, 90, 220), 0.40);
+  color: rgb(var(--accent-rgb, 196, 90, 220));
+}
+
+/* Story / Shooting toggle — segmented control. Active half gets the
+   filled-glass treatment with accent stroke + accent text. */
+.scenemaker-toggle {
+  display: inline-flex;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+}
+body.light-mode .scenemaker-toggle,
+html.light-mode body .scenemaker-toggle {
+  background: rgba(60, 38, 14, 0.02);
+}
+.scenemaker-toggle-btn {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  color: var(--fg-mono);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.scenemaker-toggle-btn.active {
+  background: rgba(var(--accent-rgb, 196, 90, 220), 0.18);
+  color: rgb(var(--accent-rgb, 196, 90, 220));
+  font-weight: 600;
+}
+
+/* View-mode button (FEED / 3-UP / SPLIT / ALL on Storyboard).
+   Active = glass-tile-sm bg + accent stroke + accent icon/label. */
+.scenemaker-viewmode-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 12px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--fg-mono);
+  cursor: pointer;
+  min-width: 48px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.scenemaker-viewmode-btn.active {
+  background: rgba(var(--accent-rgb, 196, 90, 220), 0.14);
+  border-color: rgba(var(--accent-rgb, 196, 90, 220), 0.40);
+  color: rgb(var(--accent-rgb, 196, 90, 220));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 16px -8px rgba(var(--accent-rgb, 196, 90, 220), 0.40);
+}
+
+/* Meta card row inside Shot Detail glass-tile — mono uppercase label
+   on the left at fixed width, value on the right wraps naturally. */
+.scenemaker-meta-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+body.light-mode .scenemaker-meta-row,
+html.light-mode body .scenemaker-meta-row {
+  border-bottom-color: rgba(60, 38, 14, 0.10);
+}
+.scenemaker-meta-row:last-child { border-bottom: 0; }
+.scenemaker-meta-row .scenemaker-meta-label {
+  flex-shrink: 0;
+  width: 64px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  padding-top: 2px;
+}
+.scenemaker-meta-row .scenemaker-meta-value {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.74rem;
+  color: var(--fg);
+  line-height: 1.45;
+}
+
+/* Skeleton primitives — V2 cinema-glass library additions.
+   Compose with `.sk` to inherit the shimmer; size + shape variants below.
+   Ratios match the gallery's `.sk-line`, `.sk-pill`, `.sk-title`,
+   `.sk-grid-3` rules so per-route `loading.tsx` files can mirror the
+   design mockups directly. Each skeleton block stays a presentational
+   primitive — no border, no padding, no margin (callers compose layout). */
+.sk-line {
+  height: 10px;
+  width: 100%;
+  border-radius: 4px;
+}
+.sk-line.short { width: 30%; margin-left: auto; margin-right: auto; }
+.sk-line.med   { width: 60%; }
+.sk-line.long  { width: 85%; }
+.sk-pill {
+  height: 24px;
+  width: 50px;
+  border-radius: 999px;
+}
+.sk-title {
+  height: 18px;
+  width: 60%;
+  margin: 0 auto;
+  border-radius: 6px;
+}
+.sk-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
 /* ── ANIMATIONS ── */
 @keyframes ring-pulse {
   0% { transform: scale(1); opacity: 0.4; }
@@ -306,3 +712,2468 @@
   .safe-bottom { padding-bottom: var(--safe-bottom); }
   .safe-top { padding-top: var(--safe-top); }
 }
+
+/* ===== Login V1 (PR: reskin/v2-login) ===== */
+.login-stage-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 200px 480px at 50% 0%, rgba(255, 222, 168, 0.32) 0%, rgba(255, 200, 130, 0.10) 30%, transparent 65%),
+    radial-gradient(ellipse 320px 280px at 50% 30%, rgba(255, 220, 160, 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 240px 320px at 8% 60%, rgba(120, 90, 60, 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 240px 320px at 92% 60%, rgba(120, 90, 60, 0.08) 0%, transparent 60%),
+    linear-gradient(180deg, #0a0a0e 0%, #06060a 35%, #0c0a08 70%, #050407 100%);
+  pointer-events: none;
+}
+.login-stage-inner {
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: calc(80px + var(--safe-top)) 24px calc(28px + var(--safe-bottom));
+  gap: 0;
+}
+.login-brand-block {
+  margin-top: 100px;
+  text-align: center;
+}
+.login-brand-title {
+  font-family: var(--font-cormorant-garamond), 'Cormorant Garamond', 'Times New Roman', Georgia, serif;
+  font-weight: 500;
+  font-size: 2.6rem;
+  color: rgba(245, 230, 200, 0.95);
+  letter-spacing: 0.005em;
+  line-height: 1;
+  margin: 0;
+  text-shadow: 0 0 28px rgba(255, 220, 160, 0.18);
+}
+.login-brand-rule {
+  width: 180px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(218, 200, 160, 0.55), transparent);
+  margin: 10px auto 0;
+}
+.login-form-block {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.login-form-eyebrow {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.36rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(245, 230, 200, 0.65);
+  text-align: left;
+  margin-bottom: -4px;
+}
+.login-form-section { display: flex; flex-direction: column; gap: 8px; }
+.login-form-label {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.36rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+}
+.login-role-row { display: flex; gap: 10px; }
+.login-role-btn {
+  position: relative;
+  flex: 1;
+  padding: 14px 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--fg-mono);
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.66rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 180ms;
+  /* Per-role active color — set via data-role */
+  --role-rgb: 196, 90, 220;
+}
+.login-role-btn[data-role="crew"]    { --role-rgb: 0, 184, 148; }
+.login-role-btn[data-role="partner"] { --role-rgb: 232, 160, 32; }
+.login-role-btn.active {
+  background: rgba(var(--role-rgb), 0.85);
+  border-color: rgba(var(--role-rgb), 1);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 0 24px rgba(var(--role-rgb), 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.20);
+}
+.login-role-btn:not(.active) {
+  border-color: rgba(var(--role-rgb), 0.22);
+}
+.login-role-btn-soon {
+  position: absolute;
+  bottom: 4px;
+  right: 5px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(var(--role-rgb), 0.85);
+  background: rgba(var(--role-rgb), 0.10);
+  border: 1px solid rgba(var(--role-rgb), 0.32);
+  padding: 1px 4px;
+  border-radius: 999px;
+  pointer-events: none;
+  font-weight: 600;
+}
+.login-name-input {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: var(--fg);
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  outline: none;
+  width: 100%;
+}
+.login-name-input::placeholder { color: rgba(255, 255, 255, 0.20); }
+.login-name-input:focus { border-color: rgba(var(--phase-prod-rgb), 0.55); }
+.login-enter-btn {
+  margin-top: 8px;
+  background: rgba(245, 240, 235, 0.92);
+  border: none;
+  border-radius: 14px;
+  padding: 16px 0;
+  color: #18141c;
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+  width: 100%;
+}
+.login-enter-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.login-stage-link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+.login-stage-link {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.50rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.login-stage-link.accent { color: rgba(155, 107, 242, 0.85); }
+.login-stage-link:disabled { opacity: 0.35; cursor: not-allowed; }
+.login-stage-msg {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.50rem;
+  letter-spacing: 0.06em;
+  text-align: center;
+  margin-top: 10px;
+}
+.login-stage-msg.err { color: #e8a020; }
+.login-stage-msg.info { color: #00b894; }
+.login-stage-note {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-top: 8px;
+  color: #62627a;
+}
+.login-stage-footer {
+  text-align: center;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.32rem;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  opacity: 0.45;
+  margin-top: 14px;
+}
+
+/* ===== Tab-list V2 (PR: reskin/v2-tab-list) =====
+   Action Items + Inventory visual targets per
+   docs/superpowers/reviews/2026-05-02-cinema-glass-v2-audit.md.
+   Spec source: hub-full-preview-v2.html phones #12-#13 (Action Items
+   Me + Dept) and #39 (Inventory). Both routes share the dept-pill row
+   surface; Action Items defers the icon-stacked variant until a dept
+   icon library lands (text-only pills for now). */
+
+/* --- Action Items: single glass-card row list with bucketed sections --- */
+.ai-list {
+  display: flex;
+  flex-direction: column;
+  margin: 14px 16px 0;
+  /* Inherits .card chrome (background + border-radius + shadow). The
+     bucket-divider rules below provide internal section separation. */
+}
+.ai-list .ai-bucket:first-child { margin-top: 0; }
+
+.ai-bucket {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px 7px;
+  margin-top: 4px;
+}
+.ai-bucket .bucket-rule {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+body.light-mode .ai-bucket .bucket-rule,
+html.light-mode body .ai-bucket .bucket-rule {
+  background: rgba(60, 38, 14, 0.10);
+}
+.ai-bucket .bucket-label {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  flex-shrink: 0;
+}
+.ai-bucket.today .bucket-label { color: var(--accent); }
+
+/* Task rows live inside the .ai-list glass card. Hairline divider between
+   rows; suppress the last child's divider so the card edge handles it. */
+.ai-list .ai-tr {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+body.light-mode .ai-list .ai-tr,
+html.light-mode body .ai-list .ai-tr {
+  border-bottom-color: rgba(60, 38, 14, 0.08);
+}
+.ai-list .ai-tr:last-child { border-bottom: none; }
+.ai-list .ai-tr:hover { background: rgba(255, 255, 255, 0.02); }
+
+/* Dept-tinted left-edge stripe — replaces the inline dept chip on the
+   row's title line. `--row-dept` is set inline per row from DEPT_COLORS. */
+.ai-list .ai-tr.with-dept { padding-left: 18px; }
+.ai-list .ai-tr.with-dept::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--row-dept, var(--fg-mono));
+  opacity: 0.7;
+}
+
+/* --- Inventory: per-status section + row anatomy --- */
+
+/* Section grouping within active dept tab. inv-section pairs a sheen
+   header above its inv-rows block; sections stack with a small gap. */
+.inv-section {
+  display: flex;
+  flex-direction: column;
+}
+.inv-section + .inv-section { margin-top: 12px; }
+.inv-section-header {
+  font-weight: 700;
+  font-size: 0.84rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+  margin: 14px 0 10px;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(var(--accent-glow-rgb), 1) 32%,
+    var(--accent) 55%,
+    rgba(var(--accent-rgb), 0.78) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.22));
+}
+.inv-section:first-of-type .inv-section-header { margin-top: 4px; }
+
+/* Inventory rows — image-grid-style anatomy: 52px thumb + info column +
+   right-aligned status pill. The thumb area is a placeholder gradient
+   (no thumbnail field on InventoryItem yet) with cinema letterbox bars. */
+.inv-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.inv-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px 8px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 4px 14px -8px rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.inv-row:hover { transform: translateY(-1px); background: rgba(255, 255, 255, 0.05); }
+body.light-mode .inv-row,
+html.light-mode body .inv-row {
+  background: rgba(248, 240, 220, 0.65);
+  border-color: rgba(60, 38, 14, 0.12);
+}
+.inv-thumb {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  /* Placeholder gradient driven by inline --thumb-rgb (status color). */
+  background: linear-gradient(165deg,
+    rgba(var(--thumb-rgb, 100, 112, 243), 0.22) 0%,
+    rgba(var(--thumb-rgb, 100, 112, 243), 0.10) 60%,
+    rgba(0, 0, 0, 0.45) 100%);
+}
+.inv-thumb .letterbox-top,
+.inv-thumb .letterbox-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2;
+}
+.inv-thumb .letterbox-top { top: 0; }
+.inv-thumb .letterbox-bottom { bottom: 0; }
+.inv-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.inv-name {
+  font-weight: 500;
+  font-size: 0.78rem;
+  letter-spacing: 0.005em;
+  color: var(--fg);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inv-meta {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inv-status-pill {
+  --status-rgb: 100, 112, 243;
+  flex-shrink: 0;
+  align-self: center;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgb(var(--status-rgb));
+  background: rgba(var(--status-rgb), 0.12);
+  border: 1px solid rgba(var(--status-rgb), 0.32);
+  white-space: nowrap;
+}
+/* ===== end Tab-list V2 ===== */
+
+/* ===== Budget V2 (PR: reskin/v2-budget) =====
+   Visual-only V2 wrappers for the Budget page. Closes structural gaps
+   to gallery phones #10 / #11 in `apps/back-to-one/reference/hub-full-preview-v2.html`:
+     • bgt-summary           — hero Total + progress bar + 2-col Spent/Remaining + foot
+     • bgt-categories        — 2-col grid of tinted per-category cards (--cat-rgb)
+     • bgt-tx-list / bgt-tx-row — Recent Transactions glass section
+     • bgt-section-header    — sheen-extrusion section heading
+
+   Shapes ported directly from gallery CSS at `globals` block ~5760–6005.
+   Re-namespaced with the `bgt-` prefix so they don't collide with future
+   work but match the gallery rhythm verbatim. */
+
+.bgt-summary {
+  background: rgba(20, 20, 28, 0.42);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 4px 14px -8px rgba(0, 0, 0, 0.55);
+}
+.bgt-summary-total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.bgt-summary-total-label {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+}
+.bgt-summary-total {
+  font-family: var(--font-geist), 'Geist', sans-serif;
+  font-size: 1.32rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(var(--accent-glow-rgb), 1) 32%,
+    var(--accent) 55%,
+    rgba(var(--accent-rgb), 0.78) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.22));
+  font-variant-numeric: tabular-nums;
+}
+.bgt-summary-bar {
+  position: relative;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-top: 2px;
+}
+.bgt-summary-bar-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg,
+    var(--accent) 0%,
+    rgba(var(--accent-glow-rgb), 1) 100%);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.4);
+}
+.bgt-summary-split {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+}
+.bgt-summary-split-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bgt-summary-split-cell.right { text-align: right; align-items: flex-end; }
+.bgt-summary-split-label {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+}
+.bgt-summary-split-value {
+  font-family: var(--font-geist), 'Geist', sans-serif;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+.bgt-summary-split-pct {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  color: var(--fg-mono);
+}
+.bgt-summary-foot {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  text-align: center;
+  padding-top: 4px;
+}
+
+/* Section header — sheen-extrusion treatment matching .sheen-title shape
+   but with smaller/heavier rhythm. Used above Categories + Recent Transactions. */
+.bgt-section-header {
+  font-weight: 700;
+  font-size: 0.86rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+  margin: 14px 0 8px;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(var(--accent-glow-rgb), 1) 32%,
+    var(--accent) 55%,
+    rgba(var(--accent-rgb), 0.78) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.22));
+}
+
+/* Category cards — 2-col grid, per-card --cat-rgb tinting. */
+.bgt-categories {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.bgt-cat-card {
+  --cat-rgb: 122, 122, 130;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 10px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 4px 14px -8px rgba(0, 0, 0, 0.55);
+  min-width: 0;
+  transition: transform var(--dur, 0.18s) var(--ease, ease), border-color var(--dur, 0.18s) var(--ease, ease);
+}
+.bgt-cat-card.active {
+  border-color: rgba(var(--cat-rgb), 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 4px 14px -6px rgba(var(--cat-rgb), 0.45);
+}
+.bgt-cat-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bgt-cat-name {
+  font-family: var(--font-geist), 'Geist', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bgt-cat-pct {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgb(var(--cat-rgb));
+  font-variant-numeric: tabular-nums;
+}
+.bgt-cat-bar {
+  position: relative;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+.bgt-cat-bar-fill {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  border-radius: 999px;
+  background: rgb(var(--cat-rgb));
+  box-shadow: 0 0 6px rgba(var(--cat-rgb), 0.42);
+}
+.bgt-cat-amounts {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.06em;
+  color: var(--fg-mono);
+  font-variant-numeric: tabular-nums;
+}
+.bgt-cat-amounts .bgt-cat-spent { color: var(--fg); }
+
+/* Recent Transactions list. Single glass card; rows separated by hairline. */
+.bgt-tx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: rgba(20, 20, 28, 0.42);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px 12px;
+}
+.bgt-tx-row {
+  display: grid;
+  grid-template-columns: 44px auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.bgt-tx-row:last-child { border-bottom: none; }
+.bgt-tx-date {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+}
+.bgt-tx-amount {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.54rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgb(232, 80, 122);
+  font-variant-numeric: tabular-nums;
+  min-width: 56px;
+  text-align: right;
+}
+.bgt-tx-desc {
+  font-family: var(--font-geist), 'Geist', sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.005em;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bgt-tx-cat-pill {
+  --cat-rgb: 122, 122, 130;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.38rem;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgb(var(--cat-rgb));
+  background: rgba(var(--cat-rgb), 0.12);
+  border: 1px solid rgba(var(--cat-rgb), 0.32);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Light-mode tweaks — match the existing pattern used by .sheen-title /
+   glass-tile light-mode overrides elsewhere in this file. */
+body.light-mode .bgt-summary,
+html.light-mode body .bgt-summary,
+body.light-mode .bgt-tx-list,
+html.light-mode body .bgt-tx-list {
+  background: rgba(255, 248, 235, 0.72);
+  border-color: rgba(60, 38, 14, 0.10);
+}
+body.light-mode .bgt-cat-card,
+html.light-mode body .bgt-cat-card {
+  background: rgba(255, 248, 235, 0.55);
+  border-color: rgba(60, 38, 14, 0.10);
+}
+body.light-mode .bgt-tx-row,
+html.light-mode body .bgt-tx-row {
+  border-bottom-color: rgba(60, 38, 14, 0.08);
+}
+/* ===== end Budget V2 ===== */
+
+/* ===== Workflow V2 (PR: reskin/v2-workflow) =====
+   NodeCard restructure (top tag row → body title+tool → right column
+   assignee w/ avatar + name+role stack), connector pill (mono-caps tag
+   with arrow inside), and nested deliverables under Final Delivery node
+   per docs/superpowers/reviews/2026-05-02-cinema-glass-v2-audit.md.
+   Spec source: hub-full-preview-v2.html phones #41-#44. The audit-
+   prescribed rectangular layout is used (rather than gallery's circular
+   variant) because real production data has long titles like
+   "Online / Conform" that don't fit a 120px circle. */
+
+.wf-count {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  padding: 0 4px;
+}
+
+.wf-node {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "tag tag"
+    "body assignee";
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--tag-rgb), 0.40);
+  background:
+    linear-gradient(180deg,
+      rgba(var(--tag-rgb), 0.10) 0%,
+      rgba(var(--tag-rgb), 0.04) 50%,
+      rgba(0, 0, 0, 0.20) 100%),
+    rgba(18, 18, 24, 0.75);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 24px -10px rgba(var(--tag-rgb), 0.40),
+    0 4px 14px -10px rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+body.light-mode .wf-node,
+html.light-mode body .wf-node {
+  background:
+    linear-gradient(180deg,
+      rgba(var(--tag-rgb), 0.12) 0%,
+      rgba(var(--tag-rgb), 0.05) 50%,
+      rgba(248, 240, 220, 0.65) 100%),
+    rgba(248, 240, 220, 0.75);
+  border-color: rgba(var(--tag-rgb), 0.45);
+}
+.wf-node:hover {
+  transform: translateY(-1px);
+  border-color: rgba(var(--tag-rgb), 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 28px -8px rgba(var(--tag-rgb), 0.50),
+    0 6px 16px -10px rgba(0, 0, 0, 0.65);
+}
+
+.wf-node-tag {
+  grid-area: tag;
+  justify-self: start;
+  align-self: center;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(var(--tag-rgb));
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(var(--tag-rgb), 0.12);
+  border: 1px solid rgba(var(--tag-rgb), 0.28);
+}
+
+.wf-node-body {
+  grid-area: body;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.wf-node-title {
+  font-weight: 700;
+  font-size: 0.86rem;
+  letter-spacing: -0.005em;
+  line-height: 1.2;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wf-node-tool {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(var(--tag-rgb));
+  opacity: 0.92;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wf-node-assignee {
+  grid-area: assignee;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.wf-node-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.50rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.wf-node-avatar.is-empty {
+  border: 1.5px dashed rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.30);
+  font-weight: 300;
+  font-size: 0.78rem;
+}
+body.light-mode .wf-node-avatar.is-empty,
+html.light-mode body .wf-node-avatar.is-empty {
+  border-color: rgba(60, 38, 14, 0.20);
+  color: rgba(60, 38, 14, 0.32);
+}
+.wf-node-name-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+}
+.wf-node-name {
+  font-size: 0.62rem;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+}
+.wf-node-role {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.40rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+}
+
+/* Connector — single mono-caps pill with arrow inside, sitting on a
+   centred hairline that bridges between cards. */
+.wf-connector {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 36px;
+  margin: 6px 0;
+}
+.wf-connector::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 28%;
+  right: 28%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(var(--accent-rgb), 0.32) 20%,
+    rgba(var(--accent-rgb), 0.55) 50%,
+    rgba(var(--accent-rgb), 0.32) 80%,
+    transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+.wf-connector-pill {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 100px;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--accent-rgb), 0.10) 0%,
+      rgba(0, 0, 0, 0.18) 100%),
+    rgba(20, 20, 28, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(var(--accent-rgb), 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 14px -6px rgba(var(--accent-rgb), 0.32);
+  color: rgb(var(--accent-rgb));
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+body.light-mode .wf-connector-pill,
+html.light-mode body .wf-connector-pill {
+  background:
+    linear-gradient(180deg,
+      rgba(var(--accent-rgb), 0.14) 0%,
+      rgba(255, 255, 255, 0.55) 100%),
+    rgba(248, 240, 220, 0.75);
+  color: var(--accent);
+}
+.wf-connector-pill.is-empty { opacity: 0.55; }
+.wf-arrow {
+  font-size: 0.62rem;
+  font-weight: 400;
+  color: var(--fg-mono);
+  line-height: 0.7;
+  transform: translateY(-1px);
+}
+
+/* Nested deliverables under Final Delivery — verdant rail + rows. The
+   green is a fixed delivery semantic (matches the gallery), independent
+   of project accent. */
+.wf-node-deliverables {
+  position: relative;
+  margin: 4px 0 8px 22px;
+  padding: 8px 0 2px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wf-node-deliverables::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 6px;
+  width: 1px;
+  background: linear-gradient(180deg,
+    rgba(0, 184, 148, 0.45) 0%,
+    rgba(0, 184, 148, 0.12) 100%);
+}
+.wf-node-deliverables-label {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(0, 184, 148, 0.95);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.wf-node-deliverable-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.wf-node-deliverable-row:hover { background: rgba(255, 255, 255, 0.04); }
+body.light-mode .wf-node-deliverable-row,
+html.light-mode body .wf-node-deliverable-row {
+  background: rgba(248, 240, 220, 0.55);
+  border-color: rgba(60, 38, 14, 0.10);
+}
+.wf-node-deliverable-row::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  width: 12px;
+  height: 1px;
+  background: rgba(0, 184, 148, 0.32);
+}
+.wf-node-deliverable-name {
+  font-weight: 600;
+  font-size: 0.62rem;
+  color: var(--fg);
+  line-height: 1.2;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wf-node-deliverable-specs {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.36rem;
+  letter-spacing: 0.06em;
+  color: var(--fg-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wf-node-deliverable-runtime {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.50rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--fg);
+  flex-shrink: 0;
+}
+/* ===== end Workflow V2 ===== */
+
+/* ===== Image-grid V2 (PR: reskin/v2-image-grid) =====
+   Locations + Art + Moodboard/Tone + Resources visual targets.
+   Vertical image-on-top cards, pill overlays, per-rgb tinting,
+   sheen section headers, mosaic variants, filter pill rows.
+   Source: hub-full-preview-v2.html phones #25 (Tone), #27 (Locations),
+   #35–#37 (Art), #45 (Resources). */
+
+/* Shared filter-pill row + dept-pill — used by Tone tag-filter and
+   Resources type-filter rows. */
+.ai-dept-filters {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 4px 16px 6px;
+  margin: 0;
+}
+.ai-dept-filters::-webkit-scrollbar { display: none; }
+.dept-pill {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.05));
+  font-family: 'Geist Mono', var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+.dept-pill:hover { color: var(--fg); }
+.dept-pill .dept-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.55;
+}
+.dept-pill.active {
+  background: rgba(var(--accent-rgb, 196, 90, 220), 0.10);
+  border-color: rgba(var(--accent-rgb, 196, 90, 220), 0.32);
+  color: var(--accent, rgb(var(--accent-rgb, 196, 90, 220)));
+}
+.dept-pill.active .dept-count {
+  opacity: 1;
+  color: var(--accent, rgb(var(--accent-rgb, 196, 90, 220)));
+}
+
+/* ===== Locations (loc-) ===== */
+.loc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.loc-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(20, 20, 28, 0.42);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.05));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 4px 18px -8px rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  transition: transform 0.18s ease;
+}
+.loc-card:hover { transform: translateY(-1px); }
+/* Edge-glow outline (project-accent tinted) */
+.loc-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent 0%, rgba(var(--accent-rgb, 196, 90, 220), 0.18) 50%, transparent 100%) top / 100% 1px no-repeat,
+    linear-gradient(90deg, transparent 0%, rgba(var(--accent-rgb, 196, 90, 220), 0.14) 50%, transparent 100%) bottom / 100% 1px no-repeat,
+    linear-gradient(180deg, transparent 0%, rgba(var(--accent-rgb, 196, 90, 220), 0.12) 50%, transparent 100%) left / 1px 100% no-repeat,
+    linear-gradient(180deg, transparent 0%, rgba(var(--accent-rgb, 196, 90, 220), 0.12) 50%, transparent 100%) right / 1px 100% no-repeat;
+  mix-blend-mode: screen;
+  z-index: 3;
+}
+.loc-card > * { position: relative; z-index: 2; }
+/* Title at top — cream sheen+extrusion */
+.loc-title {
+  font-weight: 500;
+  font-size: 0.72rem;
+  letter-spacing: 0.005em;
+  line-height: 1.2;
+  text-align: center;
+  padding: 9px 10px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 1) 0%,
+    var(--fg) 55%,
+    rgba(235, 235, 239, 0.82) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.4))
+    drop-shadow(0 0 6px rgba(255, 255, 255, 0.05));
+}
+/* 16:9 hero image with hairline letterbox bars */
+.loc-image-hero {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--loc-bg, #0a0a12);
+  overflow: hidden;
+}
+.loc-image-hero .letterbox-top,
+.loc-image-hero .letterbox-bottom {
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 2;
+}
+.loc-image-hero .letterbox-top { top: 0; }
+.loc-image-hero .letterbox-bottom { bottom: 0; }
+/* Meta block — center-aligned stack */
+.loc-meta {
+  padding: 8px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.loc-address {
+  font-family: 'Geist Mono', var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.loc-dates-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.loc-dates {
+  font-family: 'Geist Mono', var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.06em;
+  color: var(--fg);
+}
+.loc-status-pill,
+.loc-approval {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-family: 'Geist Mono', var(--font-geist-mono), monospace;
+  font-size: 0.40rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* Status enum (LocationStatus): unscouted / scouting / in_talks / confirmed / passed */
+.loc-status-pill.confirmed,
+.loc-approval.approved { background: rgba(0, 184, 148, 0.12); color: var(--phase-post, #00b894); border: 1px solid rgba(0, 184, 148, 0.32); }
+.loc-status-pill.scouting,
+.loc-approval.option   { background: rgba(232, 160, 32, 0.12); color: var(--phase-pre, #e8a020);  border: 1px solid rgba(232, 160, 32, 0.32); }
+.loc-status-pill.unscouted { background: rgba(98, 98, 122, 0.14); color: #a0a0b0; border: 1px solid rgba(98, 98, 122, 0.32); }
+.loc-status-pill.in_talks  { background: rgba(155, 109, 224, 0.14); color: #b89df0; border: 1px solid rgba(155, 109, 224, 0.34); }
+.loc-status-pill.passed    { background: rgba(138, 74, 74, 0.16); color: #d29090; border: 1px solid rgba(138, 74, 74, 0.36); }
+
+/* ===== Art (art-) ===== */
+.art-section { display: flex; flex-direction: column; }
+.art-section + .art-section { margin-top: 4px; }
+.art-section-header {
+  font-weight: 700;
+  font-size: 0.92rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+  margin: 14px 0 10px;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(var(--accent-glow-rgb, 216, 120, 236), 1) 32%,
+    var(--accent, rgb(var(--accent-rgb, 196, 90, 220))) 55%,
+    rgba(var(--accent-rgb, 196, 90, 220), 0.78) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 6px rgba(var(--accent-rgb, 196, 90, 220), 0.22));
+}
+.art-section:first-of-type .art-section-header { margin-top: 4px; }
+.art-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.art-card {
+  --scene-rgb: 122, 122, 130;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.05));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 4px 14px -8px rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  transition: transform 0.18s ease;
+  min-width: 0;
+}
+.art-card:hover { transform: translateY(-1px); }
+.art-card-image {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  background: var(--art-bg, linear-gradient(165deg, rgba(var(--scene-rgb), 0.55) 0%, rgba(var(--scene-rgb), 0.22) 50%, rgba(8, 8, 14, 0.92) 100%));
+}
+.art-card-image .letterbox-top,
+.art-card-image .letterbox-bottom {
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2;
+}
+.art-card-image .letterbox-top { top: 0; }
+.art-card-image .letterbox-bottom { bottom: 0; }
+.art-card-name {
+  font-weight: 600;
+  font-size: 0.72rem;
+  line-height: 1.15;
+  text-align: center;
+  color: rgb(var(--scene-rgb));
+  padding: 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.art-card-meta {
+  font-family: 'Geist Mono', var(--font-geist-mono), monospace;
+  font-size: 0.44rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.art-status-pill {
+  --status-rgb: 0, 184, 148;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 4;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Geist Mono', var(--font-geist-mono), monospace;
+  font-size: 0.40rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgb(var(--status-rgb));
+  background: rgba(var(--status-rgb), 0.12);
+  border: 1px solid rgba(var(--status-rgb), 0.32);
+}
+.art-hero-pill {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 4;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Geist Mono', var(--font-geist-mono), monospace;
+  font-size: 0.40rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: #E07B39;
+  background: rgba(224, 123, 57, 0.10);
+  border: 1px solid rgba(224, 123, 57, 0.22);
+}
+
+/* ===== Tone / Moodboard mosaic (oa-tone-) ===== */
+.oa-tone-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  padding: 4px 14px 8px;
+}
+.oa-tone-mosaic {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  grid-auto-flow: dense;
+}
+.oa-tone-tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.05));
+  background: var(--tile-bg, linear-gradient(135deg, #1a1228, #0d1a2a));
+  cursor: pointer;
+}
+.oa-tone-tile.tall { grid-row: span 2; aspect-ratio: 1 / 2; }
+.oa-tone-tile.wide { grid-column: span 2; aspect-ratio: 16 / 9; }
+.oa-tone-tile-tag {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  right: 4px;
+  background: rgba(4, 4, 10, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-family: 'Geist Mono', var(--font-geist-mono), monospace;
+  font-size: 0.40rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 2;
+}
+
+/* ===== Resources (res-) ===== */
+.res-list { display: flex; flex-direction: column; gap: 0; }
+.res-section { display: flex; flex-direction: column; }
+.res-section + .res-section { margin-top: 4px; }
+.res-section-header {
+  font-weight: 700;
+  font-size: 0.92rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+  margin: 14px 0 10px;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(var(--accent-glow-rgb, 216, 120, 236), 1) 32%,
+    var(--accent, rgb(var(--accent-rgb, 196, 90, 220))) 55%,
+    rgba(var(--accent-rgb, 196, 90, 220), 0.78) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 6px rgba(var(--accent-rgb, 196, 90, 220), 0.22));
+}
+.res-section:first-of-type .res-section-header { margin-top: 4px; }
+.res-rows { display: flex; flex-direction: column; gap: 6px; }
+.res-row {
+  --type-rgb: 122, 122, 130;
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px 8px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.05));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 4px 14px -8px rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  transition: transform 0.18s ease;
+  text-decoration: none;
+  color: inherit;
+}
+.res-row:hover { transform: translateY(-1px); }
+.res-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(var(--type-rgb), 0.14);
+  color: rgb(var(--type-rgb));
+  border: 1px solid rgba(var(--type-rgb), 0.32);
+  flex-shrink: 0;
+}
+.res-icon svg { width: 16px; height: 16px; }
+.res-icon-pdf-label {
+  font-family: 'Geist Mono', var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgb(var(--type-rgb));
+}
+.res-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.res-name {
+  font-family: 'Geist', var(--font-geist), sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.res-meta {
+  font-family: 'Geist Mono', var(--font-geist-mono), monospace;
+  font-size: 0.44rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.res-action {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: 'Geist Mono', var(--font-geist-mono), monospace;
+  font-size: 0.44rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.05));
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.res-action:hover {
+  border-color: rgba(var(--accent-rgb, 196, 90, 220), 0.45);
+  color: var(--accent, rgb(var(--accent-rgb, 196, 90, 220)));
+}
+/* ===== end Image-grid V2 ===== */
+
+/* ===== Project Selection V1 (PR: reskin/v2-project-selection) ===== */
+.select-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.select-tagline {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  opacity: 0.75;
+}
+.select-title {
+  font-weight: 700;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 1) 0%,
+    var(--fg) 55%,
+    rgba(235, 235, 239, 0.82) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 8px rgba(255, 255, 255, 0.08));
+}
+.select-subtitle {
+  font-family: var(--font-geist-sans), sans-serif;
+  font-weight: 500;
+  font-size: 0.88rem;
+  color: #62627a;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+
+/* Logout chip — quiet round button top-right */
+.select-logout {
+  position: fixed;
+  top: calc(18px + var(--safe-top));
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 7;
+  opacity: 0.6;
+  transition: opacity 180ms ease;
+}
+.select-logout:active { opacity: 1; }
+
+/* Action pills — New Project (teal) + New Folder (purple) */
+.select-action {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  background: rgba(var(--action-rgb), 0.04);
+  border: 1px dashed rgba(var(--action-rgb), 0.42);
+  color: rgb(var(--action-rgb));
+  cursor: pointer;
+  opacity: 0.92;
+  transition: opacity 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+  --action-rgb: 196, 90, 220;
+}
+.select-action.new-project { --action-rgb: 0, 184, 148; }
+.select-action.new-folder  { --action-rgb: 196, 90, 220; }
+.select-action:active {
+  opacity: 1;
+  transform: translateY(-1px);
+  box-shadow: 0 0 16px rgba(var(--action-rgb), 0.20);
+}
+.select-action .glyph { font-size: 0.78rem; line-height: 1; }
+
+/* Archive button — silver chrome pill with count badge */
+.select-archive-btn {
+  --arc-rgb: 200, 210, 224;
+  margin: 14px auto 0;
+  padding: 11px 20px;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--arc-rgb), 0.42);
+  background:
+    linear-gradient(180deg, rgba(var(--arc-rgb), 0.16) 0%, rgba(var(--arc-rgb), 0.06) 50%, rgba(0, 0, 0, 0.22) 100%),
+    rgba(18, 20, 24, 0.72);
+  backdrop-filter: blur(14px) saturate(125%);
+  -webkit-backdrop-filter: blur(14px) saturate(125%);
+  color: rgb(var(--arc-rgb));
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  font-weight: 600;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  position: relative;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.32),
+    0 0 18px -6px rgba(var(--arc-rgb), 0.30),
+    0 4px 14px -8px rgba(0, 0, 0, 0.55);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+.select-archive-btn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.55) 50%, transparent 100%);
+  pointer-events: none;
+}
+.select-archive-btn.drop-target {
+  border-color: rgba(var(--arc-rgb), 0.85);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.34),
+    0 0 32px -2px rgba(var(--arc-rgb), 0.65),
+    0 6px 18px -8px rgba(0, 0, 0, 0.7);
+  transform: scale(1.06);
+}
+.select-archive-btn .arc-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: rgba(var(--arc-rgb), 0.18);
+  border: 1px solid rgba(var(--arc-rgb), 0.45);
+  color: rgb(var(--arc-rgb));
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.40rem;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+/* Manila folder card — Mac-style folder silhouette via SVG path.
+   Tab in top-left curves into the body; --proj-rgb drives accent. */
+.slate-folder-card {
+  position: relative;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  aspect-ratio: 4 / 3;
+  transition: transform 180ms ease, filter 250ms, opacity 250ms;
+}
+.slate-folder-card .slate-folder-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  filter:
+    drop-shadow(0 0 22px rgba(var(--proj-rgb), 0.32))
+    drop-shadow(0 4px 18px rgba(0, 0, 0, 0.55));
+}
+.slate-folder-card .folder-path {
+  fill: rgba(var(--proj-rgb), 0.18);
+  stroke: rgba(var(--proj-rgb), 0.30);
+  stroke-width: 1.0;
+  vector-effect: non-scaling-stroke;
+}
+.slate-folder-card.drop-target .folder-path {
+  fill: rgba(var(--proj-rgb), 0.32);
+  stroke: rgba(var(--proj-rgb), 0.85);
+  stroke-width: 1.5;
+}
+.slate-folder-card.drop-target {
+  transform: scale(1.04);
+}
+.slate-folder-tab-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 70%;
+  height: 17%;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 10px 4px;
+  z-index: 2;
+  gap: 6px;
+}
+.slate-folder-tab-content .slate-folder-name {
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.1;
+  flex: 1;
+  min-width: 0;
+}
+.slate-folder-tab-content .slate-folder-count {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: rgba(var(--proj-rgb), 0.85);
+  flex-shrink: 0;
+}
+.slate-folder-body {
+  position: absolute;
+  top: 22%;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 8px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 2;
+}
+.slate-folder-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 6px;
+  min-height: 0;
+}
+.slate-folder-cell {
+  position: relative;
+  border-radius: 6px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(var(--cell-rgb), 0.16) 0%, rgba(var(--cell-rgb), 0.06) 100%),
+    rgba(20, 20, 28, 0.55);
+  border: 1px solid rgba(var(--cell-rgb), 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+.slate-folder-cell::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, rgba(var(--cell-rgb), 0.85) 50%, transparent 100%);
+}
+.slate-folder-cell-name {
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.56rem;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: 0.005em;
+  text-align: center;
+  line-height: 1.1;
+  max-width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.slate-folder-cell.empty {
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  box-shadow: none;
+}
+.slate-folder-cell.empty::before { display: none; }
+.slate-folder-cell.overflow {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: rgba(var(--proj-rgb), 0.95);
+}
+
+/* Floating-panel folder/archive overlay — top: 200px, all-corners rounded.
+   Plum-toned default; .archive-tone gives the Archive variant silver. */
+.folder-open-sheet {
+  --sheet-rgb: 100, 112, 243;
+  position: fixed;
+  top: 200px;
+  bottom: auto;
+  left: 16px;
+  right: 16px;
+  max-height: calc(100dvh - 200px - 68px - 24px - var(--safe-bottom));
+  border-radius: 20px;
+  border: 1px solid rgba(var(--sheet-rgb), 0.30);
+  border-top: 1px solid rgba(var(--sheet-rgb), 0.45);
+  background: rgba(10, 10, 18, 0.78);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 12;
+  box-shadow:
+    0 -1px 0 rgba(255, 255, 255, 0.05),
+    0 32px 80px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.folder-open-sheet.archive-tone {
+  --sheet-rgb: 200, 210, 224;
+}
+
+/* ===== Hub V2 (PR: reskin/v2-hub) =====
+   Closes structural gaps to gallery phone #5 (hub-full-preview-v2.html).
+   All classes are visual-only on already-wired data. No new features.
+   ===== */
+
+/* — Crew filter pill row under crew avatars in the topbar (cp-filter-row).
+     Mono-caps pills, scrollable, project-accent active state. ----------- */
+.cp-filter-row {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 4px 2px 2px;
+  margin-top: 8px;
+  scrollbar-width: none;
+  width: 100%;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+.cp-filter-row::-webkit-scrollbar { display: none; }
+.cp-filter-pill {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.34rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.10));
+  border-radius: 999px;
+  white-space: nowrap;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.cp-filter-pill:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.cp-filter-pill.active {
+  color: rgb(var(--accent-rgb, 196, 90, 220));
+  background: rgba(var(--accent-rgb, 196, 90, 220), 0.12);
+  border-color: rgba(var(--accent-rgb, 196, 90, 220), 0.45);
+}
+
+/* — Body accent-pulse band behind modules (bg-glow-pulse). Replaces the
+     three center radials at the screen root with the explicit accent ramp
+     the design specifies as "the only autoplay motion in the variant." */
+@keyframes hubBgGlowPulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1.00; }
+}
+.hub-bg-glow-pulse {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(90deg,
+    var(--bg, #04040a) 0%,
+    var(--bg, #04040a) 8%,
+    rgba(var(--accent-rgb, 196, 90, 220), 0.06) 30%,
+    rgba(var(--accent-glow-rgb, 216, 124, 236), 0.10) 50%,
+    rgba(var(--accent-rgb, 196, 90, 220), 0.06) 70%,
+    var(--bg, #04040a) 92%,
+    var(--bg, #04040a) 100%);
+  animation: hubBgGlowPulse 11s ease-in-out infinite;
+  will-change: opacity;
+}
+
+/* — Inventory chip strip (inv-strip / inv-chip / inv-chip-all). Replaces
+     the previous glass-tile-sm rendition. The chips share the gallery
+     anatomy: 76×76 frosted tile, neutral icon, accent caps label. The
+     final inv-chip-all swaps to a dashed accent border for the View-all
+     affordance. ---------------------------------------------------- */
+.inv-strip {
+  display: flex;
+  gap: 8px;
+  padding: 4px 2px 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.inv-strip::-webkit-scrollbar { display: none; }
+.inv-chip {
+  flex-shrink: 0;
+  width: 76px; height: 76px;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--tile-rgb, 196, 90, 220), 0.12) 0%,
+      rgba(var(--tile-rgb, 196, 90, 220), 0.05) 100%),
+    rgba(20, 20, 28, 0.55);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  border: 1px solid rgba(var(--tile-rgb, 196, 90, 220), 0.24);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 4px 20px -8px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+.inv-chip:hover { transform: translateY(-1px); }
+.inv-chip:active { opacity: 0.8; }
+.inv-chip-icon {
+  width: 22px; height: 22px;
+  color: var(--fg, #dddde8);
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+.inv-chip-label {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.40rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(var(--accent-rgb, 196, 90, 220));
+  white-space: nowrap;
+  font-weight: 600;
+}
+.inv-chip-all {
+  background: rgba(var(--accent-rgb, 196, 90, 220), 0.04);
+  border: 1px dashed rgba(var(--accent-rgb, 196, 90, 220), 0.32);
+}
+.inv-chip-all .inv-chip-icon {
+  color: rgb(var(--accent-rgb, 196, 90, 220));
+  opacity: 1;
+}
+.inv-chip-all .inv-chip-label { opacity: 0.9; }
+
+/* — Workflow row (wf-row / wf-node / wf-conn). The 5-node icon chain
+     with hairline connectors between. Each node is its own glass tile
+     with a centered icon + caps label. Connectors are 1px gradient
+     strokes pre-prod → post tinted. Phase tint variants leave room for
+     future per-phase styling without changing markup. -------------- */
+.wf-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 0 4px;
+}
+.wf-node {
+  flex: 1;
+  height: 58px;
+  border-radius: 8px;
+  background: rgba(20, 20, 28, 0.55);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.10));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 4px 16px -8px rgba(0, 0, 0, 0.45);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: transform 0.18s ease;
+}
+.wf-node:hover { transform: translateY(-1px); }
+.wf-node-icon {
+  width: 18px; height: 18px;
+  color: var(--fg, #dddde8);
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+.wf-node-label {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.32rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(var(--accent-rgb, 196, 90, 220));
+  white-space: nowrap;
+  max-width: 100%;
+  padding: 0 3px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wf-conn {
+  flex-shrink: 0;
+  width: 8px;
+  height: 1px;
+  margin-top: 29px;
+  background: linear-gradient(90deg,
+    rgba(var(--phase-prod-rgb, 100, 112, 243), 0.30),
+    rgba(0, 184, 148, 0.30));
+}
+
+/* Phase tints for the workflow chain (gallery cycles 5 alternating
+   phase-tinted cells). Each variant pins --tint-rgb so icon + label
+   inherit the matching phase color while the tile keeps its glass. */
+.wf-node.wf-pre  { --tint-rgb: 232, 160, 32;  border-color: rgba(232, 160, 32, 0.30); }
+.wf-node.wf-prod { --tint-rgb: 100, 112, 243; border-color: rgba(100, 112, 243, 0.30); }
+.wf-node.wf-post { --tint-rgb: 0, 184, 148;   border-color: rgba(0, 184, 148, 0.30); }
+.wf-node.wf-pre .wf-node-icon,
+.wf-node.wf-prod .wf-node-icon,
+.wf-node.wf-post .wf-node-icon { color: rgb(var(--tint-rgb)); opacity: 1; }
+.wf-node.wf-pre .wf-node-label,
+.wf-node.wf-prod .wf-node-label,
+.wf-node.wf-post .wf-node-label { color: rgb(var(--tint-rgb)); }
+
+/* — Budget dial wrapper around the existing actuals percentage. Renders
+     a 64px SVG ring (background ring + accent progress ring at N%). The
+     spent / total mono row sits below. The version pill anchors top-right
+     of the budget tile and reads the working version label. ---------- */
+.bgt-dial {
+  width: 64px; height: 64px;
+  position: relative;
+  flex-shrink: 0;
+}
+.bgt-dial svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.bgt-dial-bg {
+  stroke: rgba(255, 255, 255, 0.07);
+}
+.bgt-dial-fg {
+  stroke: rgb(var(--accent-rgb, 196, 90, 220));
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s ease;
+}
+.bgt-dial-pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.6rem;
+  font-weight: 500;
+  color: var(--fg, #dddde8);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+.bgt-meta {
+  display: flex;
+  gap: 5px;
+  align-items: baseline;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.40rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  margin-top: 6px;
+  white-space: nowrap;
+  justify-content: center;
+}
+.bgt-meta-spent { color: var(--fg, #dddde8); }
+.bgt-meta-sep { color: var(--fg-mono); opacity: 0.5; }
+.bgt-meta-total { color: var(--fg-mono); }
+.bgt-version-pill {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.32rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.10));
+  padding: 1px 5px;
+  border-radius: 999px;
+  z-index: 5;
+  font-weight: 600;
+}
+
+/* — LCA row triplet (lca-row). The three sp-panels live as siblings in
+     a 3-col flex row; existing SwipePanel components already render the
+     mono-caps tinted label + dots, so this just provides the row gap +
+     equal-width sister behavior (matches the gallery .lca-row). ----- */
+.lca-row {
+  display: flex;
+  gap: 8px;
+}
+.lca-row > * {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ===== end Hub V2 ===== */
+
+/* ===== Hub V2.1 (PR: reskin/v21-hub) =====
+   Polish on top of V2:
+   • Timeline/Budget tile content now top-anchored for shared rhythm
+     (handled inline in HubContent — bgt-body justify-content: flex-start
+     and padding bumped to 8px 12px to match the gantt tile).
+   • Budget empty state takes the loaded tile's Cinema Glass chrome
+     (glass-tile + bgt-card + letterbox + version pill) instead of the
+     prior dashed-border placeholder. The dial silhouette persists with
+     only its background ring + an em-dash placeholder; a mono ghost CTA
+     anchors the next action.
+   • Chevron tap targets in GanttChart bumped to 44×44 inline (visual
+     unchanged) — no CSS needed.
+   ===== */
+.bgt-dial.bgt-dial-empty .bgt-dial-pct {
+  color: var(--fg-mono);
+  opacity: 0.55;
+}
+.bgt-version-pill.bgt-version-pill-empty {
+  opacity: 0.55;
+}
+.bgt-empty-cta {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  background: transparent;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.10));
+  border-radius: 999px;
+  padding: 4px 10px;
+  margin-top: 10px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+/* ===== end Hub V2.1 ===== */
+/* ===== Project Selection V2.1 (PR: reskin/v21-project-selection) =====
+   Recompose project cards to match the Cinema Glass gallery: centered
+   client → bold sheen name → phase pill below. Replaces the multi-line
+   stripe with a single proj-rgb gradient bar. Squares folder cards so
+   they share the project-card aspect-ratio in the grid. */
+
+.slate-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  aspect-ratio: 1 / 1;
+  background:
+    radial-gradient(ellipse 100% 70% at 50% -10%, rgba(var(--proj-rgb), 0.24) 0%, transparent 65%),
+    linear-gradient(180deg, rgba(var(--proj-rgb), 0.10) 0%, rgba(var(--proj-rgb), 0.06) 50%, rgba(var(--proj-rgb), 0.04) 100%),
+    rgba(14, 14, 20, 0.70);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  border: 1px solid rgba(var(--proj-rgb), 0.30);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 22px -10px rgba(var(--proj-rgb), 0.32),
+    0 4px 18px -10px rgba(0, 0, 0, 0.55);
+  transition: transform 180ms ease, box-shadow 180ms ease, opacity 250ms, filter 250ms;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.slate-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, rgba(var(--proj-rgb), 0.85) 50%, transparent 100%);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.slate-card > * { position: relative; z-index: 2; }
+
+.slate-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 12px 8px;
+  min-width: 0;
+}
+
+.slate-client {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  font-weight: 500;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: rgba(var(--proj-rgb), 0.95);
+  margin-bottom: 6px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  filter: drop-shadow(0 0 5px rgba(var(--proj-rgb), 0.28));
+}
+
+.slate-name {
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: -0.005em;
+  line-height: 1.05;
+  max-width: 100%;
+/* ===== Scenemaker V2.1 (PR: reskin/v21-scenemaker) =====
+   Polish on top of #140 (Scenemaker V2): two-line shotlist row
+   description, clean clip on the storyboard cell description, and
+   Cinema Glass treatment for the Script-tab Characters / Locations /
+   Props bottom sheet (EntityDrawer). All additions namespaced under
+   .scenemaker-* / .sm-entity-*. */
+
+/* Shotlist row — bump description from single-line truncate to a
+   2-line clamp so longer beats stay legible without ellipsing the
+   whole sentence. */
+.scenemaker-shot-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(var(--proj-rgb), 1) 60%,
+    rgba(var(--proj-rgb), 0.78) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 10px rgba(var(--proj-rgb), 0.32));
+}
+
+.slate-phase {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  flex-shrink: 0;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.36rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+.slate-phase.pre  { background: rgba(232, 160, 32, 0.20); border: 1px solid rgba(232, 160, 32, 0.50); color: #e8a020; }
+.slate-phase.prod { background: rgba(100, 112, 243, 0.20); border: 1px solid rgba(100, 112, 243, 0.50); color: #6470f3; }
+.slate-phase.post { background: rgba(0, 184, 148, 0.20); border: 1px solid rgba(0, 184, 148, 0.50); color: #00b894; }
+.slate-phase.archived { background: rgba(98, 98, 122, 0.20); border: 1px solid rgba(98, 98, 122, 0.50); color: #62627a; }
+.slate-phase .phase-dot { width: 3px; height: 3px; border-radius: 50%; flex-shrink: 0; }
+.slate-phase.pre  .phase-dot { background: #e8a020; box-shadow: 0 0 3px #e8a020; }
+.slate-phase.prod .phase-dot { background: #6470f3; box-shadow: 0 0 3px #6470f3; }
+.slate-phase.post .phase-dot { background: #00b894; box-shadow: 0 0 3px #00b894; }
+.slate-phase.archived .phase-dot { background: #62627a; box-shadow: 0 0 3px #62627a; }
+
+/* Square folders to match project cards in the same 3-col grid. */
+.slate-folder-card { aspect-ratio: 1 / 1; }
+
+/* ===== end Project Selection V2.1 ===== */
+  word-break: break-word;
+}
+
+/* Storyboard 3-up cell description — line-clamp alone leaves a 3rd-line
+   top-half rendering past the cell bottom edge into the next row's gap
+   on certain widths. Pin the content-box height to exactly two
+   line-heights and clip overflow so the bleed cannot occur. Padding
+   stays outside the content box (box-sizing: content-box). */
+.scenemaker-board-desc {
+  padding: 5px 6px;
+  font-size: 0.44rem;
+  font-weight: 500;
+  color: var(--fg);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  box-sizing: content-box;
+  max-height: calc(0.44rem * 1.35 * 2);
+}
+
+/* EntityDrawer (Script tab Characters / Locations / Props) sheet
+   chrome — 20px top radius + accent-tinted glass-tile background +
+   accent hairline. Replaces the pre-Cinema-Glass solid #111 surface. */
+.sm-entity-sheet {
+  border-radius: 20px 20px 0 0;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--accent-rgb, 196, 90, 220), 0.07) 0%,
+      rgba(var(--accent-rgb, 196, 90, 220), 0.03) 50%,
+      rgba(20, 20, 28, 0.92) 100%),
+    rgba(12, 12, 18, 0.95);
+  backdrop-filter: blur(20px) saturate(135%);
+  -webkit-backdrop-filter: blur(20px) saturate(135%);
+  border-top: 1px solid rgba(var(--accent-rgb, 196, 90, 220), 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 -8px 32px -8px rgba(0, 0, 0, 0.55);
+}
+.sm-entity-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.13);
+  margin: 12px auto 14px;
+}
+.sm-entity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.sm-entity-header-label {
+  font-family: 'Geist', sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg);
+}
+.sm-entity-count {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: rgb(var(--accent-rgb, 196, 90, 220));
+  background: rgba(var(--accent-rgb, 196, 90, 220), 0.10);
+  border: 1px solid rgba(var(--accent-rgb, 196, 90, 220), 0.28);
+}
+
+/* Avatar chip — 56px circle with scene-tinted gradient. --chip-rgb
+   is set inline per-entity via sceneRgbFor() so each chip carries
+   its own scene hue (mirrors Casting V2 #141). */
+.sm-entity-chip {
+  --chip-rgb: 122, 122, 130;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Geist', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: linear-gradient(165deg,
+    rgba(var(--chip-rgb), 0.78) 0%,
+    rgba(var(--chip-rgb), 0.42) 55%,
+    rgba(var(--chip-rgb), 0.20) 100%);
+  border: 1px solid rgba(var(--chip-rgb), 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 4px 14px -6px rgba(var(--chip-rgb), 0.45);
+}
+.sm-entity-chip-img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(var(--chip-rgb, 122, 122, 130), 0.55);
+}
+
+/* + add chip — glass-tile-sm circle with accent-tinted plus, replacing
+   the dashed outline. Lives in the same row as scene-tinted avatars. */
+.sm-entity-add {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--accent-rgb, 196, 90, 220), 0.16) 0%,
+      rgba(var(--accent-rgb, 196, 90, 220), 0.06) 100%),
+    rgba(20, 20, 28, 0.55);
+  border: 1px solid rgba(var(--accent-rgb, 196, 90, 220), 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 4px 14px -6px rgba(var(--accent-rgb, 196, 90, 220), 0.35);
+  color: rgb(var(--accent-rgb, 196, 90, 220));
+  font-size: 24px;
+  font-weight: 300;
+  cursor: pointer;
+}
+.sm-entity-chip-label {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.06em;
+  color: var(--fg-mono);
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* ===== end Scenemaker V2.1 ===== */
+/* ===== V2.1 Loading skeletons (PR: reskin/v21-loading) =====
+   PR #141 introduced .sk / .sk-line / .sk-pill / .sk-title / .sk-grid-3.
+   This block ports the supplementary primitives the gallery's per-route
+   Loading silhouettes rely on (hub-full-preview-v2.html). They compose
+   with the existing .sk shimmer rule above — purely presentational, no
+   borders, padding, or margin (callers compose layout). */
+.sk-circle {
+  border-radius: 50%;
+  aspect-ratio: 1;
+}
+.sk-card {
+  height: 88px;
+  border-radius: 12px;
+}
+.sk-thumb {
+  aspect-ratio: 1;
+  border-radius: 8px;
+}
+.sk-image {
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+}
+.sk-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.sk-row:last-child { border-bottom: none; }
+.sk-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.sk-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.sk-section-header {
+  height: 14px;
+  width: 100px;
+  margin: 18px auto 12px;
+  border-radius: 4px;
+}
+body.light-mode .sk-row,
+html.light-mode body .sk-row {
+  border-bottom-color: rgba(60, 38, 14, 0.08);
+}
+/* ===== end V2.1 Loading skeletons ===== */

@@ -96,16 +96,22 @@ export default function ShootDaySchedulePage() {
         meta={
           <div className="flex items-center gap-2">
             <span className="font-mono uppercase text-[10px] text-white/55">{dateLabel}</span>
+            {/* Phase chip — cinema-glass chip pattern (bg @ 0.20, border @ 0.50). */}
             <span
-              className="font-mono uppercase text-[9px] tracking-widest"
+              className="font-mono uppercase inline-flex items-center"
               style={{
+                gap: 4,
                 padding: '2px 8px',
-                borderRadius: 12,
-                background: `${PHASE_HEX[phase]}1a`,
+                borderRadius: 20,
+                fontSize: '0.42rem',
+                letterSpacing: '0.08em',
+                fontWeight: 600,
+                background: `${PHASE_HEX[phase]}33`,
                 color: PHASE_HEX[phase],
-                border: `1px solid ${PHASE_HEX[phase]}33`,
+                border: `1px solid ${PHASE_HEX[phase]}80`,
               }}
             >
+              <span className="rounded-full" style={{ width: 4, height: 4, background: PHASE_HEX[phase], boxShadow: `0 0 4px ${PHASE_HEX[phase]}` }} />
               {PHASE_LABEL[phase]}
             </span>
           </div>
@@ -113,7 +119,8 @@ export default function ShootDaySchedulePage() {
         left={
           <button
             onClick={() => router.push(`/projects/${projectId}/timeline`)}
-            className="text-white/60 text-sm font-medium px-2 py-1"
+            className="font-mono uppercase"
+            style={{ fontSize: '0.42rem', letterSpacing: '0.10em', color: '#7a7a82', padding: '6px 10px' }}
           >
             ← Days
           </button>
@@ -121,14 +128,20 @@ export default function ShootDaySchedulePage() {
       />
 
       <div className="flex-1 px-4 pb-32 pt-4 overflow-y-auto">
-        {/* Call sheet link — producer-only */}
+        {/* Call sheet link — producer-only. .glass-tile-sm with --tile-rgb
+            keyed to phase-post-teal when a sheet exists, neutral white when
+            prompting create. */}
         {canEdit && (
           <div className="max-w-2xl mx-auto mb-4">
             {callSheetForDay ? (
               <button
                 onClick={() => router.push(`/projects/${projectId}/call-sheets/${callSheetForDay.id}`)}
-                className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border"
-                style={{ background: 'rgba(0,184,148,0.08)', borderColor: 'rgba(0,184,148,0.3)', color: '#00b894' }}
+                className="glass-tile-sm w-full flex items-center justify-between active:opacity-80 transition-opacity"
+                style={{
+                  ['--tile-rgb' as string]: '0, 184, 148',
+                  padding: '14px 16px',
+                  color: '#00b894',
+                }}
               >
                 <span className="text-sm font-medium">Open call sheet for this day</span>
                 <span className="text-xs">→</span>
@@ -144,8 +157,12 @@ export default function ShootDaySchedulePage() {
                   if (cs?.id) router.push(`/projects/${projectId}/call-sheets/${cs.id}`)
                 }}
                 disabled={createCallSheet.isPending}
-                className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border"
-                style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)', color: '#dddde8' }}
+                className="glass-tile-sm w-full flex items-center justify-between active:opacity-80 transition-opacity"
+                style={{
+                  ['--tile-rgb' as string]: '255, 255, 255',
+                  padding: '14px 16px',
+                  color: '#ebebef',
+                }}
               >
                 <span className="text-sm">+ Create call sheet for this day</span>
                 <span className="text-xs text-white/40">→</span>
