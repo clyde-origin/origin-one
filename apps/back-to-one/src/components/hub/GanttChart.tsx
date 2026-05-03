@@ -143,7 +143,7 @@ export function GanttChart({ milestones, projectStatus }: { milestones: Mileston
               aria-label="Previous milestone"
               disabled={!hasPrev}
               onClick={(e) => { e.stopPropagation(); if (hasPrev) setSelectedMsId(sorted[idx - 1].id) }}
-              style={{ width: 24, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: hasPrev ? 'pointer' : 'default', opacity: hasPrev ? 0.5 : 0.15, flexShrink: 0, background: 'transparent', border: 'none', padding: 0 }}
+              style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: hasPrev ? 'pointer' : 'default', opacity: hasPrev ? 0.5 : 0.15, flexShrink: 0, background: 'transparent', border: 'none', padding: 0 }}
             >
               <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M5 1L1 5L5 9" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </button>
@@ -165,7 +165,7 @@ export function GanttChart({ milestones, projectStatus }: { milestones: Mileston
               aria-label="Next milestone"
               disabled={!hasNext}
               onClick={(e) => { e.stopPropagation(); if (hasNext) setSelectedMsId(sorted[idx + 1].id) }}
-              style={{ width: 24, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: hasNext ? 'pointer' : 'default', opacity: hasNext ? 0.5 : 0.15, flexShrink: 0, background: 'transparent', border: 'none', padding: 0 }}
+              style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: hasNext ? 'pointer' : 'default', opacity: hasNext ? 0.5 : 0.15, flexShrink: 0, background: 'transparent', border: 'none', padding: 0 }}
             >
               <svg width="6" height="10" viewBox="0 0 6 10" fill="none"><path d="M1 1L5 5L1 9" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </button>

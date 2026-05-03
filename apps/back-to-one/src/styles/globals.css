@@ -2815,3 +2815,39 @@ html.light-mode body .wf-node-deliverable-row {
 }
 
 /* ===== end Hub V2 ===== */
+
+/* ===== Hub V2.1 (PR: reskin/v21-hub) =====
+   Polish on top of V2:
+   • Timeline/Budget tile content now top-anchored for shared rhythm
+     (handled inline in HubContent — bgt-body justify-content: flex-start
+     and padding bumped to 8px 12px to match the gantt tile).
+   • Budget empty state takes the loaded tile's Cinema Glass chrome
+     (glass-tile + bgt-card + letterbox + version pill) instead of the
+     prior dashed-border placeholder. The dial silhouette persists with
+     only its background ring + an em-dash placeholder; a mono ghost CTA
+     anchors the next action.
+   • Chevron tap targets in GanttChart bumped to 44×44 inline (visual
+     unchanged) — no CSS needed.
+   ===== */
+.bgt-dial.bgt-dial-empty .bgt-dial-pct {
+  color: var(--fg-mono);
+  opacity: 0.55;
+}
+.bgt-version-pill.bgt-version-pill-empty {
+  opacity: 0.55;
+}
+.bgt-empty-cta {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  background: transparent;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.10));
+  border-radius: 999px;
+  padding: 4px 10px;
+  margin-top: 10px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+/* ===== end Hub V2.1 ===== */
