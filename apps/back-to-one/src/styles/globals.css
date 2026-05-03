@@ -2851,3 +2851,122 @@ html.light-mode body .wf-node-deliverable-row {
   font-weight: 600;
 }
 /* ===== end Hub V2.1 ===== */
+/* ===== Project Selection V2.1 (PR: reskin/v21-project-selection) =====
+   Recompose project cards to match the Cinema Glass gallery: centered
+   client → bold sheen name → phase pill below. Replaces the multi-line
+   stripe with a single proj-rgb gradient bar. Squares folder cards so
+   they share the project-card aspect-ratio in the grid. */
+
+.slate-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  aspect-ratio: 1 / 1;
+  background:
+    radial-gradient(ellipse 100% 70% at 50% -10%, rgba(var(--proj-rgb), 0.24) 0%, transparent 65%),
+    linear-gradient(180deg, rgba(var(--proj-rgb), 0.10) 0%, rgba(var(--proj-rgb), 0.06) 50%, rgba(var(--proj-rgb), 0.04) 100%),
+    rgba(14, 14, 20, 0.70);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  border: 1px solid rgba(var(--proj-rgb), 0.30);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 22px -10px rgba(var(--proj-rgb), 0.32),
+    0 4px 18px -10px rgba(0, 0, 0, 0.55);
+  transition: transform 180ms ease, box-shadow 180ms ease, opacity 250ms, filter 250ms;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.slate-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, rgba(var(--proj-rgb), 0.85) 50%, transparent 100%);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.slate-card > * { position: relative; z-index: 2; }
+
+.slate-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 12px 8px;
+  min-width: 0;
+}
+
+.slate-client {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  font-weight: 500;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  color: rgba(var(--proj-rgb), 0.95);
+  margin-bottom: 6px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  filter: drop-shadow(0 0 5px rgba(var(--proj-rgb), 0.28));
+}
+
+.slate-name {
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: -0.005em;
+  line-height: 1.05;
+  max-width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(var(--proj-rgb), 1) 60%,
+    rgba(var(--proj-rgb), 0.78) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 10px rgba(var(--proj-rgb), 0.32));
+}
+
+.slate-phase {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  flex-shrink: 0;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.36rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+.slate-phase.pre  { background: rgba(232, 160, 32, 0.20); border: 1px solid rgba(232, 160, 32, 0.50); color: #e8a020; }
+.slate-phase.prod { background: rgba(100, 112, 243, 0.20); border: 1px solid rgba(100, 112, 243, 0.50); color: #6470f3; }
+.slate-phase.post { background: rgba(0, 184, 148, 0.20); border: 1px solid rgba(0, 184, 148, 0.50); color: #00b894; }
+.slate-phase.archived { background: rgba(98, 98, 122, 0.20); border: 1px solid rgba(98, 98, 122, 0.50); color: #62627a; }
+.slate-phase .phase-dot { width: 3px; height: 3px; border-radius: 50%; flex-shrink: 0; }
+.slate-phase.pre  .phase-dot { background: #e8a020; box-shadow: 0 0 3px #e8a020; }
+.slate-phase.prod .phase-dot { background: #6470f3; box-shadow: 0 0 3px #6470f3; }
+.slate-phase.post .phase-dot { background: #00b894; box-shadow: 0 0 3px #00b894; }
+.slate-phase.archived .phase-dot { background: #62627a; box-shadow: 0 0 3px #62627a; }
+
+/* Square folders to match project cards in the same 3-col grid. */
+.slate-folder-card { aspect-ratio: 1 / 1; }
+
+/* ===== end Project Selection V2.1 ===== */
