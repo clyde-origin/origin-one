@@ -87,11 +87,6 @@ function LoginForm() {
       <div className="login-stage-bg" />
 
       <form onSubmit={signInPassword} className="login-stage-inner">
-        <div className="login-brand-block">
-          <h1 className="login-brand-title">Back to One</h1>
-          <div className="login-brand-rule" />
-        </div>
-
         <div className="login-form-block">
           <div className="login-form-eyebrow">Origin One</div>
 

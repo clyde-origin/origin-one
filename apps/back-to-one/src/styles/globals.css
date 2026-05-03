@@ -717,13 +717,7 @@ html.light-mode body .scenemaker-meta-row {
 .login-stage-bg {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(ellipse 200px 480px at 50% 0%, rgba(255, 222, 168, 0.32) 0%, rgba(255, 200, 130, 0.10) 30%, transparent 65%),
-    radial-gradient(ellipse 320px 280px at 50% 30%, rgba(255, 220, 160, 0.10) 0%, transparent 60%),
-    radial-gradient(ellipse 240px 320px at 8% 60%, rgba(120, 90, 60, 0.10) 0%, transparent 60%),
-    radial-gradient(ellipse 240px 320px at 92% 60%, rgba(120, 90, 60, 0.08) 0%, transparent 60%),
-    linear-gradient(180deg, rgba(10, 10, 14, 0.94) 0%, rgba(6, 6, 10, 0.95) 35%, rgba(12, 10, 8, 0.95) 70%, rgba(5, 4, 7, 0.97) 100%),
-    url('/images/b21_bg.jpg') center/cover no-repeat;
+  background: url('/images/b21_bg.jpg') center/cover no-repeat;
   pointer-events: none;
 }
 .login-stage-inner {
