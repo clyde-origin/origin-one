@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, Fragment } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
@@ -35,7 +35,7 @@ import {
   formatDate, isLate, getProjectColor,
   statusLabel,
 } from '@/lib/utils/phase'
-import type { ActionItem, Milestone, CrewMember, Project, WorkflowNode } from '@/types'
+import type { ActionItem, Milestone, CrewMember, Project, WorkflowNode, Role } from '@/types'
 
 // ── HELPERS ───────────────────────────────────────────────
 
@@ -335,6 +335,7 @@ export function HubContent({ projectId }: { projectId: string }) {
       lineCount: budgetTree.lines.length,
       overCount: over,
       underCount: under,
+      versionLabel: working.name,
     }
   }, [budgetTree, shootDays])
 
@@ -401,6 +402,11 @@ export function HubContent({ projectId }: { projectId: string }) {
   const [selectedCrew, setSelectedCrew] = useState<CrewMember | null>(null)
   const [crewPanelOpen, setCrewPanelOpen] = useState(false)
 
+  // Role filter pill row under crew avatars — V2 anchors the topbar's
+  // last row on this surface. Visual-only (no data path); the active
+  // pill highlights with the project accent.
+  const [activeRoleFilter, setActiveRoleFilter] = useState<Role | 'all'>('all')
+
   // Project switcher lives in <ProjectSwitcher>; replaces the old
   // swipe-between-projects gesture and is also wired into every subpage's
   // PageHeader meta slot.
@@ -458,16 +464,9 @@ export function HubContent({ projectId }: { projectId: string }) {
         ['--accent-glow-rgb' as string]: `${glowR}, ${glowG}, ${glowB}`,
       } as React.CSSProperties}
     >
-      {/* ══ CENTER GLOW — 3 stacked radial ellipses ══ */}
-      <div style={{
-        position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0,
-        background: [
-          `radial-gradient(ellipse 20% 25% at 50% 0%, rgba(${pr},${pg},${pb},0.08) 0%, transparent 100%)`,
-          `radial-gradient(ellipse 35% 45% at 50% 40%, rgba(${pr},${pg},${pb},0.07) 0%, transparent 100%)`,
-          `radial-gradient(ellipse 50% 55% at 50% 90%, rgba(${pr},${pg},${pb},0.09) 0%, transparent 100%)`,
-          `linear-gradient(90deg, var(--bg) 0%, var(--bg) 8%, rgba(4,4,10,0.5) 30%, transparent 50%, rgba(4,4,10,0.5) 70%, var(--bg) 92%, var(--bg) 100%)`,
-        ].join(', '),
-      }} />
+      {/* ══ ACCENT-PULSE BAND — the only autoplay motion (V2 anchor).
+            Reads --accent-rgb / --accent-glow-rgb set on the screen root. ══ */}
+      <div className="hub-bg-glow-pulse" style={{ position: 'fixed' }} />
 
       {/* ══ TOPBAR — frosted surface + radial accent glow from above ══ */}
       <div className="hub-topbar relative flex flex-col items-center justify-end px-5 flex-shrink-0" style={{
@@ -528,6 +527,28 @@ export function HubContent({ projectId }: { projectId: string }) {
             <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.06em' }}>No crew yet</span>
           )}
         </div>
+
+        {/* Role filter pill row — V2 anchor. Visual-only; the gallery
+            uses this row to close the topbar's vertical rhythm
+            (eyebrow → name → meta → avatars → roles). */}
+        <div className="cp-filter-row" role="tablist" aria-label="Crew role filter">
+          {(['all', 'director', 'producer', 'coordinator', 'writer', 'crew'] as const).map(role => {
+            const label = role === 'all' ? 'All' : role[0].toUpperCase() + role.slice(1)
+            const isActive = activeRoleFilter === role
+            return (
+              <button
+                key={role}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className={`cp-filter-pill${isActive ? ' active' : ''}`}
+                onClick={() => { haptic('light'); setActiveRoleFilter(role) }}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* ══ BODY ══ */}
@@ -584,106 +605,80 @@ export function HubContent({ projectId }: { projectId: string }) {
               )}
             </div>
 
-            {/* BUDGET — producer-only (spec Q8). Same data + compute as
-                the Budget page; previews working total + actuals + %
-                spent + variance summary chip. PR 14 moved this up
-                from below to be a peer of Timeline. */}
+            {/* BUDGET — producer-only (spec Q8). V2: bgt-dial signature
+                visual replaces the actuals number; bgt-meta carries the
+                spent/total mono row; bgt-version-pill anchors top-right
+                with the working version label. Variance chip remains
+                below the dial as a tinted info row. */}
             {isProducer && (
               <div
                 className="cursor-pointer"
                 onClick={() => { haptic('light'); router.push(`/projects/${projectId}/budget`) }}
               >
-                <ModuleHeader
-                  name="Budget"
-                  meta={
-                    budgetPreview
-                      ? `Working · $${Math.round(budgetPreview.workingTotal).toLocaleString('en-US')}`
-                      : 'Not started'
-                  }
-                />
-                {budgetPreview ? (
-                  <div
-                    className="glass-tile"
-                    style={{
-                      padding: '12px 14px', height: 130,
-                      display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-                      gap: 12, boxSizing: 'border-box',
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                <ModuleHeader name="Budget" />
+                {budgetPreview && budgetPreview.workingTotal > 0 ? (() => {
+                  const pct = Math.min(100, Math.round((budgetPreview.actuals / budgetPreview.workingTotal) * 100))
+                  // r=26 ring, circumference 2π·26 ≈ 163.36
+                  const CIRC = 163.36
+                  const dashOffset = CIRC * (1 - pct / 100)
+                  const fmt = (n: number) => n >= 1000
+                    ? `$${Math.round(n / 1000)}K`
+                    : `$${Math.round(n).toLocaleString('en-US')}`
+                  return (
+                    <div
+                      className="glass-tile bgt-card"
+                      style={{
+                        position: 'relative', height: 130,
+                        display: 'flex', flexDirection: 'column',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <span className="bgt-version-pill">{budgetPreview.versionLabel || 'Working'}</span>
+                      <div className="letterbox-top" />
                       <div
-                        className="font-mono uppercase"
-                        style={{ fontSize: '0.40rem', letterSpacing: '0.1em', color: 'var(--fg-mono)', marginBottom: 4 }}
-                      >Actuals · Working</div>
-                      <div
-                        className="font-mono"
-                        style={{ fontSize: '0.95rem', fontWeight: 600, color: '#9b6ef3' }}
-                      >${Math.round(budgetPreview.actuals).toLocaleString('en-US')}</div>
-                      {budgetPreview.workingTotal > 0 && (
-                        <div className="font-mono" style={{ fontSize: '0.5rem', color: 'var(--fg-mono)', marginTop: 4 }}>
-                          {Math.round((budgetPreview.actuals / budgetPreview.workingTotal) * 100)}% spent
-                          <div
-                            style={{
-                              marginTop: 4, width: '100%', maxWidth: 100, height: 3, borderRadius: 2, overflow: 'hidden',
-                              background: 'rgba(255,255,255,0.06)', position: 'relative',
-                            }}
-                          >
-                            <div
-                              style={{
-                                position: 'absolute', inset: 0,
-                                width: `${Math.min(100, Math.round((budgetPreview.actuals / budgetPreview.workingTotal) * 100))}%`,
-                                background: '#9b6ef3', borderRadius: 2,
-                              }}
+                        className="bgt-body"
+                        style={{
+                          flex: 1, display: 'flex', flexDirection: 'column',
+                          alignItems: 'center', justifyContent: 'center',
+                          padding: '6px 10px',
+                        }}
+                      >
+                        <div className="bgt-dial">
+                          <svg viewBox="0 0 64 64" fill="none">
+                            <circle className="bgt-dial-bg" cx="32" cy="32" r="26" strokeWidth="3" />
+                            <circle
+                              className="bgt-dial-fg"
+                              cx="32" cy="32" r="26" strokeWidth="3"
+                              strokeDasharray={CIRC}
+                              strokeDashoffset={dashOffset}
                             />
-                          </div>
+                          </svg>
+                          <span className="bgt-dial-pct">{pct}%</span>
                         </div>
-                      )}
-                      {/* Variance summary chip — over-budget tally if any. */}
-                      <div className="flex" style={{ gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                        {budgetPreview.overCount > 0 ? (
+                        <div className="bgt-meta">
+                          <span className="bgt-meta-spent">{fmt(budgetPreview.actuals)}</span>
+                          <span className="bgt-meta-sep">/</span>
+                          <span className="bgt-meta-total">{fmt(budgetPreview.workingTotal)}</span>
+                        </div>
+                        {budgetPreview.overCount > 0 && (
                           <span
                             className="font-mono uppercase"
                             style={{
-                              fontSize: '0.40rem', letterSpacing: '0.08em',
-                              padding: '3px 8px', borderRadius: 999,
+                              fontSize: '0.34rem', letterSpacing: '0.08em',
+                              padding: '2px 6px', borderRadius: 999, marginTop: 4,
                               background: 'rgba(232,86,74,0.10)',
                               border: '1px solid rgba(232,86,74,0.30)',
                               color: '#e8564a',
                             }}
                           >
-                            ⚠ {budgetPreview.overCount} {budgetPreview.overCount === 1 ? 'line' : 'lines'} over budget
+                            ⚠ {budgetPreview.overCount} over
                           </span>
-                        ) : budgetPreview.lineCount > 0 ? (
-                          <span
-                            className="font-mono uppercase"
-                            style={{
-                              fontSize: '0.40rem', letterSpacing: '0.08em',
-                              padding: '3px 8px', borderRadius: 999,
-                              background: 'rgba(0,184,148,0.08)',
-                              border: '1px solid rgba(0,184,148,0.28)',
-                              color: '#00b894',
-                            }}
-                          >On budget</span>
-                        ) : null}
-                        {budgetPreview.underCount > 0 && (
-                          <span
-                            className="font-mono uppercase"
-                            style={{
-                              fontSize: '0.40rem', letterSpacing: '0.08em',
-                              padding: '3px 8px', borderRadius: 999,
-                              background: 'rgba(0,184,148,0.08)',
-                              border: '1px solid rgba(0,184,148,0.28)',
-                              color: '#00b894',
-                            }}
-                          >↓ {budgetPreview.underCount} under</span>
                         )}
                       </div>
+                      <div className="letterbox-bottom" />
                     </div>
-                    <div
-                      style={{ color: 'var(--fg-mono)', fontSize: '1rem', flexShrink: 0 }}
-                    >›</div>
-                  </div>
-                ) : (
+                  )
+                })() : (
                   <div
                     style={{
                       padding: '14px', height: 130,
@@ -819,8 +814,8 @@ export function HubContent({ projectId }: { projectId: string }) {
                 />
               </div>
 
-              {/* Locations / Casting / Art row */}
-              <div className="flex" style={{ gap: 8 }}>
+              {/* Locations / Casting / Art row — V2 lca-row triplet */}
+              <div className="lca-row">
                 {/* Locations panel — swipeable location images */}
                 <SwipePanel
                   items={allLocations}
@@ -940,109 +935,83 @@ export function HubContent({ projectId }: { projectId: string }) {
                 }
               />
             </div>
-            <div
-              className="overflow-x-auto no-scrollbar"
-              style={{ WebkitOverflowScrolling: 'touch' }}
-            >
-              <div className="flex" style={{ gap: 8, padding: '4px 2px 2px' }}>
-                {([
-                  { dept: 'Camera',
-                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> },
-                  { dept: 'Lighting',
-                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 1 4 12.75c-.56.4-1 1.03-1 1.75V18H9v-1.5c0-.72-.44-1.35-1-1.75A7 7 0 0 1 12 2z"/></svg> },
-                  { dept: 'G&E',
-                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="3" r="1.5"/><line x1="12" y1="4.5" x2="12" y2="18"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="6" y1="22" x2="12" y2="18"/><line x1="18" y1="22" x2="12" y2="18"/></svg> },
-                  { dept: 'Sound',
-                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg> },
-                  { dept: 'Art',
-                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/></svg> },
-                  { dept: 'Wardrobe',
-                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20V10c0-2 1-3 3-3h10c2 0 3 1 3 3v10"/><path d="M4 20h16"/><path d="M9 7V4h6v3"/></svg> },
-                  { dept: 'HMU',
-                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M8 14c-2 0-4 2-4 4v2h16v-2c0-2-2-4-4-4"/></svg> },
-                ] as const).map(({ dept, icon }) => {
-                  const count = allInventory.filter((i: any) => i.department === dept).length
-                  return (
-                    <div
-                      key={dept}
-                      onClick={() => { haptic('light'); router.push(`/projects/${projectId}/inventory`) }}
-                      className="glass-tile glass-tile-sm flex flex-col items-center justify-center cursor-pointer active:opacity-80 transition-opacity"
-                      style={{
-                        width: 76, height: 76, flexShrink: 0,
-                        gap: 6,
-                      }}
-                    >
-                      <div
-                        className="flex items-center justify-center"
-                        style={{
-                          width: 28, height: 28, borderRadius: 10,
-                          background: `rgba(${pr},${pg},${pb},0.10)`,
-                          color: projectColor,
-                        }}
-                      >
-                        {icon}
-                      </div>
-                      <span
-                        className="font-mono uppercase"
-                        style={{ fontSize: '0.40rem', letterSpacing: '0.08em', color: count > 0 ? projectColor : 'var(--fg-mono)' }}
-                      >
-                        {dept}
-                      </span>
-                    </div>
-                  )
-                })}
-                {/* View all chip */}
+            <div className="inv-strip">
+              {([
+                { dept: 'Camera',
+                  icon: <svg className="inv-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 8h3l1.5-2h5L16 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.2"/></svg> },
+                { dept: 'Lighting',
+                  icon: <svg className="inv-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 1 4 10.4c-.6.5-1 1.2-1 2V16H9v-.6c0-.8-.4-1.5-1-2A6 6 0 0 1 12 3z"/></svg> },
+                { dept: 'G&E',
+                  icon: <svg className="inv-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M13 3 5 13h6l-1 8 8-10h-6l1-8z"/></svg> },
+                { dept: 'Sound',
+                  icon: <svg className="inv-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="21"/></svg> },
+                { dept: 'Art',
+                  icon: <svg className="inv-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/></svg> },
+                { dept: 'Wardrobe',
+                  icon: <svg className="inv-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20V10c0-2 1-3 3-3h10c2 0 3 1 3 3v10"/><path d="M4 20h16"/><path d="M9 7V4h6v3"/></svg> },
+                { dept: 'HMU',
+                  icon: <svg className="inv-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M8 14c-2 0-4 2-4 4v2h16v-2c0-2-2-4-4-4"/></svg> },
+              ] as const).map(({ dept, icon }) => (
                 <div
+                  key={dept}
+                  className="inv-chip"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${dept} inventory`}
                   onClick={() => { haptic('light'); router.push(`/projects/${projectId}/inventory`) }}
-                  className="flex flex-col items-center justify-center cursor-pointer active:opacity-80 transition-opacity"
-                  style={{
-                    width: 76, height: 76, flexShrink: 0,
-                    borderRadius: 10,
-                    background: `rgba(${pr},${pg},${pb},0.04)`,
-                    border: `1px dashed rgba(${pr},${pg},${pb},0.32)`,
-                    gap: 6,
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      router.push(`/projects/${projectId}/inventory`)
+                    }
                   }}
                 >
-                  <div
-                    className="flex items-center justify-center"
-                    style={{
-                      width: 28, height: 28, borderRadius: 10,
-                      background: `rgba(${pr},${pg},${pb},0.12)`,
-                      color: `rgba(${pr},${pg},${pb},0.85)`,
-                    }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="9"/><path d="M9 12h6"/><path d="M12 9v6"/>
-                    </svg>
-                  </div>
-                  <span
-                    className="font-mono uppercase"
-                    style={{ fontSize: '0.40rem', letterSpacing: '0.08em', color: `rgba(${pr},${pg},${pb},0.75)` }}
-                  >
-                    View all
-                  </span>
+                  {icon}
+                  <span className="inv-chip-label">{dept}</span>
                 </div>
+              ))}
+              <div
+                className="inv-chip inv-chip-all"
+                role="button"
+                tabIndex={0}
+                aria-label="View all inventory"
+                onClick={() => { haptic('light'); router.push(`/projects/${projectId}/inventory`) }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    router.push(`/projects/${projectId}/inventory`)
+                  }
+                }}
+              >
+                <svg className="inv-chip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>
+                </svg>
+                <span className="inv-chip-label">View all</span>
               </div>
             </div>
           </div>
 
-          {/* 5. WORKFLOW */}
+          {/* 5. WORKFLOW — V2: 5-node icon chain (wf-row/wf-node/wf-conn).
+              Phase tinting alternates by index (pre/pre/prod/post/post) to
+              match the gallery's 5 phase-tinted cells. */}
           <div className="cursor-pointer" style={{ padding: '0 2px' }} aria-label="Open workflow" {...clickableProps(() => router.push(`/projects/${projectId}/workflow`))}>
             <ModuleHeader name="Workflow" meta={`${allWorkflow.length} nodes`} />
             {allWorkflow.length > 0 ? (
-              <div className="flex items-start">
-                {allWorkflow.slice(0, 5).map((node, i, arr) => (
-                  <div key={node.id} className="flex items-center" style={{ flex: 1 }}>
-                    <div className="flex flex-col items-center gap-1" style={{ flex: 1 }}>
-                      <div className="glass-tile glass-tile-xs flex items-center justify-center" style={{ width: 36, height: 36 }}>
-                        <span style={{ fontSize: 15, position: 'relative', zIndex: 6 }}>{WF_ICONS[node.type] ?? '⚙'}</span>
+              <div className="wf-row">
+                {allWorkflow.slice(0, 5).map((node, i, arr) => {
+                  // Deterministic phase tinting by index — gallery cycle:
+                  // pre (0,1) → prod (2) → post (3,4).
+                  const phaseClass = i < 2 ? 'wf-pre' : i === 2 ? 'wf-prod' : 'wf-post'
+                  return (
+                    <Fragment key={node.id}>
+                      <div className={`wf-node ${phaseClass}`}>
+                        <span className="wf-node-icon" aria-hidden="true" style={{ fontSize: 14, lineHeight: '18px' }}>{WF_ICONS[node.type] ?? '⚙'}</span>
+                        <span className="wf-node-label">{node.label}</span>
                       </div>
-                      {/* item 7: third-tier label */}
-                      <span className="font-mono text-center" style={{ fontSize: '0.36rem', color: 'var(--fg-mono)', maxWidth: 48, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{node.label}</span>
-                    </div>
-                    {i < arr.length - 1 && <div style={{ width: 12, height: 1, background: 'linear-gradient(90deg, rgba(var(--phase-prod-rgb), 0.3), rgba(0,184,148,0.3))', flexShrink: 0, marginBottom: 16 }} />}
-                  </div>
-                ))}
+                      {i < arr.length - 1 && <div className="wf-conn" aria-hidden="true" />}
+                    </Fragment>
+                  )
+                })}
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2 py-3">
