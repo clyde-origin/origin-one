@@ -654,35 +654,33 @@ export default function ProjectsPage() {
         pointerEvents: (activePanel || threadsOpen || chatOpen || resourcesOpen || openFolderId) ? 'none' : 'auto',
       }}>
         {/* Header */}
-        <div style={{ position: 'relative', padding: '0 20px 18px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' as const }}>
-            <p className="font-mono uppercase" style={{ fontSize: '0.4rem', color: '#62627a', letterSpacing: '0.12em', marginBottom: 3 }}>Back to One</p>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <h1 className="font-sans" style={{ fontWeight: 800, fontSize: '1.6rem', color: '#dddde8', letterSpacing: '-0.03em', lineHeight: 1 }}>
-                {myTeam?.name ?? 'Projects'}
-              </h1>
-              {editMode && myTeam && (
-                <button
-                  onClick={() => { haptic('light'); setRenamingTeam(true) }}
-                  className="active:opacity-60 transition-opacity"
-                  style={{
-                    width: 24, height: 24, borderRadius: '50%',
-                    background: 'rgba(196,90,220,0.12)',
-                    border: '1px solid rgba(196,90,220,0.3)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
-                  aria-label="Rename team"
-                >
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-                    <path d="M11.5 1.5l3 3-9 9-3.5.5.5-3.5 9-9z" stroke="#c45adc" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-              )}
-            </div>
-            <p className="font-sans" style={{ fontSize: '0.88rem', fontWeight: 500, color: '#62627a', marginTop: 10 }}>Select a Project</p>
+        <div className="select-header" style={{ padding: '0 20px 18px' }}>
+          <p className="select-tagline">Back to One</p>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <h1 className="select-title">
+              {myTeam?.name ?? 'Projects'}
+            </h1>
+            {editMode && myTeam && (
+              <button
+                onClick={() => { haptic('light'); setRenamingTeam(true) }}
+                className="active:opacity-60 transition-opacity"
+                style={{
+                  width: 24, height: 24, borderRadius: '50%',
+                  background: 'rgba(196,90,220,0.12)',
+                  border: '1px solid rgba(196,90,220,0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+                aria-label="Rename team"
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                  <path d="M11.5 1.5l3 3-9 9-3.5.5.5-3.5 9-9z" stroke="#c45adc" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
           </div>
+          <p className="select-subtitle">Select a Project</p>
         </div>
 
         {/* Slates grid */}
@@ -694,7 +692,7 @@ export default function ProjectsPage() {
               setEditMode(false)
             }
           }}
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, padding: '0 14px' }}
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '14px 12px', padding: '0 14px' }}
         >
           {isLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
@@ -709,7 +707,7 @@ export default function ProjectsPage() {
               {/* Edit mode bar */}
               {editMode && (
                 <div style={{
-                  gridColumn: 'span 2', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  gridColumn: 'span 3', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   padding: '8px 14px', background: 'rgba(196,90,220,0.08)', border: '1px solid rgba(196,90,220,0.18)',
                   borderRadius: 20, marginBottom: 2,
                 }}>
@@ -839,20 +837,17 @@ export default function ProjectsPage() {
 
               {/* Add buttons — New Project + New Folder */}
               {!editMode && (
-                <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'center', gap: 8, padding: '4px 2px 2px' }}>
-                  <Link href="/projects/new" className="block active:opacity-70 transition-opacity">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 20, border: '1px dashed rgba(196,90,220,0.2)', background: 'rgba(196,90,220,0.03)', cursor: 'pointer' }}>
-                      <span style={{ color: 'rgba(196,90,220,0.4)', fontSize: 13 }}>+</span>
-                      <span className="font-mono uppercase" style={{ fontSize: 10, color: 'rgba(196,90,220,0.4)', letterSpacing: '0.08em' }}>New Project</span>
-                    </div>
+                <div style={{ gridColumn: 'span 3', display: 'flex', justifyContent: 'center', gap: 8, padding: '4px 2px 2px' }}>
+                  <Link href="/projects/new" className="select-action new-project">
+                    <span className="glyph">+</span>
+                    <span>New Project</span>
                   </Link>
                   <button
                     onClick={() => { haptic('light'); setCreatingFolder(true) }}
-                    className="active:opacity-70 transition-opacity"
-                    style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 20, border: '1px dashed rgba(100,112,243,0.25)', background: 'rgba(100,112,243,0.04)', cursor: 'pointer' }}
+                    className="select-action new-folder"
                   >
-                    <span style={{ color: 'rgba(100,112,243,0.5)', fontSize: 13 }}>+</span>
-                    <span className="font-mono uppercase" style={{ fontSize: 10, color: 'rgba(100,112,243,0.5)', letterSpacing: '0.08em' }}>New Folder</span>
+                    <span className="glyph">+</span>
+                    <span>New Folder</span>
                   </button>
                 </div>
               )}
@@ -1229,17 +1224,11 @@ export default function ProjectsPage() {
           await updateTeamNameMutation.mutateAsync({ teamId: myTeam.id, name })
         }}
       />
-      {/* Bottom-left settings gear — mirrors the FAB's bottom-safe positioning */}
+      {/* Top-right settings chip — Cinema Glass .select-logout */}
       <button
         onClick={() => { haptic('light'); setShowSettings(true) }}
         aria-label="Settings"
-        className="active:opacity-60 transition-opacity"
-        style={{
-          position: 'fixed', left: 18, bottom: 'calc(18px + env(safe-area-inset-bottom, 0px))',
-          zIndex: 7, width: 32, height: 32, borderRadius: '50%',
-          background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.05)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-        }}
+        className="select-logout"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.4 }}>
           <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="white" strokeWidth="1.6" />
