@@ -402,9 +402,9 @@ export function HubContent({ projectId }: { projectId: string }) {
   const [selectedCrew, setSelectedCrew] = useState<CrewMember | null>(null)
   const [crewPanelOpen, setCrewPanelOpen] = useState(false)
 
-  // Role filter pill row under crew avatars — V2 anchors the topbar's
-  // last row on this surface. Visual-only (no data path); the active
-  // pill highlights with the project accent.
+  // Role filter pill row under crew avatars — V2 anchor row.
+  // Filters the crew avatar strip to members with the selected role
+  // (or all roles when 'all' is active).
   const [activeRoleFilter, setActiveRoleFilter] = useState<Role | 'all'>('all')
 
   // Project switcher lives in <ProjectSwitcher>; replaces the old
@@ -412,6 +412,10 @@ export function HubContent({ projectId }: { projectId: string }) {
   // PageHeader meta slot.
 
   const allItems = actionItems ?? [], allMS = milestones ?? [], allCrew = crew ?? []
+  const filteredCrew = useMemo(() => {
+    if (activeRoleFilter === 'all') return allCrew
+    return allCrew.filter((m: any) => m?.role === activeRoleFilter)
+  }, [allCrew, activeRoleFilter])
   const allScenes = scenesWithShots ?? []
   const allShots: any[] = (scenesWithShots ?? []).flatMap((s: any) => s.Shot ?? [])
   const allMoodRefs = moodRefs ?? []
@@ -513,18 +517,18 @@ export function HubContent({ projectId }: { projectId: string }) {
           className="flex items-center justify-center cursor-pointer"
           style={{ marginTop: 10 }}
           onClick={() => { haptic('light'); setCrewPanelOpen(true) }}>
-          {allCrew.slice(0, 4).map((m, i) => (
+          {filteredCrew.slice(0, 4).map((m, i) => (
             <div key={m.id} className="relative" style={{ marginLeft: i === 0 ? 0 : -7, zIndex: 4 - i }}>
               <CrewAvatar name={m.User?.name ?? 'Unknown'} size={28} avatarUrl={m.User?.avatarUrl} />
             </div>
           ))}
-          {allCrew.length > 4 && (
+          {filteredCrew.length > 4 && (
             <div className="rounded-full bg-surface2 border border-border flex items-center justify-center" style={{ width: 28, height: 28, marginLeft: -7 }}>
-              <span className="font-mono text-muted" style={{ fontSize: 9 }}>+{allCrew.length - 4}</span>
+              <span className="font-mono text-muted" style={{ fontSize: 9 }}>+{filteredCrew.length - 4}</span>
             </div>
           )}
-          {allCrew.length === 0 && (
-            <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.06em' }}>No crew yet</span>
+          {filteredCrew.length === 0 && (
+            <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a', letterSpacing: '0.06em' }}>{activeRoleFilter === 'all' ? 'No crew yet' : `No ${activeRoleFilter}s`}</span>
           )}
         </div>
 

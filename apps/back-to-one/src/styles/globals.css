@@ -2239,11 +2239,11 @@ html.light-mode body .wf-node-deliverable-row {
   margin-top: 4px;
 }
 
-/* Logout chip — quiet round button top-right */
-.select-logout {
+/* Settings chip — quiet round button bottom-left, mirrors the FAB's safe-bottom anchor */
+.select-settings {
   position: fixed;
-  top: calc(18px + var(--safe-top));
-  right: 16px;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  left: 16px;
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -2259,7 +2259,7 @@ html.light-mode body .wf-node-deliverable-row {
   opacity: 0.6;
   transition: opacity 180ms ease;
 }
-.select-logout:active { opacity: 1; }
+.select-settings:active { opacity: 1; }
 
 /* Action pills — New Project (teal) + New Folder (purple) */
 .select-action {
