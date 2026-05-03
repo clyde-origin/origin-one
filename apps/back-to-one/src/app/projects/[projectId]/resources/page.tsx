@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
+import { useMemo, useState } from 'react'
 import { useProject, useResources, useCreateResource, useMeId } from '@/lib/hooks/useOriginOne'
 
 import { LoadingState, EmptyState } from '@/components/ui'
@@ -34,48 +33,111 @@ function statusToPhase(s: string | undefined): 'pre' | 'prod' | 'post' {
 
 const TYPES: ResourceType[] = ['link', 'file', 'image', 'video', 'document']
 
-const TYPE_ICONS: Record<ResourceType, string> = {
-  link:     '🔗',
-  file:     '📄',
-  image:    '🖼️',
-  video:    '🎬',
-  document: '📝',
+// Per-type RGB triplet → drives the .res-icon background tint via --type-rgb
+// (gallery #45 uses purple for templates/files, red for PDF-like docs, teal
+// for links, blue for media). ResourceType enum maps onto this palette so
+// new types fall back to the gray placeholder.
+const TYPE_RGB: Record<ResourceType, string> = {
+  document: '196, 90, 220',  // purple — templates / docs
+  file:     '232, 80, 80',   // red — PDFs / files
+  link:     '0, 184, 148',   // teal — external links
+  image:    '100, 112, 243', // indigo — media
+  video:    '100, 112, 243', // indigo — media
+}
+
+// Section grouping per gallery. ResourceType enum collapses onto three
+// sheen-extrusion section headers: documents → "Templates", file →
+// "Documents", link → "Links", image/video → "Media".
+type ResSection = 'Templates' | 'Documents' | 'Links' | 'Media'
+const SECTION_FOR: Record<ResourceType, ResSection> = {
+  document: 'Templates',
+  file:     'Documents',
+  link:     'Links',
+  image:    'Media',
+  video:    'Media',
+}
+const SECTION_ORDER: ResSection[] = ['Templates', 'Documents', 'Links', 'Media']
+
+// Filter pill row — gallery #45 has All / Templates / Docs / Links / Media.
+// "Docs" is the gallery's pill label for the Documents section.
+type ResFilter = 'all' | ResSection
+const FILTER_PILLS: { key: ResFilter; label: string }[] = [
+  { key: 'all',       label: 'All' },
+  { key: 'Templates', label: 'Templates' },
+  { key: 'Documents', label: 'Docs' },
+  { key: 'Links',     label: 'Links' },
+  { key: 'Media',     label: 'Media' },
+]
+
+// ── Type icon ─────────────────────────────────────────────
+
+function ResIcon({ type }: { type: ResourceType }) {
+  // PDF-like file gets a typographic "PDF" label; document/link/media get
+  // SVG glyphs. Wrapper carries the type-tinted bg/border via .res-icon.
+  if (type === 'file') {
+    return <span className="res-icon-pdf-label">PDF</span>
+  }
+  if (type === 'link') {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6.5 9.5a3 3 0 0 0 4.24 0l2-2a3 3 0 0 0-4.24-4.24l-1 1" />
+        <path d="M9.5 6.5a3 3 0 0 0-4.24 0l-2 2a3 3 0 0 0 4.24 4.24l1-1" />
+      </svg>
+    )
+  }
+  if (type === 'image' || type === 'video') {
+    return (
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="3" width="12" height="10" rx="1.5" />
+        <circle cx="6" cy="7" r="1.2" />
+        <path d="M2 11l3.5-2.5L9 11l3-3 2 2" />
+      </svg>
+    )
+  }
+  // document — template-style page
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 1.5h7.5L13 4v10.5H3z" />
+      <line x1="5" y1="6" x2="11" y2="6" />
+      <line x1="5" y1="8.5" x2="11" y2="8.5" />
+      <line x1="5" y1="11" x2="9" y2="11" />
+    </svg>
+  )
 }
 
 // ── Resource Row ──────────────────────────────────────────
 
 function ResourceRow({ resource }: { resource: Resource }) {
+  // Action label tracks gallery convention: file/document/image/video →
+  // "Download", link → "Open". Behavior is identical (same href + target),
+  // only the pill copy differs by type.
+  const actionLabel = resource.type === 'link' ? 'Open' : 'Download'
+  const typeRgb = TYPE_RGB[resource.type] ?? '122, 122, 130'
   return (
     <a
       href={resource.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors active:opacity-80"
-      style={{ borderBottom: '1px solid var(--border)' }}
+      className="res-row"
+      style={{ ['--type-rgb' as string]: typeRgb } as React.CSSProperties}
     >
-      <div
-        className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-base"
-        style={{
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid var(--border)',
-        }}
-      >
-        {TYPE_ICONS[resource.type] ?? '📎'}
+      <div className="res-icon">
+        <ResIcon type={resource.type} />
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-base leading-snug truncate" style={{ color: 'var(--fg)' }}>
-          {resource.title}
-        </div>
-        <div className="font-mono text-xs truncate capitalize" style={{ color: 'var(--fg-mono)' }}>{resource.type}</div>
+      <div className="res-info">
+        <span className="res-name">{resource.title}</span>
+        <span className="res-meta">{resource.type}</span>
       </div>
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="flex-shrink-0" style={{ color: 'var(--fg-mono)' }}>
-        <path d="M4 2h6v6M10 2L3 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
+      <span className="res-action">{actionLabel}</span>
     </a>
   )
 }
 
 // ── New Resource Sheet ────────────────────────────────────
+
+const TYPE_ICONS: Record<ResourceType, string> = {
+  link: '🔗', file: '📄', image: '🖼️', video: '🎬', document: '📝',
+}
 
 function NewSheet({ projectId, onClose, onCreate }: {
   projectId: string
@@ -139,6 +201,7 @@ export default function ResourcesPage({ params }: { params: { projectId: string 
   const { data: project } = useProject(projectId)
   const accent = project?.color || getProjectColor(projectId)
   const [creating, setCreating] = useState(false)
+  const [activeFilter, setActiveFilter] = useState<ResFilter>('all')
   // Register the + handler with the global ActionBar.
   useFabAction({ onPress: () => { haptic('light'); setCreating(true) } })
 
@@ -150,8 +213,31 @@ export default function ResourcesPage({ params }: { params: { projectId: string 
   // from auth resolution.
   const meId = useMeId()
 
-  const allResources = resources ?? []
-  // Cinema-glass tokens consumed by .sheen-title / .ai-meta-pill at this scope.
+  const allResources = (resources ?? []) as Resource[]
+
+  // Section + filter counts. Counts always reflect the unfiltered data so
+  // pills show "where you could go" totals, not what's currently visible.
+  const counts = useMemo(() => {
+    const out: Record<ResFilter, number> = { all: allResources.length, Templates: 0, Documents: 0, Links: 0, Media: 0 }
+    for (const r of allResources) out[SECTION_FOR[r.type]]++
+    return out
+  }, [allResources])
+
+  // Group filtered resources by section (Templates / Documents / Links /
+  // Media). Sections render in SECTION_ORDER; empty sections are skipped.
+  const sections = useMemo(() => {
+    const filtered = activeFilter === 'all'
+      ? allResources
+      : allResources.filter(r => SECTION_FOR[r.type] === activeFilter)
+    const buckets: Record<ResSection, Resource[]> = { Templates: [], Documents: [], Links: [], Media: [] }
+    for (const r of filtered) buckets[SECTION_FOR[r.type]].push(r)
+    return SECTION_ORDER
+      .map(label => ({ label, items: buckets[label] }))
+      .filter(s => s.items.length > 0)
+  }, [allResources, activeFilter])
+
+  // Cinema-glass tokens consumed by .sheen-title / .ai-meta-pill /
+  // .res-section-header at this scope.
   const [pr, pg, pb] = hexToRgb(accent)
   const glowR = Math.min(255, pr + 20)
   const glowG = Math.min(255, pg + 30)
@@ -176,10 +262,47 @@ export default function ResourcesPage({ params }: { params: { projectId: string 
         </div>
       ) : ''} />
 
-      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 80 }}>
+      {/* Filter pill row — gallery #45 All / Templates / Docs / Links / Media */}
+      {!isLoading && allResources.length > 0 && (
+        <div className="ai-dept-filters">
+          {FILTER_PILLS.map(p => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => setActiveFilter(p.key)}
+              className={`dept-pill${activeFilter === p.key ? ' active' : ''}`}
+            >
+              <span>{p.label}</span>
+              <span className="dept-count">{counts[p.key]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 80, padding: '0 14px 80px' }}>
         {isLoading ? <LoadingState /> : (
           allResources.length === 0 ? <EmptyState text="No resources yet" /> : (
-            allResources.map(r => <ResourceRow key={r.id} resource={r} />)
+            sections.length === 0 ? (
+              <div className="font-mono uppercase" style={{
+                fontSize: '0.5rem', letterSpacing: '0.10em',
+                color: 'var(--fg-mono)', textAlign: 'center', padding: '32px 0',
+              }}>
+                No resources in this filter.
+              </div>
+            ) : (
+              <div className="res-list">
+                {sections.map(section => (
+                  <div key={section.label} className="res-section">
+                    <h2 className="res-section-header">{section.label}</h2>
+                    <div className="res-rows">
+                      {section.items.map(r => (
+                        <ResourceRow key={r.id} resource={r} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )
         )}
       </div>
