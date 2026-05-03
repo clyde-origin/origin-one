@@ -1,8 +1,18 @@
 import type { Metadata, Viewport } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
+import { Cormorant_Garamond } from 'next/font/google'
 import { QueryProvider } from '@/lib/query/provider'
 import '@/styles/globals.css'
+
+// Cinema Glass display serif — used on the Login brand title and
+// other "Cormorant Garamond · Login Title" treatments.
+const cormorantGaramond = Cormorant_Garamond({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-cormorant-garamond',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: { default: 'Back to One', template: '%s · Back to One' },
@@ -31,7 +41,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} ${cormorantGaramond.variable}`}>
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
