@@ -3124,3 +3124,56 @@ html.light-mode body .wf-node-deliverable-row {
 }
 
 /* ===== end Scenemaker V2.1 ===== */
+/* ===== V2.1 Loading skeletons (PR: reskin/v21-loading) =====
+   PR #141 introduced .sk / .sk-line / .sk-pill / .sk-title / .sk-grid-3.
+   This block ports the supplementary primitives the gallery's per-route
+   Loading silhouettes rely on (hub-full-preview-v2.html). They compose
+   with the existing .sk shimmer rule above — purely presentational, no
+   borders, padding, or margin (callers compose layout). */
+.sk-circle {
+  border-radius: 50%;
+  aspect-ratio: 1;
+}
+.sk-card {
+  height: 88px;
+  border-radius: 12px;
+}
+.sk-thumb {
+  aspect-ratio: 1;
+  border-radius: 8px;
+}
+.sk-image {
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+}
+.sk-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.sk-row:last-child { border-bottom: none; }
+.sk-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.sk-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.sk-section-header {
+  height: 14px;
+  width: 100px;
+  margin: 18px auto 12px;
+  border-radius: 4px;
+}
+body.light-mode .sk-row,
+html.light-mode body .sk-row {
+  border-bottom-color: rgba(60, 38, 14, 0.08);
+}
+/* ===== end V2.1 Loading skeletons ===== */
