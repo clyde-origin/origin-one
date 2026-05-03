@@ -1224,11 +1224,11 @@ export default function ProjectsPage() {
           await updateTeamNameMutation.mutateAsync({ teamId: myTeam.id, name })
         }}
       />
-      {/* Top-right settings chip — Cinema Glass .select-logout */}
+      {/* Bottom-left settings chip per design intent (settings-sheet plan) */}
       <button
         onClick={() => { haptic('light'); setShowSettings(true) }}
         aria-label="Settings"
-        className="select-logout"
+        className="select-settings"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.4 }}>
           <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="white" strokeWidth="1.6" />

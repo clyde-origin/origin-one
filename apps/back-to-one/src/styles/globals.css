@@ -718,11 +718,8 @@ html.light-mode body .scenemaker-meta-row {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 200px 480px at 50% 0%, rgba(255, 222, 168, 0.32) 0%, rgba(255, 200, 130, 0.10) 30%, transparent 65%),
-    radial-gradient(ellipse 320px 280px at 50% 30%, rgba(255, 220, 160, 0.10) 0%, transparent 60%),
-    radial-gradient(ellipse 240px 320px at 8% 60%, rgba(120, 90, 60, 0.10) 0%, transparent 60%),
-    radial-gradient(ellipse 240px 320px at 92% 60%, rgba(120, 90, 60, 0.08) 0%, transparent 60%),
-    linear-gradient(180deg, #0a0a0e 0%, #06060a 35%, #0c0a08 70%, #050407 100%);
+    linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.20) 28%, transparent 45%),
+    url('/images/b21_bg.jpg') center/cover no-repeat;
   pointer-events: none;
 }
 .login-stage-inner {
@@ -783,9 +780,11 @@ html.light-mode body .scenemaker-meta-row {
   flex: 1;
   padding: 14px 0;
   border-radius: 12px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--fg-mono);
+  border: 1px solid rgba(var(--role-rgb), 0.45);
+  background: rgba(var(--role-rgb), 0.16);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: rgba(var(--role-rgb), 0.95);
   font-family: var(--font-geist-sans), sans-serif;
   font-size: 0.66rem;
   font-weight: 500;
@@ -802,9 +801,6 @@ html.light-mode body .scenemaker-meta-row {
   color: #fff;
   font-weight: 600;
   box-shadow: 0 0 24px rgba(var(--role-rgb), 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.20);
-}
-.login-role-btn:not(.active) {
-  border-color: rgba(var(--role-rgb), 0.22);
 }
 .login-role-btn-soon {
   position: absolute;
@@ -2239,11 +2235,11 @@ html.light-mode body .wf-node-deliverable-row {
   margin-top: 4px;
 }
 
-/* Logout chip — quiet round button top-right */
-.select-logout {
+/* Settings chip — quiet round button bottom-left, mirrors the FAB's safe-bottom anchor */
+.select-settings {
   position: fixed;
-  top: calc(18px + var(--safe-top));
-  right: 16px;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  left: 16px;
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -2259,7 +2255,7 @@ html.light-mode body .wf-node-deliverable-row {
   opacity: 0.6;
   transition: opacity 180ms ease;
 }
-.select-logout:active { opacity: 1; }
+.select-settings:active { opacity: 1; }
 
 /* Action pills — New Project (teal) + New Folder (purple) */
 .select-action {
