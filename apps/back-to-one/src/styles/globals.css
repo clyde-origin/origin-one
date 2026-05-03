@@ -905,6 +905,132 @@ html.light-mode body .ai-list .ai-tr {
   letter-spacing: -0.01em;
   text-align: center;
   margin: 14px 0 10px;
+
+/* ===== Budget V2 (PR: reskin/v2-budget) =====
+   Visual-only V2 wrappers for the Budget page. Closes structural gaps
+   to gallery phones #10 / #11 in `apps/back-to-one/reference/hub-full-preview-v2.html`:
+     • bgt-summary           — hero Total + progress bar + 2-col Spent/Remaining + foot
+     • bgt-categories        — 2-col grid of tinted per-category cards (--cat-rgb)
+     • bgt-tx-list / bgt-tx-row — Recent Transactions glass section
+     • bgt-section-header    — sheen-extrusion section heading
+
+   Shapes ported directly from gallery CSS at `globals` block ~5760–6005.
+   Re-namespaced with the `bgt-` prefix so they don't collide with future
+   work but match the gallery rhythm verbatim. */
+
+.bgt-summary {
+  background: rgba(20, 20, 28, 0.42);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 4px 14px -8px rgba(0, 0, 0, 0.55);
+}
+.bgt-summary-total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.bgt-summary-total-label {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+}
+.bgt-summary-total {
+  font-family: var(--font-geist), 'Geist', sans-serif;
+  font-size: 1.32rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(var(--accent-glow-rgb), 1) 32%,
+    var(--accent) 55%,
+    rgba(var(--accent-rgb), 0.78) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.22));
+  font-variant-numeric: tabular-nums;
+}
+.bgt-summary-bar {
+  position: relative;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-top: 2px;
+}
+.bgt-summary-bar-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg,
+    var(--accent) 0%,
+    rgba(var(--accent-glow-rgb), 1) 100%);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.4);
+}
+.bgt-summary-split {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+}
+.bgt-summary-split-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bgt-summary-split-cell.right { text-align: right; align-items: flex-end; }
+.bgt-summary-split-label {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+}
+.bgt-summary-split-value {
+  font-family: var(--font-geist), 'Geist', sans-serif;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+.bgt-summary-split-pct {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  color: var(--fg-mono);
+}
+.bgt-summary-foot {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  text-align: center;
+  padding-top: 4px;
+}
+
+/* Section header — sheen-extrusion treatment matching .sheen-title shape
+   but with smaller/heavier rhythm. Used above Categories + Recent Transactions. */
+.bgt-section-header {
+  font-weight: 700;
+  font-size: 0.86rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+  margin: 14px 0 8px;
   background: linear-gradient(180deg,
     rgba(255, 255, 255, 0.96) 0%,
     rgba(var(--accent-glow-rgb), 1) 32%,
@@ -936,6 +1062,21 @@ html.light-mode body .ai-list .ai-tr {
   align-items: center;
   padding: 8px 10px 8px 8px;
   border-radius: 12px;
+
+
+/* Category cards — 2-col grid, per-card --cat-rgb tinting. */
+.bgt-categories {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.bgt-cat-card {
+  --cat-rgb: 122, 122, 130;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 10px 10px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border);
   box-shadow:
@@ -986,6 +1127,28 @@ html.light-mode body .inv-row {
   letter-spacing: 0.005em;
   color: var(--fg);
   line-height: 1.2;
+
+  min-width: 0;
+  transition: transform var(--dur, 0.18s) var(--ease, ease), border-color var(--dur, 0.18s) var(--ease, ease);
+}
+.bgt-cat-card.active {
+  border-color: rgba(var(--cat-rgb), 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 4px 14px -6px rgba(var(--cat-rgb), 0.45);
+}
+.bgt-cat-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bgt-cat-name {
+  font-family: var(--font-geist), 'Geist', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  color: var(--fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1082,6 +1245,83 @@ html.light-mode body .inv-row {
 }
 
   color: var(--fg-mono);
+
+.bgt-cat-pct {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgb(var(--cat-rgb));
+  font-variant-numeric: tabular-nums;
+}
+.bgt-cat-bar {
+  position: relative;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+.bgt-cat-bar-fill {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  border-radius: 999px;
+  background: rgb(var(--cat-rgb));
+  box-shadow: 0 0 6px rgba(var(--cat-rgb), 0.42);
+}
+.bgt-cat-amounts {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.06em;
+  color: var(--fg-mono);
+  font-variant-numeric: tabular-nums;
+}
+.bgt-cat-amounts .bgt-cat-spent { color: var(--fg); }
+
+/* Recent Transactions list. Single glass card; rows separated by hairline. */
+.bgt-tx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: rgba(20, 20, 28, 0.42);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px 12px;
+}
+.bgt-tx-row {
+  display: grid;
+  grid-template-columns: 44px auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.bgt-tx-row:last-child { border-bottom: none; }
+.bgt-tx-date {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+}
+.bgt-tx-amount {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.54rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgb(232, 80, 122);
+  font-variant-numeric: tabular-nums;
+  min-width: 56px;
+  text-align: right;
+}
+.bgt-tx-desc {
+  font-family: var(--font-geist), 'Geist', sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.005em;
+  color: var(--fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1102,3 +1342,39 @@ html.light-mode body .inv-row {
   white-space: nowrap;
 }
 /* ===== end Tab-list V2 ===== */
+
+.bgt-tx-cat-pill {
+  --cat-rgb: 122, 122, 130;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.38rem;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgb(var(--cat-rgb));
+  background: rgba(var(--cat-rgb), 0.12);
+  border: 1px solid rgba(var(--cat-rgb), 0.32);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Light-mode tweaks — match the existing pattern used by .sheen-title /
+   glass-tile light-mode overrides elsewhere in this file. */
+body.light-mode .bgt-summary,
+html.light-mode body .bgt-summary,
+body.light-mode .bgt-tx-list,
+html.light-mode body .bgt-tx-list {
+  background: rgba(255, 248, 235, 0.72);
+  border-color: rgba(60, 38, 14, 0.10);
+}
+body.light-mode .bgt-cat-card,
+html.light-mode body .bgt-cat-card {
+  background: rgba(255, 248, 235, 0.55);
+  border-color: rgba(60, 38, 14, 0.10);
+}
+body.light-mode .bgt-tx-row,
+html.light-mode body .bgt-tx-row {
+  border-bottom-color: rgba(60, 38, 14, 0.08);
+}
+/* ===== end Budget V2 ===== */
