@@ -970,7 +970,7 @@ function SortableShotRow({
             onClick={e => e.stopPropagation()}
           />
         ) : (
-          <span className="font-mono flex-1 min-w-0 truncate cursor-text"
+          <span className="font-mono flex-1 min-w-0 cursor-text scenemaker-shot-desc"
             style={{ fontSize: '0.58rem', fontWeight: 500, color: 'var(--fg)', lineHeight: 1.35 }}
             onClick={(e) => {
               if (wiggleMode) return
@@ -1510,13 +1510,10 @@ function BoardCard({ shot, sceneColor, aspectRatio, isDragging, isShifted, onTap
           <div className="letterbox-bottom" style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }} />
         </div>
         {/* Description — Geist Mono, --fg, 2-line truncate per
-            DESIGN_LANGUAGE.md storyboard panel pattern. */}
-        <div className="font-mono" style={{
-          padding: '5px 6px', fontSize: '0.44rem', fontWeight: 500,
-          color: 'var(--fg)', lineHeight: 1.35,
-          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
-        }}>
+            DESIGN_LANGUAGE.md storyboard panel pattern. Explicit
+            content-box height = lineHeight × 2 keeps the third-line
+            top half from bleeding through into the gap below. */}
+        <div className="font-mono scenemaker-board-desc">
           {shot.description}
         </div>
       </div>

@@ -2926,6 +2926,17 @@ html.light-mode body .wf-node-deliverable-row {
   letter-spacing: -0.005em;
   line-height: 1.05;
   max-width: 100%;
+/* ===== Scenemaker V2.1 (PR: reskin/v21-scenemaker) =====
+   Polish on top of #140 (Scenemaker V2): two-line shotlist row
+   description, clean clip on the storyboard cell description, and
+   Cinema Glass treatment for the Script-tab Characters / Locations /
+   Props bottom sheet (EntityDrawer). All additions namespaced under
+   .scenemaker-* / .sm-entity-*. */
+
+/* Shotlist row — bump description from single-line truncate to a
+   2-line clamp so longer beats stay legible without ellipsing the
+   whole sentence. */
+.scenemaker-shot-desc {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -2970,3 +2981,146 @@ html.light-mode body .wf-node-deliverable-row {
 .slate-folder-card { aspect-ratio: 1 / 1; }
 
 /* ===== end Project Selection V2.1 ===== */
+  word-break: break-word;
+}
+
+/* Storyboard 3-up cell description — line-clamp alone leaves a 3rd-line
+   top-half rendering past the cell bottom edge into the next row's gap
+   on certain widths. Pin the content-box height to exactly two
+   line-heights and clip overflow so the bleed cannot occur. Padding
+   stays outside the content box (box-sizing: content-box). */
+.scenemaker-board-desc {
+  padding: 5px 6px;
+  font-size: 0.44rem;
+  font-weight: 500;
+  color: var(--fg);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  box-sizing: content-box;
+  max-height: calc(0.44rem * 1.35 * 2);
+}
+
+/* EntityDrawer (Script tab Characters / Locations / Props) sheet
+   chrome — 20px top radius + accent-tinted glass-tile background +
+   accent hairline. Replaces the pre-Cinema-Glass solid #111 surface. */
+.sm-entity-sheet {
+  border-radius: 20px 20px 0 0;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--accent-rgb, 196, 90, 220), 0.07) 0%,
+      rgba(var(--accent-rgb, 196, 90, 220), 0.03) 50%,
+      rgba(20, 20, 28, 0.92) 100%),
+    rgba(12, 12, 18, 0.95);
+  backdrop-filter: blur(20px) saturate(135%);
+  -webkit-backdrop-filter: blur(20px) saturate(135%);
+  border-top: 1px solid rgba(var(--accent-rgb, 196, 90, 220), 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 -8px 32px -8px rgba(0, 0, 0, 0.55);
+}
+.sm-entity-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.13);
+  margin: 12px auto 14px;
+}
+.sm-entity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.sm-entity-header-label {
+  font-family: 'Geist', sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg);
+}
+.sm-entity-count {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: rgb(var(--accent-rgb, 196, 90, 220));
+  background: rgba(var(--accent-rgb, 196, 90, 220), 0.10);
+  border: 1px solid rgba(var(--accent-rgb, 196, 90, 220), 0.28);
+}
+
+/* Avatar chip — 56px circle with scene-tinted gradient. --chip-rgb
+   is set inline per-entity via sceneRgbFor() so each chip carries
+   its own scene hue (mirrors Casting V2 #141). */
+.sm-entity-chip {
+  --chip-rgb: 122, 122, 130;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Geist', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: linear-gradient(165deg,
+    rgba(var(--chip-rgb), 0.78) 0%,
+    rgba(var(--chip-rgb), 0.42) 55%,
+    rgba(var(--chip-rgb), 0.20) 100%);
+  border: 1px solid rgba(var(--chip-rgb), 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 4px 14px -6px rgba(var(--chip-rgb), 0.45);
+}
+.sm-entity-chip-img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(var(--chip-rgb, 122, 122, 130), 0.55);
+}
+
+/* + add chip — glass-tile-sm circle with accent-tinted plus, replacing
+   the dashed outline. Lives in the same row as scene-tinted avatars. */
+.sm-entity-add {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--accent-rgb, 196, 90, 220), 0.16) 0%,
+      rgba(var(--accent-rgb, 196, 90, 220), 0.06) 100%),
+    rgba(20, 20, 28, 0.55);
+  border: 1px solid rgba(var(--accent-rgb, 196, 90, 220), 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 4px 14px -6px rgba(var(--accent-rgb, 196, 90, 220), 0.35);
+  color: rgb(var(--accent-rgb, 196, 90, 220));
+  font-size: 24px;
+  font-weight: 300;
+  cursor: pointer;
+}
+.sm-entity-chip-label {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.06em;
+  color: var(--fg-mono);
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* ===== end Scenemaker V2.1 ===== */
