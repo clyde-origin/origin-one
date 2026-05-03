@@ -717,7 +717,9 @@ html.light-mode body .scenemaker-meta-row {
 .login-stage-bg {
   position: absolute;
   inset: 0;
-  background: url('/images/b21_bg.jpg') center/cover no-repeat;
+  background:
+    linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.20) 28%, transparent 45%),
+    url('/images/b21_bg.jpg') center/cover no-repeat;
   pointer-events: none;
 }
 .login-stage-inner {
@@ -778,9 +780,11 @@ html.light-mode body .scenemaker-meta-row {
   flex: 1;
   padding: 14px 0;
   border-radius: 12px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--fg-mono);
+  border: 1px solid rgba(var(--role-rgb), 0.45);
+  background: rgba(var(--role-rgb), 0.16);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: rgba(var(--role-rgb), 0.95);
   font-family: var(--font-geist-sans), sans-serif;
   font-size: 0.66rem;
   font-weight: 500;
@@ -797,9 +801,6 @@ html.light-mode body .scenemaker-meta-row {
   color: #fff;
   font-weight: 600;
   box-shadow: 0 0 24px rgba(var(--role-rgb), 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.20);
-}
-.login-role-btn:not(.active) {
-  border-color: rgba(var(--role-rgb), 0.22);
 }
 .login-role-btn-soon {
   position: absolute;
