@@ -810,6 +810,187 @@ html.light-mode body .scenemaker-meta-row {
   position: absolute;
   bottom: 4px;
   right: 5px;
+
+/* ===== Tab-list V2 (PR: reskin/v2-tab-list) =====
+   Action Items + Inventory visual targets per
+   docs/superpowers/reviews/2026-05-02-cinema-glass-v2-audit.md.
+   Spec source: hub-full-preview-v2.html phones #12-#13 (Action Items
+   Me + Dept) and #39 (Inventory). Both routes share the dept-pill row
+   surface; Action Items defers the icon-stacked variant until a dept
+   icon library lands (text-only pills for now). */
+
+/* --- Action Items: single glass-card row list with bucketed sections --- */
+.ai-list {
+  display: flex;
+  flex-direction: column;
+  margin: 14px 16px 0;
+  /* Inherits .card chrome (background + border-radius + shadow). The
+     bucket-divider rules below provide internal section separation. */
+}
+.ai-list .ai-bucket:first-child { margin-top: 0; }
+
+.ai-bucket {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px 7px;
+  margin-top: 4px;
+}
+.ai-bucket .bucket-rule {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+body.light-mode .ai-bucket .bucket-rule,
+html.light-mode body .ai-bucket .bucket-rule {
+  background: rgba(60, 38, 14, 0.10);
+}
+.ai-bucket .bucket-label {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  flex-shrink: 0;
+}
+.ai-bucket.today .bucket-label { color: var(--accent); }
+
+/* Task rows live inside the .ai-list glass card. Hairline divider between
+   rows; suppress the last child's divider so the card edge handles it. */
+.ai-list .ai-tr {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+body.light-mode .ai-list .ai-tr,
+html.light-mode body .ai-list .ai-tr {
+  border-bottom-color: rgba(60, 38, 14, 0.08);
+}
+.ai-list .ai-tr:last-child { border-bottom: none; }
+.ai-list .ai-tr:hover { background: rgba(255, 255, 255, 0.02); }
+
+/* Dept-tinted left-edge stripe — replaces the inline dept chip on the
+   row's title line. `--row-dept` is set inline per row from DEPT_COLORS. */
+.ai-list .ai-tr.with-dept { padding-left: 18px; }
+.ai-list .ai-tr.with-dept::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--row-dept, var(--fg-mono));
+  opacity: 0.7;
+}
+
+/* --- Inventory: per-status section + row anatomy --- */
+
+/* Section grouping within active dept tab. inv-section pairs a sheen
+   header above its inv-rows block; sections stack with a small gap. */
+.inv-section {
+  display: flex;
+  flex-direction: column;
+}
+.inv-section + .inv-section { margin-top: 12px; }
+.inv-section-header {
+  font-weight: 700;
+  font-size: 0.84rem;
+  letter-spacing: -0.01em;
+  text-align: center;
+  margin: 14px 0 10px;
+  background: linear-gradient(180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(var(--accent-glow-rgb), 1) 32%,
+    var(--accent) 55%,
+    rgba(var(--accent-rgb), 0.78) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.22));
+}
+.inv-section:first-of-type .inv-section-header { margin-top: 4px; }
+
+/* Inventory rows — image-grid-style anatomy: 52px thumb + info column +
+   right-aligned status pill. The thumb area is a placeholder gradient
+   (no thumbnail field on InventoryItem yet) with cinema letterbox bars. */
+.inv-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.inv-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px 8px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 4px 14px -8px rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.inv-row:hover { transform: translateY(-1px); background: rgba(255, 255, 255, 0.05); }
+body.light-mode .inv-row,
+html.light-mode body .inv-row {
+  background: rgba(248, 240, 220, 0.65);
+  border-color: rgba(60, 38, 14, 0.12);
+}
+.inv-thumb {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  /* Placeholder gradient driven by inline --thumb-rgb (status color). */
+  background: linear-gradient(165deg,
+    rgba(var(--thumb-rgb, 100, 112, 243), 0.22) 0%,
+    rgba(var(--thumb-rgb, 100, 112, 243), 0.10) 60%,
+    rgba(0, 0, 0, 0.45) 100%);
+}
+.inv-thumb .letterbox-top,
+.inv-thumb .letterbox-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2;
+}
+.inv-thumb .letterbox-top { top: 0; }
+.inv-thumb .letterbox-bottom { bottom: 0; }
+.inv-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.inv-name {
+  font-weight: 500;
+  font-size: 0.78rem;
+  letter-spacing: 0.005em;
+  color: var(--fg);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inv-meta {
   font-family: var(--font-geist-mono), monospace;
   font-size: 0.46rem;
   letter-spacing: 0.10em;
@@ -899,3 +1080,25 @@ html.light-mode body .scenemaker-meta-row {
   opacity: 0.45;
   margin-top: 14px;
 }
+
+  color: var(--fg-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inv-status-pill {
+  --status-rgb: 100, 112, 243;
+  flex-shrink: 0;
+  align-self: center;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgb(var(--status-rgb));
+  background: rgba(var(--status-rgb), 0.12);
+  border: 1px solid rgba(var(--status-rgb), 0.32);
+  white-space: nowrap;
+}
+/* ===== end Tab-list V2 ===== */

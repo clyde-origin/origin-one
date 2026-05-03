@@ -13,7 +13,7 @@ import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { DEPARTMENTS, getProjectColor, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
-import type { InventoryItem, InventoryItemStatus, ImportSource, TeamMember } from '@/types'
+import type { InventoryItem, InventoryItemStatus, TeamMember } from '@/types'
 
 // ── Status palette (BRAND_TOKENS § Inventory Item Status) ─────────────
 // Inline per the Locations / Art convention. The phase-color reuse for
@@ -27,6 +27,16 @@ const STATUS_COLORS: Record<InventoryItemStatus, { color: string; border: string
   arrived:  { color: '#4ab8e8', border: 'rgba(74, 184, 232, 0.22)', bg: 'rgba(74, 184, 232, 0.10)' },
   packed:   { color: '#6470f3', border: 'rgba(100, 112, 243, 0.22)', bg: 'rgba(100, 112, 243, 0.10)' },
   returned: { color: '#00b894', border: 'rgba(0, 184, 148, 0.22)',   bg: 'rgba(0, 184, 148, 0.10)' },
+}
+
+// V2: --status-rgb triplets feeding `.inv-status-pill` and `.inv-thumb`
+// gradients per gallery phone #39. Mirrors STATUS_COLORS hex values.
+const STATUS_RGB: Record<InventoryItemStatus, string> = {
+  needed:   '232, 72, 72',
+  ordered:  '232, 160, 32',
+  arrived:  '74, 184, 232',
+  packed:   '100, 112, 243',
+  returned: '0, 184, 148',
 }
 
 const STATUS_LABEL: Record<InventoryItemStatus, string> = {
@@ -65,166 +75,42 @@ function getInitials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-function shortName(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length <= 1) return name
-  return `${parts[0]} ${parts[parts.length - 1][0]}.`
-}
-
 function capitalize(s: string): string {
   if (!s) return s
   return s[0].toUpperCase() + s.slice(1)
 }
 
-// ── StatusChip ─────────────────────────────────────────────────────────
-
-function StatusChip({ status }: { status: InventoryItemStatus }) {
-  const c = STATUS_COLORS[status]
-  return (
-    <span
-      className="font-mono uppercase"
-      style={{
-        fontSize: '0.42rem', letterSpacing: '0.1em',
-        padding: '3px 8px', borderRadius: 20,
-        background: c.bg, border: `1px solid ${c.border}`, color: c.color,
-        flexShrink: 0,
-      }}
-    >
-      {STATUS_LABEL[status]}
-    </span>
-  )
-}
-
-// ── AssigneeChip ───────────────────────────────────────────────────────
-
-function AssigneeChip({ member }: { member: TeamMember | null }) {
-  if (!member) {
-    return (
-      <span
-        className="font-mono uppercase"
-        style={{
-          fontSize: '0.42rem', letterSpacing: '0.08em',
-          padding: '3px 9px', borderRadius: 20,
-          background: 'transparent',
-          border: '1px dashed rgba(255,255,255,0.18)',
-          color: 'rgba(255,255,255,0.35)',
-        }}
-      >
-        + Assign
-      </span>
-    )
-  }
-  const initials = getInitials(member.User.name)
-  return (
-    <div className="flex items-center" style={{ gap: 6 }}>
-      <div
-        className="font-mono"
-        style={{
-          width: 22, height: 22, borderRadius: '50%',
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.12)',
-          color: 'rgba(255,255,255,0.7)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '0.46rem', letterSpacing: '0.04em', fontWeight: 600,
-        }}
-      >
-        {initials}
-      </div>
-      <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.7)' }}>
-        {shortName(member.User.name)}
-      </span>
-    </div>
-  )
-}
-
-// ── ImportedTag ────────────────────────────────────────────────────────
-
-function ImportedTag({ source }: { source: ImportSource }) {
-  if (source === 'manual') return null
-  return (
-    <span
-      className="font-mono uppercase"
-      style={{
-        fontSize: '0.36rem', letterSpacing: '0.1em',
-        padding: '2px 6px', borderRadius: 4,
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        color: 'rgba(255,255,255,0.4)',
-        flexShrink: 0,
-      }}
-      title={source === 'pdf' ? 'Imported from PDF' : 'Imported from Excel'}
-    >
-      Imported
-    </span>
-  )
-}
-
 // ── InventoryItemRow ───────────────────────────────────────────────────
-
-function InventoryItemRow({
-  item, assignee, onTap,
-}: {
-  item: InventoryItem
-  assignee: TeamMember | null
-  onTap: () => void
-}) {
+// V2 (reskin/v2-tab-list): inv-row anatomy from gallery phone #39 —
+// 52px thumb (status-tinted gradient placeholder; no thumbnail field on
+// InventoryItem yet) + inv-info column (name + dept · qty meta) + right
+// inv-status-pill driven by --status-rgb. Notes / assignee / source
+// are surfaced in the detail sheet rather than the row.
+function InventoryItemRow({ item, onTap }: { item: InventoryItem; onTap: () => void }) {
+  const rgb = STATUS_RGB[item.status]
+  const dept = item.department ?? 'Other'
+  const unitLabel = item.quantity === 1 ? 'unit' : 'units'
   return (
-    <div
-      onClick={onTap}
-      className="glass-tile cursor-pointer active:opacity-90 transition-opacity"
-      style={{
-        position: 'relative',
-        padding: 12,
-      }}
-    >
-      {/* Letterbox bars — cinema-glass identity. Above content (z:5). */}
-      <div className="letterbox-top" />
-      <div className="letterbox-bottom" />
-
-      <div className="flex items-start" style={{ gap: 10 }}>
-        <div className="flex-1 min-w-0">
-          <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--fg)', lineHeight: 1.25 }}>
-            {item.name}
-          </div>
-          <div
-            className="flex items-center"
-            style={{ gap: 6, marginTop: 5, fontSize: '0.56rem', color: 'var(--fg-mono)', flexWrap: 'wrap' }}
-          >
-            <span style={{ fontWeight: 500, color: 'var(--fg-mono)' }}>×{item.quantity}</span>
-            {item.source && (
-              <>
-                <span style={{ color: 'var(--fg-mono)', opacity: 0.5 }}>·</span>
-                <span>{item.source}</span>
-              </>
-            )}
-            <ImportedTag source={item.importSource} />
-          </div>
-        </div>
-        <StatusChip status={item.status} />
+    <div onClick={onTap} className="inv-row">
+      <div
+        className="inv-thumb"
+        style={{ ['--thumb-rgb' as string]: rgb }}
+      >
+        <div className="letterbox-top" />
+        <div className="letterbox-bottom" />
       </div>
-
-      {(item.notes || assignee !== null || item.assigneeId === null) && (
-        <div
-          className="flex items-center"
-          style={{ marginTop: 10, gap: 12 }}
-        >
-          <div className="flex-1 min-w-0" style={{ fontSize: '0.58rem', color: 'var(--fg-mono)', lineHeight: 1.5 }}>
-            {item.notes && (
-              <span
-                style={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 1,
-                  WebkitBoxOrient: 'vertical' as const,
-                  overflow: 'hidden',
-                }}
-              >
-                {item.notes}
-              </span>
-            )}
-          </div>
-          <AssigneeChip member={assignee} />
+      <div className="inv-info">
+        <div className="inv-name">{item.name}</div>
+        <div className="inv-meta">
+          {dept} · {item.quantity} {unitLabel}
         </div>
-      )}
+      </div>
+      <span
+        className="inv-status-pill"
+        style={{ ['--status-rgb' as string]: rgb }}
+      >
+        {STATUS_LABEL[item.status]}
+      </span>
     </div>
   )
 }
@@ -639,11 +525,6 @@ export default function InventoryPage({ params }: { params: { projectId: string 
 
   const allItems = (items ?? []) as InventoryItem[]
   const allCrew = (crew ?? []) as TeamMember[]
-  const crewById = useMemo(() => {
-    const m = new Map<string, TeamMember>()
-    for (const c of allCrew) m.set(c.id, c)
-    return m
-  }, [allCrew])
 
   const [activeTab, setActiveTab] = useState<string>('Camera')
   const [selected, setSelected] = useState<InventoryItem | null>(null)
@@ -660,11 +541,6 @@ export default function InventoryPage({ params }: { params: { projectId: string 
     }
     return m
   }, [allItems])
-
-  const totalNeeded = useMemo(
-    () => allItems.filter(i => i.status === 'needed').length,
-    [allItems],
-  )
 
   const tabItems = useMemo(
     () => allItems.filter(i => (i.department ?? 'Other') === activeTab),
@@ -695,21 +571,10 @@ export default function InventoryPage({ params }: { params: { projectId: string 
         noBorder
       />
 
-      {/* Page meta line */}
-      <div
-        className="flex items-center justify-center font-mono uppercase flex-shrink-0"
-        style={{
-          gap: 8, fontSize: '0.46rem', letterSpacing: '0.1em',
-          color: 'var(--fg-mono)',
-          padding: '0 16px 16px',
-        }}
-      >
-        <span>13 departments</span>
-        <span style={{ opacity: 0.5 }}>·</span>
-        <span>{allItems.length} items</span>
-        <span style={{ opacity: 0.5 }}>·</span>
-        <span>{totalNeeded} needed</span>
-      </div>
+      {/* V2 (reskin/v2-tab-list): page meta line dropped — gallery moves
+          counts into the dept-pill row (each pill shows its dept's count
+          chip); the total/needed counts are now derivable per-section
+          from the inv-section-header groups. */}
 
       {/* Actions row — Import (disabled w/ tooltip). Add item lives on the global ActionBar +. */}
       <div className="flex flex-shrink-0" style={{ gap: 8, padding: '0 16px 12px' }}>
@@ -804,31 +669,17 @@ export default function InventoryPage({ params }: { params: { projectId: string 
         </div>
       </div>
 
-      {/* Scroll area */}
+      {/* Scroll area — V2: items grouped by status within the active
+          dept tab. Section headers carry the sheen-extrusion treatment;
+          rows live inside .inv-rows. */}
       <div
         className="flex-1 overflow-y-auto no-scrollbar"
-        style={{ WebkitOverflowScrolling: 'touch', padding: '14px 16px 100px' }}
+        style={{ WebkitOverflowScrolling: 'touch', padding: '4px 16px 100px' }}
       >
-        {/* List header — active dept name gets the sheen-extrusion treatment
-            per the brief's "Inventory chip section labels" rule. */}
-        <div className="flex items-end justify-between" style={{ marginBottom: 10 }}>
-          <div className="sheen-title" style={{ fontSize: '0.92rem', fontWeight: 700, letterSpacing: '-0.01em' }}>{activeTab}</div>
-          <div
-            className="font-mono uppercase"
-            style={{ fontSize: '0.42rem', color: 'var(--fg-mono)', letterSpacing: '0.1em' }}
-          >
-            {tabItems.length} items
-          </div>
-        </div>
-
-        {/* Item list */}
         {isLoading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 10 }}>
             {[0, 1, 2].map(i => (
-              <div key={i} className="glass-tile sk-block" style={{ position: 'relative', height: 80 }}>
-                <div className="letterbox-top" />
-                <div className="letterbox-bottom" />
-              </div>
+              <div key={i} className="inv-row sk-block" style={{ height: 68 }} />
             ))}
           </div>
         ) : tabItems.length === 0 ? (
@@ -843,16 +694,24 @@ export default function InventoryPage({ params }: { params: { projectId: string 
             </div>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {tabItems.map(item => (
-              <InventoryItemRow
-                key={item.id}
-                item={item}
-                assignee={item.assigneeId ? crewById.get(item.assigneeId) ?? null : null}
-                onTap={() => { haptic('light'); setSelected(item) }}
-              />
-            ))}
-          </div>
+          ALL_STATUSES.map(s => {
+            const sectionItems = tabItems.filter(i => i.status === s)
+            if (sectionItems.length === 0) return null
+            return (
+              <div key={s} className="inv-section">
+                <h2 className="inv-section-header">{STATUS_LABEL[s]}</h2>
+                <div className="inv-rows">
+                  {sectionItems.map(item => (
+                    <InventoryItemRow
+                      key={item.id}
+                      item={item}
+                      onTap={() => { haptic('light'); setSelected(item) }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )
+          })
         )}
       </div>
 
