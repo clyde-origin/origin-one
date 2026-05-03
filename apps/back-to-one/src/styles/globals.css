@@ -1148,6 +1148,101 @@ html.light-mode body .inv-row {
   font-size: 0.74rem;
   font-weight: 600;
   letter-spacing: 0.005em;
+
+/* ===== Workflow V2 (PR: reskin/v2-workflow) =====
+   NodeCard restructure (top tag row → body title+tool → right column
+   assignee w/ avatar + name+role stack), connector pill (mono-caps tag
+   with arrow inside), and nested deliverables under Final Delivery node
+   per docs/superpowers/reviews/2026-05-02-cinema-glass-v2-audit.md.
+   Spec source: hub-full-preview-v2.html phones #41-#44. The audit-
+   prescribed rectangular layout is used (rather than gallery's circular
+   variant) because real production data has long titles like
+   "Online / Conform" that don't fit a 120px circle. */
+
+.wf-count {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  padding: 0 4px;
+}
+
+.wf-node {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "tag tag"
+    "body assignee";
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--tag-rgb), 0.40);
+  background:
+    linear-gradient(180deg,
+      rgba(var(--tag-rgb), 0.10) 0%,
+      rgba(var(--tag-rgb), 0.04) 50%,
+      rgba(0, 0, 0, 0.20) 100%),
+    rgba(18, 18, 24, 0.75);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 24px -10px rgba(var(--tag-rgb), 0.40),
+    0 4px 14px -10px rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+body.light-mode .wf-node,
+html.light-mode body .wf-node {
+  background:
+    linear-gradient(180deg,
+      rgba(var(--tag-rgb), 0.12) 0%,
+      rgba(var(--tag-rgb), 0.05) 50%,
+      rgba(248, 240, 220, 0.65) 100%),
+    rgba(248, 240, 220, 0.75);
+  border-color: rgba(var(--tag-rgb), 0.45);
+}
+.wf-node:hover {
+  transform: translateY(-1px);
+  border-color: rgba(var(--tag-rgb), 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 28px -8px rgba(var(--tag-rgb), 0.50),
+    0 6px 16px -10px rgba(0, 0, 0, 0.65);
+}
+
+.wf-node-tag {
+  grid-area: tag;
+  justify-self: start;
+  align-self: center;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(var(--tag-rgb));
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(var(--tag-rgb), 0.12);
+  border: 1px solid rgba(var(--tag-rgb), 0.28);
+}
+
+.wf-node-body {
+  grid-area: body;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.wf-node-title {
+  font-weight: 700;
+  font-size: 0.86rem;
+  letter-spacing: -0.005em;
+  line-height: 1.2;
   color: var(--fg);
   white-space: nowrap;
   overflow: hidden;
@@ -1225,6 +1320,174 @@ html.light-mode body .inv-row {
 .login-stage-msg.err { color: #e8a020; }
 .login-stage-msg.info { color: #00b894; }
 .login-stage-note {
+
+.wf-node-tool {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(var(--tag-rgb));
+  opacity: 0.92;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wf-node-assignee {
+  grid-area: assignee;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.wf-node-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.50rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.wf-node-avatar.is-empty {
+  border: 1.5px dashed rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.30);
+  font-weight: 300;
+  font-size: 0.78rem;
+}
+body.light-mode .wf-node-avatar.is-empty,
+html.light-mode body .wf-node-avatar.is-empty {
+  border-color: rgba(60, 38, 14, 0.20);
+  color: rgba(60, 38, 14, 0.32);
+}
+.wf-node-name-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+}
+.wf-node-name {
+  font-size: 0.62rem;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+}
+.wf-node-role {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.40rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+}
+
+/* Connector — single mono-caps pill with arrow inside, sitting on a
+   centred hairline that bridges between cards. */
+.wf-connector {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 36px;
+  margin: 6px 0;
+}
+.wf-connector::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 28%;
+  right: 28%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(var(--accent-rgb), 0.32) 20%,
+    rgba(var(--accent-rgb), 0.55) 50%,
+    rgba(var(--accent-rgb), 0.32) 80%,
+    transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+.wf-connector-pill {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 100px;
+  background:
+    linear-gradient(180deg,
+      rgba(var(--accent-rgb), 0.10) 0%,
+      rgba(0, 0, 0, 0.18) 100%),
+    rgba(20, 20, 28, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(var(--accent-rgb), 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 14px -6px rgba(var(--accent-rgb), 0.32);
+  color: rgb(var(--accent-rgb));
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+body.light-mode .wf-connector-pill,
+html.light-mode body .wf-connector-pill {
+  background:
+    linear-gradient(180deg,
+      rgba(var(--accent-rgb), 0.14) 0%,
+      rgba(255, 255, 255, 0.55) 100%),
+    rgba(248, 240, 220, 0.75);
+  color: var(--accent);
+}
+.wf-connector-pill.is-empty { opacity: 0.55; }
+.wf-arrow {
+  font-size: 0.62rem;
+  font-weight: 400;
+  color: var(--fg-mono);
+  line-height: 0.7;
+  transform: translateY(-1px);
+}
+
+/* Nested deliverables under Final Delivery — verdant rail + rows. The
+   green is a fixed delivery semantic (matches the gallery), independent
+   of project accent. */
+.wf-node-deliverables {
+  position: relative;
+  margin: 4px 0 8px 22px;
+  padding: 8px 0 2px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wf-node-deliverables::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 6px;
+  width: 1px;
+  background: linear-gradient(180deg,
+    rgba(0, 184, 148, 0.45) 0%,
+    rgba(0, 184, 148, 0.12) 100%);
+}
+.wf-node-deliverables-label {
   font-family: var(--font-geist-mono), monospace;
   font-size: 0.42rem;
   letter-spacing: 0.14em;
@@ -1322,6 +1585,44 @@ html.light-mode body .inv-row {
   font-size: 0.62rem;
   letter-spacing: 0.005em;
   color: var(--fg);
+
+  color: rgba(0, 184, 148, 0.95);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.wf-node-deliverable-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.wf-node-deliverable-row:hover { background: rgba(255, 255, 255, 0.04); }
+body.light-mode .wf-node-deliverable-row,
+html.light-mode body .wf-node-deliverable-row {
+  background: rgba(248, 240, 220, 0.55);
+  border-color: rgba(60, 38, 14, 0.10);
+}
+.wf-node-deliverable-row::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  width: 12px;
+  height: 1px;
+  background: rgba(0, 184, 148, 0.32);
+}
+.wf-node-deliverable-name {
+  font-weight: 600;
+  font-size: 0.62rem;
+  color: var(--fg);
+  line-height: 1.2;
+  margin-bottom: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1378,3 +1679,22 @@ html.light-mode body .bgt-tx-row {
   border-bottom-color: rgba(60, 38, 14, 0.08);
 }
 /* ===== end Budget V2 ===== */
+
+.wf-node-deliverable-specs {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.36rem;
+  letter-spacing: 0.06em;
+  color: var(--fg-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wf-node-deliverable-runtime {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.50rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--fg);
+  flex-shrink: 0;
+}
+/* ===== end Workflow V2 ===== */
