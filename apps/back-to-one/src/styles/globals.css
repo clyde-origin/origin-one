@@ -1056,6 +1056,29 @@ html.light-mode body .ai-list .ai-tr {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+
+/* ===== Project Selection V1 (PR: reskin/v2-project-selection) ===== */
+.select-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.select-tagline {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  opacity: 0.75;
+}
+.select-title {
+  font-weight: 700;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
   background: linear-gradient(180deg,
     rgba(255, 255, 255, 1) 0%,
     var(--fg) 55%,
@@ -2145,3 +2168,299 @@ html.light-mode body .bgt-tx-row {
   color: var(--accent, rgb(var(--accent-rgb, 196, 90, 220)));
 }
 /* ===== end Image-grid V2 ===== */
+
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 8px rgba(255, 255, 255, 0.08));
+}
+.select-subtitle {
+  font-family: var(--font-geist-sans), sans-serif;
+  font-weight: 500;
+  font-size: 0.88rem;
+  color: #62627a;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+
+/* Logout chip — quiet round button top-right */
+.select-logout {
+  position: fixed;
+  top: calc(18px + var(--safe-top));
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 7;
+  opacity: 0.6;
+  transition: opacity 180ms ease;
+}
+.select-logout:active { opacity: 1; }
+
+/* Action pills — New Project (teal) + New Folder (purple) */
+.select-action {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  background: rgba(var(--action-rgb), 0.04);
+  border: 1px dashed rgba(var(--action-rgb), 0.42);
+  color: rgb(var(--action-rgb));
+  cursor: pointer;
+  opacity: 0.92;
+  transition: opacity 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+  --action-rgb: 196, 90, 220;
+}
+.select-action.new-project { --action-rgb: 0, 184, 148; }
+.select-action.new-folder  { --action-rgb: 196, 90, 220; }
+.select-action:active {
+  opacity: 1;
+  transform: translateY(-1px);
+  box-shadow: 0 0 16px rgba(var(--action-rgb), 0.20);
+}
+.select-action .glyph { font-size: 0.78rem; line-height: 1; }
+
+/* Archive button — silver chrome pill with count badge */
+.select-archive-btn {
+  --arc-rgb: 200, 210, 224;
+  margin: 14px auto 0;
+  padding: 11px 20px;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--arc-rgb), 0.42);
+  background:
+    linear-gradient(180deg, rgba(var(--arc-rgb), 0.16) 0%, rgba(var(--arc-rgb), 0.06) 50%, rgba(0, 0, 0, 0.22) 100%),
+    rgba(18, 20, 24, 0.72);
+  backdrop-filter: blur(14px) saturate(125%);
+  -webkit-backdrop-filter: blur(14px) saturate(125%);
+  color: rgb(var(--arc-rgb));
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.46rem;
+  font-weight: 600;
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  position: relative;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.32),
+    0 0 18px -6px rgba(var(--arc-rgb), 0.30),
+    0 4px 14px -8px rgba(0, 0, 0, 0.55);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+.select-archive-btn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.55) 50%, transparent 100%);
+  pointer-events: none;
+}
+.select-archive-btn.drop-target {
+  border-color: rgba(var(--arc-rgb), 0.85);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.34),
+    0 0 32px -2px rgba(var(--arc-rgb), 0.65),
+    0 6px 18px -8px rgba(0, 0, 0, 0.7);
+  transform: scale(1.06);
+}
+.select-archive-btn .arc-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: rgba(var(--arc-rgb), 0.18);
+  border: 1px solid rgba(var(--arc-rgb), 0.45);
+  color: rgb(var(--arc-rgb));
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.40rem;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+/* Manila folder card — Mac-style folder silhouette via SVG path.
+   Tab in top-left curves into the body; --proj-rgb drives accent. */
+.slate-folder-card {
+  position: relative;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  aspect-ratio: 4 / 3;
+  transition: transform 180ms ease, filter 250ms, opacity 250ms;
+}
+.slate-folder-card .slate-folder-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  filter:
+    drop-shadow(0 0 22px rgba(var(--proj-rgb), 0.32))
+    drop-shadow(0 4px 18px rgba(0, 0, 0, 0.55));
+}
+.slate-folder-card .folder-path {
+  fill: rgba(var(--proj-rgb), 0.18);
+  stroke: rgba(var(--proj-rgb), 0.30);
+  stroke-width: 1.0;
+  vector-effect: non-scaling-stroke;
+}
+.slate-folder-card.drop-target .folder-path {
+  fill: rgba(var(--proj-rgb), 0.32);
+  stroke: rgba(var(--proj-rgb), 0.85);
+  stroke-width: 1.5;
+}
+.slate-folder-card.drop-target {
+  transform: scale(1.04);
+}
+.slate-folder-tab-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 70%;
+  height: 17%;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 10px 4px;
+  z-index: 2;
+  gap: 6px;
+}
+.slate-folder-tab-content .slate-folder-name {
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.1;
+  flex: 1;
+  min-width: 0;
+}
+.slate-folder-tab-content .slate-folder-count {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.42rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: rgba(var(--proj-rgb), 0.85);
+  flex-shrink: 0;
+}
+.slate-folder-body {
+  position: absolute;
+  top: 22%;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 8px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 2;
+}
+.slate-folder-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 6px;
+  min-height: 0;
+}
+.slate-folder-cell {
+  position: relative;
+  border-radius: 6px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(var(--cell-rgb), 0.16) 0%, rgba(var(--cell-rgb), 0.06) 100%),
+    rgba(20, 20, 28, 0.55);
+  border: 1px solid rgba(var(--cell-rgb), 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+.slate-folder-cell::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, rgba(var(--cell-rgb), 0.85) 50%, transparent 100%);
+}
+.slate-folder-cell-name {
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.56rem;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: 0.005em;
+  text-align: center;
+  line-height: 1.1;
+  max-width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.slate-folder-cell.empty {
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  box-shadow: none;
+}
+.slate-folder-cell.empty::before { display: none; }
+.slate-folder-cell.overflow {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: rgba(var(--proj-rgb), 0.95);
+}
+
+/* Floating-panel folder/archive overlay — top: 200px, all-corners rounded.
+   Plum-toned default; .archive-tone gives the Archive variant silver. */
+.folder-open-sheet {
+  --sheet-rgb: 100, 112, 243;
+  position: fixed;
+  top: 200px;
+  bottom: auto;
+  left: 16px;
+  right: 16px;
+  max-height: calc(100dvh - 200px - 68px - 24px - var(--safe-bottom));
+  border-radius: 20px;
+  border: 1px solid rgba(var(--sheet-rgb), 0.30);
+  border-top: 1px solid rgba(var(--sheet-rgb), 0.45);
+  background: rgba(10, 10, 18, 0.78);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 12;
+  box-shadow:
+    0 -1px 0 rgba(255, 255, 255, 0.05),
+    0 32px 80px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.folder-open-sheet.archive-tone {
+  --sheet-rgb: 200, 210, 224;
+}
