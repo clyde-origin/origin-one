@@ -97,8 +97,47 @@ const STATUS_LABELS: Record<ArtPillStatus, string> = {
   needed: 'Needed', sourced: 'Sourced', fitted: 'Fitted', ready: 'Ready', confirmed: 'Ready',
 }
 
+// Per-status RGB triplets for the .art-status-pill `--status-rgb` var.
+// Match STATUS_STYLES colors but expressed as bare rgb (the pill's CSS
+// builds the background / border / color from the var).
+const STATUS_RGB: Record<ArtPillStatus, string> = {
+  needed:    '245, 165, 50',
+  sourced:   '0, 184, 148',
+  fitted:    '167, 139, 250',
+  ready:     '103, 232, 249',
+  confirmed: '103, 232, 249',
+}
+
 // Hero pill colors (orange — independent of status)
 const HERO_STYLE = { bg: 'rgba(224,123,57,0.1)', border: 'rgba(224,123,57,0.22)', color: '#E07B39' }
+
+// Per-scene RGB palette for .art-card --scene-rgb tinting. Gallery uses
+// signature scene colors (rose / amber / gold / mint / indigo / coral / lime
+// / violet) so cards within a section read as scenically distinct. Live data
+// has no scene-color metadata yet — hash entity.id deterministically.
+const SCENE_PALETTE: string[] = [
+  '232, 80, 122',   // rose (Mara)
+  '240, 128, 48',   // amber (Eli)
+  '245, 165, 50',   // ochre / gold
+  '80, 216, 152',   // mint
+  '100, 112, 243',  // indigo
+  '240, 112, 80',   // coral
+  '168, 212, 40',   // lime
+  '155, 110, 243',  // violet
+]
+function sceneRgbFor(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash)
+  return SCENE_PALETTE[Math.abs(hash) % SCENE_PALETTE.length]
+}
+
+// Section header copy per art tab — sheen-extrusion .art-section-header
+// sits above the grid (gallery #35 / #36 / #37).
+const SECTION_HEADER: Record<ArtEntityType, string> = {
+  wardrobe: 'Wardrobe',
+  prop:     'Set Dec & Props',
+  hmu:      'HMU',
+}
 
 // Type-scoped filter chip lists. The pill component handles label-rename of
 // `confirmed → Ready` automatically via STATUS_LABELS.
@@ -118,109 +157,50 @@ function getIsHero(entity: ArtEntity): boolean {
   return entity.type === 'prop' ? (entity.PropSourced?.isHero ?? false) : false
 }
 
-// ── Status Badge + Hero Badge ───────────────────────────
-
-function ArtStatusBadge({ status }: { status: ArtPillStatus }) {
-  const s = STATUS_STYLES[status]
-  return (
-    <span className="font-mono uppercase" style={{
-      fontSize: '0.42rem', letterSpacing: '0.1em',
-      padding: '3px 8px', borderRadius: 20,
-      background: s.bg, border: `1px solid ${s.border}`, color: s.color,
-    }}>
-      {STATUS_LABELS[status]}
-    </span>
-  )
-}
-
-function HeroBadge() {
-  return (
-    <span className="font-mono uppercase" style={{
-      fontSize: '0.42rem', letterSpacing: '0.1em',
-      padding: '3px 8px', borderRadius: 20,
-      background: HERO_STYLE.bg, border: `1px solid ${HERO_STYLE.border}`, color: HERO_STYLE.color,
-    }}>
-      Hero
-    </span>
-  )
-}
-
 // ── Art Item Card ───────────────────────────────────────
 
-function ArtItemCard({ item, accent, onTap, threadEntry }: { item: ArtEntity; accent: string; onTap: () => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
+function ArtItemCard({ item, onTap, threadEntry }: { item: ArtEntity; onTap: () => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
   const status = getStatus(item)
   const isHero = getIsHero(item)
   const imgUrl = item.metadata?.imageUrl
-  const tags = item.metadata?.tags ?? []
+  const sceneRgb = sceneRgbFor(item.id)
+  const statusRgb = STATUS_RGB[status]
 
   return (
-    <div
-      className="glass-tile flex cursor-pointer active:opacity-90 transition-opacity"
-      style={{
-        position: 'relative',
-        gap: 14, padding: 12,
-        alignItems: 'flex-start',
-      }}
-      onClick={onTap}
-    >
-      {/* Letterbox bars — cinema-glass identity. Above content (z:5). */}
-      <div className="letterbox-top" />
-      <div className="letterbox-bottom" />
-
-      {/* Image */}
-      <div style={{
-        width: 80, height: 80, borderRadius: 10, flexShrink: 0, overflow: 'hidden',
-        background: 'rgba(255,255,255,0.05)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        {imgUrl ? (
-          <StorageImage url={imgUrl} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10 }} />
-        ) : (
-          <div style={{
-            width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            borderRadius: 10, border: '1px dashed rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.15)', fontSize: 20,
-          }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.3" />
-              <circle cx="8" cy="10" r="2" stroke="currentColor" strokeWidth="1.2" />
-              <path d="M2 16l5-4 3 2 4-5 8 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-        )}
-      </div>
-
-      {/* Text */}
-      <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
-        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--fg)', marginBottom: 3, lineHeight: 1.2 }}>
-          {item.name}
+    // Wrapper gives the -6/-6 ThreadRowBadge an overflow-visible positioning
+    // context while the card itself clips the image hero.
+    <div style={{ position: 'relative' }}>
+      <div
+        className="art-card"
+        onClick={onTap}
+        style={{ ['--scene-rgb' as string]: sceneRgb } as React.CSSProperties}
+      >
+        {/* 1:1 hero image with letterbox bars, scene-tinted gradient under
+            the image (or as the placeholder when no image). Hero/status pills
+            overlay top-left/right. */}
+        <div className="art-card-image">
+          <div className="letterbox-top" />
+          {imgUrl && (
+            <StorageImage
+              url={imgUrl}
+              alt={item.name}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          )}
+          <div className="letterbox-bottom" />
+          {isHero && <span className="art-hero-pill">Hero</span>}
+          <span className="art-status-pill" style={{ ['--status-rgb' as string]: statusRgb } as React.CSSProperties}>
+            {STATUS_LABELS[status]}
+          </span>
         </div>
-        {item.description && (
-          <div style={{
-            fontSize: '0.62rem', color: 'var(--fg-mono)', lineHeight: 1.5,
-            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden',
-          }}>
-            {item.description}
-          </div>
-        )}
-        {tags.length > 0 && (
-          <div style={{ display: 'flex', gap: 5, marginTop: 7, flexWrap: 'wrap' }}>
-            {tags.map(t => (
-              <span key={t} className="font-mono uppercase" style={{
-                fontSize: '0.38rem', letterSpacing: '0.1em',
-                padding: '3px 8px', borderRadius: 20,
-                background: `${accent}18`, border: `1px solid ${accent}33`, color: accent,
-              }}>{t}</span>
-            ))}
-          </div>
-        )}
-      </div>
 
-      {/* Status (+ Hero badge for prop with isHero=true) */}
-      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
-        <ArtStatusBadge status={status} />
-        {isHero && <HeroBadge />}
-      </div>
+        {/* Name (scene-tinted via .art-card-name color: rgb(var(--scene-rgb))) */}
+        <div className="art-card-name">{item.name}</div>
 
+        {/* Meta line — derived from description's first segment, falling back
+            to the section label. Uppercase mono treatment via .art-card-meta. */}
+        <div className="art-card-meta">{item.description || SECTION_HEADER[item.type]}</div>
+      </div>
       <ThreadRowBadge entry={threadEntry} />
     </div>
   )
@@ -682,49 +662,48 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
         style={{ WebkitOverflowScrolling: 'touch', padding: '14px 16px 100px', position: 'relative', zIndex: 1 }}
       >
         {isLoading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[0, 1, 2].map(i => (
-              <div key={i} className="glass-tile" style={{
-                position: 'relative',
-                display: 'flex', gap: 14, padding: 12,
-              }}>
-                <div className="letterbox-top" />
-                <div className="letterbox-bottom" />
-                <div className="sk-block" style={{ width: 80, height: 80, borderRadius: 10, flexShrink: 0 }} />
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4 }}>
-                  <div className="sk-block" style={{ width: 140, height: 12 }} />
-                  <div className="sk-block" style={{ width: 200, height: 9 }} />
-                  <div className="sk-block" style={{ width: 100, height: 9 }} />
+          <div className="art-section">
+            <h2 className="art-section-header">{SECTION_HEADER[activeTab]}</h2>
+            <div className="art-grid">
+              {[0, 1, 2, 3].map(i => (
+                <div key={i} className="art-card">
+                  <div className="sk-block" style={{ width: '100%', aspectRatio: '1 / 1', borderRadius: 8 }} />
+                  <div className="sk-block" style={{ width: '70%', height: 9, margin: '4px auto 0', borderRadius: 4 }} />
+                  <div className="sk-block" style={{ width: '50%', height: 7, margin: '4px auto 0', borderRadius: 4 }} />
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         ) : tabItems.length === 0 ? (
           <ArtEmptyState />
         ) : (
-          <>
-            {/* Section label */}
+          <div className="art-section">
+            {/* Sheen-extrusion section header (gallery #35–#37) */}
+            <h2 className="art-section-header">{SECTION_HEADER[activeTab]}</h2>
+
+            {/* Count strip — preserved from V1 below the sheen header per
+                audit note ("V2 can add the sheen-treated section header
+                above and keep the count strip below"). */}
             <div className="font-mono uppercase" style={{
               fontSize: '0.44rem', letterSpacing: '0.15em',
               color: 'var(--fg-mono)',
-              marginBottom: 8, marginTop: 4, paddingLeft: 2,
+              marginBottom: 10, textAlign: 'center',
             }}>
               {tabItems.length} items · {ready} ready · {needed} needed
             </div>
 
-            {/* Item cards */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* 2-col vertical card grid */}
+            <div className="art-grid">
               {tabItems.map(item => (
                 <ArtItemCard
                   key={item.id}
                   item={item}
-                  accent={accent}
                   onTap={() => { haptic('light'); setSelected(item) }}
                   threadEntry={threadByItemId.get(item.id)}
                 />
               ))}
             </div>
-          </>
+          </div>
         )}
       </div>
 
