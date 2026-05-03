@@ -722,7 +722,8 @@ html.light-mode body .scenemaker-meta-row {
     radial-gradient(ellipse 320px 280px at 50% 30%, rgba(255, 220, 160, 0.10) 0%, transparent 60%),
     radial-gradient(ellipse 240px 320px at 8% 60%, rgba(120, 90, 60, 0.10) 0%, transparent 60%),
     radial-gradient(ellipse 240px 320px at 92% 60%, rgba(120, 90, 60, 0.08) 0%, transparent 60%),
-    linear-gradient(180deg, #0a0a0e 0%, #06060a 35%, #0c0a08 70%, #050407 100%);
+    linear-gradient(180deg, rgba(10, 10, 14, 0.78) 0%, rgba(6, 6, 10, 0.82) 35%, rgba(12, 10, 8, 0.82) 70%, rgba(5, 4, 7, 0.88) 100%),
+    url('/images/b21_bg.jpg') center/cover no-repeat;
   pointer-events: none;
 }
 .login-stage-inner {
