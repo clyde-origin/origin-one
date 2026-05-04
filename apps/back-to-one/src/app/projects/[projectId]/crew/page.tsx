@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import Image from 'next/image'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useProject, useCrew } from '@/lib/hooks/useOriginOne'
 
@@ -103,6 +104,7 @@ function CrewCard({ member, onTap, deptRgb }: { member: TeamMember; onTap: (m: T
       }}
     >
       <div style={{
+        position: 'relative',
         width: 44, height: 44, borderRadius: '50%',
         background: `rgba(${r},${g},${b},0.18)`,
         border: `1px solid rgba(${r},${g},${b},0.45)`,
@@ -116,8 +118,7 @@ function CrewCard({ member, onTap, deptRgb }: { member: TeamMember; onTap: (m: T
         letterSpacing: '0.04em',
       }}>
         {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatarUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <Image src={avatarUrl} alt={name} fill sizes="44px" style={{ objectFit: 'cover' }} />
         ) : (
           avatarInitialsOf(name)
         )}
