@@ -1129,16 +1129,17 @@ export function HubContent({ projectId }: { projectId: string }) {
                 )}
               </div>
             )}
-            {/* Footer pill — pinned to bottom edge of the locked box */}
+            {/* Footer pill — centered along the bottom edge of the locked box */}
             <button
               type="button"
               onClick={() => router.push(`/projects/${projectId}/scenemaker?mode=${arcMode}`)}
               className="font-mono uppercase"
               style={{
-                position: 'absolute', bottom: 6, right: 12, zIndex: 2,
+                position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', zIndex: 2,
                 fontSize: '0.46rem', letterSpacing: '0.10em',
                 color: projectColor, background: 'transparent', border: 'none', cursor: 'pointer',
                 padding: '4px 6px',
+                whiteSpace: 'nowrap',
               }}
             >
               Open in One Arc · {arcMode === 'script' ? 'Script' : arcMode === 'shotlist' ? 'Shotlist' : 'Storyboard'} ›
