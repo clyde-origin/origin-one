@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
+import dynamic from 'next/dynamic'
 import {
   useProjects, useArchiveProject, useDeleteProject, useUpdateProject,
   useMeId, useMyTeam, useUserProjectFolders, useUserProjectPlacements,
@@ -24,13 +25,36 @@ import { FolderCard } from '@/components/projects/FolderCard'
 import { OpenFolderSheet } from '@/components/projects/OpenFolderSheet'
 import { FolderActionSheet } from '@/components/projects/FolderActionSheet'
 import { NewFolderSheet } from '@/components/projects/NewFolderSheet'
-import { TeamNameSheet } from '@/components/projects/TeamNameSheet'
-import { SettingsSheet } from '@/components/settings/SettingsSheet'
-import { GlobalPanels, type PanelId } from '@/components/projects/GlobalPanels'
-import { ThreadsSheet } from '@/components/projects/ThreadsSheet'
-import { ChatSheet } from '@/components/projects/ChatSheet'
-import { ResourcesSheet } from '@/components/projects/ResourcesSheet'
+import type { PanelId } from '@/components/projects/GlobalPanels'
 import type { Project } from '@/types'
+
+// Cold sheets — defer chunks until first user interaction. Each renders
+// internal AnimatePresence so we keep them mounted after first open via a
+// "has-opened" latch to preserve the slide-out exit animation.
+const TeamNameSheet = dynamic(
+  () => import('@/components/projects/TeamNameSheet').then(m => ({ default: m.TeamNameSheet })),
+  { ssr: false },
+)
+const SettingsSheet = dynamic(
+  () => import('@/components/settings/SettingsSheet').then(m => ({ default: m.SettingsSheet })),
+  { ssr: false },
+)
+const GlobalPanels = dynamic(
+  () => import('@/components/projects/GlobalPanels').then(m => ({ default: m.GlobalPanels })),
+  { ssr: false },
+)
+const ThreadsSheet = dynamic(
+  () => import('@/components/projects/ThreadsSheet').then(m => ({ default: m.ThreadsSheet })),
+  { ssr: false },
+)
+const ChatSheet = dynamic(
+  () => import('@/components/projects/ChatSheet').then(m => ({ default: m.ChatSheet })),
+  { ssr: false },
+)
+const ResourcesSheet = dynamic(
+  () => import('@/components/projects/ResourcesSheet').then(m => ({ default: m.ResourcesSheet })),
+  { ssr: false },
+)
 
 // ── HELPERS ──────────────────────────────────────────────────
 
@@ -344,6 +368,23 @@ export default function ProjectsPage() {
   const openFolderIdRef = useRef<string | null>(openFolderId)
   useEffect(() => { openFolderIdRef.current = openFolderId }, [openFolderId])
   const [activePanel, setActivePanel] = useState<PanelId | null>(null)
+
+  // Cold-sheet "has-opened" latches — once a sheet has been opened we keep it
+  // mounted so its internal AnimatePresence can run the slide-out exit
+  // animation. Combined with `next/dynamic` imports above, the chunk is only
+  // fetched on first interaction.
+  const [threadsLoaded, setThreadsLoaded] = useState(false)
+  const [chatLoaded, setChatLoaded] = useState(false)
+  const [resourcesLoaded, setResourcesLoaded] = useState(false)
+  const [panelsLoaded, setPanelsLoaded] = useState(false)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [teamNameLoaded, setTeamNameLoaded] = useState(false)
+  useEffect(() => { if (threadsOpen) setThreadsLoaded(true) }, [threadsOpen])
+  useEffect(() => { if (chatOpen) setChatLoaded(true) }, [chatOpen])
+  useEffect(() => { if (resourcesOpen) setResourcesLoaded(true) }, [resourcesOpen])
+  useEffect(() => { if (activePanel) setPanelsLoaded(true) }, [activePanel])
+  useEffect(() => { if (showSettings) setSettingsLoaded(true) }, [showSettings])
+  useEffect(() => { if (renamingTeam) setTeamNameLoaded(true) }, [renamingTeam])
 
   // Capture the source tile's center so OpenFolderSheet can zoom from it.
   // Looks up the rect by data-folder-id / data-archive-target, both already
@@ -995,21 +1036,23 @@ export default function ProjectsPage() {
       </div>
 
       {/* Global panels */}
-      <GlobalPanels
-        activePanel={activePanel}
-        onClose={() => setActivePanel(null)}
-        onNavigate={(panel) => setActivePanel(panel)}
-      />
+      {panelsLoaded && (
+        <GlobalPanels
+          activePanel={activePanel}
+          onClose={() => setActivePanel(null)}
+          onNavigate={(panel) => setActivePanel(panel)}
+        />
+      )}
 
       {/* Threads sheet — slide-up from bottom, toggled by ActionBarRoot */}
-      <ThreadsSheet open={threadsOpen} />
+      {threadsLoaded && <ThreadsSheet open={threadsOpen} />}
 
       {/* Chat sheet — cross-project conversations, toggled by ActionBarRoot */}
-      <ChatSheet open={chatOpen} onClose={closeChat} />
+      {chatLoaded && <ChatSheet open={chatOpen} onClose={closeChat} />}
 
       {/* Resources sheet — cross-project (company-wide) resources, toggled
           by ActionBarRoot. Producer-only role gate lands with Auth. */}
-      <ResourcesSheet open={resourcesOpen} />
+      {resourcesLoaded && <ResourcesSheet open={resourcesOpen} />}
 
       {/* Action sheet */}
       <ProjectActionSheet
@@ -1215,15 +1258,17 @@ export default function ProjectsPage() {
           createFolderMutation.mutate({ userId: meId, name, color, sortOrder: 0 })
         }}
       />
-      <TeamNameSheet
-        open={renamingTeam}
-        currentName={myTeam?.name ?? ''}
-        onClose={() => setRenamingTeam(false)}
-        onSave={async (name) => {
-          if (!myTeam) return
-          await updateTeamNameMutation.mutateAsync({ teamId: myTeam.id, name })
-        }}
-      />
+      {teamNameLoaded && (
+        <TeamNameSheet
+          open={renamingTeam}
+          currentName={myTeam?.name ?? ''}
+          onClose={() => setRenamingTeam(false)}
+          onSave={async (name) => {
+            if (!myTeam) return
+            await updateTeamNameMutation.mutateAsync({ teamId: myTeam.id, name })
+          }}
+        />
+      )}
       {/* Bottom-left settings chip per design intent (settings-sheet plan) */}
       <button
         onClick={() => { haptic('light'); setShowSettings(true) }}
@@ -1235,7 +1280,7 @@ export default function ProjectsPage() {
           <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1.08 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="white" strokeWidth="1.4" />
         </svg>
       </button>
-      <SettingsSheet open={showSettings} onClose={() => setShowSettings(false)} />
+      {settingsLoaded && <SettingsSheet open={showSettings} onClose={() => setShowSettings(false)} />}
     </div>
   )
 }

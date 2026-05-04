@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import {
   useProject, useBudget, useShootDays, useCrew, useMeId, useProjects,
   useCreateBudgetLine, useUpdateBudgetVersion,
@@ -16,12 +17,28 @@ import { buildEvalContext, rollUpBudget, type ComputedLine, type AccountSubtotal
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { useLongPress } from '@/lib/hooks/useLongPress'
 import { haptic } from '@/lib/utils/haptics'
-import { LineDetailSheet } from '@/components/budget/LineDetailSheet'
-import { TopsheetDrawer } from '@/components/budget/TopsheetDrawer'
-import { TemplatePicker } from '@/components/budget/TemplatePicker'
 import { TagFilterStrip } from '@/components/budget/TagFilterStrip'
-import { BudgetSettingsSheet } from '@/components/budget/BudgetSettingsSheet'
 import { VariableInspectTooltip } from '@/components/budget/VariableInspectTooltip'
+
+// Cold sheets — already conditionally rendered (layer === 'detail' /
+// 'settings', topsheetOpen, pickerOpen). `next/dynamic` defers their chunks
+// until first interaction.
+const LineDetailSheet = dynamic(
+  () => import('@/components/budget/LineDetailSheet').then(m => ({ default: m.LineDetailSheet })),
+  { ssr: false },
+)
+const TopsheetDrawer = dynamic(
+  () => import('@/components/budget/TopsheetDrawer').then(m => ({ default: m.TopsheetDrawer })),
+  { ssr: false },
+)
+const TemplatePicker = dynamic(
+  () => import('@/components/budget/TemplatePicker').then(m => ({ default: m.TemplatePicker })),
+  { ssr: false },
+)
+const BudgetSettingsSheet = dynamic(
+  () => import('@/components/budget/BudgetSettingsSheet').then(m => ({ default: m.BudgetSettingsSheet })),
+  { ssr: false },
+)
 import type { TopsheetVersionTotal } from '@/components/budget/TopsheetContent'
 import type {
   Budget,
