@@ -3,11 +3,10 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
-import { CrewAvatar } from '@/components/ui'
+import { CrewAvatar } from '@/components/ui/client'
 import { useMe, useUploadAvatar } from '@/lib/hooks/useOriginOne'
 import { createBrowserAuthClient } from '@origin-one/auth'
 import { haptic } from '@/lib/utils/haptics'
-import pkg from '../../../package.json'
 
 type ThemeChoice = 'light' | 'dark'
 const THEME_STORAGE_KEY = 'theme-preference'
@@ -172,7 +171,7 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
 
         {/* Version footer */}
         <div className="font-mono" style={{ fontSize: 10, color: '#62627a', textAlign: 'center', paddingTop: 14 }}>
-          back-to-one v{pkg.version}
+          back-to-one v{process.env.NEXT_PUBLIC_APP_VERSION ?? '0.1.0'}
         </div>
       </SheetBody>
     </Sheet>

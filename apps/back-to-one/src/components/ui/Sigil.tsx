@@ -1,5 +1,3 @@
-'use client'
-
 import { goldenSpiralPath } from '@/lib/utils/phase'
 
 export function Sigil({ size = 34, opacity = 0.7 }: { size?: number; opacity?: number }) {

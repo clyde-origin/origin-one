@@ -6,6 +6,12 @@ const PUBLIC_PATHS = ['/login', '/auth/callback', '/auth/setup-password', '/auth
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request })
 
+  const isPublic = PUBLIC_PATHS.some(p => request.nextUrl.pathname.startsWith(p))
+
+  // Skip the auth refresh + getSession() round-trip for public routes —
+  // they don't need a session and a fresh cookie won't change the response.
+  if (isPublic) return response
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -25,9 +31,7 @@ export async function middleware(request: NextRequest) {
   // Refreshes the session cookie on every request before it expires.
   const { data: { session } } = await supabase.auth.getSession()
 
-  const isPublic = PUBLIC_PATHS.some(p => request.nextUrl.pathname.startsWith(p))
-
-  if (!session && !isPublic) {
+  if (!session) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('redirect', request.nextUrl.pathname + request.nextUrl.search)
@@ -38,5 +42,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icons|manifest.webmanifest).*)'],
+  matcher: ['/((?!_next/static|_next/image|_next/data|favicon.ico|icons|manifest\\.webmanifest|manifest\\.json|sw\\.js|images/.*|.*\\.(?:png|jpg|jpeg|svg|webp|avif|ico)).*)'],
 }

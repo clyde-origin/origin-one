@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { CrewAvatar } from '@/components/ui'
+import { CrewAvatar } from '@/components/ui/client'
 import { SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import {

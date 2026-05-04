@@ -12,7 +12,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useAllChats } from '@/lib/hooks/useOriginOne'
-import { CrewAvatar } from '@/components/ui'
+import { CrewAvatar } from '@/components/ui/client'
 import { getProjectColor } from '@/lib/utils/phase'
 import { haptic } from '@/lib/utils/haptics'
 

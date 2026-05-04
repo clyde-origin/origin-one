@@ -1,4 +1,4 @@
-import { CrewAvatar } from '@/components/ui'
+import { CrewAvatar } from '@/components/ui/client'
 import type { TeamMember } from '@/types'
 
 interface CrewPreviewProps {
