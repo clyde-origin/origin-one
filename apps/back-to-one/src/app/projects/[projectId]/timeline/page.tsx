@@ -101,6 +101,19 @@ function Calendar({ month, mode, accent, milestones, selectedDate, onSelect, onM
   const ah = accent.startsWith('#') ? accent : '#c45adc'
   const [ar, ag, ab] = [parseInt(ah.slice(1, 3), 16), parseInt(ah.slice(3, 5), 16), parseInt(ah.slice(5, 7), 16)]
 
+  // Group milestones by day so the per-cell render below is an O(1)
+  // Map.get instead of milestones.filter(sameDay) — cells × milestones.
+  const milestonesByDayKey = useMemo(() => {
+    const m = new Map<string, typeof milestones>()
+    for (const ms of milestones) {
+      const k = dateKey(ms.date)
+      const arr = m.get(k)
+      if (arr) arr.push(ms)
+      else m.set(k, [ms])
+    }
+    return m
+  }, [milestones])
+
   return (
     <div
       className="glass-tile timeline-cal flex-shrink-0"
@@ -131,8 +144,8 @@ function Calendar({ month, mode, accent, milestones, selectedDate, onSelect, onM
         {cells.map((c, i) => {
           const isToday = sameDay(c.date, today)
           const isSelected = selectedDate && sameDay(c.date, selectedDate)
-          const dayMilestones = milestones.filter(m => sameDay(m.date, c.date))
-          const hasMilestone = dayMilestones.length > 0
+          const dayMilestones = milestonesByDayKey.get(dateKey(c.date))
+          const hasMilestone = !!dayMilestones && dayMilestones.length > 0
           const muted = c.otherMonth
 
           // Color resolution: selected wins → today → muted → default
@@ -580,6 +593,19 @@ export default function TimelinePage({ params }: { params: { projectId: string }
     return groups
   }, [sorted])
 
+  // ID of the first milestone whose date is "today or later". Computed
+  // once so the per-row `isNext` check is an O(1) === instead of a full
+  // sorted.findIndex per render. Original logic: if the next-by-date is
+  // a "delivery" milestone, `isNext` is false (preserved here by gating
+  // on the title check at lookup time, not match time).
+  const nextMilestoneId = useMemo(() => {
+    const now = new Date()
+    const ms = sorted.find(m => new Date(m.date) >= now)
+    if (!ms) return null
+    if (ms.title.toLowerCase().includes('delivery')) return null
+    return ms.id
+  }, [sorted])
+
   const projectStatusLabel = project ? statusLabel(project.status) : ''
 
   // Cinema Glass — feed `--accent-rgb` / `--accent-glow-rgb` to .sheen-title
@@ -797,7 +823,7 @@ export default function TimelinePage({ params }: { params: { projectId: string }
                   style={{ ['--tile-rgb' as any]: accentRgb, padding: '0 14px' }}
                 >
                   {group.items.map(ms => {
-                    const isNext = !ms.title.toLowerCase().includes('delivery') && sorted.indexOf(ms) === sorted.findIndex(m => new Date(m.date) >= new Date())
+                    const isNext = ms.id === nextMilestoneId
                     const highlighted = highlightId === ms.id
                     return (
                       <MilestoneRow
