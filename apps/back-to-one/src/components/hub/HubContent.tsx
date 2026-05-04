@@ -957,6 +957,7 @@ export function HubContent({ projectId }: { projectId: string }) {
                 <SwipePanel
                   items={allLocations}
                   label="Locations"
+                  showLabel={false}
                   labelColor="#e8a020"
                   emptyIcon="📍"
                   href={`/projects/${projectId}/locations`}
@@ -982,6 +983,7 @@ export function HubContent({ projectId }: { projectId: string }) {
                 <SwipePanel
                   items={allCast.length > 0 ? [allCast] : []}
                   label="Casting"
+                  showLabel={false}
                   labelColor="#00b894"
                   emptyIcon="🎭"
                   href={`/projects/${projectId}/casting`}
@@ -1026,6 +1028,7 @@ export function HubContent({ projectId }: { projectId: string }) {
                 <SwipePanel
                   items={['wardrobe', 'props', 'hmu'] as const}
                   label="Art"
+                  showLabel={false}
                   labelColor="#6470f3"
                   emptyIcon="🎨"
                   href={`/projects/${projectId}/art`}
