@@ -280,6 +280,31 @@ export async function listEntityAttachments(
   return (data ?? []).map((r: any) => ({ ...r, publicUrl: attachmentPublicUrl(r.storagePath, db) }))
 }
 
+// Batched twin of listEntityAttachments — fetches every attachment for one
+// (projectId, attachedToType) across many ids in a single round-trip.
+// Used by Hub previews that render a cover per location/cast/etc; previously
+// each preview row mounted its own listEntityAttachments query (N+1).
+export async function listEntityAttachmentsBatch(
+  projectId: string,
+  attachedToType: EntityAttachmentType,
+  attachedToIds: string[],
+): Promise<EntityAttachmentRow[]> {
+  if (attachedToIds.length === 0) return []
+  const db = createClient()
+  const { data, error } = await db
+    .from('EntityAttachment')
+    .select('*')
+    .eq('projectId', projectId)
+    .eq('attachedToType', attachedToType)
+    .in('attachedToId', attachedToIds)
+    .order('createdAt', { ascending: false })
+  if (error) {
+    console.error('listEntityAttachmentsBatch failed:', error)
+    return []
+  }
+  return (data ?? []).map((r: any) => ({ ...r, publicUrl: attachmentPublicUrl(r.storagePath, db) }))
+}
+
 export async function deleteEntityAttachment(id: string): Promise<void> {
   const db = createClient()
   const { data: row, error: readErr } = await db

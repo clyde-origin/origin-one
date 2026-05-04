@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useRef, useEffect, Fragment } from 'react'
+import { useState, useMemo, useRef, useEffect, Fragment, memo, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useHubMode } from '@/lib/hooks/useHubMode'
@@ -8,8 +8,9 @@ import { HubModeToggle } from './HubModeToggle'
 import { HubArcToggle, type ArcMode } from './HubArcToggle'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getShotsByProject } from '@/lib/db/queries'
-import { EntityAttachmentCover } from '@/components/attachments/EntityAttachmentGallery'
+import { getShotsByProject, listEntityAttachmentsBatch, type EntityAttachmentRow } from '@/lib/db/queries'
+import { EntityAttachmentCoverPresentational } from '@/components/attachments/EntityAttachmentGallery'
+import { EMPTY_ARRAY } from '@/lib/empty-collections'
 import {
   useProject, useActionItems, useToggleActionItem, useCreateActionItem, useMilestones, useCreateMilestone, useCrew,
   useMoodboard, useThreadPreviews,
@@ -121,8 +122,12 @@ function ModuleHeader({ name, meta }: { name: string; meta?: string }) {
 
 
 // ── SWIPEABLE SCENEMAKER — item 12 ───────────────────────
+//
+// Wrapped in React.memo — its props are now memoized in the parent
+// (allShots / allScenes / allMoodRefs / shuffledMood), so re-renders only
+// fire when an actual data input changes.
 
-function SwipeableSceneMaker({
+const SwipeableSceneMaker = memo(function SwipeableSceneMaker({
   projectId, projectColor, pr, pg, pb,
   allShots, allScenes, allMoodRefs, shuffledMood,
   router,
@@ -270,7 +275,7 @@ function SwipeableSceneMaker({
 
     </div>
   )
-}
+})
 
 // ── DETAIL SHEETS ─────────────────────────────────────────
 
@@ -527,24 +532,64 @@ export function HubContent({ projectId }: { projectId: string }) {
   // swipe-between-projects gesture and is also wired into every subpage's
   // PageHeader meta slot.
 
-  const allItems = actionItems ?? [], allMS = milestones ?? [], allCrew = crew ?? []
+  // Stable identity for the `?? []` fallback so downstream useMemos that
+  // watch `allItems` etc. don't re-fire every render when the upstream
+  // query is undefined / resolves to the same array.
+  const allItems = (actionItems ?? EMPTY_ARRAY) as ActionItem[]
+  const allMS = (milestones ?? EMPTY_ARRAY) as Milestone[]
+  const allCrew = (crew ?? EMPTY_ARRAY) as CrewMember[]
   const filteredCrew = useMemo(() => {
     if (activeRoleFilter === 'all') return allCrew
     return allCrew.filter((m: any) => m?.role === activeRoleFilter)
   }, [allCrew, activeRoleFilter])
-  const allScenes = scenesWithShots ?? []
-  const allShots: any[] = (scenesWithShots ?? []).flatMap((s: any) => s.Shot ?? [])
-  const allMoodRefs = moodRefs ?? []
-  const allLocations = locations ?? [], allArt = artItems ?? [], allCast = castRoles ?? []
-  const allWorkflow = workflowNodes ?? []
-  const allInventory = inventoryItems ?? []
-  const inventoryNeeded = allInventory.filter((i: any) => i.status === 'needed').length
-  const allThreads = threads ?? []
+  const allScenes = useMemo<any[]>(() => {
+    if (!scenesWithShots) return EMPTY_ARRAY as unknown as any[]
+    return scenesWithShots.map((s: any) => {
+      const { Shot: _shot, ...sceneFields } = s
+      return sceneFields
+    })
+  }, [scenesWithShots])
+  const allShots = useMemo<any[]>(() => {
+    if (!scenesWithShots) return EMPTY_ARRAY as unknown as any[]
+    return scenesWithShots.flatMap((s: any) => s.Shot ?? [])
+  }, [scenesWithShots])
+  const allMoodRefs = (moodRefs ?? EMPTY_ARRAY) as any[]
+  const allLocations = (locations ?? EMPTY_ARRAY) as any[]
+  const allArt = (artItems ?? EMPTY_ARRAY) as any[]
+  const allCast = (castRoles ?? EMPTY_ARRAY) as any[]
+  const allWorkflow = (workflowNodes ?? EMPTY_ARRAY) as WorkflowNode[]
+  const allInventory = (inventoryItems ?? EMPTY_ARRAY) as any[]
+  const allThreads = (threads ?? EMPTY_ARRAY) as { unread: boolean }[]
 
-  const openItems = allItems.filter(i => i.status !== 'done')
-  const previewTasks = openItems.slice(0, 3)
-  const upcoming3 = allMS.filter(m => new Date(m.date) >= new Date()).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3)
-  const unreadThreads = allThreads.filter(t => t.unread).length
+  // crewByUserId — built once per `allCrew` change. Used inside the action
+  // item preview render where each row used to do allCrew.find(c => c.userId === item.assignedTo).
+  const crewByUserId = useMemo(() => {
+    const m = new Map<string, CrewMember>()
+    for (const c of allCrew) m.set(c.userId, c)
+    return m
+  }, [allCrew])
+
+  const openItems = useMemo(
+    () => allItems.filter(i => i.status !== 'done'),
+    [allItems],
+  )
+  const previewTasks = useMemo(() => openItems.slice(0, 3), [openItems])
+  const upcoming3 = useMemo(
+    () => allMS
+      .filter(m => new Date(m.date) >= new Date())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 3),
+    [allMS],
+  )
+  const unreadThreads = useMemo(
+    () => allThreads.filter(t => t.unread).length,
+    [allThreads],
+  )
+
+  const inventoryNeeded = useMemo(
+    () => allInventory.filter((i: any) => i.status === 'needed').length,
+    [allInventory],
+  )
 
   const shuffledMood = useMemo(() => {
     const refs = [...allMoodRefs]
@@ -553,6 +598,33 @@ export function HubContent({ projectId }: { projectId: string }) {
     for (let i = refs.length - 1; i > 0; i--) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; const j = seed % (i + 1); [refs[i], refs[j]] = [refs[j], refs[i]] }
     return refs.slice(0, 4)
   }, [allMoodRefs, projectId])
+
+  // ── BATCHED LOCATION ATTACHMENTS ───────────────────────
+  // Hub's two location-cover surfaces (LCA row + Locations module in
+  // creative split) used to mount one EntityAttachmentCover per location
+  // — each running its own listEntityAttachments query. Replace with a
+  // single batched fetch and a presentational cover that takes its slice.
+  const locationIds = useMemo(
+    () => allLocations.map((l: any) => l.id).filter(Boolean),
+    [allLocations],
+  )
+  const locationIdsKey = useMemo(() => locationIds.join('|'), [locationIds])
+  const { data: locationAttachments = EMPTY_ARRAY as unknown as EntityAttachmentRow[] } = useQuery({
+    // queryKey baked from a stable string — react-query's structural
+    // equality ignores the array content here so we use the joined key.
+    queryKey: ['entityAttachmentsBatch', projectId, 'location', locationIdsKey],
+    queryFn: () => listEntityAttachmentsBatch(projectId, 'location', locationIds),
+    enabled: !!projectId && locationIds.length > 0,
+  })
+  const coversByLocationId = useMemo(() => {
+    const m = new Map<string, EntityAttachmentRow[]>()
+    for (const att of locationAttachments) {
+      const list = m.get(att.attachedToId)
+      if (list) list.push(att)
+      else m.set(att.attachedToId, [att])
+    }
+    return m
+  }, [locationAttachments])
 
   if (loadingProject) return <HubSkeleton />
   if (!project) return <div className="screen flex items-center justify-center"><p className="text-muted font-mono text-xs">Project not found</p></div>
@@ -885,8 +957,9 @@ export function HubContent({ projectId }: { projectId: string }) {
                   const isMine = true
                   const dateLabel = item.dueDate ? formatDate(item.dueDate) : null
                   const overdue = item.dueDate ? isLate(item.dueDate) : false
-                  // item 13: look up assignee name from crew
-                  const assigneeMember = item.assignedTo ? allCrew.find(c => c.userId === item.assignedTo) : null
+                  // item 13: look up assignee name from crew (Map lookup,
+                  // not allCrew.find — keeps the row render O(1)).
+                  const assigneeMember = item.assignedTo ? crewByUserId.get(item.assignedTo) ?? null : null
                   const assigneeName = assigneeMember?.User?.name ?? null
                   return (
                     <div key={item.id} className="flex items-start cursor-pointer" style={{ gap: 10, padding: '9px 12px', borderBottom: i < previewTasks.length - 1 ? '1px solid rgba(255,255,255,0.05)' : undefined }}
@@ -984,12 +1057,11 @@ export function HubContent({ projectId }: { projectId: string }) {
                   href={`/projects/${projectId}/locations`}
                   renderItem={(loc: any) => (
                     // Cover sources from EntityAttachment ('location', loc.id);
-                    // falls back to a name + status placeholder when none uploaded.
+                    // batched fetch via coversByLocationId. Falls back to a
+                    // placeholder when no attachment exists.
                     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                      <EntityAttachmentCover
-                        projectId={projectId}
-                        attachedToType="location"
-                        attachedToId={loc.id}
+                      <EntityAttachmentCoverPresentational
+                        items={coversByLocationId.get(loc.id) ?? (EMPTY_ARRAY as unknown as EntityAttachmentRow[])}
                         size="100%"
                         alt={loc.name}
                       />
@@ -1225,10 +1297,8 @@ export function HubContent({ projectId }: { projectId: string }) {
                 href={`/projects/${projectId}/locations`}
                 renderItem={(loc: any) => (
                   <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                    <EntityAttachmentCover
-                      projectId={projectId}
-                      attachedToType="location"
-                      attachedToId={loc.id}
+                    <EntityAttachmentCoverPresentational
+                      items={coversByLocationId.get(loc.id) ?? (EMPTY_ARRAY as unknown as EntityAttachmentRow[])}
                       size="100%"
                       alt={loc.name}
                     />

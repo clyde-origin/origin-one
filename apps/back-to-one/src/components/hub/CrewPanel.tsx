@@ -16,6 +16,7 @@ import { useViewerRole } from '@/lib/auth/useViewerRole'
 import { InviteCrewSheet } from '@/components/crew/InviteCrewSheet'
 import { AddRoleSheet } from '@/components/crew/AddRoleSheet'
 import { useQueryClient } from '@tanstack/react-query'
+import { EMPTY_ARRAY } from '@/lib/empty-collections'
 import type { TeamMember, RateUnit } from '@/types'
 import { computeExpenseUnits } from '@origin-one/schema'
 
@@ -111,10 +112,13 @@ function groupByDepartment(crew: TeamMember[]): { department: string | null; mem
     }
   }
 
-  // Sort members within each group alphabetically by name
-  const sortMembers = (arr: TeamMember[]) => arr.sort((a: TeamMember, b: TeamMember) => a.User.name.localeCompare(b.User.name))
-  Object.keys(groups).forEach(k => sortMembers(groups[k]))
-  sortMembers(nullGroup)
+  // Sort members within each group alphabetically by name. Copy first —
+  // sorting in-place mutates the input crew array, which can poke at the
+  // upstream useMemo identity for any other consumer that holds the same
+  // `allCrew` reference (now that the Hub uses EMPTY_ARRAY fallbacks).
+  const sortMembers = (arr: TeamMember[]) => [...arr].sort((a: TeamMember, b: TeamMember) => a.User.name.localeCompare(b.User.name))
+  Object.keys(groups).forEach(k => { groups[k] = sortMembers(groups[k]) })
+  const sortedNullGroup = sortMembers(nullGroup)
 
   // Build ordered result: producer-tier role buckets first, then known departments, then extras, then null.
   const result: { department: string | null; members: TeamMember[] }[] = []
@@ -134,7 +138,7 @@ function groupByDepartment(crew: TeamMember[]): { department: string | null; mem
   })
 
   // Null bucket last (only crew-role members with no department land here)
-  if (nullGroup.length > 0) result.push({ department: null, members: nullGroup })
+  if (sortedNullGroup.length > 0) result.push({ department: null, members: sortedNullGroup })
 
   return result
 }
@@ -1451,7 +1455,10 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
   const { data: crew } = useCrew(projectId)
   const { data: project } = useProject(projectId)
   const qc = useQueryClient()
-  const allCrew = crew ?? []
+  const allCrew = (crew ?? EMPTY_ARRAY) as TeamMember[]
+  // Memoized once per allCrew change — avoids re-grouping on every render
+  // (the grid's avatars don't change unless the crew list does).
+  const groupedByDepartment = useMemo(() => groupByDepartment(allCrew), [allCrew])
   const [layer, setLayer] = useState<Layer>('list')
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
   const [weekOrigin, setWeekOrigin] = useState<WeekOrigin>('overview')
@@ -1625,7 +1632,7 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
 
               {/* Crew grid — grouped by department */}
               <div className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch', padding: '0 16px 20px' }}>
-                {groupByDepartment(allCrew).map(({ department, members }) => {
+                {groupedByDepartment.map(({ department, members }) => {
                   // V2: dept-tinted avatar — Camera dept members read as
                   // indigo, G&E as gold, etc. Resolves the dept hex via
                   // DEPT_COLORS (BRAND_TOKENS.md). null department → no tint
