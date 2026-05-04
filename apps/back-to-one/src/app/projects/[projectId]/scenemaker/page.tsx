@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import dynamic from 'next/dynamic'
-import { useProject, useScenes, useShotlistVersions, useCreateShotlistVersion, useUpdateShotlistVersionLabel, useThreadPreviews } from '@/lib/hooks/useOriginOne'
+import { useProject, useShotlistVersions, useCreateShotlistVersion, useUpdateShotlistVersionLabel, useThreadPreviews } from '@/lib/hooks/useOriginOne'
 import { getShotsByProject, updateShotOrder, updateShootOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene, deleteScene } from '@/lib/db/queries'
 import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -1682,20 +1682,28 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
   const { data: shotlistVersions } = useShotlistVersions(projectId)
   const createVersion = useCreateShotlistVersion(projectId)
   const updateVersionLabel = useUpdateShotlistVersionLabel(projectId)
-  const { data: scenes, isLoading: loadingScenes } = useScenes(projectId)
+  // getShotsByProject returns Scene rows (sorted by sortOrder asc) with
+  // Shot(*) attached — same shape and sort as useScenes would have given.
+  // Derive allScenes from this single fetch instead of round-tripping twice.
   const { data: scenesWithShots, isLoading: loadingShots } = useQuery({
     queryKey: ['shotsByProject', projectId],
     queryFn: () => getShotsByProject(projectId),
     enabled: !!projectId,
   })
 
-  const allScenes: Scene[] = scenes ?? []
+  const allScenes: Scene[] = useMemo(() => {
+    if (!scenesWithShots) return []
+    return scenesWithShots.map((s: any) => {
+      const { Shot: _shot, ...sceneFields } = s
+      return sceneFields as Scene
+    })
+  }, [scenesWithShots])
   const allShots: Shot[] = useMemo(() => {
     if (!scenesWithShots) return []
     return scenesWithShots.flatMap((s: any) => s.Shot ?? [])
   }, [scenesWithShots])
 
-  const loading = loadingScenes || loadingShots
+  const loading = loadingShots
 
   // ── SCENE UPDATE HANDLER (script mode) ──────────────────
   const handleUpdateScene = useCallback((sceneId: string, fields: { title?: string; description?: string }) => {

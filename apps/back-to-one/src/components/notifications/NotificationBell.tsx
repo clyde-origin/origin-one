@@ -1,15 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { useUnreadCount, useNotifications } from '@/lib/hooks/useOriginOne'
+import { useNotifications } from '@/lib/hooks/useOriginOne'
 import { InboxSheet } from './InboxSheet'
 
 const TA_DEEP = '#D97706' // matches src/lib/thread-tokens.ts unread amber
 
 export function NotificationBell({ projectId }: { projectId: string | null }) {
   const [open, setOpen] = useState(false)
-  const { data: unread = 0 } = useUnreadCount(projectId)
+  // useNotifications already ships the full row set with readAt — derive the
+  // unread count from it instead of paying for a second `count()` round-trip.
   const { data: all } = useNotifications(projectId)
+  const unread = (all ?? []).filter(n => !n.readAt).length
 
   // Zero-state suppression: hide bell entirely until this user has any notifications.
   if ((all?.length ?? 0) === 0) return null
