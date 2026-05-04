@@ -2,7 +2,9 @@
 
 import { useState, useMemo, useRef, useEffect, Fragment } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useHubMode } from '@/lib/hooks/useHubMode'
+import { HubModeToggle } from './HubModeToggle'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getShotsByProject } from '@/lib/db/queries'
@@ -351,12 +353,21 @@ export function HubContent({ projectId }: { projectId: string }) {
   const [showCreateMilestone, setShowCreateMilestone] = useState(false)
   const [showCreateCreative, setShowCreateCreative] = useState(false)
 
+  // ── Hub split mode (?hub=split URL gate, per docs/superpowers/specs/2026-05-03-hub-production-creative-toggle-design.md) ──
+  // When the gate is absent, behavior is identical to the stacked layout
+  // shipped in cinema-glass. When `?hub=split` is present, the topbar gets
+  // a binary HubModeToggle and body sections show/hide per mode.
+  const searchParams = useSearchParams()
+  const splitEnabled = searchParams?.get('hub') === 'split'
+  const { mode, setMode } = useHubMode(projectId)
+
   // Hub registers a 3-branch + with the global ActionBar. Branches fan out
   // from the +. Project accent flows through the milestone branch's icon —
   // re-register when accent changes (project switch).
-  // Label fix: the third branch was previously labeled 'Add Crew' but its
-  // icon, state, and downstream sheet are all about Creative (scene/shot/
-  // tone selection). Renamed to 'Creative' here.
+  // When splitEnabled + mode === 'creative', the third branch's onAction
+  // deep-links to /scenemaker?mode=script directly instead of opening the
+  // CreateCreativeSheet picker (1 tap instead of 2). Production-mode
+  // branches stay identical to today; un-gated branches stay identical too.
   useFabAction({
     branches: [
       {
@@ -383,7 +394,7 @@ export function HubContent({ projectId }: { projectId: string }) {
         action: () => setShowCreateMilestone(true),
       },
       {
-        label: 'Creative',
+        label: splitEnabled && mode === 'creative' ? 'Scene' : 'Creative',
         color: '#6470f3',
         icon: (
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -392,10 +403,12 @@ export function HubContent({ projectId }: { projectId: string }) {
             <path d="M6.5 3V7.5M11.5 3V7.5" stroke="#6470f3" strokeWidth="1.3" strokeLinecap="round" />
           </svg>
         ),
-        action: () => setShowCreateCreative(true),
+        action: splitEnabled && mode === 'creative'
+          ? () => router.push(`/projects/${projectId}/scenemaker?mode=script`)
+          : () => setShowCreateCreative(true),
       },
     ],
-  }, [projectColor])
+  }, [splitEnabled, mode, projectColor, projectId, router])
 
   const [selectedAI, setSelectedAI] = useState<ActionItem | null>(null)
   const [selectedMS, setSelectedMS] = useState<Milestone | null>(null)
@@ -532,27 +545,39 @@ export function HubContent({ projectId }: { projectId: string }) {
           )}
         </div>
 
-        {/* Role filter pill row — V2 anchor. Visual-only; the gallery
-            uses this row to close the topbar's vertical rhythm
-            (eyebrow → name → meta → avatars → roles). */}
-        <div className="cp-filter-row" role="tablist" aria-label="Crew role filter">
-          {(['all', 'director', 'producer', 'coordinator', 'writer', 'crew'] as const).map(role => {
-            const label = role === 'all' ? 'All' : role[0].toUpperCase() + role.slice(1)
-            const isActive = activeRoleFilter === role
-            return (
-              <button
-                key={role}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                className={`cp-filter-pill${isActive ? ' active' : ''}`}
-                onClick={() => { haptic('light'); setActiveRoleFilter(role) }}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
+        {/* Role filter pill row — V2 anchor. Filters the crew avatar
+            strip above by selected role. Hidden in split mode — the
+            HubModeToggle takes its anchor slot in the topbar's
+            vertical rhythm. */}
+        {!splitEnabled && (
+          <div className="cp-filter-row" role="tablist" aria-label="Crew role filter">
+            {(['all', 'director', 'producer', 'coordinator', 'writer', 'crew'] as const).map(role => {
+              const label = role === 'all' ? 'All' : role[0].toUpperCase() + role.slice(1)
+              const isActive = activeRoleFilter === role
+              return (
+                <button
+                  key={role}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`cp-filter-pill${isActive ? ' active' : ''}`}
+                  onClick={() => { haptic('light'); setActiveRoleFilter(role) }}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Hub split-mode toggle — replaces the crew role filter row in
+            the topbar's last anchor slot when ?hub=split is active.
+            Binary toggle between Production and Creative surfaces. */}
+        {splitEnabled && (
+          <div style={{ width: '100%', marginTop: 8 }}>
+            <HubModeToggle mode={mode} onChange={setMode} />
+          </div>
+        )}
       </div>
 
       {/* ══ BODY ══ */}
@@ -560,6 +585,7 @@ export function HubContent({ projectId }: { projectId: string }) {
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', padding: '18px 16px 140px' }}>
         <div className="flex flex-col gap-6">
 
+          {(!splitEnabled || mode === 'production') && <>
           {/* 1. TIMELINE + BUDGET (2-col peers, producer-only Budget).
               Producer: side-by-side. Non-producer: Timeline goes
               full-width (Budget col is hidden). PR 14 placement fix. */}
@@ -721,7 +747,10 @@ export function HubContent({ projectId }: { projectId: string }) {
             )}
           </div>
 
-          {/* 2. ACTION ITEMS (second) — item 9: no chevron, item 13: assignee pills + navigate */}
+                    </>}
+
+{(!splitEnabled || mode === 'production') && <>
+{/* 2. ACTION ITEMS (second) — item 9: no chevron, item 13: assignee pills + navigate */}
           <div className="cursor-pointer" aria-label="Open action items" {...clickableProps(() => router.push(`/projects/${projectId}/action-items`))}>
             <ModuleHeader name="My Action Items" meta={openItems.length > 0 ? `${openItems.length} open` : 'All clear'} />
             {loadingAI ? (
@@ -788,7 +817,10 @@ export function HubContent({ projectId }: { projectId: string }) {
             )}
           </div>
 
-          {/* 3. CREATIVE SECTION — item 9: no chevron on header */}
+          </>}
+
+{(!splitEnabled || mode === 'creative') && <>
+{/* 3. CREATIVE SECTION — item 9: no chevron on header */}
           <div>
             <ModuleHeader name="Creative" meta={`${allScenes.length > 0 ? `SC.${allScenes[0].num}` : ''}${allMoodRefs.length > 0 ? ' · Tone' : ''}${allLocations.length > 0 ? ` · ${allLocations.length} locations` : ''}`} />
 
@@ -942,7 +974,10 @@ export function HubContent({ projectId }: { projectId: string }) {
             </div>
           </div>
 
-          {/* 4. INVENTORY — featured department chips strip + View all */}
+          </>}
+
+{(!splitEnabled || mode === 'production') && <>
+{/* 4. INVENTORY — featured department chips strip + View all */}
           <div style={{ padding: '0 2px' }}>
             <div
               className="cursor-pointer"
@@ -1013,7 +1048,10 @@ export function HubContent({ projectId }: { projectId: string }) {
             </div>
           </div>
 
-          {/* 5. WORKFLOW — V2: 5-node icon chain (wf-row/wf-node/wf-conn).
+          </>}
+
+{(!splitEnabled || mode === 'production') && <>
+{/* 5. WORKFLOW — V2: 5-node icon chain (wf-row/wf-node/wf-conn).
               Phase tinting alternates by index (pre/pre/prod/post/post) to
               match the gallery's 5 phase-tinted cells. */}
           <div className="cursor-pointer" style={{ padding: '0 2px' }} aria-label="Open workflow" {...clickableProps(() => router.push(`/projects/${projectId}/workflow`))}>
@@ -1044,6 +1082,7 @@ export function HubContent({ projectId }: { projectId: string }) {
               </div>
             )}
           </div>
+          </>}
 
         </div>
       </div>
