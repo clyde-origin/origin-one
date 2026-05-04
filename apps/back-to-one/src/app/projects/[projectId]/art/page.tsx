@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import {
   useProject,
   useArtItems,
@@ -626,34 +626,37 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
         noBorder
       />
 
-      {/* Tab bar — active tab text uses sheen-extrusion treatment per
-          DESIGN_LANGUAGE.md tab-nav rule. */}
-      <div className="flex">
-        {TABS.map(tab => {
-          const isActive = activeTab === tab.key
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 text-center uppercase cursor-pointer select-none relative transition-colors ${isActive ? 'sheen-title' : ''}`}
-              style={{
-                fontFamily: "'Geist', sans-serif", fontWeight: 700,
-                padding: '11px 0', fontSize: '0.52rem', letterSpacing: '0.08em',
-                color: isActive ? undefined : 'var(--fg-mono)',
-                background: 'transparent', border: 'none',
-              }}
-            >
-              {tab.label}
-              {isActive && (
-                <div className="absolute bottom-0" style={{
-                  left: '10%', right: '10%', height: 2,
-                  background: accent, borderRadius: '2px 2px 0 0',
-                  boxShadow: `0 -2px 12px -4px rgba(${pr},${pg},${pb},0.45)`,
-                }} />
-              )}
-            </button>
-          )
-        })}
+      {/* Tab bar — rotating-center segmented toggle (.hub-toggle / .hub-toggle-btn).
+          Active tab is always centered; the others cycle around it via
+          Framer Motion's layout prop. Same pattern as the Hub arc toggle
+          (Script / Shotlist / Storyboard) — see HubArcToggle.tsx. */}
+      <div style={{ padding: '8px 16px 4px' }}>
+        <LayoutGroup id="art-type-toggle">
+          <div className="hub-toggle" role="tablist" aria-label="Art type">
+            {(() => {
+              const len = TABS.length
+              const center = Math.floor(len / 2)
+              const activeIndex = Math.max(0, TABS.findIndex(t => t.key === activeTab))
+              const rotated = Array.from({ length: len }, (_, i) =>
+                TABS[(activeIndex - center + i + len) % len]
+              )
+              return rotated.map(tab => (
+                <motion.button
+                  key={tab.key}
+                  layout
+                  transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.key}
+                  className={`hub-toggle-btn${activeTab === tab.key ? ' active' : ''}`}
+                  onClick={() => setActiveTab(tab.key)}
+                >
+                  {tab.label}
+                </motion.button>
+              ))
+            })()}
+          </div>
+        </LayoutGroup>
       </div>
 
       {/* Scroll area */}

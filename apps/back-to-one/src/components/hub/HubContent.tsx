@@ -2,7 +2,10 @@
 
 import { useState, useMemo, useRef, useEffect, Fragment } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useHubMode } from '@/lib/hooks/useHubMode'
+import { HubModeToggle } from './HubModeToggle'
+import { HubArcToggle, type ArcMode } from './HubArcToggle'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getShotsByProject } from '@/lib/db/queries'
@@ -28,6 +31,7 @@ import { SwipePanel } from '@/components/hub/SwipePanel'
 import { GanttChart } from '@/components/hub/GanttChart'
 import { AIDetailSheet, MSDetailSheet, CrewDetailSheet } from '@/components/hub/sheets'
 import { CreateTaskSheet, CreateMilestoneSheet, CreateCreativeSheet } from '@/components/create'
+import { InviteCrewSheet } from '@/components/crew/InviteCrewSheet'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
 import { Sheet } from '@/components/ui/Sheet'
@@ -350,15 +354,101 @@ export function HubContent({ projectId }: { projectId: string }) {
   const [showCreateTask, setShowCreateTask] = useState(false)
   const [showCreateMilestone, setShowCreateMilestone] = useState(false)
   const [showCreateCreative, setShowCreateCreative] = useState(false)
+  const [showInviteCrew, setShowInviteCrew] = useState(false)
 
-  // Hub registers a 3-branch + with the global ActionBar. Branches fan out
-  // from the +. Project accent flows through the milestone branch's icon —
-  // re-register when accent changes (project switch).
-  // Label fix: the third branch was previously labeled 'Add Crew' but its
-  // icon, state, and downstream sheet are all about Creative (scene/shot/
-  // tone selection). Renamed to 'Creative' here.
+  // ── Hub split mode (?hub=split URL gate, per docs/superpowers/specs/2026-05-03-hub-production-creative-toggle-design.md) ──
+  // When the gate is absent, behavior is identical to the stacked layout
+  // shipped in cinema-glass. When `?hub=split` is present, the topbar gets
+  // a binary HubModeToggle and body sections show/hide per mode.
+  const searchParams = useSearchParams()
+  const splitEnabled = searchParams?.get('hub') === 'split'
+  const { mode, setMode } = useHubMode(projectId)
+  // Arc mode is local to the Creative surface — does NOT persist
+  // (per spec: navigation aid, not a mode). Defaults to 'script'.
+  const [arcMode, setArcMode] = useState<ArcMode>('script')
+
+  // Hub registers a 3-branch + with the global ActionBar. The branch set
+  // depends on the gate + mode:
+  //   • un-gated (default Hub) → Action / Milestone / Creative — UNCHANGED today.
+  //   • split + production → Action / Milestone / Crew (per spec — Creative
+  //     branch swaps for Crew because creative belongs on the other surface).
+  //   • split + creative → Scene / Shot / Tone (deep-link directly into
+  //     each creation flow; CreateCreativeSheet picker becomes redundant).
   useFabAction({
-    branches: [
+    branches: splitEnabled && mode === 'creative' ? [
+      {
+        label: 'Scene',
+        color: '#6470f3',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="2" y="3" width="14" height="12" rx="1.5" stroke="#6470f3" strokeWidth="1.3" />
+            <path d="M2 7.5H16" stroke="#6470f3" strokeWidth="1.3" />
+            <path d="M6.5 3V7.5M11.5 3V7.5" stroke="#6470f3" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        ),
+        action: () => router.push(`/projects/${projectId}/scenemaker?mode=script`),
+      },
+      {
+        label: 'Shot',
+        color: '#6470f3',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="2.5" y="4.5" width="13" height="9" rx="1" stroke="#6470f3" strokeWidth="1.3" />
+            <path d="M5.5 7.5L9 10L12.5 7.5" stroke="#6470f3" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ),
+        action: () => router.push(`/projects/${projectId}/scenemaker?mode=shotlist`),
+      },
+      {
+        label: 'Tone',
+        color: '#6470f3',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="6" cy="7" r="3" stroke="#6470f3" strokeWidth="1.3" />
+            <circle cx="11" cy="9.5" r="3" stroke="#6470f3" strokeWidth="1.3" />
+            <circle cx="8" cy="12" r="3" stroke="#6470f3" strokeWidth="1.3" />
+          </svg>
+        ),
+        action: () => router.push(`/projects/${projectId}/moodboard`),
+      },
+    ] : splitEnabled ? [
+      // Split + production: Action / Milestone / Crew (Crew replaces Creative)
+      {
+        label: 'Action',
+        color: '#e8a020',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="9" r="7" stroke="#e8a020" strokeWidth="1.3" />
+            <path d="M5.5 9L8 11.5L12.5 6.5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ),
+        action: () => setShowCreateTask(true),
+      },
+      {
+        label: 'Milestone',
+        color: projectColor,
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <line x1="2" y1="9" x2="16" y2="9" stroke={projectColor} strokeWidth="1.3" />
+            <circle cx="6" cy="9" r="2.5" fill={projectColor} />
+            <circle cx="12" cy="9" r="2.5" fill={projectColor} />
+          </svg>
+        ),
+        action: () => setShowCreateMilestone(true),
+      },
+      {
+        label: 'Crew',
+        color: '#00b894',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="6" r="2.8" stroke="#00b894" strokeWidth="1.3" />
+            <path d="M3 15.5c0-3 2.7-5 6-5s6 2 6 5" stroke="#00b894" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        ),
+        action: () => setShowInviteCrew(true),
+      },
+    ] : [
+      // Default un-gated Hub: Action / Milestone / Creative — UNCHANGED today.
       {
         label: 'Action',
         color: '#e8a020',
@@ -395,7 +485,7 @@ export function HubContent({ projectId }: { projectId: string }) {
         action: () => setShowCreateCreative(true),
       },
     ],
-  }, [projectColor])
+  }, [splitEnabled, mode, projectColor, projectId, router])
 
   const [selectedAI, setSelectedAI] = useState<ActionItem | null>(null)
   const [selectedMS, setSelectedMS] = useState<Milestone | null>(null)
@@ -532,27 +622,39 @@ export function HubContent({ projectId }: { projectId: string }) {
           )}
         </div>
 
-        {/* Role filter pill row — V2 anchor. Visual-only; the gallery
-            uses this row to close the topbar's vertical rhythm
-            (eyebrow → name → meta → avatars → roles). */}
-        <div className="cp-filter-row" role="tablist" aria-label="Crew role filter">
-          {(['all', 'director', 'producer', 'coordinator', 'writer', 'crew'] as const).map(role => {
-            const label = role === 'all' ? 'All' : role[0].toUpperCase() + role.slice(1)
-            const isActive = activeRoleFilter === role
-            return (
-              <button
-                key={role}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                className={`cp-filter-pill${isActive ? ' active' : ''}`}
-                onClick={() => { haptic('light'); setActiveRoleFilter(role) }}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
+        {/* Role filter pill row — V2 anchor. Filters the crew avatar
+            strip above by selected role. Hidden in split mode — the
+            HubModeToggle takes its anchor slot in the topbar's
+            vertical rhythm. */}
+        {!splitEnabled && (
+          <div className="cp-filter-row" role="tablist" aria-label="Crew role filter">
+            {(['all', 'director', 'producer', 'coordinator', 'writer', 'crew'] as const).map(role => {
+              const label = role === 'all' ? 'All' : role[0].toUpperCase() + role.slice(1)
+              const isActive = activeRoleFilter === role
+              return (
+                <button
+                  key={role}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`cp-filter-pill${isActive ? ' active' : ''}`}
+                  onClick={() => { haptic('light'); setActiveRoleFilter(role) }}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Hub split-mode toggle — replaces the crew role filter row in
+            the topbar's last anchor slot when ?hub=split is active.
+            Binary toggle between Production and Creative surfaces. */}
+        {splitEnabled && (
+          <div style={{ width: '100%', marginTop: 8 }}>
+            <HubModeToggle mode={mode} onChange={setMode} />
+          </div>
+        )}
       </div>
 
       {/* ══ BODY ══ */}
@@ -560,13 +662,14 @@ export function HubContent({ projectId }: { projectId: string }) {
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', padding: '18px 16px 140px' }}>
         <div className="flex flex-col gap-6">
 
+          {(!splitEnabled || mode === 'production') && <>
           {/* 1. TIMELINE + BUDGET (2-col peers, producer-only Budget).
               Producer: side-by-side. Non-producer: Timeline goes
               full-width (Budget col is hidden). PR 14 placement fix. */}
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: isProducer ? '1fr 1fr' : '1fr',
+              gridTemplateColumns: (isProducer && !splitEnabled) ? '1fr 1fr' : '1fr',
               gap: 12,
               alignItems: 'stretch',
             }}
@@ -614,7 +717,7 @@ export function HubContent({ projectId }: { projectId: string }) {
                 spent/total mono row; bgt-version-pill anchors top-right
                 with the working version label. Variance chip remains
                 below the dial as a tinted info row. */}
-            {isProducer && (
+            {isProducer && !splitEnabled && (
               <div
                 className="cursor-pointer"
                 onClick={() => { haptic('light'); router.push(`/projects/${projectId}/budget`) }}
@@ -721,7 +824,10 @@ export function HubContent({ projectId }: { projectId: string }) {
             )}
           </div>
 
-          {/* 2. ACTION ITEMS (second) — item 9: no chevron, item 13: assignee pills + navigate */}
+                    </>}
+
+{(!splitEnabled || mode === 'production') && <>
+{/* 2. ACTION ITEMS (second) — item 9: no chevron, item 13: assignee pills + navigate */}
           <div className="cursor-pointer" aria-label="Open action items" {...clickableProps(() => router.push(`/projects/${projectId}/action-items`))}>
             <ModuleHeader name="My Action Items" meta={openItems.length > 0 ? `${openItems.length} open` : 'All clear'} />
             {loadingAI ? (
@@ -788,7 +894,12 @@ export function HubContent({ projectId }: { projectId: string }) {
             )}
           </div>
 
-          {/* 3. CREATIVE SECTION — item 9: no chevron on header */}
+          </>}
+
+{!splitEnabled && <>
+{/* 3. CREATIVE SECTION — non-split only. In split mode, the spec-aligned
+       Creative-split block below replaces this with HubArcToggle + locked
+       arc panel + Tone (full-width) + LCA row. */}
           <div>
             <ModuleHeader name="Creative" meta={`${allScenes.length > 0 ? `SC.${allScenes[0].num}` : ''}${allMoodRefs.length > 0 ? ' · Tone' : ''}${allLocations.length > 0 ? ` · ${allLocations.length} locations` : ''}`} />
 
@@ -942,7 +1053,242 @@ export function HubContent({ projectId }: { projectId: string }) {
             </div>
           </div>
 
-          {/* 4. INVENTORY — featured department chips strip + View all */}
+          </>}
+
+{splitEnabled && mode === 'creative' && <>
+          {/* CREATIVE SPLIT SURFACE — spec-aligned layout:
+              HubArcToggle (Script/Shotlist/Storyboard) → locked 220px arc panel
+              → Tone (full-width) → LCA 3-up SwipePanel row. */}
+          <HubArcToggle mode={arcMode} onChange={setArcMode} />
+
+          {/* Locked-height arc panel — content swaps per arcMode; height
+              stays 220px so surfaces below never shift. Footer "Open in
+              One Arc · X →" pill pinned to bottom of the locked box. */}
+          <div
+            className="glass-tile"
+            style={{ position: 'relative', height: 220, overflow: 'hidden', marginTop: 8, padding: 0 }}
+          >
+            {arcMode === 'script' && (
+              <div style={{ position: 'absolute', inset: 0, padding: '12px 14px 38px', overflow: 'hidden' }}>
+                {allScenes.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {allScenes.slice(0, 5).map((sc: any) => (
+                      <div key={sc.id}>
+                        <div className="font-mono uppercase" style={{ fontSize: '0.42rem', color: projectColor, letterSpacing: '0.06em', marginBottom: 2 }}>
+                          {sc.title ? sc.title : `SC.${sc.num ?? ''}`}
+                        </div>
+                        <div style={{ fontSize: '0.60rem', color: 'rgba(221,221,232,0.85)', lineHeight: 1.5 }}>
+                          {sc.description ?? ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a' }}>No script yet</div>
+                )}
+                {/* Bottom fade-out mask for top-anchored prose overflow */}
+                <div style={{ position: 'absolute', bottom: 32, left: 0, right: 0, height: 44, background: 'linear-gradient(to bottom, transparent, rgba(4,4,10,0.95))', pointerEvents: 'none' }} />
+              </div>
+            )}
+            {arcMode === 'shotlist' && (
+              <div style={{ position: 'absolute', inset: 0, padding: '12px 14px 38px', overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                {allShots.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {allShots.slice(0, 16).map((shot: any) => (
+                      <div key={shot.id} style={{ display: 'flex', gap: 8, padding: '5px 8px', background: 'rgba(255,255,255,0.025)', borderRadius: 5, alignItems: 'center' }}>
+                        <span className="font-mono" style={{ fontSize: '0.46rem', fontWeight: 700, color: projectColor, letterSpacing: '0.04em', width: 28, flexShrink: 0 }}>{shot.shotNumber}</span>
+                        <span style={{ fontSize: '0.52rem', color: 'rgba(221,221,232,0.78)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shot.description ?? ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a' }}>No shots yet</div>
+                )}
+              </div>
+            )}
+            {arcMode === 'storyboard' && (
+              <div style={{ position: 'absolute', inset: 0, padding: '12px 14px 38px', overflow: 'hidden' }}>
+                {allShots.filter((s: any) => s.imageUrl).length > 0 ? (
+                  <div style={{ display: 'flex', gap: 8, height: '100%', overflowX: 'auto', alignItems: 'center', WebkitOverflowScrolling: 'touch' }}>
+                    {allShots.filter((s: any) => s.imageUrl).slice(0, 8).map((shot: any) => (
+                      <div key={shot.id} style={{ position: 'relative', flex: '0 0 auto', height: 140, aspectRatio: '16/9', borderRadius: 6, overflow: 'hidden', background: 'rgba(255,255,255,0.04)' }}>
+                        <StorageImage url={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <div style={{ position: 'absolute', top: 4, left: 4, fontSize: '0.42rem', fontWeight: 700, color: projectColor, background: 'rgba(4,4,10,0.7)', borderRadius: 4, padding: '1px 5px' }}>{shot.shotNumber}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a' }}>No storyboard yet</div>
+                )}
+              </div>
+            )}
+            {/* Footer pill — pinned to bottom edge of the locked box */}
+            <button
+              type="button"
+              onClick={() => router.push(`/projects/${projectId}/scenemaker?mode=${arcMode}`)}
+              className="font-mono uppercase"
+              style={{
+                position: 'absolute', bottom: 6, right: 12, zIndex: 2,
+                fontSize: '0.46rem', letterSpacing: '0.10em',
+                color: projectColor, background: 'transparent', border: 'none', cursor: 'pointer',
+                padding: '4px 6px',
+              }}
+            >
+              Open in One Arc · {arcMode === 'script' ? 'Script' : arcMode === 'shotlist' ? 'Shotlist' : 'Storyboard'} ›
+            </button>
+          </div>
+
+          {/* Tone — full-width strip of multiple refs side-by-side (NOT a
+              swipe panel). Tap any tile or the label → navigate to the
+              moodboard page. Empty state collapses to a "Set the tone" CTA. */}
+          <div style={{ marginTop: 12 }} {...clickableProps(() => router.push(`/projects/${projectId}/moodboard`))} aria-label="Open tone / moodboard">
+            <ModuleHeader name="Tone" meta={allMoodRefs.length > 0 ? `${allMoodRefs.length} ref${allMoodRefs.length === 1 ? '' : 's'}` : undefined} />
+            {allMoodRefs.length > 0 ? (
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
+                {allMoodRefs.slice(0, 8).map((ref: any) => (
+                  <div
+                    key={ref.id}
+                    style={{
+                      flex: '0 0 auto',
+                      width: 84,
+                      height: 110,
+                      borderRadius: 6,
+                      overflow: 'hidden',
+                      background: ref.gradient || '#0a0a12',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      position: 'relative',
+                    }}
+                  >
+                    {ref.imageUrl && (
+                      <StorageImage
+                        url={ref.imageUrl}
+                        alt={ref.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        placeholder={<div style={{ width: '100%', height: '100%', background: ref.gradient || '#0a0a12', opacity: 0.7 }} />}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="glass-tile" style={{ height: 110, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: 0.45 }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                  <rect x="2" y="4" width="20" height="16" rx="2" stroke="#62627a" strokeWidth="1.3" />
+                  <circle cx="8" cy="10" r="2" stroke="#62627a" strokeWidth="1.2" />
+                  <path d="M2 16l5-4 3 2 4-5 8 7" stroke="#62627a" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="font-mono" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em' }}>Set the tone</span>
+              </div>
+            )}
+          </div>
+
+          {/* LCA — Locations / Casting / Art each get a Tone-style external
+              ModuleHeader above their (sacred) SwipePanel. Header shows count
+              meta for at-a-glance status; the SwipePanel's inside colored
+              label stays as the per-tile identifier chip. */}
+          <div className="lca-row" style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <ModuleHeader name="Locations" meta={allLocations.length > 0 ? `${allLocations.length} loc${allLocations.length === 1 ? '' : 's'}` : undefined} />
+              <SwipePanel
+                items={allLocations}
+                label="Locations"
+                labelColor="#e8a020"
+                emptyIcon="📍"
+                href={`/projects/${projectId}/locations`}
+                renderItem={(loc: any) => (
+                  <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                    <EntityAttachmentCover
+                      projectId={projectId}
+                      attachedToType="location"
+                      attachedToId={loc.id}
+                      size="100%"
+                      alt={loc.name}
+                    />
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '4px 6px', background: 'linear-gradient(transparent, rgba(0,0,0,0.7))' }}>
+                      <span style={{ fontSize: '0.38rem', fontWeight: 600, color: '#dddde8' }}>{loc.name}</span>
+                    </div>
+                  </div>
+                )}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <ModuleHeader name="Casting" meta={allCast.length > 0 ? `${allCast.length} role${allCast.length === 1 ? '' : 's'}` : undefined} />
+              <SwipePanel
+                items={allCast.length > 0 ? [allCast] : []}
+                label="Casting"
+                labelColor="#00b894"
+                emptyIcon="🎭"
+                href={`/projects/${projectId}/casting`}
+                renderItem={(roles: any[]) => {
+                const sorted = [...roles].sort((a, b) => Number(b.cast) - Number(a.cast))
+                const visible = sorted.slice(0, 6)
+                const remaining = sorted.length - visible.length
+                return (
+                  <div style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, padding: '6px 8px 10px' }}>
+                    {visible.map((role: any, i: number) => {
+                      const t = role.talent
+                      return (
+                        <div key={role.id ?? i} style={{
+                          position: 'relative', aspectRatio: '1 / 1', borderRadius: '50%',
+                          overflow: 'hidden',
+                          border: t ? '1px solid rgba(0,184,148,0.35)' : '1px dashed rgba(255,255,255,0.12)',
+                          background: 'rgba(255,255,255,0.04)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {t?.imageUrl ? (
+                            <StorageImage url={t.imageUrl} alt={t.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <span className="font-mono" style={{ fontSize: '0.42rem', fontWeight: 700, color: t ? '#00b894' : 'rgba(255,255,255,0.18)' }}>
+                              {t?.initials ?? '?'}
+                            </span>
+                          )}
+                          {i === 5 && remaining > 0 && (
+                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(4,4,10,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dddde8', fontSize: '0.46rem', fontWeight: 700 }}>
+                              +{remaining}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              }}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <ModuleHeader name="Art" meta={allArt.length > 0 ? `${allArt.length} item${allArt.length === 1 ? '' : 's'}` : undefined} />
+              <SwipePanel
+                items={['wardrobe', 'props', 'hmu'] as const}
+                label="Art"
+                labelColor="#6470f3"
+                emptyIcon="🎨"
+                href={`/projects/${projectId}/art`}
+                renderItem={(cat: string) => {
+                  const entityType = cat === 'props' ? 'prop' : cat
+                  const catItems = allArt.filter(a => a.type === entityType)
+                  const first = catItems[0]
+                  const imgUrl = (first?.metadata as { imageUrl?: string } | null)?.imageUrl
+                  const catLabel = cat === 'hmu' ? 'HMU' : cat === 'wardrobe' ? 'Wardrobe' : 'Props'
+                  return (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 6 }}>
+                      {imgUrl ? (
+                        <StorageImage url={imgUrl} alt={catLabel} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
+                      ) : (
+                        <>
+                          <span className="font-mono uppercase" style={{ fontSize: '0.38rem', color: '#6470f3', letterSpacing: '0.06em' }}>{catLabel}</span>
+                          <span className="font-mono" style={{ fontSize: '0.30rem', color: '#62627a', marginTop: 2 }}>{catItems.length > 0 ? `${catItems.length} items` : 'Empty'}</span>
+                        </>
+                      )}
+                    </div>
+                  )
+                }}
+              />
+            </div>
+          </div>
+</>}
+
+{(!splitEnabled || mode === 'production') && <>
+{/* 4. INVENTORY — featured department chips strip + View all */}
           <div style={{ padding: '0 2px' }}>
             <div
               className="cursor-pointer"
@@ -1013,7 +1359,10 @@ export function HubContent({ projectId }: { projectId: string }) {
             </div>
           </div>
 
-          {/* 5. WORKFLOW — V2: 5-node icon chain (wf-row/wf-node/wf-conn).
+          </>}
+
+{(!splitEnabled || mode === 'production') && <>
+{/* 5. WORKFLOW — V2: 5-node icon chain (wf-row/wf-node/wf-conn).
               Phase tinting alternates by index (pre/pre/prod/post/post) to
               match the gallery's 5 phase-tinted cells. */}
           <div className="cursor-pointer" style={{ padding: '0 2px' }} aria-label="Open workflow" {...clickableProps(() => router.push(`/projects/${projectId}/workflow`))}>
@@ -1044,6 +1393,90 @@ export function HubContent({ projectId }: { projectId: string }) {
               </div>
             )}
           </div>
+          </>}
+
+{splitEnabled && mode === 'production' && isProducer && <>
+          {/* 6. BUDGET — full-width row at the bottom of Production surface
+                 (split mode only). Producer-only via existing useViewerRole
+                 gate. Lifts the same dial / version pill / variance chrome
+                 from Section 1's Budget tile but laid out as a full-width row
+                 instead of a 1fr peer of Timeline. */}
+          <div
+            className="cursor-pointer"
+            onClick={() => { haptic('light'); router.push(`/projects/${projectId}/budget`) }}
+          >
+            <ModuleHeader name="Budget" />
+            {budgetPreview && budgetPreview.workingTotal > 0 ? (() => {
+              const pct = Math.min(100, Math.round((budgetPreview.actuals / budgetPreview.workingTotal) * 100))
+              const CIRC = 163.36
+              const dashOffset = CIRC * (1 - pct / 100)
+              const fmt = (n: number) => n >= 1000
+                ? `$${Math.round(n / 1000)}K`
+                : `$${Math.round(n).toLocaleString('en-US')}`
+              return (
+                <div
+                  className="glass-tile bgt-card"
+                  style={{
+                    position: 'relative', height: 130,
+                    display: 'flex', flexDirection: 'row', alignItems: 'center',
+                    gap: 16, padding: '10px 18px',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <span className="bgt-version-pill">{budgetPreview.versionLabel || 'Working'}</span>
+                  <div className="bgt-dial" style={{ flexShrink: 0 }}>
+                    <svg viewBox="0 0 64 64" fill="none">
+                      <circle className="bgt-dial-bg" cx="32" cy="32" r="26" strokeWidth="3" />
+                      <circle className="bgt-dial-fg" cx="32" cy="32" r="26" strokeWidth="3" strokeDasharray={CIRC} strokeDashoffset={dashOffset} />
+                    </svg>
+                    <span className="bgt-dial-pct">{pct}%</span>
+                  </div>
+                  <div className="bgt-meta" style={{ flex: 1, alignItems: 'flex-start' }}>
+                    <span className="bgt-meta-spent">{fmt(budgetPreview.actuals)}</span>
+                    <span className="bgt-meta-sep">/</span>
+                    <span className="bgt-meta-total">{fmt(budgetPreview.workingTotal)}</span>
+                  </div>
+                  {budgetPreview.overCount > 0 && (
+                    <span
+                      className="font-mono uppercase"
+                      style={{
+                        fontSize: '0.40rem', letterSpacing: '0.08em',
+                        padding: '3px 8px', borderRadius: 999,
+                        background: 'rgba(232,86,74,0.10)',
+                        border: '1px solid rgba(232,86,74,0.30)',
+                        color: '#e8564a',
+                        flexShrink: 0,
+                      }}
+                    >
+                      ⚠ {budgetPreview.overCount} over
+                    </span>
+                  )}
+                </div>
+              )
+            })() : (
+              <div
+                className="glass-tile bgt-card"
+                style={{
+                  position: 'relative', height: 100,
+                  display: 'flex', flexDirection: 'row', alignItems: 'center',
+                  justifyContent: 'center', gap: 12, padding: '10px 18px',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <span className="bgt-version-pill bgt-version-pill-empty">—</span>
+                <div className="bgt-dial" style={{ flexShrink: 0, opacity: 0.4 }}>
+                  <svg viewBox="0 0 64 64" fill="none">
+                    <circle className="bgt-dial-bg" cx="32" cy="32" r="26" strokeWidth="3" />
+                  </svg>
+                  <span className="bgt-dial-pct">—</span>
+                </div>
+                <span className="font-mono uppercase" style={{ fontSize: '0.46rem', letterSpacing: '0.10em', color: 'var(--fg-mono)' }}>
+                  Set up budget →
+                </span>
+              </div>
+            )}
+          </div>
+</>}
 
         </div>
       </div>
@@ -1081,6 +1514,12 @@ export function HubContent({ projectId }: { projectId: string }) {
         onSelectShot={() => router.push(`/projects/${projectId}/scenemaker`)}
         onSelectTone={() => router.push(`/projects/${projectId}/moodboard`)}
         onClose={() => setShowCreateCreative(false)}
+      />
+      {/* InviteCrewSheet — triggered by the Crew FAB branch in split + production mode */}
+      <InviteCrewSheet
+        projectId={projectId}
+        open={showInviteCrew}
+        onClose={() => setShowInviteCrew(false)}
       />
 
       {/* ══ CREW PANEL ══ */}

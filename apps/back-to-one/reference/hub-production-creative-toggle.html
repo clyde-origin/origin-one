@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Hub — Production / Creative Toggle (visual spec)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Cinema Glass tokens — mirrors apps/back-to-one/src/styles/globals.css
+   This file is a VISUAL CONTRACT for the Hub split layout. The
+   surface contents are stylized; the canonical source remains
+   hub-full-preview-v2.html @ design-locked-2026-05-01. What this
+   file pins down is the new architecture:
+     1. Sticky binary toggle in the topbar (.hub-toggle / .hub-toggle-btn)
+     2. Production surface: Timeline (full) → Action Items → Crew → Inventory → Workflow → Budget
+     3. Creative surface: One Arc triple toggle + active panel → Tone → Loc/Cast/Art
+     4. Slide stage: 200%-wide flex strip clipped, translates -50% on Creative
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --bg: #04040a;
+  --fg: #dddde8;
+  --fg-mono: #62627a;
+  --border: rgba(255, 255, 255, 0.06);
+  --accent-rgb: 196, 90, 220;            /* default project accent (Vanta variant for the demo) */
+  --tile-rgb: 196, 90, 220;
+  --accent-glow-rgb: 220, 130, 240;
+  --accent: rgb(196, 90, 220);
+  --phase-pre: #e8a020;
+  --phase-prod: #6470f3;
+  --phase-post: #00b894;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body {
+  background: #06060a;
+  font-family: 'Geist', sans-serif;
+  color: var(--fg);
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 28px 12px 64px;
+  gap: 24px;
+  min-height: 100vh;
+}
+.label {
+  width: 358px;
+  text-align: center;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.50rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  margin: 0 auto 8px;
+}
+.phone {
+  width: 358px;
+  height: 760px;
+  background: var(--bg);
+  border-radius: 32px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+/* ─────────── Topbar (existing .hub-topbar) ─────────── */
+.hub-topbar {
+  padding: 16px 14px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+}
+.hub-topbar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 220px 120px at 50% 0%, rgba(var(--accent-glow-rgb), 0.25) 0%, transparent 60%);
+  pointer-events: none;
+}
+.tb-name {
+  font-family: 'Geist', sans-serif;
+  font-size: 1.18rem;
+  font-weight: 700;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(var(--accent-glow-rgb), 1) 32%, var(--accent) 55%, rgba(var(--accent-rgb), 0.78) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45)) drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.22));
+  text-align: center;
+}
+.tb-meta {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.42rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+  text-align: center;
+}
+.tb-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.40rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  background: rgba(100, 112, 243, 0.16);
+  color: var(--phase-prod);
+  border: 1px solid rgba(100, 112, 243, 0.4);
+  margin: 0 auto;
+}
+.tb-crew {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  margin-top: 2px;
+}
+.tb-crew .av {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6c5b40, #2d2418);
+  border: 1.5px solid var(--bg);
+  margin-left: -6px;
+}
+.tb-crew .av:first-child { margin-left: 0; }
+
+/* ─────────── HUB TOGGLE (the new element) ─────────── */
+.hub-toggle {
+  position: relative;
+  display: flex;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  user-select: none;
+  margin-top: 2px;
+}
+.hub-toggle-btn {
+  flex-grow: 1;
+  flex-basis: 0;
+  text-align: center;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  font-weight: 500;
+  padding: 7px 8px;
+  border-radius: 999px;
+  background: transparent;
+  border: none;
+  color: var(--fg-mono);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: flex-grow 380ms cubic-bezier(.4, 0, .2, 1), background 380ms ease, box-shadow 380ms ease, color 280ms ease;
+}
+.hub-toggle-btn.active {
+  flex-grow: 1.6;
+  background: rgba(var(--accent-rgb), 0.18);
+  color: rgb(var(--accent-rgb));
+  font-weight: 600;
+  box-shadow: 0 0 12px -4px rgba(var(--accent-rgb), 0.32);
+}
+
+/* ─────────── Surface body (representative content) ─────────── */
+.surface {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tile {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.tile-header {
+  font-family: 'Geist', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(var(--accent-glow-rgb), 1) 32%, var(--accent) 55%, rgba(var(--accent-rgb), 0.78) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45)) drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.22));
+}
+.tile-meta {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.40rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+}
+.tile-body {
+  font-family: 'Geist', sans-serif;
+  font-size: 0.66rem;
+  color: rgba(221, 221, 232, 0.72);
+}
+.gantt-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right,
+    var(--phase-pre) 0%, var(--phase-pre) 35%,
+    var(--phase-prod) 35%, var(--phase-prod) 70%,
+    var(--phase-post) 70%, var(--phase-post) 100%);
+  margin-top: 4px;
+}
+.gantt-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0 0;
+}
+.gantt-arrow {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--fg-mono);
+}
+.crew-row { display: flex; gap: 6px; }
+.crew-tile {
+  flex: 1;
+  height: 56px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.40rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--fg-mono);
+}
+.inv-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.inv-chip {
+  min-width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.36rem;
+  color: var(--fg-mono);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.inv-chip-all {
+  border-style: dashed;
+  border-color: rgba(var(--accent-rgb), 0.45);
+  color: rgb(var(--accent-rgb));
+}
+.wf-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.wf-node {
+  flex: 1;
+  height: 40px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.34rem;
+  color: var(--fg-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.wf-conn {
+  width: 8px;
+  height: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.bgt-tile { display: flex; align-items: center; gap: 16px; }
+.bgt-dial {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 4px solid rgba(var(--accent-rgb), 0.55);
+  border-right-color: rgba(var(--accent-rgb), 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: rgb(var(--accent-rgb));
+  flex-shrink: 0;
+}
+.bgt-meta { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+
+/* ─────────── Creative surface — One Arc panel (locked 220px) ─────────── */
+.arc-panel {
+  height: 220px;
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 14px 38px;
+  margin-top: 8px;
+}
+.arc-panel-script-line {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.62rem;
+  color: rgba(221, 221, 232, 0.85);
+  margin-bottom: 4px;
+  line-height: 1.5;
+}
+.arc-panel-fade {
+  position: absolute;
+  bottom: 32px;
+  left: 0; right: 0;
+  height: 40px;
+  background: linear-gradient(to bottom, transparent, rgba(4, 4, 10, 0.95));
+  pointer-events: none;
+}
+.arc-panel-footer {
+  position: absolute;
+  bottom: 8px;
+  left: 12px;
+  right: 12px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.46rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgb(var(--accent-rgb));
+  text-align: right;
+}
+
+/* ─────────── Loc/Cast/Art SwipePanel row (sacred — lifted as-is) ─────────── */
+.lca-row { display: flex; gap: 6px; }
+.lca-panel {
+  flex: 1;
+  height: 90px;
+  border-radius: 10px;
+  background: linear-gradient(165deg, rgba(var(--lca-rgb), 0.45) 0%, rgba(var(--lca-rgb), 0.15) 60%, rgba(8, 8, 14, 0.92) 100%);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 8px;
+}
+.lca-panel.loc { --lca-rgb: 232, 160, 32; }
+.lca-panel.cast { --lca-rgb: 0, 184, 148; }
+.lca-panel.art { --lca-rgb: 100, 112, 243; }
+.lca-label {
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.36rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(var(--lca-rgb));
+}
+
+/* ─────────── Slide stage architecture (visualized inline at bottom) ─────────── */
+.architecture {
+  width: 100%;
+  max-width: 760px;
+  margin-top: 24px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 0.54rem;
+  color: var(--fg-mono);
+  line-height: 1.6;
+}
+.architecture pre { white-space: pre; overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+  <p class="label">Production mode (default)</p>
+  <div class="phone">
+    <div class="hub-topbar">
+      <div class="tb-meta">VANTA</div>
+      <h1 class="tb-name">Full Send</h1>
+      <div class="tb-meta">COMMERCIAL · <span class="tb-pill"><span style="width:5px;height:5px;border-radius:50%;background:var(--phase-prod);"></span> PRODUCTION</span></div>
+      <div class="tb-crew"><span class="av"></span><span class="av"></span><span class="av"></span><span class="av"></span></div>
+      <div class="hub-toggle" role="tablist" aria-label="Hub mode">
+        <button type="button" class="hub-toggle-btn active" aria-selected="true">Production</button>
+        <button type="button" class="hub-toggle-btn" aria-selected="false">Creative</button>
+      </div>
+    </div>
+    <div class="surface">
+      <!-- 1. Timeline — full width -->
+      <div class="tile">
+        <div class="tile-header">Timeline</div>
+        <div class="tile-meta">Sun · 05/03</div>
+        <div class="gantt-bar"></div>
+        <div class="gantt-detail">
+          <div class="gantt-arrow">‹</div>
+          <div class="tile-body" style="font-family: 'Geist Mono', monospace; font-size: 0.46rem; letter-spacing: 0.06em; text-transform: uppercase;">May 5 · Pilot delivery</div>
+          <div class="gantt-arrow">›</div>
+        </div>
+      </div>
+      <!-- 2. My Action Items -->
+      <div class="tile">
+        <div class="tile-header">My Action Items</div>
+        <div class="tile-meta">4 OPEN</div>
+      </div>
+      <!-- 3. Crew preview row -->
+      <div class="tile">
+        <div class="tile-header">Crew</div>
+        <div class="crew-row">
+          <div class="crew-tile">Owen</div>
+          <div class="crew-tile">Lila</div>
+          <div class="crew-tile">+8</div>
+        </div>
+      </div>
+      <!-- 4. Inventory featured chips -->
+      <div class="tile">
+        <div class="tile-header">Inventory</div>
+        <div class="inv-strip">
+          <div class="inv-chip">CAM</div>
+          <div class="inv-chip">LIGHT</div>
+          <div class="inv-chip">G&E</div>
+          <div class="inv-chip">SOUND</div>
+          <div class="inv-chip inv-chip-all">VIEW ALL ›</div>
+        </div>
+      </div>
+      <!-- 5. Workflow 5-node chain -->
+      <div class="tile">
+        <div class="tile-header">Workflow</div>
+        <div class="wf-row">
+          <div class="wf-node">INGEST</div>
+          <div class="wf-conn"></div>
+          <div class="wf-node">EDIT</div>
+          <div class="wf-conn"></div>
+          <div class="wf-node">COLOR</div>
+          <div class="wf-conn"></div>
+          <div class="wf-node">SOUND</div>
+          <div class="wf-conn"></div>
+          <div class="wf-node">DELIVER</div>
+        </div>
+      </div>
+      <!-- 6. Budget — full width, producer-only, moves to bottom -->
+      <div class="tile">
+        <div class="tile-header">Budget</div>
+        <div class="bgt-tile">
+          <div class="bgt-dial">81%</div>
+          <div class="bgt-meta">
+            <div class="tile-meta">$487K / $600K</div>
+            <div class="tile-body" style="font-size: 0.54rem;">12 days remaining · $5,200/day</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+  <p class="label">Creative mode (after toggle)</p>
+  <div class="phone">
+    <div class="hub-topbar">
+      <div class="tb-meta">VANTA</div>
+      <h1 class="tb-name">Full Send</h1>
+      <div class="tb-meta">COMMERCIAL · <span class="tb-pill"><span style="width:5px;height:5px;border-radius:50%;background:var(--phase-prod);"></span> PRODUCTION</span></div>
+      <div class="tb-crew"><span class="av"></span><span class="av"></span><span class="av"></span><span class="av"></span></div>
+      <div class="hub-toggle" role="tablist" aria-label="Hub mode">
+        <button type="button" class="hub-toggle-btn" aria-selected="false">Production</button>
+        <button type="button" class="hub-toggle-btn active" aria-selected="true">Creative</button>
+      </div>
+    </div>
+    <div class="surface">
+      <!-- 1. One Arc triple toggle + active panel (locked 220px height) -->
+      <div class="hub-toggle" role="tablist" aria-label="One Arc mode" style="margin-top: 0;">
+        <button type="button" class="hub-toggle-btn active" aria-selected="true">Script</button>
+        <button type="button" class="hub-toggle-btn" aria-selected="false">Shotlist</button>
+        <button type="button" class="hub-toggle-btn" aria-selected="false">Storyboard</button>
+      </div>
+      <div class="arc-panel">
+        <div class="arc-panel-script-line">FADE IN.</div>
+        <div class="arc-panel-script-line">EXT. WAREHOUSE - DAY</div>
+        <div class="arc-panel-script-line"> </div>
+        <div class="arc-panel-script-line">A wide concrete bay, light cutting in</div>
+        <div class="arc-panel-script-line">low and gold across the floor.</div>
+        <div class="arc-panel-script-line"> </div>
+        <div class="arc-panel-script-line">MARCUS (mid-30s, hands in</div>
+        <div class="arc-panel-script-line">jacket pockets) walks the line</div>
+        <div class="arc-panel-script-line">of stacked palettes.</div>
+        <div class="arc-panel-fade"></div>
+        <div class="arc-panel-footer">Open in One Arc · Script ›</div>
+      </div>
+      <!-- 2. Tone — full-width preview -->
+      <div class="tile">
+        <div class="tile-header">Tone</div>
+        <div class="tile-meta">12 REFS</div>
+      </div>
+      <!-- 3. Loc/Cast/Art 3-up SwipePanel row (sacred — wrapper unchanged) -->
+      <div class="lca-row">
+        <div class="lca-panel loc">
+          <div class="lca-label">Locations</div>
+        </div>
+        <div class="lca-panel cast">
+          <div class="lca-label">Casting</div>
+        </div>
+        <div class="lca-panel art">
+          <div class="lca-label">Art</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="architecture">
+<pre>
+SLIDE STAGE — visual model
+
+  ┌─ .hub-topbar ─────────────────────────────────────────────┐
+  │  Project name · meta · crew avatars · .hub-toggle (sticky)│
+  └────────────────────────────────────────────────────────────┘
+  ┌─ .hub-stage (overflow: hidden) ─────────────────────────-──┐
+  │  ┌─ .hub-surfaces (display: flex; width: 200%) ─────────┐  │
+  │  │  ┌─ .hub-surface (Production)  ─┐ ┌─ .hub-surface (Creative) ─┐  │
+  │  │  │  width: 50%                  │ │  width: 50%               │  │
+  │  │  │  overflow-y: auto            │ │  overflow-y: auto         │  │
+  │  │  │                              │ │                           │  │
+  │  │  │  Timeline (full)             │ │  HubArcToggle (3 segs)    │  │
+  │  │  │  Action Items                │ │  Active arc panel         │  │
+  │  │  │  Crew                        │ │    (locked 220px)         │  │
+  │  │  │  Inventory                   │ │  Tone                     │  │
+  │  │  │  Workflow                    │ │  Loc · Cast · Art         │  │
+  │  │  │  Budget (producer-only)      │ │    (SwipePanel — sacred)  │  │
+  │  │  └──────────────────────────────┘ └───────────────────────────┘  │
+  │  └────────────────────────────────────────────────────────┘  │
+  └────────────────────────────────────────────────────────────-─┘
+
+  mode === 'creative' adds  transform: translateX(-50%)
+                            transition: 420ms cubic-bezier(.4, 0, .2, 1)
+
+  Each .hub-surface has its own scroll container, so scroll positions
+  are preserved across mode toggles.
+
+  ActionBar registration: each surface calls useFabAction({branches:
+  active ? [...] : []}, [active, …deps]). Active surface's non-empty
+  branches win in the FabActionContext.
+</pre>
+</div>
+
+</body>
+</html>
