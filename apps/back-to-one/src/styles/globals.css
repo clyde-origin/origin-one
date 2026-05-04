@@ -719,7 +719,11 @@ html.light-mode body .scenemaker-meta-row {
   inset: 0;
   background:
     linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.20) 28%, transparent 45%),
-    url('/images/b21_bg.jpg') center/cover no-repeat;
+    image-set(
+      url('/images/b21_bg.avif') type('image/avif'),
+      url('/images/b21_bg.webp') type('image/webp'),
+      url('/images/b21_bg.jpg') type('image/jpeg')
+    ) center/cover no-repeat;
   pointer-events: none;
 }
 .login-stage-inner {
