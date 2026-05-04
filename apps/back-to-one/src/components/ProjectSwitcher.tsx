@@ -16,7 +16,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter, usePathname } from 'next/navigation'
 import { m, AnimatePresence } from 'framer-motion'
-import { useProjects, useUserProjectFolders, useUserProjectPlacements } from '@/lib/hooks/useOriginOne'
+import { useProjects, useTeamProjectFolders, useTeamProjectPlacements } from '@/lib/hooks/useOriginOne'
 import { haptic } from '@/lib/utils/haptics'
 import { DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 
@@ -36,8 +36,8 @@ export function ProjectSwitcher({
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const { data: projects } = useProjects()
-  const { data: folders } = useUserProjectFolders()
-  const { data: placements } = useUserProjectPlacements()
+  const { data: folders } = useTeamProjectFolders()
+  const { data: placements } = useTeamProjectPlacements()
 
   // Compute destination path: replace the projectId segment, preserve the
   // first sub-segment (e.g. /timeline) but drop deeper segments that may not

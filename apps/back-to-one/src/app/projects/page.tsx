@@ -7,10 +7,10 @@ import { m, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import {
   useProjects, useArchiveProject, useDeleteProject, useUpdateProject,
-  useMeId, useMyTeam, useUserProjectFolders, useUserProjectPlacements,
-  useCreateUserProjectFolder, useUpdateUserProjectFolder, useDeleteUserProjectFolder,
-  useUpsertUserProjectPlacement, useArchivedProjects, useRestoreProject,
-  useArchivedUserProjectFolders, useArchiveUserProjectFolder, useRestoreUserProjectFolder,
+  useMeId, useMyTeam, useTeamProjectFolders, useTeamProjectPlacements,
+  useCreateTeamProjectFolder, useUpdateTeamProjectFolder, useDeleteTeamProjectFolder,
+  useUpsertTeamProjectPlacement, useArchivedProjects, useRestoreProject,
+  useArchivedTeamProjectFolders, useArchiveTeamProjectFolder, useRestoreTeamProjectFolder,
   useMoveProjectToRoot,
   useUpdateTeamName,
 } from '@/lib/hooks/useOriginOne'
@@ -317,15 +317,15 @@ export default function ProjectsPage() {
   // and z-stacking, with mutual exclusion against fan/panel below.
   const meId = useMeId()
   const myTeam = useMyTeam()
-  const { data: folders } = useUserProjectFolders()
-  const { data: placements } = useUserProjectPlacements()
+  const { data: folders } = useTeamProjectFolders()
+  const { data: placements } = useTeamProjectPlacements()
   const allFolders = folders ?? []
   const allPlacements = placements ?? []
 
-  const createFolderMutation = useCreateUserProjectFolder()
-  const updateFolderMutation = useUpdateUserProjectFolder()
-  const deleteFolderMutation = useDeleteUserProjectFolder()
-  const placementMutation = useUpsertUserProjectPlacement()
+  const createFolderMutation = useCreateTeamProjectFolder()
+  const updateFolderMutation = useUpdateTeamProjectFolder()
+  const deleteFolderMutation = useDeleteTeamProjectFolder()
+  const placementMutation = useUpsertTeamProjectPlacement()
   const moveProjectToRootMutation = useMoveProjectToRoot()
 
   const [showSettings, setShowSettings] = useState(false)
@@ -341,7 +341,7 @@ export default function ProjectsPage() {
   const allArchivedProjects = archivedProjects ?? []
   const restoreMutation = useRestoreProject()
 
-  const { data: archivedFolders } = useArchivedUserProjectFolders()
+  const { data: archivedFolders } = useArchivedTeamProjectFolders()
   const allArchivedFolders = archivedFolders ?? []
   // Used by both homeItems (to keep restored projects visible) and the
   // looseArchivedProjects calculation below.
@@ -349,8 +349,8 @@ export default function ProjectsPage() {
     () => new Set(allArchivedFolders.map(f => f.id)),
     [allArchivedFolders]
   )
-  const archiveFolderMutation = useArchiveUserProjectFolder()
-  const restoreFolderMutation = useRestoreUserProjectFolder()
+  const archiveFolderMutation = useArchiveTeamProjectFolder()
+  const restoreFolderMutation = useRestoreTeamProjectFolder()
 
   // Synthetic Archive folder — not a real DB row. Sentinel id never collides
   // with a UUID. Pinned at the very end of the home grid (sortOrder = MAX).

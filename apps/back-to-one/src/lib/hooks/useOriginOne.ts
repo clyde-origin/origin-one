@@ -17,9 +17,9 @@ export const keys = {
   allMilestones:      () => ['allMilestones'] as const,
   allThreads:         (meId: string | null) => ['allThreads', meId ?? ''] as const,
   allChats:           (meId: string | null) => ['allChats', meId ?? ''] as const,
-  userProjectFolders:         (meId: string | null) => ['userProjectFolders', meId ?? ''] as const,
-  archivedUserProjectFolders: (meId: string | null) => ['archivedUserProjectFolders', meId ?? ''] as const,
-  userProjectPlacements:      (meId: string | null) => ['userProjectPlacements', meId ?? ''] as const,
+  teamProjectFolders:         (teamId: string | null) => ['teamProjectFolders', teamId ?? ''] as const,
+  archivedTeamProjectFolders: (teamId: string | null) => ['archivedTeamProjectFolders', teamId ?? ''] as const,
+  teamProjectPlacements:      (teamId: string | null) => ['teamProjectPlacements', teamId ?? ''] as const,
   allResources:       () => ['allResources'] as const,
   shotlistVersions: (projectId: string) => ['shotlistVersions', projectId] as const,
   scenes:         (projectId: string) => ['scenes', projectId] as const,
@@ -1527,46 +1527,52 @@ export function useChatSubscription(
   }, [filter.projectId, filter.channelId, filter.meId, filter.partnerId, qc])
 }
 
-// ── PROJECT-SELECTION FOLDERS ─────────────────────────────
+// ── PROJECT-SELECTION FOLDERS (team-shared) ───────────────
+// Migration 20260504210000 moved these from per-user to team-scoped.
+// Hooks renamed UserProjectXxx → TeamProjectXxx; scoping now uses
+// useMyTeam() so every member of a team sees identical layout on /projects.
 
-export function useUserProjectFolders() {
-  const meId = useMeId()
+export function useTeamProjectFolders() {
+  const team = useMyTeam()
+  const teamId = team?.id ?? null
   return useQuery({
-    queryKey: keys.userProjectFolders(meId),
-    queryFn:  () => db.getUserProjectFolders(meId),
-    enabled:  !!meId,
+    queryKey: keys.teamProjectFolders(teamId),
+    queryFn:  () => db.getTeamProjectFolders(teamId),
+    enabled:  !!teamId,
   })
 }
 
-export function useUserProjectPlacements() {
-  const meId = useMeId()
+export function useTeamProjectPlacements() {
+  const team = useMyTeam()
+  const teamId = team?.id ?? null
   return useQuery({
-    queryKey: keys.userProjectPlacements(meId),
-    queryFn:  () => db.getUserProjectPlacements(meId),
-    enabled:  !!meId,
+    queryKey: keys.teamProjectPlacements(teamId),
+    queryFn:  () => db.getTeamProjectPlacements(teamId),
+    enabled:  !!teamId,
   })
 }
 
-export function useArchivedUserProjectFolders() {
-  const meId = useMeId()
+export function useArchivedTeamProjectFolders() {
+  const team = useMyTeam()
+  const teamId = team?.id ?? null
   return useQuery({
-    queryKey: keys.archivedUserProjectFolders(meId),
-    queryFn:  () => db.getArchivedUserProjectFolders(meId),
-    enabled:  !!meId,
+    queryKey: keys.archivedTeamProjectFolders(teamId),
+    queryFn:  () => db.getArchivedTeamProjectFolders(teamId),
+    enabled:  !!teamId,
   })
 }
 
 function invalidateFolders(qc: ReturnType<typeof useQueryClient>) {
-  qc.invalidateQueries({ queryKey: ['userProjectFolders'] })
-  qc.invalidateQueries({ queryKey: ['archivedUserProjectFolders'] })
-  qc.invalidateQueries({ queryKey: ['userProjectPlacements'] })
+  qc.invalidateQueries({ queryKey: ['teamProjectFolders'] })
+  qc.invalidateQueries({ queryKey: ['archivedTeamProjectFolders'] })
+  qc.invalidateQueries({ queryKey: ['teamProjectPlacements'] })
 }
 
-export function useArchiveUserProjectFolder() {
+export function useArchiveTeamProjectFolder() {
   const qc = useQueryClient()
-  const meId = useMeId()
+  const team = useMyTeam()
   return useMutation({
-    mutationFn: (folderId: string) => db.archiveUserProjectFolder(meId!, folderId),
+    mutationFn: (folderId: string) => db.archiveTeamProjectFolder(team!.id, folderId),
     onSuccess: () => {
       invalidateFolders(qc)
       qc.invalidateQueries({ queryKey: ['projects'] })
@@ -1575,11 +1581,11 @@ export function useArchiveUserProjectFolder() {
   })
 }
 
-export function useRestoreUserProjectFolder() {
+export function useRestoreTeamProjectFolder() {
   const qc = useQueryClient()
-  const meId = useMeId()
+  const team = useMyTeam()
   return useMutation({
-    mutationFn: (folderId: string) => db.restoreUserProjectFolder(meId!, folderId),
+    mutationFn: (folderId: string) => db.restoreTeamProjectFolder(team!.id, folderId),
     onSuccess: () => {
       invalidateFolders(qc)
       qc.invalidateQueries({ queryKey: ['projects'] })
@@ -1588,54 +1594,54 @@ export function useRestoreUserProjectFolder() {
   })
 }
 
-export function useCreateUserProjectFolder() {
+export function useCreateTeamProjectFolder() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: db.createUserProjectFolder,
+    mutationFn: db.createTeamProjectFolder,
     onSuccess:  () => invalidateFolders(qc),
   })
 }
 
-export function useUpdateUserProjectFolder() {
+export function useUpdateTeamProjectFolder() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, fields }: { id: string; fields: { name?: string; color?: string | null; sortOrder?: number } }) =>
-      db.updateUserProjectFolder(id, fields),
+      db.updateTeamProjectFolder(id, fields),
     onSuccess:  () => invalidateFolders(qc),
   })
 }
 
-export function useDeleteUserProjectFolder() {
+export function useDeleteTeamProjectFolder() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: db.deleteUserProjectFolder,
+    mutationFn: db.deleteTeamProjectFolder,
     onSuccess:  () => invalidateFolders(qc),
   })
 }
 
-export function useUpsertUserProjectPlacement() {
+export function useUpsertTeamProjectPlacement() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: db.upsertUserProjectPlacement,
+    mutationFn: db.upsertTeamProjectPlacement,
     onSuccess:  () => invalidateFolders(qc),
   })
 }
 
 export function useMoveProjectToRoot() {
   const qc = useQueryClient()
-  const meId = useMeId()
+  const team = useMyTeam()
   return useMutation({
-    mutationFn: (projectId: string) => db.moveProjectToRoot({ userId: meId!, projectId }),
+    mutationFn: (projectId: string) => db.moveProjectToRoot({ teamId: team!.id, projectId }),
     onSuccess:  () => invalidateFolders(qc),
   })
 }
 
 export function useBulkReorderHomeGrid() {
   const qc = useQueryClient()
-  const meId = useMeId()
+  const team = useMyTeam()
   return useMutation({
     mutationFn: (items: { type: 'folder' | 'project'; id: string; sortOrder: number }[]) =>
-      db.bulkReorderHomeGrid(meId!, items),
+      db.bulkReorderHomeGrid(team!.id, items),
     onSuccess:  () => invalidateFolders(qc),
   })
 }

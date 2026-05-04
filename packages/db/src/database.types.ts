@@ -2449,7 +2449,7 @@ export type Database = {
         }
         Relationships: []
       }
-      UserProjectFolder: {
+      TeamProjectFolder: {
         Row: {
           archived: boolean
           color: string | null
@@ -2457,8 +2457,8 @@ export type Database = {
           id: string
           name: string
           sortOrder: number
+          teamId: string
           updatedAt: string
-          userId: string
         }
         Insert: {
           archived?: boolean
@@ -2467,8 +2467,8 @@ export type Database = {
           id?: string
           name?: string
           sortOrder?: number
+          teamId: string
           updatedAt?: string
-          userId: string
         }
         Update: {
           archived?: boolean
@@ -2477,28 +2477,28 @@ export type Database = {
           id?: string
           name?: string
           sortOrder?: number
+          teamId?: string
           updatedAt?: string
-          userId?: string
         }
         Relationships: [
           {
-            foreignKeyName: "UserProjectFolder_userId_fkey"
-            columns: ["userId"]
+            foreignKeyName: "TeamProjectFolder_teamId_fkey"
+            columns: ["teamId"]
             isOneToOne: false
-            referencedRelation: "User"
+            referencedRelation: "Team"
             referencedColumns: ["id"]
           },
         ]
       }
-      UserProjectPlacement: {
+      TeamProjectPlacement: {
         Row: {
           createdAt: string
           folderId: string | null
           id: string
           projectId: string
           sortOrder: number
+          teamId: string
           updatedAt: string
-          userId: string
         }
         Insert: {
           createdAt?: string
@@ -2506,8 +2506,8 @@ export type Database = {
           id?: string
           projectId: string
           sortOrder?: number
+          teamId: string
           updatedAt?: string
-          userId: string
         }
         Update: {
           createdAt?: string
@@ -2515,29 +2515,29 @@ export type Database = {
           id?: string
           projectId?: string
           sortOrder?: number
+          teamId?: string
           updatedAt?: string
-          userId?: string
         }
         Relationships: [
           {
-            foreignKeyName: "UserProjectPlacement_folderId_fkey"
+            foreignKeyName: "TeamProjectPlacement_folderId_fkey"
             columns: ["folderId"]
             isOneToOne: false
-            referencedRelation: "UserProjectFolder"
+            referencedRelation: "TeamProjectFolder"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "UserProjectPlacement_projectId_fkey"
+            foreignKeyName: "TeamProjectPlacement_projectId_fkey"
             columns: ["projectId"]
             isOneToOne: false
             referencedRelation: "Project"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "UserProjectPlacement_userId_fkey"
-            columns: ["userId"]
+            foreignKeyName: "TeamProjectPlacement_teamId_fkey"
+            columns: ["teamId"]
             isOneToOne: false
-            referencedRelation: "User"
+            referencedRelation: "Team"
             referencedColumns: ["id"]
           },
         ]
