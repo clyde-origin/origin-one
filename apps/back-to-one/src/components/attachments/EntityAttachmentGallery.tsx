@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
+import { m, AnimatePresence, type PanInfo } from 'framer-motion'
 import {
   uploadEntityAttachment,
   listEntityAttachments,
@@ -548,13 +548,13 @@ function Lightbox(p: LightboxProps) {
 
   return (
     <>
-      <motion.div
+      <m.div
         key="lightbox-backdrop"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         onClick={p.onClose}
         style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.78)' }}
       />
-      <motion.div
+      <m.div
         key="lightbox-sheet"
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
@@ -659,7 +659,7 @@ function Lightbox(p: LightboxProps) {
             </p>
           </div>
         </div>
-      </motion.div>
+      </m.div>
     </>
   )
 }

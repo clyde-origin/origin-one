@@ -1,6 +1,6 @@
 'use client'
 
-import { motion, LayoutGroup } from 'framer-motion'
+import { m, LayoutGroup } from 'framer-motion'
 
 export type ArcMode = 'script' | 'shotlist' | 'storyboard'
 
@@ -38,7 +38,7 @@ export function HubArcToggle({ mode, onChange }: Props) {
     <LayoutGroup id="hub-arc-toggle">
       <div className="hub-toggle" role="tablist" aria-label="One Arc mode">
         {rotated.map(seg => (
-          <motion.button
+          <m.button
             key={seg.value}
             layout
             transition={{ type: 'spring', stiffness: 360, damping: 32 }}
@@ -49,7 +49,7 @@ export function HubArcToggle({ mode, onChange }: Props) {
             onClick={() => onChange(seg.value)}
           >
             {seg.label}
-          </motion.button>
+          </m.button>
         ))}
       </div>
     </LayoutGroup>

@@ -15,7 +15,7 @@
 import { useMemo, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter, usePathname } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { useProjects, useUserProjectFolders, useUserProjectPlacements } from '@/lib/hooks/useOriginOne'
 import { haptic } from '@/lib/utils/haptics'
 import { DEFAULT_PROJECT_HEX } from '@origin-one/ui'
@@ -109,14 +109,14 @@ export function ProjectSwitcher({
 function Chevron({ open, small }: { open: boolean; small?: boolean }) {
   const size = small ? 8 : 12
   return (
-    <motion.svg
+    <m.svg
       width={size} height={size} viewBox="0 0 12 12" fill="none"
       animate={{ rotate: open ? 180 : 0 }}
       transition={{ duration: 0.18, ease: [0.32, 0.72, 0, 1] }}
       style={{ marginTop: small ? 0 : 4, opacity: 0.6, flexShrink: 0 }}
     >
       <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </motion.svg>
+    </m.svg>
   )
 }
 
@@ -219,7 +219,7 @@ function ProjectSwitcherPanel({
     <AnimatePresence>
       {open && (
         <>
-          <motion.div
+          <m.div
             key="switcher-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -232,7 +232,7 @@ function ProjectSwitcherPanel({
               zIndex: 60,
             }}
           />
-          <motion.div
+          <m.div
             key="switcher-panel"
             initial={{ y: -12, opacity: 0, scale: 0.98 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
@@ -270,14 +270,14 @@ function ProjectSwitcherPanel({
                     className="flex items-center w-full text-left"
                     style={{ gap: 8, padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 8 }}
                   >
-                    <motion.svg
+                    <m.svg
                       width="10" height="10" viewBox="0 0 12 12" fill="none"
                       animate={{ rotate: isOpen ? 90 : 0 }}
                       transition={{ duration: 0.16, ease: [0.32, 0.72, 0, 1] }}
                       style={{ flexShrink: 0, opacity: 0.6 }}
                     >
                       <path d="M4.5 3L7.5 6L4.5 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </motion.svg>
+                    </m.svg>
                     <span
                       className="rounded-sm flex-shrink-0"
                       style={{ width: 10, height: 8, background: f.color ?? '#6470f3', opacity: 0.85 }}
@@ -289,7 +289,7 @@ function ProjectSwitcherPanel({
                   </button>
                   <AnimatePresence initial={false}>
                     {isOpen && kids.length > 0 && (
-                      <motion.div
+                      <m.div
                         key="kids"
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
@@ -298,7 +298,7 @@ function ProjectSwitcherPanel({
                         style={{ overflow: 'hidden' }}
                       >
                         {kids.map(k => renderProjectRow(k, true))}
-                      </motion.div>
+                      </m.div>
                     )}
                   </AnimatePresence>
                 </div>
@@ -315,7 +315,7 @@ function ProjectSwitcherPanel({
                 No projects
               </div>
             )}
-          </motion.div>
+          </m.div>
         </>
       )}
     </AnimatePresence>

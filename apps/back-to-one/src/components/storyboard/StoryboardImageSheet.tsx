@@ -10,7 +10,7 @@
 // references (e.g. the open detail sheet).
 
 import { useEffect, useRef, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { uploadStoryboardImage } from '@/lib/db/queries'
 import { haptic } from '@/lib/utils/haptics'
@@ -107,7 +107,7 @@ export function StoryboardImageSheet({
       <SheetBody>
         <AnimatePresence mode="wait" initial={false}>
           {mode === 'menu' ? (
-            <motion.div
+            <m.div
               key="menu"
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -133,9 +133,9 @@ export function StoryboardImageSheet({
                 icon={<SparkleIcon />}
               />
               {error && <ErrorRow message={error} />}
-            </motion.div>
+            </m.div>
           ) : (
-            <motion.div
+            <m.div
               key="bria"
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -217,7 +217,7 @@ export function StoryboardImageSheet({
                 </span>
               )}
               {error && <ErrorRow message={error} />}
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
 
