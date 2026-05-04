@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation'
 // same; Enter/Space (or click) navigates to href.
 
 export function SwipePanel<T>({
-  items, label, labelColor, emptyIcon, emptyLabel, emptyContent, href, renderItem,
+  items, label, labelColor, emptyIcon, emptyLabel, emptyContent, href, renderItem, showLabel = true,
 }: {
   items: T[]
   label: string
@@ -20,6 +20,10 @@ export function SwipePanel<T>({
   emptyContent?: React.ReactNode
   href: string
   renderItem: (item: T, index: number) => React.ReactNode
+  /** When false, the inside mono-caps label is not rendered (the parent
+   *  is presumed to provide an external header). aria-label still uses
+   *  `label` for accessibility regardless. Default: true. */
+  showLabel?: boolean
 }) {
   const [page, setPage] = useState(0)
   const touchStart = useRef<number | null>(null)
@@ -66,7 +70,9 @@ export function SwipePanel<T>({
       onKeyDown={onKeyDown}
     >
       <div className="letterbox-top" />
-      <div className="font-mono uppercase" style={{ fontSize: '0.44rem', fontWeight: 700, color: labelColor, letterSpacing: '0.06em', textAlign: 'center', padding: '7px 0 0', position: 'relative', zIndex: 6 }}>{label}</div>
+      {showLabel && (
+        <div className="font-mono uppercase" style={{ fontSize: '0.44rem', fontWeight: 700, color: labelColor, letterSpacing: '0.06em', textAlign: 'center', padding: '7px 0 0', position: 'relative', zIndex: 6 }}>{label}</div>
+      )}
       {items.length > 0 ? (
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           <div style={{ display: 'flex', width: `${items.length * 100}%`, height: '100%', transform: `translateX(-${page * (100 / items.length)}%)`, transition: 'transform 0.28s ease' }}>
