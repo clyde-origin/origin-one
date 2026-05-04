@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/utils/haptics'
 import { MILESTONE_STATUS_HEX, MILESTONE_STATUS_LABEL } from '@/lib/utils/phase'
 import type { MilestoneStatus } from '@/types'
@@ -46,7 +46,7 @@ export function CreateMilestoneSheet({ open, projectId, accent, onSave, onClose 
     <AnimatePresence>
       {open && (
         <>
-          <motion.div
+          <m.div
             key="ms-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -55,7 +55,7 @@ export function CreateMilestoneSheet({ open, projectId, accent, onSave, onClose 
             style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)' }}
           />
 
-          <motion.div
+          <m.div
             key="ms-sheet"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
@@ -134,7 +134,7 @@ export function CreateMilestoneSheet({ open, projectId, accent, onSave, onClose 
                 />
               </div>
             </div>
-          </motion.div>
+          </m.div>
         </>
       )}
     </AnimatePresence>

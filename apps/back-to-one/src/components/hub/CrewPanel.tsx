@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { motion, AnimatePresence, PanInfo } from 'framer-motion'
+import { m, AnimatePresence, PanInfo } from 'framer-motion'
 import {
   useCrew, useRemoveCrewMember, useUpdateCrewMember,
   useCrewTimecardsByWeek,
@@ -1513,7 +1513,7 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
       {open && (
         <>
           {/* Backdrop */}
-          <motion.div
+          <m.div
             className="fixed inset-0 z-50"
             style={{ background: 'rgba(0,0,0,0.5)' }}
             initial={{ opacity: 0 }}
@@ -1524,7 +1524,7 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
           />
 
           {/* Panel */}
-          <motion.div
+          <m.div
             className="fixed bottom-0 left-0 right-0 z-51 bg-surface rounded-t-[20px] border-t border-border2 flex flex-col"
             style={{
               top: 100,
@@ -1592,7 +1592,7 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
             )}
 
             {/* Layer 1 — Crew List */}
-            <motion.div
+            <m.div
               className="flex flex-col flex-1 min-h-0"
               animate={{
                 x: layer !== 'list' ? -20 : 0,
@@ -1665,11 +1665,11 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                   )
                 })}
               </div>
-            </motion.div>
+            </m.div>
 
             {/* Layer 2A — Detail */}
             {layer === 'detail' && selectedMember && (
-              <motion.div
+              <m.div
                 className="flex flex-col flex-1 min-h-0"
                 initial={{ x: '100%' }}
                 animate={{ x: 0 }}
@@ -1699,12 +1699,12 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                     </button>
                   </div>
                 )}
-              </motion.div>
+              </m.div>
             )}
 
             {/* Layer 2B — Producer Overview (Timecards) */}
             {layer === 'overview' && (
-              <motion.div
+              <m.div
                 className="flex flex-col flex-1 min-h-0"
                 initial={{ x: '100%' }}
                 animate={{ x: 0 }}
@@ -1717,12 +1717,12 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                   onBack={() => setLayer('list')}
                   onRowTap={(m) => { setSelectedMember(m); setWeekOrigin('overview'); setLayer('week') }}
                 />
-              </motion.div>
+              </m.div>
             )}
 
             {/* Layer 3 — Individual Week View (Timecards for one member) */}
             {layer === 'week' && selectedMember && (
-              <motion.div
+              <m.div
                 className="flex flex-col flex-1 min-h-0"
                 initial={{ x: '100%' }}
                 animate={{ x: 0 }}
@@ -1737,9 +1737,9 @@ export function CrewPanel({ open, projectId, accent, onClose }: {
                   allCrew={allCrew}
                   onBack={() => setLayer(weekOrigin)}
                 />
-              </motion.div>
+              </m.div>
             )}
-          </motion.div>
+          </m.div>
         </>
       )}
       <InviteCrewSheet

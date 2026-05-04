@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import {
   useProjects, useAllActionItems, useAllMilestones, useToggleActionItem,
 } from '@/lib/hooks/useOriginOne'
@@ -683,7 +683,7 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
       {activePanel && (
         <>
           {/* Panel frame — sits below "Back to One" header and above FAB */}
-          <motion.div
+          <m.div
             key="panel-frame"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -733,7 +733,7 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
 
             {/* Body — content slides horizontally */}
             <AnimatePresence mode="wait" initial={false}>
-              <motion.div
+              <m.div
                 key={activePanel}
                 initial={{ opacity: 0, x: slideDir * 24 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -789,7 +789,7 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
                     {activePanel === 'activity' && <ActivityPanel projects={allProjects} />}
                   </div>
                 )}
-              </motion.div>
+              </m.div>
             </AnimatePresence>
 
             {/* Item detail — slides up over the current panel body. Z is
@@ -800,7 +800,7 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
               projects={allProjects}
               onClose={() => setDetail(null)}
             />
-          </motion.div>
+          </m.div>
         </>
       )}
     </AnimatePresence>

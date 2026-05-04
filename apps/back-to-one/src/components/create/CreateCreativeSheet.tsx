@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/utils/haptics'
 
 interface CreateCreativeSheetProps {
@@ -64,7 +64,7 @@ export function CreateCreativeSheet({ open, projectId, accent, onSelectScene, on
     <AnimatePresence>
       {open && (
         <>
-          <motion.div
+          <m.div
             key="creative-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -73,7 +73,7 @@ export function CreateCreativeSheet({ open, projectId, accent, onSelectScene, on
             style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)' }}
           />
 
-          <motion.div
+          <m.div
             key="creative-sheet"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
@@ -124,7 +124,7 @@ export function CreateCreativeSheet({ open, projectId, accent, onSelectScene, on
                 </button>
               ))}
             </div>
-          </motion.div>
+          </m.div>
         </>
       )}
     </AnimatePresence>

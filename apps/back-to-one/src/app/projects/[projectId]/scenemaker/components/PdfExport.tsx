@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { motion } from 'framer-motion'
+import { m } from 'framer-motion'
 import { StorageImage } from '@/components/ui/StorageImage'
 import type { Scene, Shot } from '@/types'
 import { aspectRatioToCss } from '@/lib/aspect-ratio'
@@ -255,7 +255,7 @@ export function PdfExport({ scenes, shots, projectName, clientName, aspectRatio,
   }
 
   return (
-    <motion.div
+    <m.div
       initial={{ y: '100%' }}
       animate={{ y: 0 }}
       exit={{ y: '100%' }}
@@ -439,6 +439,6 @@ export function PdfExport({ scenes, shots, projectName, clientName, aspectRatio,
           </div>
         ))}
       </div>
-    </motion.div>
+    </m.div>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { motion, AnimatePresence, useMotionValue, useTransform, type PanInfo } from 'framer-motion'
+import { m, AnimatePresence, useMotionValue, useTransform, type PanInfo } from 'framer-motion'
 import { TopsheetContent, type TopsheetContentProps } from './TopsheetContent'
 import { haptic } from '@/lib/utils/haptics'
 
@@ -97,7 +97,7 @@ function TopsheetMobileDrawer({ open, onClose, accent, content, budgetId, active
       {open && (
         <>
           {/* Backdrop */}
-          <motion.div
+          <m.div
             key="topsheet-backdrop"
             className="fixed inset-0"
             style={{
@@ -116,7 +116,7 @@ function TopsheetMobileDrawer({ open, onClose, accent, content, budgetId, active
           />
 
           {/* Drawer */}
-          <motion.div
+          <m.div
             key="topsheet-drawer"
             className="fixed left-0 right-0 bottom-0"
             style={{
@@ -153,7 +153,7 @@ function TopsheetMobileDrawer({ open, onClose, accent, content, budgetId, active
               <TopsheetContent {...content} />
             </div>
             <ExportRow accent={accent} budgetId={budgetId} activeVersionKind={activeVersionKind} />
-          </motion.div>
+          </m.div>
         </>
       )}
     </AnimatePresence>
@@ -166,7 +166,7 @@ function TopsheetDesktopPanel({ open, onClose, accent, content, budgetId, active
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
+        <m.div
           key="topsheet-side-panel"
           className="fixed top-0 bottom-0 right-0"
           style={{
@@ -201,7 +201,7 @@ function TopsheetDesktopPanel({ open, onClose, accent, content, budgetId, active
             <TopsheetContent {...content} />
           </div>
           <ExportRow accent={accent} budgetId={budgetId} activeVersionKind={activeVersionKind} />
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   )

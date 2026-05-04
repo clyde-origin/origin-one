@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
+import { LazyMotion, domAnimation } from 'framer-motion'
 import { SessionProvider } from '@/lib/auth/useSupabaseSession'
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
@@ -19,9 +20,11 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SessionProvider>
-        {children}
-      </SessionProvider>
+      <LazyMotion features={domAnimation} strict>
+        <SessionProvider>
+          {children}
+        </SessionProvider>
+      </LazyMotion>
     </QueryClientProvider>
   )
 }

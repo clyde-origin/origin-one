@@ -21,7 +21,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/utils/haptics'
 import { useKeyboardOpen } from '@/lib/hooks/useKeyboardOpen'
 import type { PanelDetail } from '@/components/projects/PanelDetailSheet'
@@ -456,7 +456,7 @@ export function ActionBarRoot() {
           tap on the empty corner doesn't accidentally trigger anything. */}
       <AnimatePresence>
         {hasOpenLayer && (
-          <motion.div
+          <m.div
             key="root-back"
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -474,7 +474,7 @@ export function ActionBarRoot() {
             >
               <BackIcon />
             </ActionBarButton>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
@@ -501,7 +501,7 @@ export function ActionBarRoot() {
           <ChatIcon />
         </ActionBarButton>
 
-        <motion.div
+        <m.div
           animate={{ rotate: fanOpen ? 45 : 0 }}
           transition={{ type: 'spring', damping: 20, stiffness: 280 }}
         >
@@ -514,7 +514,7 @@ export function ActionBarRoot() {
           >
             <PlusIcon />
           </ActionBarButton>
-        </motion.div>
+        </m.div>
 
         <ActionBarButton
           size={SIZE_SATELLITE}

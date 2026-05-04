@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/utils/haptics'
 
 interface TeamNameSheetProps {
@@ -42,7 +42,7 @@ export function TeamNameSheet({ open, currentName, onClose, onSave }: TeamNameSh
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
+        <m.div
           key="team-name-backdrop"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -56,7 +56,7 @@ export function TeamNameSheet({ open, currentName, onClose, onSave }: TeamNameSh
             display: 'flex', alignItems: 'flex-end',
           }}
         >
-          <motion.div
+          <m.div
             key="team-name-sheet"
             initial={{ y: 80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -123,8 +123,8 @@ export function TeamNameSheet({ open, currentName, onClose, onSave }: TeamNameSh
                 }}
               >{saving ? 'Saving…' : 'Save'}</button>
             </div>
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
       )}
     </AnimatePresence>
   )

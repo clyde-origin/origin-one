@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import {
   useProject, useMilestones, useCreateMilestone, useUpdateMilestone,
   useAddMilestonePerson, useRemoveMilestonePerson, useCrew,
@@ -1099,7 +1099,7 @@ function ShootDayEditSheet({
   }
 
   return (
-    <motion.div
+    <m.div
       initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
       transition={{ type: 'spring', damping: 30, stiffness: 280 }}
       className="fixed inset-x-0 bottom-0 z-50"
@@ -1252,7 +1252,7 @@ function ShootDayEditSheet({
           }}
         >{mode === 'create' ? 'Add' : 'Save'}</button>
       </div>
-    </motion.div>
+    </m.div>
   )
 }
 
@@ -1357,7 +1357,7 @@ function CreateCallSheetSheet({
   }
 
   return (
-    <motion.div
+    <m.div
       initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
       transition={{ type: 'spring', damping: 30, stiffness: 280 }}
       className="fixed inset-x-0 bottom-0 z-50"
@@ -1414,6 +1414,6 @@ function CreateCallSheetSheet({
           {createMut.isPending ? 'Creating…' : 'Create'}
         </button>
       </div>
-    </motion.div>
+    </m.div>
   )
 }

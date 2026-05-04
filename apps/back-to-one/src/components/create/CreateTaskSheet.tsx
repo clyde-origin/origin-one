@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/utils/haptics'
 import { DEPARTMENTS } from '@/lib/utils/phase'
 import type { TeamMember, ActionItemStatus } from '@/types'
@@ -50,7 +50,7 @@ export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose
     <AnimatePresence>
       {open && (
         <>
-          <motion.div
+          <m.div
             key="task-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -59,7 +59,7 @@ export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose
             style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)' }}
           />
 
-          <motion.div
+          <m.div
             key="task-sheet"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
@@ -183,7 +183,7 @@ export function CreateTaskSheet({ open, projectId, accent, crew, onSave, onClose
                 />
               </div>
             </div>
-          </motion.div>
+          </m.div>
         </>
       )}
     </AnimatePresence>

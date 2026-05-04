@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
+import { m, AnimatePresence, type PanInfo } from 'framer-motion'
 import {
   useProject, useInventoryItems, useCrew,
   useCreateInventoryItem, useUpdateInventoryItem, useDeleteInventoryItem,
@@ -242,7 +242,7 @@ function InventoryDetailSheet({
 
   return (
     <>
-      <motion.div
+      <m.div
         key="inv-overlay"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         onClick={onClose}
@@ -252,7 +252,7 @@ function InventoryDetailSheet({
           backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
         }}
       />
-      <motion.div
+      <m.div
         key="inv-sheet"
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
@@ -498,7 +498,7 @@ function InventoryDetailSheet({
             {isCreate ? 'Create item' : 'Save changes'}
           </button>
         </div>
-      </motion.div>
+      </m.div>
 
       {/* Thread "start" sheet — only mounts when the user opens it from the
           TriggerIcon. Lives at sibling depth so it overlays the detail sheet. */}

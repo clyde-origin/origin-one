@@ -8,7 +8,7 @@
 // extension), tap on the dim backdrop, or escape (later).
 
 import { useLayoutEffect, useRef, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { haptic } from '@/lib/utils/haptics'
 import { useLongPress } from '@/lib/hooks/useLongPress'
@@ -148,7 +148,7 @@ export function OpenFolderSheet({
   return (
     <AnimatePresence>
       {open && folder && (
-        <motion.div
+        <m.div
           ref={sheetRef}
           key="open-folder"
           initial={{ opacity: 0, scale: 0.06 }}
@@ -217,7 +217,7 @@ export function OpenFolderSheet({
                 {projects.map((p, i) => {
                   const isDragging = draggingProjectId === p.id
                   return (
-                    <motion.div
+                    <m.div
                       key={p.id}
                       layout
                       transition={{ type: 'spring', stiffness: 380, damping: 32 }}
@@ -242,7 +242,7 @@ export function OpenFolderSheet({
                         onClick={() => handleClick(p)}
                         onLongPress={onProjectLongPress ? () => onProjectLongPress(p) : (() => {})}
                       />
-                    </motion.div>
+                    </m.div>
                   )
                 })}
 
@@ -295,7 +295,7 @@ export function OpenFolderSheet({
               </div>
             )}
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   )

@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import {
   useProjects, useArchiveProject, useDeleteProject, useUpdateProject,
@@ -765,7 +765,7 @@ export default function ProjectsPage() {
                   const isFolderDragging = dragKindRef.current === 'folder' && dragProjectId === it.id
                   const showInsertLine = !!dragProjectId && dragProjectId !== it.id && dragTargetIdx === i
                   return (
-                    <motion.div
+                    <m.div
                       key={`folder-${it.id}`}
                       layout
                       transition={{ type: 'spring', stiffness: 380, damping: 32 }}
@@ -813,7 +813,7 @@ export default function ProjectsPage() {
                           openFolder(it.id)
                         }}
                       />
-                    </motion.div>
+                    </m.div>
                   )
                 }
                 // project slate render — same pattern as existing
@@ -821,7 +821,7 @@ export default function ProjectsPage() {
                 const isDragging = dragProjectId === p.id
                 const showInsertLine = !!dragProjectId && dragProjectId !== p.id && dragTargetIdx === i
                 return (
-                  <motion.div
+                  <m.div
                     key={`project-${p.id}`}
                     layout
                     transition={{ type: 'spring', stiffness: 380, damping: 32 }}
@@ -870,7 +870,7 @@ export default function ProjectsPage() {
                         zIndex: 5,
                       }} />
                     )}
-                  </motion.div>
+                  </m.div>
                 )
               })}
 
@@ -936,7 +936,7 @@ export default function ProjectsPage() {
       {/* ══ SINGLE OVERLAY — dims grid, always below panel (z3) ══ */}
       <AnimatePresence>
         {(activePanel || selFabOpen || threadsOpen || chatOpen || resourcesOpen || openFolderId) && (
-          <motion.div key="dim-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
+          <m.div key="dim-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
             onClick={() => { closeFan(); setActivePanel(null); closeThreads(); closeChat(); closeResources(); closeOpenFolder() }}
             style={{
               position: 'fixed', inset: 0, zIndex: 3,
@@ -973,7 +973,7 @@ export default function ProjectsPage() {
         ]).map((b) => {
           const isInactive = activePanel !== null && activePanel !== b.panel
           return (
-          <motion.div key={b.panel}
+          <m.div key={b.panel}
             initial={false}
             animate={selFabOpen
               ? { opacity: isInactive ? 0.35 : 1, scale: 1, x: b.tx, y: b.ty }
@@ -1004,7 +1004,7 @@ export default function ProjectsPage() {
                 immediately on close. Absolute-positioned beneath the
                 button so it never reflows the arc. pointerEvents: none
                 so taps still hit the button. */}
-            <motion.div
+            <m.div
               initial={false}
               animate={{ opacity: selFabOpen ? 1 : 0 }}
               transition={{ duration: 0.18, delay: selFabOpen ? b.delay + 0.06 : 0 }}
@@ -1021,8 +1021,8 @@ export default function ProjectsPage() {
               }}
             >
               {b.label}
-            </motion.div>
-          </motion.div>
+            </m.div>
+          </m.div>
           )
         })}
 
