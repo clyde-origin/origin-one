@@ -2922,6 +2922,8 @@ html.light-mode body .wf-node-deliverable-row {
   letter-spacing: -0.005em;
   line-height: 1.05;
   max-width: 100%;
+  word-break: break-word;
+}
 /* ===== Scenemaker V2.1 (PR: reskin/v21-scenemaker) =====
    Polish on top of #140 (Scenemaker V2): two-line shotlist row
    description, clean clip on the storyboard cell description, and
@@ -2977,8 +2979,6 @@ html.light-mode body .wf-node-deliverable-row {
 .slate-folder-card { aspect-ratio: 1 / 1; }
 
 /* ===== end Project Selection V2.1 ===== */
-  word-break: break-word;
-}
 
 /* Storyboard 3-up cell description — line-clamp alone leaves a 3rd-line
    top-half rendering past the cell bottom edge into the next row's gap
