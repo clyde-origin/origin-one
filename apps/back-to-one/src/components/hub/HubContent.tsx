@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useHubMode } from '@/lib/hooks/useHubMode'
 import { HubModeToggle } from './HubModeToggle'
+import { HubArcToggle, type ArcMode } from './HubArcToggle'
 import { useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getShotsByProject } from '@/lib/db/queries'
@@ -360,6 +361,9 @@ export function HubContent({ projectId }: { projectId: string }) {
   const searchParams = useSearchParams()
   const splitEnabled = searchParams?.get('hub') === 'split'
   const { mode, setMode } = useHubMode(projectId)
+  // Arc mode is local to the Creative surface — does NOT persist
+  // (per spec: navigation aid, not a mode). Defaults to 'script'.
+  const [arcMode, setArcMode] = useState<ArcMode>('script')
 
   // Hub registers a 3-branch + with the global ActionBar. Branches fan out
   // from the +. Project accent flows through the milestone branch's icon —
@@ -819,8 +823,10 @@ export function HubContent({ projectId }: { projectId: string }) {
 
           </>}
 
-{(!splitEnabled || mode === 'creative') && <>
-{/* 3. CREATIVE SECTION — item 9: no chevron on header */}
+{!splitEnabled && <>
+{/* 3. CREATIVE SECTION — non-split only. In split mode, the spec-aligned
+       Creative-split block below replaces this with HubArcToggle + locked
+       arc panel + Tone (full-width) + LCA row. */}
           <div>
             <ModuleHeader name="Creative" meta={`${allScenes.length > 0 ? `SC.${allScenes[0].num}` : ''}${allMoodRefs.length > 0 ? ' · Tone' : ''}${allLocations.length > 0 ? ` · ${allLocations.length} locations` : ''}`} />
 
@@ -975,6 +981,213 @@ export function HubContent({ projectId }: { projectId: string }) {
           </div>
 
           </>}
+
+{splitEnabled && mode === 'creative' && <>
+          {/* CREATIVE SPLIT SURFACE — spec-aligned layout:
+              HubArcToggle (Script/Shotlist/Storyboard) → locked 220px arc panel
+              → Tone (full-width) → LCA 3-up SwipePanel row. */}
+          <HubArcToggle mode={arcMode} onChange={setArcMode} />
+
+          {/* Locked-height arc panel — content swaps per arcMode; height
+              stays 220px so surfaces below never shift. Footer "Open in
+              One Arc · X →" pill pinned to bottom of the locked box. */}
+          <div
+            className="glass-tile"
+            style={{ position: 'relative', height: 220, overflow: 'hidden', marginTop: 8, padding: 0 }}
+          >
+            {arcMode === 'script' && (
+              <div style={{ position: 'absolute', inset: 0, padding: '12px 14px 38px', overflow: 'hidden' }}>
+                {allScenes.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {allScenes.slice(0, 5).map((sc: any) => (
+                      <div key={sc.id}>
+                        <div className="font-mono uppercase" style={{ fontSize: '0.42rem', color: projectColor, letterSpacing: '0.06em', marginBottom: 2 }}>
+                          {sc.title ? sc.title : `SC.${sc.num ?? ''}`}
+                        </div>
+                        <div style={{ fontSize: '0.60rem', color: 'rgba(221,221,232,0.85)', lineHeight: 1.5 }}>
+                          {sc.description ?? ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a' }}>No script yet</div>
+                )}
+                {/* Bottom fade-out mask for top-anchored prose overflow */}
+                <div style={{ position: 'absolute', bottom: 32, left: 0, right: 0, height: 44, background: 'linear-gradient(to bottom, transparent, rgba(4,4,10,0.95))', pointerEvents: 'none' }} />
+              </div>
+            )}
+            {arcMode === 'shotlist' && (
+              <div style={{ position: 'absolute', inset: 0, padding: '12px 14px 38px', overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                {allShots.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {allShots.slice(0, 16).map((shot: any) => (
+                      <div key={shot.id} style={{ display: 'flex', gap: 8, padding: '5px 8px', background: 'rgba(255,255,255,0.025)', borderRadius: 5, alignItems: 'center' }}>
+                        <span className="font-mono" style={{ fontSize: '0.46rem', fontWeight: 700, color: projectColor, letterSpacing: '0.04em', width: 28, flexShrink: 0 }}>{shot.shotNumber}</span>
+                        <span style={{ fontSize: '0.52rem', color: 'rgba(221,221,232,0.78)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shot.description ?? ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a' }}>No shots yet</div>
+                )}
+              </div>
+            )}
+            {arcMode === 'storyboard' && (
+              <div style={{ position: 'absolute', inset: 0, padding: '12px 14px 38px', overflow: 'hidden' }}>
+                {allShots.filter((s: any) => s.imageUrl).length > 0 ? (
+                  <div style={{ display: 'flex', gap: 8, height: '100%', overflowX: 'auto', alignItems: 'center', WebkitOverflowScrolling: 'touch' }}>
+                    {allShots.filter((s: any) => s.imageUrl).slice(0, 8).map((shot: any) => (
+                      <div key={shot.id} style={{ position: 'relative', flex: '0 0 auto', height: 140, aspectRatio: '16/9', borderRadius: 6, overflow: 'hidden', background: 'rgba(255,255,255,0.04)' }}>
+                        <StorageImage url={shot.imageUrl} alt={shot.shotNumber} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <div style={{ position: 'absolute', top: 4, left: 4, fontSize: '0.42rem', fontWeight: 700, color: projectColor, background: 'rgba(4,4,10,0.7)', borderRadius: 4, padding: '1px 5px' }}>{shot.shotNumber}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="font-mono" style={{ fontSize: '0.46rem', color: '#62627a' }}>No storyboard yet</div>
+                )}
+              </div>
+            )}
+            {/* Footer pill — pinned to bottom edge of the locked box */}
+            <button
+              type="button"
+              onClick={() => router.push(`/projects/${projectId}/scenemaker?mode=${arcMode}`)}
+              className="font-mono uppercase"
+              style={{
+                position: 'absolute', bottom: 6, right: 12, zIndex: 2,
+                fontSize: '0.46rem', letterSpacing: '0.10em',
+                color: projectColor, background: 'transparent', border: 'none', cursor: 'pointer',
+                padding: '4px 6px',
+              }}
+            >
+              Open in One Arc · {arcMode === 'script' ? 'Script' : arcMode === 'shotlist' ? 'Shotlist' : 'Storyboard'} ›
+            </button>
+          </div>
+
+          {/* Tone — full width in split-creative mode (was 50/50 with
+              SceneMaker in the stacked layout). Lifts SwipePanel
+              configuration verbatim from the non-split section. */}
+          <div style={{ height: 140, marginTop: 12 }}>
+            <SwipePanel
+              items={allMoodRefs}
+              label="Tone"
+              labelColor={projectColor}
+              href={`/projects/${projectId}/moodboard`}
+              emptyContent={
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: 0.35 }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                    <rect x="2" y="4" width="20" height="16" rx="2" stroke="#62627a" strokeWidth="1.3" />
+                    <circle cx="8" cy="10" r="2" stroke="#62627a" strokeWidth="1.2" />
+                    <path d="M2 16l5-4 3 2 4-5 8 7" stroke="#62627a" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a' }}>Set the tone</span>
+                </div>
+              }
+              renderItem={(ref) => (
+                ref.imageUrl ? (
+                  <StorageImage url={ref.imageUrl} alt={ref.title} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }}
+                    placeholder={<div style={{ width: '100%', height: '100%', background: ref.gradient || '#0a0a12', opacity: 0.7 }} />} />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', background: ref.gradient || '#0a0a12', opacity: 0.7 }} />
+                )
+              )}
+            />
+          </div>
+
+          {/* LCA row — sacred shapes per memory rule. Lifted verbatim
+              from the non-split Creative section (Locations + Casting + Art). */}
+          <div className="lca-row" style={{ marginTop: 12 }}>
+            <SwipePanel
+              items={allLocations}
+              label="Locations"
+              labelColor="#e8a020"
+              emptyIcon="📍"
+              href={`/projects/${projectId}/locations`}
+              renderItem={(loc: any) => (
+                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                  <EntityAttachmentCover
+                    projectId={projectId}
+                    attachedToType="location"
+                    attachedToId={loc.id}
+                    size="100%"
+                    alt={loc.name}
+                  />
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '4px 6px', background: 'linear-gradient(transparent, rgba(0,0,0,0.7))' }}>
+                    <span style={{ fontSize: '0.38rem', fontWeight: 600, color: '#dddde8' }}>{loc.name}</span>
+                  </div>
+                </div>
+              )}
+            />
+            <SwipePanel
+              items={allCast.length > 0 ? [allCast] : []}
+              label="Casting"
+              labelColor="#00b894"
+              emptyIcon="🎭"
+              href={`/projects/${projectId}/casting`}
+              renderItem={(roles: any[]) => {
+                const sorted = [...roles].sort((a, b) => Number(b.cast) - Number(a.cast))
+                const visible = sorted.slice(0, 6)
+                const remaining = sorted.length - visible.length
+                return (
+                  <div style={{ width: '100%', height: '100%', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, padding: '6px 8px 10px' }}>
+                    {visible.map((role: any, i: number) => {
+                      const t = role.talent
+                      return (
+                        <div key={role.id ?? i} style={{
+                          position: 'relative', aspectRatio: '1 / 1', borderRadius: '50%',
+                          overflow: 'hidden',
+                          border: t ? '1px solid rgba(0,184,148,0.35)' : '1px dashed rgba(255,255,255,0.12)',
+                          background: 'rgba(255,255,255,0.04)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {t?.imageUrl ? (
+                            <StorageImage url={t.imageUrl} alt={t.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <span className="font-mono" style={{ fontSize: '0.42rem', fontWeight: 700, color: t ? '#00b894' : 'rgba(255,255,255,0.18)' }}>
+                              {t?.initials ?? '?'}
+                            </span>
+                          )}
+                          {i === 5 && remaining > 0 && (
+                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(4,4,10,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dddde8', fontSize: '0.46rem', fontWeight: 700 }}>
+                              +{remaining}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              }}
+            />
+            <SwipePanel
+              items={['wardrobe', 'props', 'hmu'] as const}
+              label="Art"
+              labelColor="#6470f3"
+              emptyIcon="🎨"
+              href={`/projects/${projectId}/art`}
+              renderItem={(cat: string) => {
+                const entityType = cat === 'props' ? 'prop' : cat
+                const catItems = allArt.filter(a => a.type === entityType)
+                const first = catItems[0]
+                const imgUrl = (first?.metadata as { imageUrl?: string } | null)?.imageUrl
+                const catLabel = cat === 'hmu' ? 'HMU' : cat === 'wardrobe' ? 'Wardrobe' : 'Props'
+                return (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 6 }}>
+                    {imgUrl ? (
+                      <StorageImage url={imgUrl} alt={catLabel} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
+                    ) : (
+                      <>
+                        <span className="font-mono uppercase" style={{ fontSize: '0.38rem', color: '#6470f3', letterSpacing: '0.06em' }}>{catLabel}</span>
+                        <span className="font-mono" style={{ fontSize: '0.30rem', color: '#62627a', marginTop: 2 }}>{catItems.length > 0 ? `${catItems.length} items` : 'Empty'}</span>
+                      </>
+                    )}
+                  </div>
+                )
+              }}
+            />
+          </div>
+</>}
 
 {(!splitEnabled || mode === 'production') && <>
 {/* 4. INVENTORY — featured department chips strip + View all */}
