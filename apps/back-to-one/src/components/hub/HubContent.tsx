@@ -60,6 +60,28 @@ function clickableProps(handler: () => void) {
   }
 }
 
+// Some scene.description values are plain text (older scenes); newer
+// scenes carry a JSON-encoded array of script blocks from the rich
+// editor: [{ type, id, content }, …]. The Hub script preview wants
+// plain text only — extract block.content strings and join them.
+function previewScriptText(desc: string | null | undefined): string {
+  if (!desc) return ''
+  const trimmed = desc.trim()
+  if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) return desc
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map((b: any) => typeof b?.content === 'string' ? b.content : '')
+        .filter(Boolean)
+        .join(' ')
+    }
+  } catch {
+    // not JSON — fall through and return raw
+  }
+  return desc
+}
+
 function hexToRgb(hex: string | null | undefined): [number, number, number] {
   const h = hex || '#444444'
   return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
@@ -1082,7 +1104,7 @@ export function HubContent({ projectId }: { projectId: string }) {
                           {sc.title ? sc.title : `SC.${sc.num ?? ''}`}
                         </div>
                         <div style={{ fontSize: '0.60rem', color: 'rgba(221,221,232,0.85)', lineHeight: 1.5 }}>
-                          {sc.description ?? ''}
+                          {previewScriptText(sc.description)}
                         </div>
                       </div>
                     ))}
