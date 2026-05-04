@@ -1,5 +1,3 @@
-'use client'
-
 // Shared cross-project Thread row, originally extracted from
 // GlobalPanels.tsx > ThreadsPanel. Used by /projects/threads to render
 // the company-wide threads list at full page scale. The compact panel

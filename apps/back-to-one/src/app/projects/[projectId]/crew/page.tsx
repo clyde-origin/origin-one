@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useProject, useCrew } from '@/lib/hooks/useOriginOne'
 
-import { CrewAvatar } from '@/components/ui'
+import { CrewAvatar } from '@/components/ui/client'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { InviteCrewSheet } from '@/components/crew/InviteCrewSheet'

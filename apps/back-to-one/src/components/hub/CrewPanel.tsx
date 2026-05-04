@@ -8,7 +8,7 @@ import {
   useCreateTimecard, useUpdateTimecard, useSubmitTimecard, useApproveTimecard, useReopenTimecard,
   useProject, useMeId,
 } from '@/lib/hooks/useOriginOne'
-import { CrewAvatar } from '@/components/ui'
+import { CrewAvatar } from '@/components/ui/client'
 import { haptic } from '@/lib/utils/haptics'
 import { DEPARTMENTS, DEPT_COLORS } from '@/lib/utils/phase'
 import { formatUSD } from '@/lib/utils/currency'

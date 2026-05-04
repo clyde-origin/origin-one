@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
-import { CrewAvatar } from '@/components/ui'
+import { CrewAvatar } from '@/components/ui/client'
 import { useMe, useUploadAvatar } from '@/lib/hooks/useOriginOne'
 import { createBrowserAuthClient } from '@origin-one/auth'
 import { haptic } from '@/lib/utils/haptics'

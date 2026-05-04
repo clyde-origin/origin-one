@@ -1,5 +1,3 @@
-'use client'
-
 import { formatTime, formatTimeRange } from '@/lib/schedule/format-time'
 import type { CallSheetViewModel } from '@/lib/call-sheet/derive-view-model'
 
