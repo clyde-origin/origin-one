@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect, memo } from 'react'
+import { EMPTY_ARRAY } from '@/lib/empty-collections'
 import { AnimatePresence } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -524,16 +525,52 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
   }, [shots, sortMode])
   const flatIds = useMemo(() => flatShots.map(s => s.id), [flatShots])
 
+  // O(1) lookups for scene/shot relations. Built once per (scenes, shots)
+  // change so the per-row render path doesn't re-scan the full lists.
+  const sceneById = useMemo(() => {
+    const m = new Map<string, Scene>()
+    for (const sc of scenes) m.set(sc.id, sc)
+    return m
+  }, [scenes])
+
+  const shotsByScene = useMemo(() => {
+    const m = new Map<string, Shot[]>()
+    for (const s of shots) {
+      const arr = m.get(s.sceneId)
+      if (arr) arr.push(s)
+      else m.set(s.sceneId, [s])
+    }
+    for (const arr of m.values()) arr.sort((a, b) => a.sortOrder - b.sortOrder)
+    return m
+  }, [shots])
+
+  const shotIndexInScene = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const arr of shotsByScene.values()) {
+      for (let i = 0; i < arr.length; i++) m.set(arr[i].id, i)
+    }
+    return m
+  }, [shotsByScene])
+
+  const shotById = useMemo(() => {
+    const m = new Map<string, Shot>()
+    for (const s of shots) m.set(s.id, s)
+    return m
+  }, [shots])
+
+  const onUpdateShotDesc = useCallback((shotId: string, description: string) => {
+    onUpdateShot(shotId, { description })
+  }, [onUpdateShot])
+
   // Auto-numbered display string per scene (1A, 1B, 1C, …). Pure projection
   // off (sceneId, sortOrder) — never touches the persisted shot.shotNumber.
   const getShotDisplayNumber = useCallback((shot: Shot) => {
-    const scene = scenes.find(s => s.id === shot.sceneId)
+    const scene = sceneById.get(shot.sceneId)
     const prefix = scene?.sceneNumber ?? '1'
-    const sceneShots = shots.filter(s => s.sceneId === shot.sceneId).sort((a, b) => a.sortOrder - b.sortOrder)
-    const idx = sceneShots.findIndex(s => s.id === shot.id)
+    const idx = shotIndexInScene.get(shot.id) ?? 0
     const letter = String.fromCharCode(65 + Math.max(0, idx))
     return `${prefix}${letter}`
-  }, [scenes, shots])
+  }, [sceneById, shotIndexInScene])
 
   // Live projected display number during drag — driven by dnd-kit's active/over
   // ids. Replaces the old hand-rolled rect-based recomputation.
@@ -559,23 +596,23 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
       // Active shot inherits sceneId from its neighbor at landing position
       const ni = virtual.indexOf(activeId)
       const neighborId = virtual[ni === 0 ? 1 : ni - 1]
-      const neighbor = shots.find(x => x.id === neighborId)
+      const neighbor = shotById.get(neighborId)
       activeSceneId = neighbor?.sceneId ?? shot.sceneId
     }
 
     let letterIdx = 0
     for (const id of virtual) {
-      const sid = id === activeId ? activeSceneId : (shots.find(x => x.id === id)?.sceneId ?? '')
+      const sid = id === activeId ? activeSceneId : (shotById.get(id)?.sceneId ?? '')
       if (sid !== sceneId) continue
       if (id === shot.id) {
-        const scene = scenes.find(s => s.id === sceneId)
+        const scene = sceneById.get(sceneId)
         const prefix = scene?.sceneNumber ?? '1'
         return `${prefix}${String.fromCharCode(65 + letterIdx)}`
       }
       letterIdx++
     }
     return getShotDisplayNumber(shot)
-  }, [activeId, overId, flatIds, flatShots, shots, scenes, getShotDisplayNumber])
+  }, [activeId, overId, flatIds, flatShots, shotById, sceneById, getShotDisplayNumber])
 
   // Scene header that's currently being dragged over (visual cue)
   const dragOverSceneId = useMemo<string | null>(
@@ -698,7 +735,7 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
   )
 
   const renderShootCard = (shot: Shot) => {
-    const scene = scenes.find(s => s.id === shot.sceneId)
+    const scene = sceneById.get(shot.sceneId)
     const sceneColor = scene ? getSceneColor(parseInt(scene.sceneNumber), totalScenes) : '#c45adc'
     return (
       <SortableShotRow
@@ -710,8 +747,8 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
         wiggleMode={wiggleMode}
         showThumbnail={!wiggleMode}
         descBehavior="tap-opens-detail"
-        onTap={() => onTapShot(shot)}
-        onTapThumbnail={() => onTapThumbnail(shot)}
+        onTapShot={onTapShot}
+        onTapShotThumbnail={onTapThumbnail}
         threadEntry={threadByShotId?.get(shot.id)}
       />
     )
@@ -785,7 +822,7 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
           )}
 
           {scenes.map(scene => {
-            const sceneShots = shots.filter(s => s.sceneId === scene.id).sort((a, b) => a.sortOrder - b.sortOrder)
+            const sceneShots = shotsByScene.get(scene.id) ?? (EMPTY_ARRAY as readonly Shot[]) as Shot[]
             const sceneColor = getSceneColor(parseInt(scene.sceneNumber), totalScenes)
             const isOpen = !collapsedScenes.has(scene.id)
 
@@ -840,14 +877,14 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
                             wiggleMode={wiggleMode}
                             showThumbnail={!wiggleMode}
                             descBehavior="tap-edits-inline"
-                            onTap={() => onTapShot(shot)}
-                            onTapThumbnail={() => onTapThumbnail(shot)}
+                            onTapShot={onTapShot}
+                            onTapShotThumbnail={onTapThumbnail}
                             threadEntry={threadByShotId?.get(shot.id)}
                             isEditingDesc={editingDescShotId === shot.id}
                             editingDescValue={editingDescValue}
                             setEditingDescValue={setEditingDescValue}
                             setEditingDescShotId={setEditingDescShotId}
-                            onUpdateDesc={(v) => onUpdateShot(shot.id, { description: v })}
+                            onUpdateShotDesc={onUpdateShotDesc}
                           />
                         </div>
                       )
@@ -868,10 +905,10 @@ function ShotlistView({ scenes, shots, accent, sortMode = 'story', threadByShotI
 
 type DescBehavior = 'tap-opens-detail' | 'tap-edits-inline'
 
-function SortableShotRow({
+const SortableShotRow = memo(function SortableShotRow({
   shot, sceneColor, displayNum, blinking, wiggleMode, showThumbnail, descBehavior,
-  onTap, onTapThumbnail, threadEntry,
-  isEditingDesc, editingDescValue, setEditingDescValue, setEditingDescShotId, onUpdateDesc,
+  onTapShot, onTapShotThumbnail, threadEntry,
+  isEditingDesc, editingDescValue, setEditingDescValue, setEditingDescShotId, onUpdateShotDesc,
 }: {
   shot: Shot
   sceneColor: string
@@ -880,14 +917,14 @@ function SortableShotRow({
   wiggleMode: boolean
   showThumbnail: boolean
   descBehavior: DescBehavior
-  onTap: () => void
-  onTapThumbnail: () => void
+  onTapShot: (shot: Shot) => void
+  onTapShotThumbnail: (shot: Shot) => void
   threadEntry?: { count: number; unread: boolean }
   isEditingDesc?: boolean
   editingDescValue?: string
   setEditingDescValue?: (v: string) => void
   setEditingDescShotId?: (id: string | null) => void
-  onUpdateDesc?: (description: string) => void
+  onUpdateShotDesc?: (shotId: string, description: string) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: shot.id })
 
@@ -940,25 +977,25 @@ function SortableShotRow({
         <span
           className={`scenemaker-shot-num cursor-pointer${blinking ? ' number-blink' : ''}`}
           style={{ ['--tag-rgb' as string]: `${sr}, ${sg}, ${sb}` } as React.CSSProperties}
-          onClick={() => !wiggleMode && onTap()}>
+          onClick={() => !wiggleMode && onTapShot(shot)}>
           {displayNum}
         </span>
 
         {shot.size && (
           <span className="scenemaker-aspect-label cursor-pointer"
-            onClick={() => !wiggleMode && onTap()}>
+            onClick={() => !wiggleMode && onTapShot(shot)}>
             {SIZE_ABBREV[shot.size] ?? shot.size}
           </span>
         )}
 
-        {descBehavior === 'tap-edits-inline' && isEditingDesc && setEditingDescValue && setEditingDescShotId && onUpdateDesc ? (
+        {descBehavior === 'tap-edits-inline' && isEditingDesc && setEditingDescValue && setEditingDescShotId && onUpdateShotDesc ? (
           <input
             autoFocus
             value={editingDescValue ?? ''}
             onChange={e => setEditingDescValue(e.target.value)}
             onBlur={() => {
               const trimmed = (editingDescValue ?? '').trim()
-              if (trimmed !== (shot.description ?? '')) onUpdateDesc(trimmed)
+              if (trimmed !== (shot.description ?? '')) onUpdateShotDesc(shot.id, trimmed)
               setEditingDescShotId(null)
             }}
             onKeyDown={e => {
@@ -979,7 +1016,7 @@ function SortableShotRow({
                 setEditingDescValue(shot.description ?? '')
                 setEditingDescShotId(shot.id)
               } else {
-                onTap()
+                onTapShot(shot)
               }
             }}>
             {shot.description || '—'}
@@ -989,7 +1026,7 @@ function SortableShotRow({
         {showThumbnail && (
           <div className="flex-shrink-0 overflow-hidden cursor-pointer"
             style={{ width: 72, height: 44, borderRadius: 6, marginLeft: 'auto' }}
-            onClick={onTapThumbnail}>
+            onClick={() => onTapShotThumbnail(shot)}>
             {shot.imageUrl ? (
               <StorageImage url={shot.imageUrl} alt={displayNum} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
@@ -1007,7 +1044,7 @@ function SortableShotRow({
       </div>
     </div>
   )
-}
+})
 
 // ── SceneHeaderDroppable ─ scene header that doubles as a drop target ──
 
