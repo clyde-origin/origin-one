@@ -285,30 +285,41 @@ const SwipeableSceneMaker = memo(function SwipeableSceneMaker({
 
 export function HubContent({ projectId }: { projectId: string }) {
   const router = useRouter()
+
+  // Stage Hub data fetching: above-fold tiles (project header, crew avatars,
+  // Timeline, Budget, Action Items) hydrate immediately; below-fold tiles
+  // (Creative arc/Tone, LCA row, Workflow, Inventory, threads) wait for
+  // post-mount so they don't compete with the priority queries on first
+  // paint. Same loading sequence the user already sees — just spread out.
+  const [hasMounted, setHasMounted] = useState(false)
+  useEffect(() => { setHasMounted(true) }, [])
+
   const { data: project, isLoading: loadingProject } = useProject(projectId)
   const colors = deriveProjectColors(project?.color || getProjectColor(projectId) || DEFAULT_PROJECT_HEX)
   const projectColor = colors.primary
   const [pr, pg, pb] = hexToRgb(colors.primary)
+  // ── ABOVE-FOLD (priority — fire on first render, gated only by projectId)
   const { data: actionItems, isLoading: loadingAI } = useActionItems(projectId)
   const { data: milestones, isLoading: loadingMS } = useMilestones(projectId)
   const { data: crew, isLoading: loadingCrew } = useCrew(projectId)
+  const { data: shootDays } = useShootDays(projectId)
+  const { data: budgetData } = useBudget(projectId)
+  // ── BELOW-FOLD (lazy — gated on hasMounted; resolve a tick after first paint)
   // getShotsByProject returns Scene rows with Shot(*) attached, sorted
   // the same way useScenes would — so a separate scenes fetch was a
   // duplicate request. Derive allScenes from this single source.
   const { data: scenesWithShots } = useQuery({
     queryKey: ['shotsByProject', projectId],
     queryFn: () => getShotsByProject(projectId),
-    enabled: !!projectId,
+    enabled: !!projectId && hasMounted,
   })
-  const { data: moodRefs } = useMoodboard(projectId)
-  const { data: threads } = useThreadPreviews(projectId)
-  const { data: locations } = useLocations(projectId)
-  const { data: artItems } = useArtItems(projectId)
-  const { data: castRoles } = useCastRoles(projectId)
-  const { data: workflowNodes } = useWorkflowNodes(projectId)
-  const { data: inventoryItems } = useInventoryItems(projectId)
-  const { data: shootDays } = useShootDays(projectId)
-  const { data: budgetData } = useBudget(projectId)
+  const { data: moodRefs } = useMoodboard(projectId, { enabled: hasMounted })
+  const { data: threads } = useThreadPreviews(projectId, { enabled: hasMounted })
+  const { data: locations } = useLocations(projectId, { enabled: hasMounted })
+  const { data: artItems } = useArtItems(projectId, { enabled: hasMounted })
+  const { data: castRoles } = useCastRoles(projectId, { enabled: hasMounted })
+  const { data: workflowNodes } = useWorkflowNodes(projectId, { enabled: hasMounted })
+  const { data: inventoryItems } = useInventoryItems(projectId, { enabled: hasMounted })
 
   // Warm Next.js's route cache for every subpage the Hub can navigate to.
   // The Hub uses router.push() (not <Link>), so without this every first

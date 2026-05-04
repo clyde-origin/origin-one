@@ -569,12 +569,12 @@ export function useThreads(projectId: string) {
 // `content` body. Use everywhere the consumer only needs unread badges and
 // message counts (Hub, useThreadsByEntity, scenemaker). Reserves the full
 // fetch for the threads page itself.
-export function useThreadPreviews(projectId: string) {
+export function useThreadPreviews(projectId: string, options?: { enabled?: boolean }) {
   const meId = useMeId()
   return useQuery({
     queryKey: keys.threadPreviews(projectId, meId),
     queryFn:  () => db.getThreadPreviews(projectId, meId),
-    enabled:  !!projectId,
+    enabled:  !!projectId && (options?.enabled ?? true),
   })
 }
 
@@ -668,11 +668,11 @@ export function useCreateGlobalResource() {
 
 // ── WORKFLOW ───────────────────────────────────────────────
 
-export function useWorkflowNodes(projectId: string) {
+export function useWorkflowNodes(projectId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: keys.workflowNodes(projectId),
     queryFn:  () => db.getWorkflowNodes(projectId),
-    enabled:  !!projectId,
+    enabled:  !!projectId && (options?.enabled ?? true),
   })
 }
 
@@ -774,11 +774,11 @@ export function useDeleteDeliverable(projectId: string) {
 
 // ── LOCATIONS ──────────────────────────────────────────────
 
-export function useLocations(projectId: string) {
+export function useLocations(projectId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: keys.locations(projectId),
     queryFn:  () => db.getLocations(projectId),
-    enabled:  !!projectId,
+    enabled:  !!projectId && (options?.enabled ?? true),
   })
 }
 
@@ -809,11 +809,11 @@ export function useDeleteLocation(projectId: string) {
 
 // ── INVENTORY ─────────────────────────────────────────────
 
-export function useInventoryItems(projectId: string) {
+export function useInventoryItems(projectId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: keys.inventoryItems(projectId),
     queryFn:  () => db.getInventoryItems(projectId),
-    enabled:  !!projectId,
+    enabled:  !!projectId && (options?.enabled ?? true),
   })
 }
 
@@ -1215,11 +1215,11 @@ export function useDeleteBudgetMarkup(projectId: string) {
 
 // ── CASTING ────────────────────────────────────────────────
 
-export function useCastRoles(projectId: string) {
+export function useCastRoles(projectId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: keys.castRoles(projectId),
     queryFn:  () => db.getCastRoles(projectId),
-    enabled:  !!projectId,
+    enabled:  !!projectId && (options?.enabled ?? true),
   })
 }
 
@@ -1276,11 +1276,11 @@ export function useDeleteCastRole(projectId: string) {
 
 // ── ART ────────────────────────────────────────────────────
 
-export function useArtItems(projectId: string) {
+export function useArtItems(projectId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: keys.artItems(projectId),
     queryFn:  () => db.getArtItems(projectId),
-    enabled:  !!projectId,
+    enabled:  !!projectId && (options?.enabled ?? true),
   })
 }
 
@@ -1372,11 +1372,11 @@ export function useDeleteMoodboardTab(projectId: string) {
   })
 }
 
-export function useMoodboard(projectId: string) {
+export function useMoodboard(projectId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: keys.moodboard(projectId),
     queryFn:  () => db.getMoodboardRefs(projectId),
-    enabled:  !!projectId,
+    enabled:  !!projectId && (options?.enabled ?? true),
   })
 }
 
