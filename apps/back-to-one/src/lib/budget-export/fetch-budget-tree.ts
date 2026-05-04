@@ -87,22 +87,17 @@ export async function fetchBudgetExportData(budgetId: string): Promise<BudgetExp
   }
   const budget = budgetResp.data as BudgetTree
 
-  // 2. Project (for filename + header copy).
-  const projectResp = await db
-    .from('Project')
-    .select('*')
-    .eq('id', budget.projectId)
-    .maybeSingle()
+  // 2 + 3. Project (for filename + header copy) and ShootDays (for
+  // buildEvalContext schedule globals) both key on `budget.projectId` —
+  // run them in parallel rather than sequentially.
+  const [projectResp, shootDaysResp] = await Promise.all([
+    db.from('Project').select('*').eq('id', budget.projectId).maybeSingle(),
+    db.from('ShootDay').select('*').eq('projectId', budget.projectId),
+  ])
   if (projectResp.error || !projectResp.data) {
     throw new Error(`Project ${budget.projectId} not found`)
   }
   const project = projectResp.data as Project
-
-  // 3. ShootDays — needed for buildEvalContext (schedule globals).
-  const shootDaysResp = await db
-    .from('ShootDay')
-    .select('*')
-    .eq('projectId', budget.projectId)
   if (shootDaysResp.error) throw shootDaysResp.error
   const shootDays = (shootDaysResp.data ?? []) as ShootDay[]
 
