@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import { LazyMotion, domAnimation } from 'framer-motion'
 import { SessionProvider } from '@/lib/auth/useSupabaseSession'
+import { useServiceWorker } from '@/lib/sw/register'
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -19,6 +20,10 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
         },
       })
   )
+
+  // Eager SW registration so the offline shell works even for users who
+  // never enable push notifications.
+  useServiceWorker()
 
   return (
     <QueryClientProvider client={queryClient}>
