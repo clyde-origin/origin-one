@@ -4015,38 +4015,23 @@ export async function bulkReorderHomeGrid(
   items: { type: 'folder' | 'project'; id: string; sortOrder: number }[]
 ) {
   const db = createClient()
-  const folders = items.filter(i => i.type === 'folder')
-  const projects = items.filter(i => i.type === 'project')
+  const folders = items
+    .filter(i => i.type === 'folder')
+    .map(f => ({ id: f.id, sortOrder: f.sortOrder }))
+  const placements = items
+    .filter(i => i.type === 'project')
+    .map(p => ({ projectId: p.id, sortOrder: p.sortOrder }))
 
-  // Per-row update (Supabase doesn't support multi-row UPDATE with different
-  // values in one call). PostgREST returns { error } per row instead of
-  // throwing — collect responses and surface the first error so a partial
-  // failure doesn't silently masquerade as success.
-  const now = new Date().toISOString()
-  if (folders.length > 0) {
-    const results = await Promise.all(folders.map(f =>
-      db.from('UserProjectFolder')
-        .update({ sortOrder: f.sortOrder, updatedAt: now })
-        .eq('id', f.id)
-        .eq('userId', meId)
-    ))
-    const err = results.find(r => r.error)?.error
-    if (err) { console.error('bulkReorderHomeGrid folders failed:', err); throw err }
-  }
-  if (projects.length > 0) {
-    const results = await Promise.all(projects.map(p =>
-      db.from('UserProjectPlacement').upsert({
-        userId: meId,
-        projectId: p.id,
-        folderId: null,
-        sortOrder: p.sortOrder,
-        createdAt: now,
-        updatedAt: now,
-      }, { onConflict: 'userId,projectId' })
-    ))
-    const err = results.find(r => r.error)?.error
-    if (err) { console.error('bulkReorderHomeGrid placements failed:', err); throw err }
-  }
+  if (folders.length === 0 && placements.length === 0) return
+
+  // Single round-trip via Postgres function (migration 20260503180000_reorder_home_grid_rpc).
+  // SECURITY INVOKER so RLS on UserProjectFolder / UserProjectPlacement still applies.
+  const { error } = await db.rpc('reorder_home_grid', {
+    p_user_id: meId,
+    p_folders: folders,
+    p_placements: placements,
+  })
+  if (error) { console.error('bulkReorderHomeGrid rpc failed:', error); throw error }
 }
 
 /**
