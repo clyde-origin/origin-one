@@ -14,7 +14,7 @@ import {
   useUpdateTeamName,
 } from '@/lib/hooks/useOriginOne'
 import { SkeletonLine } from '@/components/ui'
-import { useRootFab } from '@/components/ui/ActionBarRoot'
+import { useFan, useOverlay, useFolder } from '@/components/ui/ActionBarRoot'
 import { getProjectColor } from '@/lib/utils/phase'
 import { haptic } from '@/lib/utils/haptics'
 import { SlateCard, WiggleStyle } from '@/components/projects/SlateCard'
@@ -332,13 +332,11 @@ export default function ProjectsPage() {
   // with a UUID. Pinned at the very end of the home grid (sortOrder = MAX).
   const archiveFolder = { id: ARCHIVE_FOLDER_ID, name: 'Archive', color: '#62627a' }
 
-  const {
-    fanOpen: selFabOpen, closeFan,
-    threadsOpen, closeThreads,
-    chatOpen, closeChat,
-    resourcesOpen, closeResources,
-    openFolderId, setOpenFolderId, closeOpenFolder,
-  } = useRootFab()
+  // Split sub-context hooks — narrower subscriptions so e.g. opening a
+  // folder doesn't re-render the fan-state derivations.
+  const { fanOpen: selFabOpen, closeFan } = useFan()
+  const { threadsOpen, closeThreads, chatOpen, closeChat, resourcesOpen, closeResources } = useOverlay()
+  const { openFolderId, setOpenFolderId, closeOpenFolder } = useFolder()
   // Mirror openFolderId into a ref so handleTouchStart can read it without
   // needing to be re-created every time a folder opens/closes.
   const openFolderIdRef = useRef<string | null>(openFolderId)

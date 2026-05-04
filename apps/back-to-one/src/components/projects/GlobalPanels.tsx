@@ -10,7 +10,7 @@ import { GhostCircle, GhostRect, GhostPill } from '@/components/ui/EmptyState'
 import { haptic } from '@/lib/utils/haptics'
 import { CrewPanel } from '@/components/projects/CrewPanel'
 import { PanelDetailSheet, type PanelDetail, type CrewDetailRow } from '@/components/projects/PanelDetailSheet'
-import { useRootFab } from '@/components/ui/ActionBarRoot'
+import { useFolder } from '@/components/ui/ActionBarRoot'
 import type { ActionItem, Milestone, Project } from '@/types'
 
 // Adds keyboard activation (Enter/Space) to a div-as-button. Used for
@@ -620,7 +620,7 @@ export function GlobalPanels({ activePanel, onClose, onNavigate }: GlobalPanelsP
   // Selected detail row — lifted to RootFabContext so the bar's Back button
   // can pop it. Reset-on-panel-switch effect below still applies; the
   // closePanelDetail call goes through context.
-  const { panelDetail: detail, setPanelDetail: setDetail, closePanelDetail } = useRootFab()
+  const { panelDetail: detail, setPanelDetail: setDetail, closePanelDetail } = useFolder()
 
   const [prevPanel, setPrevPanel] = useState<PanelId | null>(null)
   const activeIdx = activePanel ? PANEL_ORDER.indexOf(activePanel) : -1

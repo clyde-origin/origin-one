@@ -19,25 +19,33 @@
 //             RootFabContext.resourcesOpen. Producer role gate lands with
 //             Auth — pre-Auth the slot is visible to everyone.
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { haptic } from '@/lib/utils/haptics'
 import { useKeyboardOpen } from '@/lib/hooks/useKeyboardOpen'
 import type { PanelDetail } from '@/components/projects/PanelDetailSheet'
 
-// ── RootFabContext ────────────────────────────────────────
+// ── RootFabContext (split into three sub-contexts) ────────
 //
 // Co-located with ActionBarRoot because (a) it's the only consumer outside
 // the projects-root page, (b) Next.js layout files can only export a default
 // + a small set of metadata fields, so the hook can't live in layout.tsx
-// itself, and (c) introducing a new top-level contexts/ module is overkill
-// for a single shared boolean.
+// itself, and (c) introducing a new top-level contexts/ module is overkill.
+//
+// The state is split into three independent sub-contexts so consumers
+// reading just one slice (Fan, Overlay, or Folder) only re-render when
+// their slice changes. The legacy `useRootFab()` hook is preserved as a
+// thin aggregator over the three sub-contexts; consumers that use the
+// flat shape still work but, like before, re-render on any change.
 
-interface RootFabContextValue {
+interface FanContextValue {
   fanOpen: boolean
   toggleFan: () => void
   closeFan: () => void
+}
+
+interface OverlayContextValue {
   threadsOpen: boolean
   toggleThreads: () => void
   closeThreads: () => void
@@ -47,6 +55,9 @@ interface RootFabContextValue {
   resourcesOpen: boolean
   toggleResources: () => void
   closeResources: () => void
+}
+
+interface FolderContextValue {
   // Panel item detail (slide-up over a fan-arc panel). Lifted from
   // GlobalPanels to the bar-context so the back button can pop it.
   panelDetail: PanelDetail | null
@@ -57,7 +68,24 @@ interface RootFabContextValue {
   closeOpenFolder: () => void
 }
 
-const RootFabContext = createContext<RootFabContextValue | null>(null)
+interface RootFabContextValue extends FanContextValue, OverlayContextValue, FolderContextValue {}
+
+const FanContext = createContext<FanContextValue | null>(null)
+const OverlayContext = createContext<OverlayContextValue | null>(null)
+const FolderContext = createContext<FolderContextValue | null>(null)
+
+const FAN_DEFAULT: FanContextValue = {
+  fanOpen: false, toggleFan: () => {}, closeFan: () => {},
+}
+const OVERLAY_DEFAULT: OverlayContextValue = {
+  threadsOpen: false, toggleThreads: () => {}, closeThreads: () => {},
+  chatOpen: false, toggleChat: () => {}, closeChat: () => {},
+  resourcesOpen: false, toggleResources: () => {}, closeResources: () => {},
+}
+const FOLDER_DEFAULT: FolderContextValue = {
+  panelDetail: null, setPanelDetail: () => {}, closePanelDetail: () => {},
+  openFolderId: null, setOpenFolderId: () => {}, closeOpenFolder: () => {},
+}
 
 /**
  * Wrap projects-root children. Owns the fan-open boolean shared between
@@ -121,37 +149,86 @@ export function RootFabProvider({ children }: { children: ReactNode }) {
     }
   }, [fanOpen, threadsOpen, chatOpen, resourcesOpen, panelDetail, openFolderId])
 
-  return (
-    <RootFabContext.Provider value={{
-      fanOpen, toggleFan, closeFan,
+  // Each sub-value memoizes on its own state slice — when the fan toggles,
+  // overlayValue / folderValue keep referential equality and consumers
+  // subscribed to those contexts skip the re-render.
+  const fanValue = useMemo<FanContextValue>(
+    () => ({ fanOpen, toggleFan, closeFan }),
+    [fanOpen, toggleFan, closeFan],
+  )
+  const overlayValue = useMemo<OverlayContextValue>(
+    () => ({
       threadsOpen, toggleThreads, closeThreads,
       chatOpen, toggleChat, closeChat,
       resourcesOpen, toggleResources, closeResources,
+    }),
+    [
+      threadsOpen, toggleThreads, closeThreads,
+      chatOpen, toggleChat, closeChat,
+      resourcesOpen, toggleResources, closeResources,
+    ],
+  )
+  const folderValue = useMemo<FolderContextValue>(
+    () => ({
       panelDetail, setPanelDetail, closePanelDetail,
       openFolderId, setOpenFolderId, closeOpenFolder,
-    }}>
-      {children}
-    </RootFabContext.Provider>
+    }),
+    [
+      panelDetail, setPanelDetail, closePanelDetail,
+      openFolderId, setOpenFolderId, closeOpenFolder,
+    ],
   )
+
+  return (
+    <FanContext.Provider value={fanValue}>
+      <OverlayContext.Provider value={overlayValue}>
+        <FolderContext.Provider value={folderValue}>
+          {children}
+        </FolderContext.Provider>
+      </OverlayContext.Provider>
+    </FanContext.Provider>
+  )
+}
+
+/**
+ * Read just the fan-open state slice. Use this on consumers that only
+ * touch fanOpen / toggleFan / closeFan — re-renders only when the fan
+ * itself opens or closes.
+ */
+export function useFan(): FanContextValue {
+  return useContext(FanContext) ?? FAN_DEFAULT
+}
+
+/**
+ * Read the overlay sheets state slice (threads / chat / resources).
+ * Re-renders only when one of those sheets toggles.
+ */
+export function useOverlay(): OverlayContextValue {
+  return useContext(OverlayContext) ?? OVERLAY_DEFAULT
+}
+
+/**
+ * Read the folder / panel-detail state slice. Re-renders only when an
+ * open folder or panel detail changes.
+ */
+export function useFolder(): FolderContextValue {
+  return useContext(FolderContext) ?? FOLDER_DEFAULT
 }
 
 /**
  * Read the projects-root fan state. Returns inert defaults if called
  * outside the provider — defensive only; the layout always wraps.
+ *
+ * Backwards-compatible aggregator over the three sub-contexts. Consumers
+ * that use the flat shape still work; like before they re-render on any
+ * underlying state change. New code should prefer the narrower hooks
+ * (`useFan`, `useOverlay`, `useFolder`) when only one slice is needed.
  */
 export function useRootFab(): RootFabContextValue {
-  const ctx = useContext(RootFabContext)
-  if (!ctx) {
-    return {
-      fanOpen: false, toggleFan: () => {}, closeFan: () => {},
-      threadsOpen: false, toggleThreads: () => {}, closeThreads: () => {},
-      chatOpen: false, toggleChat: () => {}, closeChat: () => {},
-      resourcesOpen: false, toggleResources: () => {}, closeResources: () => {},
-      panelDetail: null, setPanelDetail: () => {}, closePanelDetail: () => {},
-      openFolderId: null, setOpenFolderId: () => {}, closeOpenFolder: () => {},
-    }
-  }
-  return ctx
+  const fan = useFan()
+  const overlay = useOverlay()
+  const folder = useFolder()
+  return { ...fan, ...overlay, ...folder }
 }
 
 const Z_INDEX = 65
