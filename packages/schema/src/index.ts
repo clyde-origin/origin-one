@@ -15,8 +15,8 @@ export { Resource, ResourceType } from "./resource";
 export { MoodboardRef, MoodCategory } from "./moodboard";
 export { ShootDay, ShootDayType } from "./shoot-day";
 export { RateUnit, computeExpenseUnits, resolveExpenseRate } from "./rate-unit";
-export * from "./user-project-folder";
-export * from "./user-project-placement";
+export * from "./team-project-folder";
+export * from "./team-project-placement";
 export {
   Budget,
   BudgetVersion, BudgetVersionKind, BudgetVersionState,

@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-export const UserProjectFolder = z.object({
+export const TeamProjectFolder = z.object({
   id: z.string().uuid(),
-  userId: z.string().uuid(),
+  teamId: z.string().uuid(),
   name: z.string().min(1),
   color: z.string().nullable(),
   sortOrder: z.number().int(),
@@ -11,4 +11,4 @@ export const UserProjectFolder = z.object({
   updatedAt: z.coerce.date(),
 });
 
-export type UserProjectFolder = z.infer<typeof UserProjectFolder>;
+export type TeamProjectFolder = z.infer<typeof TeamProjectFolder>;

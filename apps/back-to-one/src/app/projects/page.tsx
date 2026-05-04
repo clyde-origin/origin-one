@@ -7,10 +7,10 @@ import { m, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import {
   useProjects, useArchiveProject, useDeleteProject, useUpdateProject,
-  useMeId, useMyTeam, useUserProjectFolders, useUserProjectPlacements,
-  useCreateUserProjectFolder, useUpdateUserProjectFolder, useDeleteUserProjectFolder,
-  useUpsertUserProjectPlacement, useArchivedProjects, useRestoreProject,
-  useArchivedUserProjectFolders, useArchiveUserProjectFolder, useRestoreUserProjectFolder,
+  useMyTeam, useTeamProjectFolders, useTeamProjectPlacements,
+  useCreateTeamProjectFolder, useUpdateTeamProjectFolder, useDeleteTeamProjectFolder,
+  useUpsertTeamProjectPlacement, useArchivedProjects, useRestoreProject,
+  useArchivedTeamProjectFolders, useArchiveTeamProjectFolder, useRestoreTeamProjectFolder,
   useMoveProjectToRoot,
   useUpdateTeamName,
 } from '@/lib/hooks/useOriginOne'
@@ -315,17 +315,16 @@ export default function ProjectsPage() {
   // The same context owns threadsOpen, chatOpen, and resourcesOpen — toggled
   // by the corresponding bar buttons. All three sheets share visual style
   // and z-stacking, with mutual exclusion against fan/panel below.
-  const meId = useMeId()
   const myTeam = useMyTeam()
-  const { data: folders } = useUserProjectFolders()
-  const { data: placements } = useUserProjectPlacements()
+  const { data: folders } = useTeamProjectFolders()
+  const { data: placements } = useTeamProjectPlacements()
   const allFolders = folders ?? []
   const allPlacements = placements ?? []
 
-  const createFolderMutation = useCreateUserProjectFolder()
-  const updateFolderMutation = useUpdateUserProjectFolder()
-  const deleteFolderMutation = useDeleteUserProjectFolder()
-  const placementMutation = useUpsertUserProjectPlacement()
+  const createFolderMutation = useCreateTeamProjectFolder()
+  const updateFolderMutation = useUpdateTeamProjectFolder()
+  const deleteFolderMutation = useDeleteTeamProjectFolder()
+  const placementMutation = useUpsertTeamProjectPlacement()
   const moveProjectToRootMutation = useMoveProjectToRoot()
 
   const [showSettings, setShowSettings] = useState(false)
@@ -341,7 +340,7 @@ export default function ProjectsPage() {
   const allArchivedProjects = archivedProjects ?? []
   const restoreMutation = useRestoreProject()
 
-  const { data: archivedFolders } = useArchivedUserProjectFolders()
+  const { data: archivedFolders } = useArchivedTeamProjectFolders()
   const allArchivedFolders = archivedFolders ?? []
   // Used by both homeItems (to keep restored projects visible) and the
   // looseArchivedProjects calculation below.
@@ -349,8 +348,8 @@ export default function ProjectsPage() {
     () => new Set(allArchivedFolders.map(f => f.id)),
     [allArchivedFolders]
   )
-  const archiveFolderMutation = useArchiveUserProjectFolder()
-  const restoreFolderMutation = useRestoreUserProjectFolder()
+  const archiveFolderMutation = useArchiveTeamProjectFolder()
+  const restoreFolderMutation = useRestoreTeamProjectFolder()
 
   // Synthetic Archive folder — not a real DB row. Sentinel id never collides
   // with a UUID. Pinned at the very end of the home grid (sortOrder = MAX).
@@ -498,7 +497,7 @@ export default function ProjectsPage() {
     const kind = dragKindRef.current
     const sourceFolderId = dragSourceFolderIdRef.current
 
-    if (draggedId && meId) {
+    if (draggedId && myTeam) {
       const targetIsArchive = targetId === ARCHIVE_FOLDER_ID
       const targetIsMoveOut = targetId === MOVE_OUT_TARGET_ID
       const targetIsFolder = targetId && allFolders.some(f => f.id === targetId)
@@ -546,7 +545,7 @@ export default function ProjectsPage() {
             // when needed; the next reorder will re-spread.
             if (newSO === tgtSO) newSO = insertAfter ? tgtSO + 1 : Math.max(0, tgtSO - 1)
             placementMutation.mutate({
-              userId: meId,
+              teamId: myTeam.id,
               projectId: draggedId,
               folderId: sourceFolderId,
               sortOrder: newSO,
@@ -568,7 +567,7 @@ export default function ProjectsPage() {
           haptic('light')
           const folderProjList = folderProjects.get(targetId) ?? []
           placementMutation.mutate({
-            userId: meId,
+            teamId: myTeam.id,
             projectId: draggedId,
             folderId: targetId,
             sortOrder: folderProjList.length,
@@ -577,11 +576,11 @@ export default function ProjectsPage() {
           haptic('medium')
           const draggedItem = homeItems.find(i => i.kind === 'project' && i.id === draggedId)
           createFolderMutation.mutate(
-            { userId: meId, name: 'Untitled', color: null, sortOrder: draggedItem?.sortOrder ?? 0 },
+            { teamId: myTeam.id, name: 'Untitled', color: null, sortOrder: draggedItem?.sortOrder ?? 0 },
             {
               onSuccess: (folder) => {
-                placementMutation.mutate({ userId: meId, projectId: draggedId, folderId: folder.id, sortOrder: 0 })
-                placementMutation.mutate({ userId: meId, projectId: targetId,  folderId: folder.id, sortOrder: 1 })
+                placementMutation.mutate({ teamId: myTeam.id, projectId: draggedId, folderId: folder.id, sortOrder: 0 })
+                placementMutation.mutate({ teamId: myTeam.id, projectId: targetId,  folderId: folder.id, sortOrder: 1 })
               },
             }
           )
@@ -591,7 +590,7 @@ export default function ProjectsPage() {
           const afterSO  = reordered[targetIdx]?.sortOrder ?? beforeSO + 1024
           const newSO = Math.floor((beforeSO + afterSO) / 2)
           if (kind === 'project') {
-            placementMutation.mutate({ userId: meId, projectId: draggedId, folderId: null, sortOrder: newSO })
+            placementMutation.mutate({ teamId: myTeam.id, projectId: draggedId, folderId: null, sortOrder: newSO })
           } else {
             updateFolderMutation.mutate({ id: draggedId, fields: { sortOrder: newSO } })
           }
@@ -609,7 +608,7 @@ export default function ProjectsPage() {
     setDragProjectId(null)
     setDragTargetIdx(-1)
     setDragTargetIdState(null)
-  }, [meId, allProjects, allFolders, allPlacements, folderProjects, homeItems, placementMutation, createFolderMutation, archiveMutation, archiveFolderMutation, updateFolderMutation, moveProjectToRootMutation])
+  }, [myTeam, allProjects, allFolders, allPlacements, folderProjects, homeItems, placementMutation, createFolderMutation, archiveMutation, archiveFolderMutation, updateFolderMutation, moveProjectToRootMutation])
 
   // Global touch + mouse listeners for drag
   useEffect(() => {
@@ -1252,8 +1251,8 @@ export default function ProjectsPage() {
         open={creatingFolder}
         onClose={() => setCreatingFolder(false)}
         onCreate={({ name, color }) => {
-          if (!meId) return
-          createFolderMutation.mutate({ userId: meId, name, color, sortOrder: 0 })
+          if (!myTeam) return
+          createFolderMutation.mutate({ teamId: myTeam.id, name, color, sortOrder: 0 })
         }}
       />
       {teamNameLoaded && (

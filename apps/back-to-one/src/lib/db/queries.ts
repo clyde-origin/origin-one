@@ -3824,98 +3824,104 @@ export function subscribeToChatMessages(
   return () => { db.removeChannel(ch) }
 }
 
-// ── PROJECT-SELECTION FOLDERS (per-user) ──────────────────
+// ── PROJECT-SELECTION FOLDERS (team-shared) ───────────────
+// Migration 20260504210000_team_shared_project_organization moved these
+// from per-user to team-scoped, so every member of a team sees the same
+// folders/colors/ordering on /projects. Function names were renamed from
+// xxxUserProjectFolder → xxxTeamProjectFolder and the param key from
+// userId/meId → teamId. Archive state on PROJECTS is independent — it's
+// already team-shared via Project.status.
 
-export async function getUserProjectFolders(meId: string | null) {
-  if (!meId) return []
+export async function getTeamProjectFolders(teamId: string | null) {
+  if (!teamId) return []
   const db = createClient()
   const { data, error } = await db
-    .from('UserProjectFolder')
+    .from('TeamProjectFolder')
     .select('*')
-    .eq('userId', meId)
+    .eq('teamId', teamId)
     .eq('archived', false)
     .order('sortOrder', { ascending: true })
-  if (error) { console.error('getUserProjectFolders failed:', error); throw error }
+  if (error) { console.error('getTeamProjectFolders failed:', error); throw error }
   return data ?? []
 }
 
-export async function getArchivedUserProjectFolders(meId: string | null) {
-  if (!meId) return []
+export async function getArchivedTeamProjectFolders(teamId: string | null) {
+  if (!teamId) return []
   const db = createClient()
   const { data, error } = await db
-    .from('UserProjectFolder')
+    .from('TeamProjectFolder')
     .select('*')
-    .eq('userId', meId)
+    .eq('teamId', teamId)
     .eq('archived', true)
     .order('sortOrder', { ascending: true })
-  if (error) { console.error('getArchivedUserProjectFolders failed:', error); throw error }
+  if (error) { console.error('getArchivedTeamProjectFolders failed:', error); throw error }
   return data ?? []
 }
 
 // Archives a folder (marks archived=true) AND archives every project whose
 // placement points at it. The folder row + its placements stay intact so the
 // archive view can render the folder with its projects inside.
-export async function archiveUserProjectFolder(meId: string, folderId: string) {
+export async function archiveTeamProjectFolder(teamId: string, folderId: string) {
   const db = createClient()
   const { data: placements, error: pErr } = await db
-    .from('UserProjectPlacement')
+    .from('TeamProjectPlacement')
     .select('projectId')
-    .eq('userId', meId)
+    .eq('teamId', teamId)
     .eq('folderId', folderId)
-  if (pErr) { console.error('archiveUserProjectFolder placements failed:', pErr); throw pErr }
+  if (pErr) { console.error('archiveTeamProjectFolder placements failed:', pErr); throw pErr }
   const projectIds = (placements ?? []).map(p => p.projectId)
   if (projectIds.length > 0) {
     const { error: aErr } = await db
       .from('Project')
       .update({ status: 'archived' })
       .in('id', projectIds)
-    if (aErr) { console.error('archiveUserProjectFolder cascade failed:', aErr); throw aErr }
+    if (aErr) { console.error('archiveTeamProjectFolder cascade failed:', aErr); throw aErr }
   }
   const { error: fErr } = await db
-    .from('UserProjectFolder')
+    .from('TeamProjectFolder')
     .update({ archived: true, updatedAt: new Date().toISOString() })
     .eq('id', folderId)
-  if (fErr) { console.error('archiveUserProjectFolder folder failed:', fErr); throw fErr }
+  if (fErr) { console.error('archiveTeamProjectFolder folder failed:', fErr); throw fErr }
 }
 
 // Restores a folder back to the home grid AND restores every archived project
-// whose placement points at it. Mirrors archiveUserProjectFolder.
-export async function restoreUserProjectFolder(meId: string, folderId: string) {
+// whose placement points at it. Mirrors archiveTeamProjectFolder.
+export async function restoreTeamProjectFolder(teamId: string, folderId: string) {
   const db = createClient()
   const { data: placements, error: pErr } = await db
-    .from('UserProjectPlacement')
+    .from('TeamProjectPlacement')
     .select('projectId')
-    .eq('userId', meId)
+    .eq('teamId', teamId)
     .eq('folderId', folderId)
-  if (pErr) { console.error('restoreUserProjectFolder placements failed:', pErr); throw pErr }
+  if (pErr) { console.error('restoreTeamProjectFolder placements failed:', pErr); throw pErr }
   const projectIds = (placements ?? []).map(p => p.projectId)
   if (projectIds.length > 0) {
     const { error: rErr } = await db
       .from('Project')
       .update({ status: 'post_production' })
       .in('id', projectIds)
-    if (rErr) { console.error('restoreUserProjectFolder cascade failed:', rErr); throw rErr }
+    if (rErr) { console.error('restoreTeamProjectFolder cascade failed:', rErr); throw rErr }
   }
   const { error: fErr } = await db
-    .from('UserProjectFolder')
+    .from('TeamProjectFolder')
     .update({ archived: false, updatedAt: new Date().toISOString() })
     .eq('id', folderId)
-  if (fErr) { console.error('restoreUserProjectFolder folder failed:', fErr); throw fErr }
+  if (fErr) { console.error('restoreTeamProjectFolder folder failed:', fErr); throw fErr }
 }
 
-export async function getUserProjectPlacements(meId: string | null) {
-  if (!meId) return []
+export async function getTeamProjectPlacements(teamId: string | null) {
+  if (!teamId) return []
   const db = createClient()
   const { data, error } = await db
-    .from('UserProjectPlacement')
+    .from('TeamProjectPlacement')
     .select('*')
-    .eq('userId', meId)
-  if (error) { console.error('getUserProjectPlacements failed:', error); throw error }
+    .eq('teamId', teamId)
+  if (error) { console.error('getTeamProjectPlacements failed:', error); throw error }
   return data ?? []
 }
 
-export async function createUserProjectFolder(input: {
-  userId: string; name?: string; color?: string | null; sortOrder?: number
+export async function createTeamProjectFolder(input: {
+  teamId: string; name?: string; color?: string | null; sortOrder?: number
 }) {
   const db = createClient()
   // Pass updatedAt explicitly — Prisma's @updatedAt is client-side only,
@@ -3923,9 +3929,9 @@ export async function createUserProjectFolder(input: {
   // default but supplying it keeps the two timestamps coherent.
   const now = new Date().toISOString()
   const { data, error } = await db
-    .from('UserProjectFolder')
+    .from('TeamProjectFolder')
     .insert({
-      userId: input.userId,
+      teamId: input.teamId,
       name: input.name ?? 'Untitled',
       color: input.color ?? null,
       sortOrder: input.sortOrder ?? 0,
@@ -3934,75 +3940,75 @@ export async function createUserProjectFolder(input: {
     })
     .select()
     .single()
-  if (error) { console.error('createUserProjectFolder failed:', error); throw error }
+  if (error) { console.error('createTeamProjectFolder failed:', error); throw error }
   return data
 }
 
-// Pre-Auth: caller is trusted; no userId scope. Tightens to .eq('userId', meId) on Auth-day RLS pass.
-export async function updateUserProjectFolder(
+// Pre-Auth: caller is trusted; no teamId scope. Tightens to .eq('teamId', teamId) on Auth-day RLS pass.
+export async function updateTeamProjectFolder(
   id: string,
   fields: { name?: string; color?: string | null; sortOrder?: number }
 ) {
   const db = createClient()
-  const { error } = await db.from('UserProjectFolder').update(fields).eq('id', id)
-  if (error) { console.error('updateUserProjectFolder failed:', error); throw error }
+  const { error } = await db.from('TeamProjectFolder').update(fields).eq('id', id)
+  if (error) { console.error('updateTeamProjectFolder failed:', error); throw error }
 }
 
-// Pre-Auth: caller is trusted; no userId scope. Tightens to .eq('userId', meId) on Auth-day RLS pass.
-export async function deleteUserProjectFolder(id: string) {
+// Pre-Auth: caller is trusted; no teamId scope. Tightens to .eq('teamId', teamId) on Auth-day RLS pass.
+export async function deleteTeamProjectFolder(id: string) {
   const db = createClient()
-  const { error } = await db.from('UserProjectFolder').delete().eq('id', id)
-  if (error) { console.error('deleteUserProjectFolder failed:', error); throw error }
+  const { error } = await db.from('TeamProjectFolder').delete().eq('id', id)
+  if (error) { console.error('deleteTeamProjectFolder failed:', error); throw error }
 }
 
 /**
- * Insert-or-update a placement for (userId, projectId). Upsert on the
- * unique (userId, projectId) constraint — every drag-into / drag-out /
- * top-level reorder writes through here.
+ * Insert-or-update a placement for (teamId, projectId). Upsert on the
+ * unique (teamId, projectId) constraint — every drag-into / drag-out /
+ * top-level reorder writes through here for the whole team.
  */
-export async function upsertUserProjectPlacement(input: {
-  userId: string; projectId: string; folderId?: string | null; sortOrder?: number
+export async function upsertTeamProjectPlacement(input: {
+  teamId: string; projectId: string; folderId?: string | null; sortOrder?: number
 }) {
   const db = createClient()
   const now = new Date().toISOString()
   const { data, error } = await db
-    .from('UserProjectPlacement')
+    .from('TeamProjectPlacement')
     .upsert({
-      userId: input.userId,
+      teamId: input.teamId,
       projectId: input.projectId,
       folderId: input.folderId ?? null,
       sortOrder: input.sortOrder ?? 0,
       createdAt: now,
       updatedAt: now,
-    }, { onConflict: 'userId,projectId' })
+    }, { onConflict: 'teamId,projectId' })
     .select()
     .single()
-  if (error) { console.error('upsertUserProjectPlacement failed:', error); throw error }
+  if (error) { console.error('upsertTeamProjectPlacement failed:', error); throw error }
   return data
 }
 
 /**
- * Move a project out of its folder back to the home grid root for a
- * specific viewer. Clears UserProjectPlacement.folderId; assigns a
- * sortOrder that places the project at the bottom of the root-grid
- * order. Wraps upsertUserProjectPlacement.
+ * Move a project out of its folder back to the home grid root for the
+ * whole team. Clears TeamProjectPlacement.folderId; assigns a sortOrder
+ * that places the project at the bottom of the root-grid order. Wraps
+ * upsertTeamProjectPlacement.
  */
 export async function moveProjectToRoot(input: {
-  userId: string
+  teamId: string
   projectId: string
 }) {
   const db = createClient()
   const { data: rows, error: readErr } = await db
-    .from('UserProjectPlacement')
+    .from('TeamProjectPlacement')
     .select('sortOrder')
-    .eq('userId', input.userId)
+    .eq('teamId', input.teamId)
     .is('folderId', null)
     .order('sortOrder', { ascending: false })
     .limit(1)
   if (readErr) { console.error('moveProjectToRoot read failed:', readErr); throw readErr }
   const maxSortOrder = rows && rows.length > 0 ? rows[0].sortOrder : 0
-  return upsertUserProjectPlacement({
-    userId: input.userId,
+  return upsertTeamProjectPlacement({
+    teamId: input.teamId,
     projectId: input.projectId,
     folderId: null,
     sortOrder: maxSortOrder + 1024,
@@ -4011,7 +4017,7 @@ export async function moveProjectToRoot(input: {
 
 /** Bulk reorder for a single home-grid pass (all top-level items). */
 export async function bulkReorderHomeGrid(
-  meId: string,
+  teamId: string,
   items: { type: 'folder' | 'project'; id: string; sortOrder: number }[]
 ) {
   const db = createClient()
@@ -4024,10 +4030,12 @@ export async function bulkReorderHomeGrid(
 
   if (folders.length === 0 && placements.length === 0) return
 
-  // Single round-trip via Postgres function (migration 20260503180000_reorder_home_grid_rpc).
-  // SECURITY INVOKER so RLS on UserProjectFolder / UserProjectPlacement still applies.
+  // Single round-trip via Postgres function. SECURITY INVOKER so RLS on
+  // TeamProjectFolder / TeamProjectPlacement still applies.
+  // RPC body recreated against team-scoped tables in
+  // 20260504210000_team_shared_project_organization migration.
   const { error } = await db.rpc('reorder_home_grid', {
-    p_user_id: meId,
+    p_team_id: teamId,
     p_folders: folders,
     p_placements: placements,
   })
