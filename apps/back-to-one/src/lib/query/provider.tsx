@@ -12,6 +12,8 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 5 * 60 * 1000, // 5 min before refetch
+            gcTime: 30 * 60 * 1000, // keep cache warm across PWA tab toggles
+            refetchOnWindowFocus: false,
             retry: 1,
           },
         },
