@@ -1065,34 +1065,48 @@ export function HubContent({ projectId }: { projectId: string }) {
             </button>
           </div>
 
-          {/* Tone — full width in split-creative mode (was 50/50 with
-              SceneMaker in the stacked layout). Lifts SwipePanel
-              configuration verbatim from the non-split section. */}
-          <div style={{ height: 140, marginTop: 12 }}>
-            <SwipePanel
-              items={allMoodRefs}
-              label="Tone"
-              labelColor={projectColor}
-              href={`/projects/${projectId}/moodboard`}
-              emptyContent={
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: 0.35 }}>
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                    <rect x="2" y="4" width="20" height="16" rx="2" stroke="#62627a" strokeWidth="1.3" />
-                    <circle cx="8" cy="10" r="2" stroke="#62627a" strokeWidth="1.2" />
-                    <path d="M2 16l5-4 3 2 4-5 8 7" stroke="#62627a" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a' }}>Set the tone</span>
-                </div>
-              }
-              renderItem={(ref) => (
-                ref.imageUrl ? (
-                  <StorageImage url={ref.imageUrl} alt={ref.title} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }}
-                    placeholder={<div style={{ width: '100%', height: '100%', background: ref.gradient || '#0a0a12', opacity: 0.7 }} />} />
-                ) : (
-                  <div style={{ width: '100%', height: '100%', background: ref.gradient || '#0a0a12', opacity: 0.7 }} />
-                )
-              )}
-            />
+          {/* Tone — full-width strip of multiple refs side-by-side (NOT a
+              swipe panel). Tap any tile or the label → navigate to the
+              moodboard page. Empty state collapses to a "Set the tone" CTA. */}
+          <div style={{ marginTop: 12 }} {...clickableProps(() => router.push(`/projects/${projectId}/moodboard`))} aria-label="Open tone / moodboard">
+            <ModuleHeader name="Tone" meta={allMoodRefs.length > 0 ? `${allMoodRefs.length} ref${allMoodRefs.length === 1 ? '' : 's'}` : undefined} />
+            {allMoodRefs.length > 0 ? (
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
+                {allMoodRefs.slice(0, 8).map((ref: any) => (
+                  <div
+                    key={ref.id}
+                    style={{
+                      flex: '0 0 auto',
+                      width: 84,
+                      height: 110,
+                      borderRadius: 6,
+                      overflow: 'hidden',
+                      background: ref.gradient || '#0a0a12',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      position: 'relative',
+                    }}
+                  >
+                    {ref.imageUrl && (
+                      <StorageImage
+                        url={ref.imageUrl}
+                        alt={ref.title}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        placeholder={<div style={{ width: '100%', height: '100%', background: ref.gradient || '#0a0a12', opacity: 0.7 }} />}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="glass-tile" style={{ height: 110, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: 0.45 }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                  <rect x="2" y="4" width="20" height="16" rx="2" stroke="#62627a" strokeWidth="1.3" />
+                  <circle cx="8" cy="10" r="2" stroke="#62627a" strokeWidth="1.2" />
+                  <path d="M2 16l5-4 3 2 4-5 8 7" stroke="#62627a" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="font-mono" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em' }}>Set the tone</span>
+              </div>
+            )}
           </div>
 
           {/* LCA row — sacred shapes per memory rule. Lifted verbatim
