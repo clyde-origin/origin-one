@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react'
 import { useProject, useThreads, usePostMessage, useCrew, useMarkThreadRead, useMeId, useMentionRoster } from '@/lib/hooks/useOriginOne'
 import { useThreadContexts, type ThreadContext } from '@/lib/thread-context'
 import { Sheet } from '@/components/ui/Sheet'
@@ -176,17 +176,17 @@ function Thumbnail({ ctx, size = 52 }: { ctx: ThreadContext; size?: number }) {
   )
 }
 
-function ThreadCard({
-  thread, context, crew, onTap, resolved = false,
+const ThreadCard = memo(function ThreadCard({
+  thread, context, crewByUserId, onTap, resolved = false,
 }: {
   thread: Thread
   context: ThreadContext
-  crew: TeamMember[]
-  onTap: () => void
+  crewByUserId: Map<string, TeamMember>
+  onTap: (threadId: string) => void
   resolved?: boolean
 }) {
   const lastMsg = thread.messages[thread.messages.length - 1] ?? null
-  const sender = lastMsg ? crew.find(c => c.userId === lastMsg.createdBy) : null
+  const sender = lastMsg ? crewByUserId.get(lastMsg.createdBy) : null
   const senderName = sender?.User?.name ?? (lastMsg ? 'Unknown' : '')
 
   const participantIds = useMemo(() => {
@@ -198,7 +198,7 @@ function ThreadCard({
 
   return (
     <div
-      onClick={() => { haptic('light'); onTap() }}
+      onClick={() => { haptic('light'); onTap(thread.id) }}
       className={`threads-row glass-tile glass-tile-sm ${thread.unread ? 'threads-row--unread' : ''} ${resolved ? 'threads-row--resolved' : ''}`}
       style={{
         margin: '0 14px 6px',
@@ -268,7 +268,7 @@ function ThreadCard({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center' }}>
               {participantIds.slice(0, 3).map((uid, i) => {
-                const c = crew.find(m => m.userId === uid)
+                const c = crewByUserId.get(uid)
                 const name = c?.User?.name ?? '?'
                 const av = avatarStyle(name)
                 return (
@@ -294,7 +294,7 @@ function ThreadCard({
       </div>
     </div>
   )
-}
+})
 
 // ── Thread Sheet (full conversation view) ─────────────────
 
@@ -466,7 +466,14 @@ export default function ThreadsPage({ params }: { params: { projectId: string } 
 
   const allThreads: Thread[] = useMemo(() => (threads ?? []) as Thread[], [threads])
   const allCrew: TeamMember[] = useMemo(() => (crew ?? []) as TeamMember[], [crew])
+  const crewByUserId = useMemo(() => {
+    const m = new Map<string, TeamMember>()
+    for (const c of allCrew) if (c.userId) m.set(c.userId, c)
+    return m
+  }, [allCrew])
   const meId = useMeId()
+
+  const onSelectThread = useCallback((threadId: string) => setSelectedId(threadId), [])
 
   const contexts = useThreadContexts(projectId, allThreads)
 
@@ -570,8 +577,8 @@ export default function ThreadsPage({ params }: { params: { projectId: string } 
                     key={t.id}
                     thread={t}
                     context={contexts.get(t.id) ?? fallbackContext()}
-                    crew={allCrew}
-                    onTap={() => setSelectedId(t.id)}
+                    crewByUserId={crewByUserId}
+                    onTap={onSelectThread}
                   />
                 ))}
               </>
@@ -584,8 +591,8 @@ export default function ThreadsPage({ params }: { params: { projectId: string } 
                     key={t.id}
                     thread={t}
                     context={contexts.get(t.id) ?? fallbackContext()}
-                    crew={allCrew}
-                    onTap={() => setSelectedId(t.id)}
+                    crewByUserId={crewByUserId}
+                    onTap={onSelectThread}
                   />
                 ))}
               </>
@@ -598,8 +605,8 @@ export default function ThreadsPage({ params }: { params: { projectId: string } 
                     key={t.id}
                     thread={t}
                     context={contexts.get(t.id) ?? fallbackContext()}
-                    crew={allCrew}
-                    onTap={() => setSelectedId(t.id)}
+                    crewByUserId={crewByUserId}
+                    onTap={onSelectThread}
                     resolved
                   />
                 ))}
@@ -645,12 +652,11 @@ function SectionLabel({ label, count, topMargin = 0 }: { label: string; count: n
   )
 }
 
-function fallbackContext(): ThreadContext {
-  return {
-    displayLabel: 'Thread',
-    chipType: 'obj-actionItem',
-    thumbnailType: 'icon',
-    thumbnailValue: null,
-    thumbnailGradient: 'th-actionItem',
-  }
+const FALLBACK_CONTEXT: ThreadContext = {
+  displayLabel: 'Thread',
+  chipType: 'obj-actionItem',
+  thumbnailType: 'icon',
+  thumbnailValue: null,
+  thumbnailGradient: 'th-actionItem',
 }
+function fallbackContext(): ThreadContext { return FALLBACK_CONTEXT }
