@@ -220,7 +220,7 @@ function RefCard({
           <StorageImage
             url={item.imageUrl!}
             alt={item.title}
-            className="absolute inset-0 w-full h-full object-cover"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
             onError={() => setImgError(true)}
           />
         )}
@@ -337,6 +337,7 @@ function DetailSheet({
             alt={item.title}
             className="w-full rounded-lg mb-3 object-cover"
             style={{ maxHeight: 240 }}
+            fill={false}
             placeholder={<div className="h-40 w-full rounded-lg mb-3" style={{ background: item.gradient || GRADIENTS[0] }} />}
           />
         ) : (

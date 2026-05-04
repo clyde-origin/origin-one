@@ -1,13 +1,25 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { useUnreadCount, useNotifications } from '@/lib/hooks/useOriginOne'
-import { InboxSheet } from './InboxSheet'
+
+// InboxSheet only renders when the user opens the bell. Defer its chunk
+// (full notifications list UI) until first interaction.
+const InboxSheet = dynamic(
+  () => import('./InboxSheet').then(m => ({ default: m.InboxSheet })),
+  { ssr: false },
+)
 
 const TA_DEEP = '#D97706' // matches src/lib/thread-tokens.ts unread amber
 
 export function NotificationBell({ projectId }: { projectId: string | null }) {
   const [open, setOpen] = useState(false)
+  // Has-opened latch — keep the InboxSheet mounted after first open so its
+  // Sheet component's exit animation can run on close. Combined with
+  // `next/dynamic`, the chunk only fetches when the bell is first tapped.
+  const [loaded, setLoaded] = useState(false)
+  useEffect(() => { if (open) setLoaded(true) }, [open])
   const { data: unread = 0 } = useUnreadCount(projectId)
   const { data: all } = useNotifications(projectId)
 
@@ -36,7 +48,7 @@ export function NotificationBell({ projectId }: { projectId: string | null }) {
           />
         )}
       </button>
-      <InboxSheet open={open} onClose={() => setOpen(false)} projectId={projectId} />
+      {loaded && <InboxSheet open={open} onClose={() => setOpen(false)} projectId={projectId} />}
     </>
   )
 }

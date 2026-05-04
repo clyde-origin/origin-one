@@ -10,13 +10,19 @@ import { ThreadRowBadge } from '@/components/threads/ThreadRowBadge'
 import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
 import { EntityAttachmentGallery } from '@/components/attachments/EntityAttachmentGallery'
 import { StorageImage } from '@/components/ui/StorageImage'
+import {
+  ENTITY_COLORS,
+  getEntityInitials,
+  type EntityType,
+  type EntityItem,
+} from './entity-meta'
 
-// ── Entity type colors (from reference spec) ────────────
-export const ENTITY_COLORS = {
-  characters: { base: '#67E8F9', bg: 'rgba(103,232,249,0.13)', border: 'rgba(103,232,249,0.28)', bgLight: 'rgba(103,232,249,0.1)' },
-  locations:  { base: '#A78BFA', bg: 'rgba(167,139,250,0.13)', border: 'rgba(167,139,250,0.28)', bgLight: 'rgba(167,139,250,0.1)' },
-  props:      { base: '#FCD34D', bg: 'rgba(252,211,77,0.10)',   border: 'rgba(252,211,77,0.22)',  bgLight: 'rgba(252,211,77,0.08)' },
-} as const
+// Re-export non-React metadata so existing call sites
+// (`@/app/projects/[projectId]/scenemaker/components/EntityDrawer`) keep
+// working — but new code should import from `./entity-meta` directly so the
+// drawer's heavy module isn't pulled in.
+export { ENTITY_COLORS, getEntityInitials }
+export type { EntityType, EntityItem }
 
 // Scene-tinted palette mirrors Casting V2 (#141): one of 8 hues hashed per
 // entity.id so chips read as their own scene rather than a flat type color.
@@ -35,21 +41,6 @@ function sceneRgbFor(id: string): [number, number, number] {
   let hash = 0
   for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash)
   return SCENE_PALETTE[Math.abs(hash) % SCENE_PALETTE.length]
-}
-
-export type EntityType = 'characters' | 'locations' | 'props'
-
-export interface EntityItem {
-  id: string
-  name: string
-  description: string | null
-  imageUrl: string | null
-}
-
-export function getEntityInitials(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
-  return name.slice(0, 2).toUpperCase()
 }
 
 // ── Shared spring transition ────────────────────────────

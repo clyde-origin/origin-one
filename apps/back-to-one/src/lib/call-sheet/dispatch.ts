@@ -68,20 +68,21 @@ export async function dispatchPendingDeliveries(opts?: { now?: Date; limit?: num
   let errors = 0
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
-  for (const row of rows as any[]) {
+  // Per-row send pipeline — extracted from the original for-of so we can
+  // run a chunk's sends in parallel via Promise.all.
+  type RowOutcome =
+    | { kind: 'missingRelated'; id: string }
+    | { kind: 'sent'; id: string; provider: 'resend' | 'twilio' | 'stub'; externalId: string | null }
+    | { kind: 'failed'; id: string; provider: 'resend' | 'twilio' | 'stub'; reason: string }
+
+  async function runRow(row: any): Promise<RowOutcome> {
     const recipient = row.CallSheetRecipient
     const callSheet = recipient?.CallSheet
     const shootDay = callSheet?.ShootDay
     const project = callSheet?.Project
     const location = shootDay?.Location
     if (!recipient || !callSheet || !shootDay || !project) {
-      await db.from('CallSheetDelivery').update({
-        status: 'failed',
-        failedReason: 'missing related row',
-        updatedAt: new Date().toISOString(),
-      }).eq('id', row.id)
-      errors++
-      continue
+      return { kind: 'missingRelated', id: row.id }
     }
 
     // Resolve recipient identity + contact
@@ -101,92 +102,107 @@ export async function dispatchPendingDeliveries(opts?: { now?: Date; limit?: num
     const setAddress = snapshot?.locationAddress ?? location?.address ?? null
     const dateLabel = shootDateLabel(shootDay.date)
 
-    let okSomething = false
     let providerStamp: 'resend' | 'twilio' | 'stub' = 'stub'
-    let externalId: string | null = null
-    let failedReason: string | null = null
 
     if (row.channel === 'email') {
       if (!email) {
-        failedReason = 'no email on file'
-      } else {
-        const built = buildCallSheetEmail({
-          recipientName,
-          projectTitle: callSheet.title || project.name,
-          shootDateLabel: dateLabel,
-          callTime,
-          setAddress,
-          productionNotes: callSheet.productionNotes ?? null,
-          parkingNotes: callSheet.parkingNotes ?? null,
-          appUrl,
-          confirmToken: row.confirmToken,
-          replyTo: callSheet.replyToEmail ?? null,
-        })
-        const result = await sendEmail({
-          to: email,
-          replyTo: callSheet.replyToEmail ?? null,
-          subject: built.subject,
-          html: built.html,
-          text: built.text,
-        })
-        if (result.ok) {
-          okSomething = true
-          providerStamp = result.provider
-          externalId = result.externalId
-        } else {
-          failedReason = result.error
-          providerStamp = result.provider
-        }
+        return { kind: 'failed', id: row.id, provider: providerStamp, reason: 'no email on file' }
       }
+      const built = buildCallSheetEmail({
+        recipientName,
+        projectTitle: callSheet.title || project.name,
+        shootDateLabel: dateLabel,
+        callTime,
+        setAddress,
+        productionNotes: callSheet.productionNotes ?? null,
+        parkingNotes: callSheet.parkingNotes ?? null,
+        appUrl,
+        confirmToken: row.confirmToken,
+        replyTo: callSheet.replyToEmail ?? null,
+      })
+      const result = await sendEmail({
+        to: email,
+        replyTo: callSheet.replyToEmail ?? null,
+        subject: built.subject,
+        html: built.html,
+        text: built.text,
+      })
+      providerStamp = result.provider
+      if (result.ok) {
+        return { kind: 'sent', id: row.id, provider: providerStamp, externalId: result.externalId }
+      }
+      return { kind: 'failed', id: row.id, provider: providerStamp, reason: result.error }
     } else if (row.channel === 'sms') {
       if (!phone) {
-        failedReason = 'no phone on file'
-      } else {
-        const body = buildCallSheetSms({
-          recipientName,
-          projectTitle: callSheet.title || project.name,
-          shootDateLabel: dateLabel,
-          callTime,
-          setAddress,
-          appUrl,
-          confirmToken: row.confirmToken,
-        })
-        const result = await sendSms({ to: phone, body })
-        if (result.ok) {
-          okSomething = true
-          providerStamp = result.provider
-          externalId = result.externalId
-        } else {
-          failedReason = result.error
-          providerStamp = result.provider
-        }
+        return { kind: 'failed', id: row.id, provider: providerStamp, reason: 'no phone on file' }
       }
+      const body = buildCallSheetSms({
+        recipientName,
+        projectTitle: callSheet.title || project.name,
+        shootDateLabel: dateLabel,
+        callTime,
+        setAddress,
+        appUrl,
+        confirmToken: row.confirmToken,
+      })
+      const result = await sendSms({ to: phone, body })
+      providerStamp = result.provider
+      if (result.ok) {
+        return { kind: 'sent', id: row.id, provider: providerStamp, externalId: result.externalId }
+      }
+      return { kind: 'failed', id: row.id, provider: providerStamp, reason: result.error }
     }
+    // Unknown channel — preserve original failure path.
+    return { kind: 'failed', id: row.id, provider: providerStamp, reason: 'unknown' }
+  }
 
+  // Chunked parallel pipeline — sends fan out 10 at a time so a slow
+  // provider response doesn't stall the cron tick. Updates fan out the
+  // same way (Supabase forbids varying-payload bulk updates: each row's
+  // externalId / failedReason is row-specific).
+  const CHUNK_SIZE = 10
+  const allRows = rows as any[]
+
+  for (let i = 0; i < allRows.length; i += CHUNK_SIZE) {
+    const chunk = allRows.slice(i, i + CHUNK_SIZE)
+    const outcomes = await Promise.all(chunk.map(runRow))
     const nowIso = new Date().toISOString()
-    if (okSomething) {
-      const { error: updErr } = await db.from('CallSheetDelivery').update({
-        sentAt: nowIso,
-        status: 'sent',
-        provider: providerStamp,
-        externalId,
-        updatedAt: nowIso,
-      }).eq('id', row.id)
-      if (updErr) {
-        console.error('dispatch update sent failed:', updErr)
+
+    await Promise.all(outcomes.map(async (o) => {
+      if (o.kind === 'missingRelated') {
+        await db.from('CallSheetDelivery').update({
+          status: 'failed',
+          failedReason: 'missing related row',
+          updatedAt: nowIso,
+        }).eq('id', o.id)
         errors++
-      } else {
-        sent++
+        return
       }
-    } else {
+      if (o.kind === 'sent') {
+        const { error: updErr } = await db.from('CallSheetDelivery').update({
+          sentAt: nowIso,
+          status: 'sent',
+          provider: o.provider,
+          externalId: o.externalId,
+          updatedAt: nowIso,
+        }).eq('id', o.id)
+        if (updErr) {
+          console.error('dispatch update sent failed:', updErr)
+          errors++
+        } else {
+          sent++
+        }
+        return
+      }
+      // failed
       await db.from('CallSheetDelivery').update({
         status: 'failed',
-        failedReason: failedReason ?? 'unknown',
-        provider: providerStamp,
+        failedReason: o.reason,
+        provider: o.provider,
         updatedAt: nowIso,
-      }).eq('id', row.id)
+      }).eq('id', o.id)
       errors++
-    }
+    }))
   }
 
   return { sent, errors }

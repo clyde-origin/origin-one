@@ -12,13 +12,24 @@ import { EmptyCTA } from '@/components/ui/EmptyState'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
 import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
+import dynamic from 'next/dynamic'
 import {
-  EntityDetailSheet,
   ENTITY_COLORS,
   getEntityInitials,
   type EntityItem,
-} from '@/app/projects/[projectId]/scenemaker/components/EntityDrawer'
+} from '@/app/projects/[projectId]/scenemaker/components/entity-meta'
 import { getEntities, updateEntity as dbUpdateEntity } from '@/lib/db/queries'
+
+// EntityDetailSheet ships in EntityDrawer's chunk — dynamic-import so the
+// drawer's heavy dependencies don't inflate the locations page's initial
+// bundle. Only loaded when the producer taps a scripted-location row.
+const EntityDetailSheet = dynamic(
+  () =>
+    import('@/app/projects/[projectId]/scenemaker/components/EntityDrawer').then(m => ({
+      default: m.EntityDetailSheet,
+    })),
+  { ssr: false },
+)
 import {
   EntityAttachmentGallery,
   EntityAttachmentCover,

@@ -46,19 +46,24 @@ export default async function PublicCallSheetView({ params }: { params: { token:
     }).eq('id', deliveryId)
   }
 
-  const [cs, sd, project, schedule, talent, members, locations] = await Promise.all([
-    db.from('CallSheet').select('*').eq('id', callSheetId).single(),
-    db.from('CallSheet').select('shootDayId').eq('id', callSheetId).single().then(async (r) => {
-      const sdId = r.data?.shootDayId
-      if (!sdId) return { data: null }
-      return db.from('ShootDay').select('*').eq('id', sdId).single()
-    }),
+  // Single CallSheet fetch — previously we ran this same .single() three
+  // times (once for the row, twice more inside Promise.all just to read
+  // shootDayId for the ShootDay + ScheduleBlock joins). Fetch the row
+  // first, then run the dependent queries in parallel.
+  const cs = await db.from('CallSheet').select('*').eq('id', callSheetId).single()
+  if (!cs.data) {
+    return <ExpiredOrMissing message="Call sheet not available." />
+  }
+  const shootDayId = (cs.data as CallSheet).shootDayId
+
+  const [sd, project, schedule, talent, members, locations] = await Promise.all([
+    shootDayId
+      ? db.from('ShootDay').select('*').eq('id', shootDayId).single()
+      : Promise.resolve({ data: null }),
     db.from('Project').select('*').eq('id', projectId).single(),
-    db.from('CallSheet').select('shootDayId').eq('id', callSheetId).single().then(async (r) => {
-      const sdId = r.data?.shootDayId
-      if (!sdId) return { data: [] }
-      return db.from('ScheduleBlock').select('*').eq('shootDayId', sdId).order('startTime')
-    }),
+    shootDayId
+      ? db.from('ScheduleBlock').select('*').eq('shootDayId', shootDayId).order('startTime')
+      : Promise.resolve({ data: [] }),
     db.from('Talent')
       .select('id, projectId, name, role, email, phone, imageUrl')
       .eq('projectId', projectId),
@@ -68,7 +73,7 @@ export default async function PublicCallSheetView({ params }: { params: { token:
     db.from('Location').select('*').eq('projectId', projectId),
   ])
 
-  if (!cs.data || !sd.data || !project.data) {
+  if (!sd.data || !project.data) {
     return <ExpiredOrMissing message="Call sheet not available." />
   }
 

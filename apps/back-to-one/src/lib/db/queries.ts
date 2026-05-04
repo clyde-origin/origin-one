@@ -6,6 +6,7 @@ import type { MentionRosterEntry } from '@/lib/mentions/types'
 import { computeMentionDelta } from '@/lib/mentions/delta'
 import { buildExcerpt } from '@/lib/mentions/excerpt'
 import { dispatchPush } from '@/lib/push/dispatch'
+import { buildDefaultRecipients } from '@/lib/call-sheet/seed-recipients'
 
 export type { MentionRosterEntry } from '@/lib/mentions/types'
 
@@ -2061,11 +2062,11 @@ export async function createCallSheet(input: {
   if (error) { console.error('createCallSheet failed:', error); throw error }
 
   // Auto-seed recipients from project Talent + non-post ProjectMembers.
-  // We import lazily to avoid pulling buildDefaultRecipients into the
-  // call-sheet-list query path.
+  // `buildDefaultRecipients` is a pure helper (no Supabase, no heavy deps)
+  // so it stays a top-level import — the inline-await pattern was leftover
+  // from a heavier seed module that no longer exists.
   try {
-    const [{ buildDefaultRecipients }, talentRows, memberRows] = await Promise.all([
-      import('@/lib/call-sheet/seed-recipients'),
+    const [talentRows, memberRows] = await Promise.all([
       db.from('Talent').select('id, email, phone').eq('projectId', input.projectId),
       db.from('ProjectMember').select('id, department, User(email, phone)').eq('projectId', input.projectId),
     ])

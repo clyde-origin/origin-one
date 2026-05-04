@@ -118,7 +118,7 @@ export function CrewPanel({ projects, onSelect }: { projects: Project[]; onSelec
             }}
           >
             {c.avatarUrl ? (
-              <Image src={c.avatarUrl} alt="" width={26} height={26} style={{
+              <Image src={c.avatarUrl} alt="" width={26} height={26} sizes="26px" style={{
                 borderRadius: '50%', flexShrink: 0, marginTop: 1,
                 objectFit: 'cover',
               }} />

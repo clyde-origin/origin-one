@@ -40,18 +40,20 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   }
   const callSheet = csRes.data
 
-  const sdRes = await db.from('ShootDay').select('*, Location(address)').eq('id', callSheet.shootDayId).single()
+  // ShootDay + ScheduleBlock + recipients all key off the same callSheetId /
+  // shootDayId — fetch in parallel rather than four sequential awaits.
+  const [sdRes, blocksRes, recipientsRes] = await Promise.all([
+    db.from('ShootDay').select('*, Location(address)').eq('id', callSheet.shootDayId).single(),
+    db.from('ScheduleBlock')
+      .select('id, startTime, kind, talentIds, crewMemberIds')
+      .eq('shootDayId', callSheet.shootDayId),
+    db.from('CallSheetRecipient').select('*').eq('callSheetId', callSheetId).eq('excluded', false),
+  ])
   if (sdRes.error || !sdRes.data) {
     return NextResponse.json({ ok: false, error: 'shoot day not found' }, { status: 404 })
   }
   const shootDay = sdRes.data as any
-
-  const blocksRes = await db.from('ScheduleBlock')
-    .select('id, startTime, kind, talentIds, crewMemberIds')
-    .eq('shootDayId', callSheet.shootDayId)
   const blocks = (blocksRes.data ?? []) as any[]
-
-  const recipientsRes = await db.from('CallSheetRecipient').select('*').eq('callSheetId', callSheetId).eq('excluded', false)
   const recipients = (recipientsRes.data ?? []) as any[]
 
   const ctx = {
@@ -79,26 +81,41 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const deliveries = (delivRes.data ?? []) as Array<{ id: string; recipientId: string; personalizedSnapshot: RecipientSnapshot | null; confirmedAt: string | null }>
 
   const nowIso = new Date().toISOString()
-  let outdatedCount = 0
-  let clearedConfirmCount = 0
 
+  // Group rows into two buckets so we can issue at most two bulk UPDATEs
+  // instead of one per row. The first bucket is rows that are outdated but
+  // were never confirmed (only the timestamps update). The second bucket
+  // also clears confirmedAt because their snapshot differs.
+  const outdatedOnlyIds: string[] = []
+  const clearConfirmIds: string[] = []
   for (const d of deliveries) {
     const fresh = freshByRecipient[d.recipientId]
     if (!fresh) continue
-    const differs = snapshotsDiffer(d.personalizedSnapshot, fresh)
-    if (differs) {
-      const update: Record<string, unknown> = {
-        outdatedAt: nowIso,
-        updatedAt: nowIso,
-      }
-      if (d.confirmedAt) {
-        update.confirmedAt = null
-        clearedConfirmCount++
-      }
-      const { error: updErr } = await db.from('CallSheetDelivery').update(update).eq('id', d.id)
-      if (!updErr) outdatedCount++
+    if (!snapshotsDiffer(d.personalizedSnapshot, fresh)) continue
+    if (d.confirmedAt) {
+      clearConfirmIds.push(d.id)
+    } else {
+      outdatedOnlyIds.push(d.id)
     }
   }
 
-  return NextResponse.json({ ok: true, outdated: outdatedCount, clearedConfirmations: clearedConfirmCount })
+  let outdatedCount = 0
+  if (outdatedOnlyIds.length > 0) {
+    const { error: updErr } = await db.from('CallSheetDelivery')
+      .update({ outdatedAt: nowIso, updatedAt: nowIso })
+      .in('id', outdatedOnlyIds)
+    if (!updErr) outdatedCount += outdatedOnlyIds.length
+  }
+  if (clearConfirmIds.length > 0) {
+    const { error: updErr } = await db.from('CallSheetDelivery')
+      .update({ outdatedAt: nowIso, updatedAt: nowIso, confirmedAt: null })
+      .in('id', clearConfirmIds)
+    if (!updErr) outdatedCount += clearConfirmIds.length
+  }
+
+  return NextResponse.json({
+    ok: true,
+    outdated: outdatedCount,
+    clearedConfirmations: clearConfirmIds.length,
+  })
 }

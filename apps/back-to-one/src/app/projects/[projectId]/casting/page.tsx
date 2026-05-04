@@ -21,14 +21,26 @@ import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
 import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
+import dynamic from 'next/dynamic'
 import {
-  EntityDetailSheet,
   ENTITY_COLORS,
   getEntityInitials,
   type EntityItem,
-} from '@/app/projects/[projectId]/scenemaker/components/EntityDrawer'
+} from '@/app/projects/[projectId]/scenemaker/components/entity-meta'
 import { updateEntity as dbUpdateEntity } from '@/lib/db/queries'
 import { useQueryClient } from '@tanstack/react-query'
+
+// EntityDetailSheet ships in EntityDrawer's chunk — dynamic-import so the
+// drawer's heavy dependencies (motion drag, threads, attachments) don't
+// inflate the casting page's initial bundle. Only loaded when the producer
+// taps a character row to edit it.
+const EntityDetailSheet = dynamic(
+  () =>
+    import('@/app/projects/[projectId]/scenemaker/components/EntityDrawer').then(m => ({
+      default: m.EntityDetailSheet,
+    })),
+  { ssr: false },
+)
 
 // ── Types ──────────────────────────────────────────────────
 
