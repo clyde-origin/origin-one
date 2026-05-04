@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence, type PanInfo } from 'framer-motion'
+import { m, AnimatePresence, type PanInfo } from 'framer-motion'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getEntities, createEntity, updateEntity } from '@/lib/db/queries'
 import { haptic } from '@/lib/utils/haptics'
@@ -123,7 +123,7 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
       {open && (
         <>
           {/* Overlay */}
-          <motion.div
+          <m.div
             key="entity-overlay"
             className="fixed inset-0"
             style={{ background: 'rgba(0,0,0,0.5)', zIndex: 40 }}
@@ -136,7 +136,7 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
 
           {/* Drawer — Cinema Glass: 20px top radius + glass-tile background +
               accent-tinted top hairline. */}
-          <motion.div
+          <m.div
             key="entity-drawer"
             className="fixed bottom-0 left-0 right-0 sm-entity-sheet"
             style={{
@@ -216,7 +216,7 @@ export function EntityDrawer({ type, projectId, open, onClose }: {
                 </div>
               </div>
             )}
-          </motion.div>
+          </m.div>
 
           {/* Detail sheet — layers on top of drawer */}
           <AnimatePresence>
@@ -279,7 +279,7 @@ export function EntityDetailSheet({ type, projectId, colors, label, entity, onSa
   return (
     <>
       {/* Sheet backdrop — sits above drawer */}
-      <motion.div
+      <m.div
         key="detail-backdrop"
         className="fixed inset-0"
         style={{ zIndex: 42 }}
@@ -289,7 +289,7 @@ export function EntityDetailSheet({ type, projectId, colors, label, entity, onSa
         onClick={onClose}
       />
 
-      <motion.div
+      <m.div
         key="detail-sheet"
         className="fixed bottom-0 left-0 right-0 no-scrollbar"
         style={{
@@ -431,7 +431,7 @@ export function EntityDetailSheet({ type, projectId, colors, label, entity, onSa
         {isEdit && PreviewRow}
         {isEdit && MessageZone}
         {StartSheetOverlay}
-      </motion.div>
+      </m.div>
     </>
   )
 }

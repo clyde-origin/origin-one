@@ -5,7 +5,7 @@ import { EMPTY_ARRAY } from '@/lib/empty-collections'
 import { AnimatePresence } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
+import { m } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import { useProject, useShotlistVersions, useCreateShotlistVersion, useUpdateShotlistVersionLabel, useThreadPreviews } from '@/lib/hooks/useOriginOne'
 import { getShotsByProject, updateShotOrder, updateShootOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene, deleteScene } from '@/lib/db/queries'
@@ -1588,7 +1588,7 @@ function VersionHistoryPanel({ versions, accent, activeVersionId, onSelectVersio
   const [editingLabel, setEditingLabel] = useState('')
 
   return (
-    <motion.div
+    <m.div
       initial={{ x: '100%' }}
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
@@ -1669,7 +1669,7 @@ function VersionHistoryPanel({ versions, accent, activeVersionId, onSelectVersio
           )
         })}
       </div>
-    </motion.div>
+    </m.div>
   )
 }
 

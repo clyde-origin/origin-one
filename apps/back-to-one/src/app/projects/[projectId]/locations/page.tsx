@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { EMPTY_ARRAY } from '@/lib/empty-collections'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useProject, useLocations, useCreateLocation, useUpdateLocation, useDeleteLocation } from '@/lib/hooks/useOriginOne'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
@@ -194,11 +194,11 @@ function CreateLocationSheet({ open, projectId, accent, onSave, onClose }: {
     <AnimatePresence>
       {open && (
         <>
-          <motion.div key="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          <m.div key="overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={handleClose}
             style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
           />
-          <motion.div key="sheet"
+          <m.div key="sheet"
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             drag="y" dragConstraints={{ top: 0 }} dragElastic={0.1} onDragEnd={handleDragEnd}
@@ -279,7 +279,7 @@ function CreateLocationSheet({ open, projectId, accent, onSave, onClose }: {
                 <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Additional notes" rows={2} style={{ ...inputStyle, resize: 'none' }} />
               </div>
             </div>
-          </motion.div>
+          </m.div>
         </>
       )}
     </AnimatePresence>
@@ -793,11 +793,11 @@ export default function LocationsPage({ params }: { params: { projectId: string 
       <AnimatePresence>
         {selected && (
           <>
-            <motion.div key="detail-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            <m.div key="detail-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setSelected(null)}
               style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
             />
-            <motion.div key="detail-sheet"
+            <m.div key="detail-sheet"
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
               drag="y" dragConstraints={{ top: 0 }} dragElastic={0.1}
@@ -819,7 +819,7 @@ export default function LocationsPage({ params }: { params: { projectId: string 
                 onDelete={() => deleteLoc.mutate(selected.id)}
                 onClose={() => setSelected(null)}
               />
-            </motion.div>
+            </m.div>
           </>
         )}
       </AnimatePresence>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
+import { m, AnimatePresence, LayoutGroup } from 'framer-motion'
 import {
   useProject,
   useArtItems,
@@ -641,7 +641,7 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
                 TABS[(activeIndex - center + i + len) % len]
               )
               return rotated.map(tab => (
-                <motion.button
+                <m.button
                   key={tab.key}
                   layout
                   transition={{ type: 'spring', stiffness: 360, damping: 32 }}
@@ -652,7 +652,7 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
                   onClick={() => setActiveTab(tab.key)}
                 >
                   {tab.label}
-                </motion.button>
+                </m.button>
               ))
             })()}
           </div>
@@ -716,7 +716,7 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
       <AnimatePresence>
         {(selected || showCreate) && (
           <>
-            <motion.div
+            <m.div
               key="art-overlay"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => { setSelected(null); setShowCreate(false) }}
@@ -725,7 +725,7 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
                 background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)',
               }}
             />
-            <motion.div
+            <m.div
               key="art-sheet"
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
@@ -750,7 +750,7 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
                 isCreate={showCreate && !selected}
                 onClose={() => { setSelected(null); setShowCreate(false) }}
               />
-            </motion.div>
+            </m.div>
           </>
         )}
       </AnimatePresence>

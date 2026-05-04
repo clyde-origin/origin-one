@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import Image from 'next/image'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, m } from 'framer-motion'
 import { useProject, useCrew } from '@/lib/hooks/useOriginOne'
 
 import { CrewAvatar } from '@/components/ui/client'
@@ -141,7 +141,7 @@ function MemberPanel({ member, accent, onClose }: {
   const email = member.User?.email ?? '—'
 
   return (
-    <motion.div
+    <m.div
       initial={{ y: '-100%' }} animate={{ y: 0 }} exit={{ y: '-100%' }}
       transition={{ type: 'spring', damping: 28, stiffness: 320 }}
       style={{
@@ -181,7 +181,7 @@ function MemberPanel({ member, accent, onClose }: {
           <span className="capitalize" style={{ fontSize: 13, color: 'var(--fg)', textAlign: 'right' }}>{member.role}</span>
         </div>
       </div>
-    </motion.div>
+    </m.div>
   )
 }
 
