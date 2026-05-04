@@ -31,8 +31,16 @@ export function GanttChart({ milestones, projectStatus }: { milestones: Mileston
   const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   const todayPct = toPercent(today)
 
-  const nextMs = milestones.filter(m => new Date(m.date) >= today).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]
-  const [selectedMsId, setSelectedMsId] = useState<string | null>(nextMs?.id ?? null)
+  // Default-selected milestone for the .g-detail row:
+  // 1. The next upcoming milestone (date >= today), if any
+  // 2. Otherwise the most recent past milestone (so projects past their
+  //    seed dates still get a row + arrows to navigate prior milestones)
+  // 3. Otherwise null (no row renders — but allMS.length===0 path in the
+  //    parent already handles the truly-empty case)
+  const sortedMs = [...milestones].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  const nextMs = sortedMs.find(m => new Date(m.date) >= today)
+  const fallbackMs = nextMs ?? (sortedMs.length > 0 ? sortedMs[sortedMs.length - 1] : null)
+  const [selectedMsId, setSelectedMsId] = useState<string | null>(fallbackMs?.id ?? null)
 
   const finalMs = milestones.length > 0 ? milestones.reduce((a, b) => new Date(a.date) > new Date(b.date) ? a : b) : null
   const finalPct = finalMs ? toPercent(new Date(finalMs.date)) : null
