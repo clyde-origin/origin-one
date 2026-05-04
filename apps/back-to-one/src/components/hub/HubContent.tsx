@@ -356,12 +356,16 @@ export function HubContent({ projectId }: { projectId: string }) {
   const [showCreateCreative, setShowCreateCreative] = useState(false)
   const [showInviteCrew, setShowInviteCrew] = useState(false)
 
-  // ── Hub split mode (?hub=split URL gate, per docs/superpowers/specs/2026-05-03-hub-production-creative-toggle-design.md) ──
-  // When the gate is absent, behavior is identical to the stacked layout
-  // shipped in cinema-glass. When `?hub=split` is present, the topbar gets
-  // a binary HubModeToggle and body sections show/hide per mode.
+  // ── Hub split mode (default ON, per docs/superpowers/specs/2026-05-03-hub-production-creative-toggle-design.md) ──
+  // PR #157 shipped this gated behind ?hub=split for in-production
+  // validation. After live iteration (Tone strip, FAB-per-mode swap,
+  // Budget bottom row, rotating arc toggle, LCA per-column headers,
+  // Art-page tab toggle, .slate-name CSS hotfix), the default is now
+  // flipped to ON. ?hub=stacked is the opt-OUT kill switch — anyone
+  // can fall back to the old stacked layout by hitting
+  // /projects/<id>?hub=stacked if a regression surfaces.
   const searchParams = useSearchParams()
-  const splitEnabled = searchParams?.get('hub') === 'split'
+  const splitEnabled = searchParams?.get('hub') !== 'stacked'
   const { mode, setMode } = useHubMode(projectId)
   // Arc mode is local to the Creative surface — does NOT persist
   // (per spec: navigation aid, not a mode). Defaults to 'script'.
