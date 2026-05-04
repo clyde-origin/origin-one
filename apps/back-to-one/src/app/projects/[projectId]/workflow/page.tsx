@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react'
 import {
   useProject,
   useCrew,
@@ -16,6 +16,7 @@ import {
   useUpdateDeliverable,
   useDeleteDeliverable,
 } from '@/lib/hooks/useOriginOne'
+import { EMPTY_ARRAY } from '@/lib/empty-collections'
 
 import { LoadingState } from '@/components/ui'
 import { GhostCircle, GhostRect, GhostPill, SectionLabel, EmptyCTA } from '@/components/ui/EmptyState'
@@ -89,15 +90,13 @@ function statusToPhase(s: string | undefined): 'pre' | 'prod' | 'post' {
 // the screen's --accent-rgb stays the project accent so connector pills
 // render in project color rather than per-node tint.
 
-function NodeCard({
-  node, crew, onTap, onAssign, threadEntry,
+const NodeCard = memo(function NodeCard({
+  node, crewByUserId, onTap, onAssign, threadEntry,
 }: {
-  node: any; crew: any[]; onTap: (n: any) => void; onAssign: (n: any) => void
+  node: any; crewByUserId: Map<string, any>; onTap: (n: any) => void; onAssign: (n: any) => void
   threadEntry: ThreadRowBadgeEntry | undefined
 }) {
-  const person = node.assigneeId
-    ? crew.find((m: any) => m.userId === node.assigneeId || m.User?.id === node.assigneeId)
-    : null
+  const person = node.assigneeId ? crewByUserId.get(node.assigneeId) : null
   const user = person?.User ?? person
   const tagRgb = TYPE_RGB[node.type] ?? TYPE_RGB.other
 
@@ -146,7 +145,7 @@ function NodeCard({
       <ThreadRowBadge entry={threadEntry} />
     </div>
   )
-}
+})
 
 // ── Connector ──────────────────────────────────────────────
 // V2 (reskin/v2-workflow): single mono-caps `.wf-connector-pill` with
@@ -720,7 +719,11 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
   const { data: project } = useProject(projectId)
   const accent = project?.color || getProjectColor(projectId)
   const { data: crewData } = useCrew(projectId)
-  const crew = crewData ?? []
+  const crew = (crewData ?? EMPTY_ARRAY) as any[]
+  const crewByUserId = useMemo(
+    () => new Map<string, any>(crew.map((c: any) => [c.userId, c])),
+    [crew],
+  )
 
   const { data: nodesData, isLoading: nodesLoading } = useWorkflowNodes(projectId)
   const { data: edgesData, isLoading: edgesLoading } = useWorkflowEdges(projectId)
@@ -876,7 +879,7 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
                     <div key={node.id} style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
                       <NodeCard
                         node={node}
-                        crew={crew}
+                        crewByUserId={crewByUserId}
                         onTap={(n) => { haptic('light'); setSelectedNode(n) }}
                         onAssign={(n) => { haptic('light'); setAssignNode(n) }}
                         threadEntry={threadByWorkflowNodeId.get(node.id)}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { EMPTY_ARRAY } from '@/lib/empty-collections'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useProject, useLocations, useCreateLocation, useUpdateLocation, useDeleteLocation } from '@/lib/hooks/useOriginOne'
@@ -526,11 +527,19 @@ export default function LocationsPage({ params }: { params: { projectId: string 
     setScriptDetail(null)
   }, [qc, projectId])
 
-  const allLocations = (locations ?? []) as Location[]
+  const allLocations = (locations ?? EMPTY_ARRAY) as Location[]
 
-  // Derive scene tabs from data
-  const sceneTabs = Array.from(new Set(allLocations.map(l => l.sceneTab).filter(Boolean))) as string[]
-  const tabs = ['All', ...sceneTabs]
+  // Per-tab counts in one pass, plus the derived tab list. Replaces the
+  // per-pill `allLocations.filter(...)` walk.
+  const countsByTab = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const l of allLocations) {
+      if (!l.sceneTab) continue
+      m.set(l.sceneTab, (m.get(l.sceneTab) ?? 0) + 1)
+    }
+    return m
+  }, [allLocations])
+  const tabs = useMemo(() => ['All', ...Array.from(countsByTab.keys())], [countsByTab])
 
   // Filter by active tab
   const filtered = activeTab === 'All'
@@ -700,7 +709,7 @@ export default function LocationsPage({ params }: { params: { projectId: string 
             background: activeTab === tab ? `${accent}1f` : 'rgba(255,255,255,0.04)',
             border: `1px solid ${activeTab === tab ? `${accent}55` : 'rgba(255,255,255,0.05)'}`,
             color: activeTab === tab ? accent : 'var(--fg-mono)',
-          }}>{tab}{tab !== 'All' ? ` (${allLocations.filter(l => l.sceneTab === tab).length})` : ''}</button>
+          }}>{tab}{tab !== 'All' ? ` (${countsByTab.get(tab) ?? 0})` : ''}</button>
         ))}
         {/* Add Scene tab */}
         {showAddTab ? (

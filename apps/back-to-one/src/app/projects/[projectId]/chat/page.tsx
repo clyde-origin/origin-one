@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react'
 import {
   useProject,
   useCrew,
@@ -75,7 +75,7 @@ function sameDay(a: string, b: string) {
 
 // ── Message Bubble ─────────────────────────────────────────
 
-function MessageBubble({
+const MessageBubble = memo(function MessageBubble({
   msg, isSelf, accent, showAvatar, showName,
 }: { msg: any; isSelf: boolean; accent: string; showAvatar: boolean; showName: boolean }) {
   const senderName = msg.sender?.name ?? ''
@@ -129,7 +129,7 @@ function MessageBubble({
       </div>
     </div>
   )
-}
+})
 
 // ── Message List w/ date separators ────────────────────────
 
@@ -137,35 +137,38 @@ function MessageList({ messages, meId, accent }: { messages: any[]; meId: string
   const bottomRef = useRef<HTMLDivElement>(null)
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }) }, [messages.length])
 
-  const items: React.ReactNode[] = []
-  for (let i = 0; i < messages.length; i++) {
-    const m = messages[i]
-    const prev = messages[i - 1]
-    if (!prev || !sameDay(prev.createdAt, m.createdAt)) {
-      // Cinema-glass `.ai-bucket` rule pattern — rule | label | rule
-      items.push(
-        <div key={`sep-${m.id}`} className="chat-day-sep flex items-center" style={{ gap: 10, margin: '4px 0' }}>
-          <div className="flex-1" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
-          <span className="font-mono uppercase" style={{ fontSize: 9, letterSpacing: '0.14em', fontWeight: 600, color: 'var(--fg-mono)' }}>
-            {dayLabel(m.createdAt)}
-          </span>
-          <div className="flex-1" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
-        </div>,
+  const items = useMemo(() => {
+    const acc: React.ReactNode[] = []
+    for (let i = 0; i < messages.length; i++) {
+      const m = messages[i]
+      const prev = messages[i - 1]
+      if (!prev || !sameDay(prev.createdAt, m.createdAt)) {
+        // Cinema-glass `.ai-bucket` rule pattern — rule | label | rule
+        acc.push(
+          <div key={`sep-${m.id}`} className="chat-day-sep flex items-center" style={{ gap: 10, margin: '4px 0' }}>
+            <div className="flex-1" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
+            <span className="font-mono uppercase" style={{ fontSize: 9, letterSpacing: '0.14em', fontWeight: 600, color: 'var(--fg-mono)' }}>
+              {dayLabel(m.createdAt)}
+            </span>
+            <div className="flex-1" style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
+          </div>,
+        )
+      }
+      const isSelf = m.senderId === meId
+      const prevSameSender = prev && prev.senderId === m.senderId && sameDay(prev.createdAt, m.createdAt)
+      acc.push(
+        <MessageBubble
+          key={m.id}
+          msg={m}
+          isSelf={isSelf}
+          accent={accent}
+          showAvatar={!prevSameSender}
+          showName={!prevSameSender}
+        />,
       )
     }
-    const isSelf = m.senderId === meId
-    const prevSameSender = prev && prev.senderId === m.senderId && sameDay(prev.createdAt, m.createdAt)
-    items.push(
-      <MessageBubble
-        key={m.id}
-        msg={m}
-        isSelf={isSelf}
-        accent={accent}
-        showAvatar={!prevSameSender}
-        showName={!prevSameSender}
-      />,
-    )
-  }
+    return acc
+  }, [messages, meId, accent])
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
       {items}

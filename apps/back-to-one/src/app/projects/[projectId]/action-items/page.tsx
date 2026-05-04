@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useProject, useActionItems, useToggleActionItem, useCreateActionItem, useUpdateActionItem, useCrew, useMentionRoster, useMeId } from '@/lib/hooks/useOriginOne'
 import { MentionInput } from '@/components/ui/MentionInput'
@@ -56,14 +56,14 @@ function statusToPhaseChip(status: string | undefined): 'pre' | 'prod' | 'post' 
 // wrapper rather than each being its own glass-tile-xs. Per-dept rows take
 // the gallery's `.ai-tr.with-dept` left-edge stripe (driven by --row-dept)
 // instead of the inline dept chip.
-function TaskRow({ item, isMine, accent, showAssignee, showDeptStripe, crew, onTap, onToggle, threadEntry }: {
+const TaskRow = memo(function TaskRow({ item, isMine, accent, showAssignee, showDeptStripe, crewById, onTap, onToggle, threadEntry }: {
   item: ActionItem; isMine: boolean; accent: string; showAssignee?: boolean; showDeptStripe?: boolean
-  crew: TeamMember[]; onTap: () => void; onToggle: () => void
+  crewById: Map<string, TeamMember>; onTap: () => void; onToggle: () => void
   threadEntry: ThreadRowBadgeEntry | undefined
 }) {
   const overdue = item.dueDate ? isLate(item.dueDate) : false
   const dateLabel = item.dueDate ? formatDate(item.dueDate) : null
-  const assignee = crew.find(c => c.userId === item.assignedTo || c.id === item.assignedTo)
+  const assignee = item.assignedTo ? crewById.get(item.assignedTo) : undefined
   const deptColor = item.department ? (DEPT_COLORS[item.department] ?? '#7a7a82') : null
   const useStripe = showDeptStripe && !!deptColor
 
@@ -110,7 +110,7 @@ function TaskRow({ item, isMine, accent, showAssignee, showDeptStripe, crew, onT
       <ThreadRowBadge entry={threadEntry} />
     </div>
   )
-}
+})
 
 // ── DONE TASK ROW ─────────────────────────────────────────
 
@@ -338,15 +338,36 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
 
   const myItems = openItems // For now, show all as "mine"
 
-  // Upcoming buckets
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const endOfWeek = new Date(today)
-  endOfWeek.setDate(endOfWeek.getDate() + (7 - endOfWeek.getDay()))
+  const crewById = useMemo(() => {
+    const m = new Map<string, TeamMember>()
+    for (const c of allCrew) {
+      m.set(c.userId, c)
+      m.set(c.id, c)
+    }
+    return m
+  }, [allCrew])
 
-  const todayItems = openItems.filter(i => { if (!i.dueDate) return false; const d = new Date(i.dueDate); d.setHours(0, 0, 0, 0); return d <= today })
-  const weekItems = openItems.filter(i => { if (!i.dueDate) return false; const d = new Date(i.dueDate); d.setHours(0, 0, 0, 0); return d > today && d <= endOfWeek })
-  const laterItems = openItems.filter(i => { if (!i.dueDate) return false; const d = new Date(i.dueDate); d.setHours(0, 0, 0, 0); return d > endOfWeek })
+  // Upcoming buckets
+  const { today, endOfWeek } = useMemo(() => {
+    const t = new Date()
+    t.setHours(0, 0, 0, 0)
+    const e = new Date(t)
+    e.setDate(e.getDate() + (7 - e.getDay()))
+    return { today: t, endOfWeek: e }
+  }, [])
+
+  const todayItems = useMemo(
+    () => openItems.filter(i => { if (!i.dueDate) return false; const d = new Date(i.dueDate); d.setHours(0, 0, 0, 0); return d <= today }),
+    [openItems, today],
+  )
+  const weekItems = useMemo(
+    () => openItems.filter(i => { if (!i.dueDate) return false; const d = new Date(i.dueDate); d.setHours(0, 0, 0, 0); return d > today && d <= endOfWeek }),
+    [openItems, today, endOfWeek],
+  )
+  const laterItems = useMemo(
+    () => openItems.filter(i => { if (!i.dueDate) return false; const d = new Date(i.dueDate); d.setHours(0, 0, 0, 0); return d > endOfWeek }),
+    [openItems, endOfWeek],
+  )
 
   return (
     <div
@@ -442,7 +463,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                       <>
                         <BucketDivider label="Today" isToday />
                         {todayItems.map(item => (
-                          <TaskRow key={item.id} item={item} isMine accent={accent} crew={allCrew}
+                          <TaskRow key={item.id} item={item} isMine accent={accent} crewById={crewById}
                             onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })}
                             threadEntry={threadByActionItemId.get(item.id)} />
                         ))}
@@ -452,7 +473,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                       <>
                         <BucketDivider label="This Week" />
                         {weekItems.map(item => (
-                          <TaskRow key={item.id} item={item} isMine accent={accent} crew={allCrew}
+                          <TaskRow key={item.id} item={item} isMine accent={accent} crewById={crewById}
                             onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })}
                             threadEntry={threadByActionItemId.get(item.id)} />
                         ))}
@@ -462,7 +483,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                       <>
                         <BucketDivider label="Later" />
                         {laterItems.map(item => (
-                          <TaskRow key={item.id} item={item} isMine accent={accent} crew={allCrew}
+                          <TaskRow key={item.id} item={item} isMine accent={accent} crewById={crewById}
                             onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })}
                             threadEntry={threadByActionItemId.get(item.id)} />
                         ))}
@@ -479,7 +500,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                         <>
                           <BucketDivider label="No Due Date" />
                           {undated.map(item => (
-                            <TaskRow key={item.id} item={item} isMine accent={accent} crew={allCrew}
+                            <TaskRow key={item.id} item={item} isMine accent={accent} crewById={crewById}
                               onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })}
                               threadEntry={threadByActionItemId.get(item.id)} />
                           ))}
@@ -550,7 +571,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                       <div className="card ai-list">
                         <BucketDivider label={`${deptFilter} · ${filteredItems.length} open`} />
                         {filteredItems.map(item => (
-                          <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee showDeptStripe crew={allCrew}
+                          <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee showDeptStripe crewById={crewById}
                             onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} threadEntry={threadByActionItemId.get(item.id)} />
                         ))}
                       </div>
@@ -569,7 +590,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                             <div key={dept} style={{ display: 'contents' }}>
                               <BucketDivider label={`${DEPT_SHORT_MAP[dept] ?? dept} · ${deptItems.length}`} />
                               {deptItems.map(item => (
-                                <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee showDeptStripe crew={allCrew}
+                                <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee showDeptStripe crewById={crewById}
                                   onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} threadEntry={threadByActionItemId.get(item.id)} />
                               ))}
                             </div>
@@ -579,7 +600,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
                           <div style={{ display: 'contents' }}>
                             <BucketDivider label="Untagged" />
                             {openItems.filter(i => !i.department).map(item => (
-                              <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crew={allCrew}
+                              <TaskRow key={item.id} item={item} isMine accent={accent} showAssignee crewById={crewById}
                                 onTap={() => setSelected(item)} onToggle={() => toggle.mutate({ id: item.id, done: item.status !== 'done' })} threadEntry={threadByActionItemId.get(item.id)} />
                             ))}
                           </div>

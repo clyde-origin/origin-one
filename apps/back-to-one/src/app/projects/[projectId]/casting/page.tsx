@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { memo, useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { EMPTY_ARRAY } from '@/lib/empty-collections'
 import { AnimatePresence } from 'framer-motion'
 import {
   useProject,
@@ -73,6 +74,8 @@ interface CastRoleData {
   updatedAt: string
 }
 
+const SECTION_ORDER = ['Principal Cast', 'Principal Talent', 'Talent', 'Background'] as const
+
 // Maps ProjectStatus enum onto cinema-glass .ai-meta-pill classes.
 function phaseClass(status: string | undefined): 'pre' | 'prod' | 'post' | '' {
   if (status === 'pre_production' || status === 'development') return 'pre'
@@ -125,7 +128,7 @@ function pillLabelFor(section: string): string {
 
 // ── Cast Card ──────────────────────────────────────────────
 
-function CastCard({ role, onTap, threadEntry }: { role: CastRoleData; onTap: () => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
+const CastCard = memo(function CastCard({ role, onTap, threadEntry }: { role: CastRoleData; onTap: (id: string) => void; threadEntry: ThreadRowBadgeEntry | undefined }) {
   const isCast = role.cast && !!role.talent
   const [r, g, b] = sceneRgbFor(role)
   const sceneRgbStr = `${r}, ${g}, ${b}`
@@ -144,7 +147,7 @@ function CastCard({ role, onTap, threadEntry }: { role: CastRoleData; onTap: () 
     <div style={{ position: 'relative' }}>
       <button
         type="button"
-        onClick={onTap}
+        onClick={() => onTap(role.id)}
         className="cursor-pointer active:opacity-90 transition-opacity w-full"
         style={{
           // .cast-card per spec: subtle hairline + soft shadow, NOT the
@@ -252,7 +255,7 @@ function CastCard({ role, onTap, threadEntry }: { role: CastRoleData; onTap: () 
       <ThreadRowBadge entry={threadEntry} />
     </div>
   )
-}
+})
 
 // ── Collapsible ────────────────────────────────────────────
 
@@ -859,7 +862,7 @@ export default function CastingPage({ params }: { params: { projectId: string } 
   const accent = project?.color || getProjectColor(projectId)
 
   const { data: rolesData, isLoading } = useCastRoles(projectId)
-  const roles = (rolesData ?? []) as CastRoleData[]
+  const roles = (rolesData ?? EMPTY_ARRAY) as CastRoleData[]
 
   const createRole = useCreateCastRole(projectId)
   const updateEntity = useUpdateCastEntity(projectId)
@@ -906,6 +909,8 @@ export default function CastingPage({ params }: { params: { projectId: string } 
     return () => { window.removeEventListener('keydown', onKey) }
   }, [charMenuOpen])
 
+  const handleCardTap = useCallback((id: string) => { haptic('light'); setSelectedId(id) }, [])
+
   // EntityDetailSheet save handler — updates the character Entity row.
   // Threads inside the sheet use ('character', entity.id); same tuple as
   // Scenemaker EntityDrawer, so the conversation unifies.
@@ -924,47 +929,59 @@ export default function CastingPage({ params }: { params: { projectId: string } 
   // Filter pill counts (per live section + uncast bucket). Counts always
   // reflect the unfiltered data so pills show "where you could go" totals,
   // not what's currently visible.
-  const sectionOrder = ['Principal Cast', 'Principal Talent', 'Talent', 'Background']
-  const sectionKeys = Array.from(new Set(roles.map(r => r.section || 'Principal Cast')))
-  const orderedSectionKeys = [
-    ...sectionOrder.filter(s => sectionKeys.includes(s)),
-    ...sectionKeys.filter(s => !sectionOrder.includes(s)),
-  ]
-  const uncastCount = roles.filter(r => !r.cast).length
-  const filterPills: { key: string; label: string; count: number }[] = [
-    { key: 'All', label: 'All', count: roles.length },
-    ...orderedSectionKeys.map(s => ({
-      key: s,
-      label: pillLabelFor(s),
-      count: roles.filter(r => (r.section || 'Principal Cast') === s).length,
-    })),
-    ...(uncastCount > 0 ? [{ key: 'Uncast', label: 'Uncast', count: uncastCount }] : []),
-  ]
+  const filterPills = useMemo<{ key: string; label: string; count: number }[]>(() => {
+    const sectionCounts = new Map<string, number>()
+    let uncastCount = 0
+    for (const r of roles) {
+      const s = r.section || 'Principal Cast'
+      sectionCounts.set(s, (sectionCounts.get(s) ?? 0) + 1)
+      if (!r.cast) uncastCount += 1
+    }
+    const orderedSectionKeys = [
+      ...SECTION_ORDER.filter(s => sectionCounts.has(s)),
+      ...Array.from(sectionCounts.keys()).filter(s => !SECTION_ORDER.includes(s as typeof SECTION_ORDER[number])),
+    ]
+    return [
+      { key: 'All', label: 'All', count: roles.length },
+      ...orderedSectionKeys.map(s => ({
+        key: s,
+        label: pillLabelFor(s),
+        count: sectionCounts.get(s) ?? 0,
+      })),
+      ...(uncastCount > 0 ? [{ key: 'Uncast', label: 'Uncast', count: uncastCount }] : []),
+    ]
+  }, [roles])
 
-  // Apply active filter before grouping.
-  const filteredRoles = activeFilter === 'All'
-    ? roles
-    : activeFilter === 'Uncast'
-      ? roles.filter(r => !r.cast)
-      : roles.filter(r => (r.section || 'Principal Cast') === activeFilter)
+  // Apply active filter, then group by section. Single pass over roles.
+  const grouped = useMemo<{ label: string; members: CastRoleData[] }[]>(() => {
+    const groupMap = new Map<string, CastRoleData[]>()
+    for (const r of roles) {
+      const k = r.section || 'Principal Cast'
+      const include = activeFilter === 'All'
+        ? true
+        : activeFilter === 'Uncast'
+          ? !r.cast
+          : k === activeFilter
+      if (!include) continue
+      let bucket = groupMap.get(k)
+      if (!bucket) { bucket = []; groupMap.set(k, bucket) }
+      bucket.push(r)
+    }
+    const out: { label: string; members: CastRoleData[] }[] = []
+    for (const label of SECTION_ORDER) {
+      if (groupMap.has(label)) out.push({ label, members: groupMap.get(label)! })
+    }
+    groupMap.forEach((members, label) => {
+      if (!SECTION_ORDER.includes(label as typeof SECTION_ORDER[number])) out.push({ label, members })
+    })
+    return out
+  }, [roles, activeFilter])
 
-  // Group by section (post-filter).
-  const grouped: { label: string; members: CastRoleData[] }[] = []
-  const groupMap = new Map<string, CastRoleData[]>()
-  for (const r of filteredRoles) {
-    const k = r.section || 'Principal Cast'
-    if (!groupMap.has(k)) groupMap.set(k, [])
-    groupMap.get(k)!.push(r)
-  }
-  // Preserve stable order: Principal first, then Talent, then Background, then others
-  for (const label of sectionOrder) {
-    if (groupMap.has(label)) grouped.push({ label, members: groupMap.get(label)! })
-  }
-  groupMap.forEach((members, label) => {
-    if (!sectionOrder.includes(label)) grouped.push({ label, members })
-  })
-
-  const castCount = roles.filter(r => r.cast).length
+  const castCount = useMemo(() => {
+    let n = 0
+    for (const r of roles) if (r.cast) n += 1
+    return n
+  }, [roles])
 
   // Cinema Glass: project accent triplet drives the sheen-title gradient and
   // glass-tile tint. +20/+30/+16 lights the spec's accent-glow apex.
@@ -1189,7 +1206,7 @@ export default function CastingPage({ params }: { params: { projectId: string } 
                     <CastCard
                       key={r.id}
                       role={r}
-                      onTap={() => { haptic('light'); setSelectedId(r.id) }}
+                      onTap={handleCardTap}
                       threadEntry={r.talent ? threadByTalentId.get(r.talent.id) : undefined}
                     />
                   ))}
