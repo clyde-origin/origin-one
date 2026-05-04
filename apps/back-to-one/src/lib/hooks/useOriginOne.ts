@@ -1040,7 +1040,16 @@ export function useCallSheetDeliveries(callSheetId: string | null) {
     queryKey: keys.callSheetDeliveries(callSheetId ?? ''),
     queryFn:  () => db.getCallSheetDeliveries(callSheetId!),
     enabled:  !!callSheetId,
-    refetchInterval: 10_000,
+    // Stop polling when every delivery is past `queued` — `sent` and beyond
+    // are terminal-ish; the row won't change unless an operator resends.
+    refetchInterval: (query) => {
+      const data = query.state.data as { status?: string }[] | undefined
+      if (data && data.length > 0 && data.every(d => d.status !== 'queued')) {
+        return false
+      }
+      return 10_000
+    },
+    refetchIntervalInBackground: false,
   })
 }
 
@@ -1673,8 +1682,16 @@ export function useNotificationsSubscription() {
   const qc = useQueryClient()
   useEffect(() => {
     if (!meId) return
-    return db.subscribeToNotifications(meId, () => {
-      qc.invalidateQueries({ queryKey: ['notifications'] })
+    return db.subscribeToNotifications(meId, (row) => {
+      // Scope to (meId, projectId) — both the project-scoped consumer
+      // (Hub bell) and the global one (projectId = null) share the same
+      // ['notifications', meId, projectId] prefix, so target each shape
+      // explicitly instead of busting every notifications cache entry.
+      const projectId = row?.projectId ?? null
+      qc.invalidateQueries({ queryKey: keys.notifications(meId, projectId) })
+      qc.invalidateQueries({ queryKey: keys.notifications(meId, null) })
+      qc.invalidateQueries({ queryKey: keys.unreadCount(meId, projectId) })
+      qc.invalidateQueries({ queryKey: keys.unreadCount(meId, null) })
     })
   }, [meId, qc])
 }

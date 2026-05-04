@@ -281,6 +281,31 @@ export async function listEntityAttachments(
   return (data ?? []).map((r: any) => ({ ...r, publicUrl: attachmentPublicUrl(r.storagePath, db) }))
 }
 
+// Batched twin of listEntityAttachments — fetches every attachment for one
+// (projectId, attachedToType) across many ids in a single round-trip.
+// Used by Hub previews that render a cover per location/cast/etc; previously
+// each preview row mounted its own listEntityAttachments query (N+1).
+export async function listEntityAttachmentsBatch(
+  projectId: string,
+  attachedToType: EntityAttachmentType,
+  attachedToIds: string[],
+): Promise<EntityAttachmentRow[]> {
+  if (attachedToIds.length === 0) return []
+  const db = createClient()
+  const { data, error } = await db
+    .from('EntityAttachment')
+    .select('*')
+    .eq('projectId', projectId)
+    .eq('attachedToType', attachedToType)
+    .in('attachedToId', attachedToIds)
+    .order('createdAt', { ascending: false })
+  if (error) {
+    console.error('listEntityAttachmentsBatch failed:', error)
+    return []
+  }
+  return (data ?? []).map((r: any) => ({ ...r, publicUrl: attachmentPublicUrl(r.storagePath, db) }))
+}
+
 export async function deleteEntityAttachment(id: string): Promise<void> {
   const db = createClient()
   const { data: row, error: readErr } = await db
@@ -1220,10 +1245,13 @@ export async function getAllMilestones() {
  */
 export async function getAllChats(meId: string | null = null) {
   const db = createClient()
+  // Trimmed: only the columns ChatSheet's per-conversation reducer reads.
+  // Drops ChatMessage.mentions[] (the heavy column) plus a handful of other
+  // bookkeeping columns the cross-project conversation list never renders.
   const { data, error } = await db
     .from('ChatMessage')
     .select(`
-      *,
+      id, projectId, channelId, recipientId, senderId, content, createdAt,
       sender:User!ChatMessage_senderId_fkey(id,name,avatarUrl),
       recipient:User!ChatMessage_recipientId_fkey(id,name,avatarUrl),
       project:Project(id,name,color),
@@ -1286,11 +1314,19 @@ export async function getAllChats(meId: string | null = null) {
   )
 }
 
+// Cross-project Threads list. Trimmed `*` -> explicit Thread columns and
+// dropped the heavy ThreadMessage.mentions[] array. ThreadRow renders
+// `messages[].content` so the message body still has to ship; everything
+// else on ThreadMessage that the row never reads is omitted.
 export async function getAllThreads(meId: string | null = null) {
   const db = createClient()
   const { data, error } = await db
     .from('Thread')
-    .select('*, ThreadMessage(*), ThreadRead(*)')
+    .select(
+      'id, projectId, attachedToType, attachedToId, createdBy, createdAt, updatedAt, ' +
+      'ThreadMessage(id, threadId, content, createdBy, createdAt), ' +
+      'ThreadRead(threadId, userId, lastReadAt)'
+    )
     .order('updatedAt', { ascending: false })
   if (error) throw error
   return data.map((t: any) => {

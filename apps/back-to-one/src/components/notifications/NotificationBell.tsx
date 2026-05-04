@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { useUnreadCount, useNotifications } from '@/lib/hooks/useOriginOne'
+import { useNotifications } from '@/lib/hooks/useOriginOne'
 
 // InboxSheet only renders when the user opens the bell. Defer its chunk
 // (full notifications list UI) until first interaction.
@@ -20,8 +20,8 @@ export function NotificationBell({ projectId }: { projectId: string | null }) {
   // `next/dynamic`, the chunk only fetches when the bell is first tapped.
   const [loaded, setLoaded] = useState(false)
   useEffect(() => { if (open) setLoaded(true) }, [open])
-  const { data: unread = 0 } = useUnreadCount(projectId)
   const { data: all } = useNotifications(projectId)
+  const unread = (all ?? []).filter(n => !n.readAt).length
 
   // Zero-state suppression: hide bell entirely until this user has any notifications.
   if ((all?.length ?? 0) === 0) return null

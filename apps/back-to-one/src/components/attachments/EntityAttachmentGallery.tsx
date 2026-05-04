@@ -709,6 +709,22 @@ export function EntityAttachmentCover({
     enabled: !!attachedToId,
   })
 
+  return <EntityAttachmentCoverPresentational items={items} size={size} alt={alt} />
+}
+
+// Presentational sibling — same chrome as EntityAttachmentCover but with
+// preloaded items[]. Lets a parent fetch all attachments in one batched
+// query (listEntityAttachmentsBatch) and pass each entity's slice down,
+// avoiding the per-row N+1 that EntityAttachmentCover triggers.
+export function EntityAttachmentCoverPresentational({
+  items,
+  size = 96,
+  alt,
+}: {
+  items: EntityAttachmentRow[]
+  size?: number | string
+  alt?: string
+}) {
   const dim = typeof size === 'number' ? `${size}px` : size
 
   if (items.length === 0) {
