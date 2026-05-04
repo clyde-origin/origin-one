@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { useProject } from '@/lib/hooks/useOriginOne'
 import { useFabActionState } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
@@ -218,7 +218,7 @@ export function ActionBar() {
       {/* Branch-fan dim overlay — only when a 3-branch fan is open */}
       <AnimatePresence>
         {fabOpen && hasBranches && (
-          <motion.div
+          <m.div
             key="ab-fab-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -286,7 +286,7 @@ export function ActionBar() {
               Cluster width stays uniform across states. + never gets the active
               variant (its meaning is per-page, not route-bound). */}
           {plusVisible ? (
-            <motion.div
+            <m.div
               animate={{ rotate: fabOpen ? 45 : 0 }}
               transition={{ type: 'spring', damping: 20, stiffness: 280 }}
             >
@@ -299,7 +299,7 @@ export function ActionBar() {
               >
                 <PlusIcon />
               </ActionBarButton>
-            </motion.div>
+            </m.div>
           ) : (
             <div
               aria-hidden="true"
@@ -399,7 +399,7 @@ function BranchFan({
   return (
     <>
       {/* SVG dashed branch lines */}
-      <motion.svg
+      <m.svg
         key="ab-branch-svg"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -427,7 +427,7 @@ function BranchFan({
           />
         ))}
         <circle cx={110} cy={98} r={3} fill={`rgba(${ar},${ag},${ab},0.35)`} />
-      </motion.svg>
+      </m.svg>
 
       {/* Branch buttons */}
       <div
@@ -450,7 +450,7 @@ function BranchFan({
           const delay = isCenterBranch ? 0.05 : 0
           const yOffset = isCenterBranch ? 30 : 20
           return (
-            <motion.button
+            <m.button
               key={b.label}
               initial={{ opacity: 0, y: yOffset }}
               animate={{ opacity: 1, y: 0 }}
@@ -478,7 +478,7 @@ function BranchFan({
               >
                 {b.label}
               </span>
-            </motion.button>
+            </m.button>
           )
         })}
       </div>

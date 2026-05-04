@@ -9,7 +9,7 @@
 // chat page where deep-linking to the specific channel/DM is the next
 // arc of work (currently routes to /projects/<id>/chat as the entry).
 
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useAllChats } from '@/lib/hooks/useOriginOne'
 import { CrewAvatar } from '@/components/ui/client'
@@ -133,7 +133,7 @@ export function ChatSheet({ open, onClose }: ChatSheetProps) {
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
+        <m.div
           key="chat-sheet"
           initial={{ y: '110%' }}
           animate={{ y: 0 }}
@@ -185,7 +185,7 @@ export function ChatSheet({ open, onClose }: ChatSheetProps) {
               ))
             )}
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   )

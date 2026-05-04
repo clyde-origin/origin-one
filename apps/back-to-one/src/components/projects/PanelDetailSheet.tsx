@@ -16,7 +16,7 @@
 // a detail (no shoot-day record exists yet).
 
 import Image from 'next/image'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { useToggleActionItem } from '@/lib/hooks/useOriginOne'
 import { haptic } from '@/lib/utils/haptics'
@@ -341,7 +341,7 @@ export function PanelDetailSheet({ detail, projects, onClose }: PanelDetailSheet
   return (
     <AnimatePresence>
       {detail && (
-        <motion.div
+        <m.div
           key="panel-detail"
           initial={{ y: '100%' }}
           animate={{ y: 0 }}
@@ -363,7 +363,7 @@ export function PanelDetailSheet({ detail, projects, onClose }: PanelDetailSheet
           {detail.type === 'task' && <TaskDetailBody item={detail.item} projects={projects} onClose={onClose} />}
           {detail.type === 'milestone' && <MilestoneDetailBody item={detail.item} projects={projects} onClose={onClose} />}
           {detail.type === 'crew' && <CrewDetailBody row={detail.row} projects={projects} onClose={onClose} />}
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   )

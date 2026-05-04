@@ -15,7 +15,7 @@
 // nesting modals violates the design-system rule on this surface.
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { useAllResources, useCreateGlobalResource, useMeId } from '@/lib/hooks/useOriginOne'
 import { haptic } from '@/lib/utils/haptics'
 import type { ResourceType } from '@/types'
@@ -244,7 +244,7 @@ export function ResourcesSheet({ open }: ResourcesSheetProps) {
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
+        <m.div
           key="resources-sheet"
           initial={{ y: '110%' }}
           animate={{ y: 0 }}
@@ -295,7 +295,7 @@ export function ResourcesSheet({ open }: ResourcesSheetProps) {
               allResources.map((r) => <ResourceRow key={r.id} r={r} />)
             )}
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   )

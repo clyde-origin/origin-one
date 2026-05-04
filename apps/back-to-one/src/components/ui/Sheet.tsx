@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useCallback } from 'react'
-import { motion, AnimatePresence, useMotionValue, useTransform, type PanInfo } from 'framer-motion'
+import { m, AnimatePresence, useMotionValue, useTransform, type PanInfo } from 'framer-motion'
 import { cn } from '@/lib/utils/cn'
 import { haptic } from '@/lib/utils/haptics'
 
@@ -64,7 +64,7 @@ export function Sheet({
       {open && (
         <>
           {/* Overlay */}
-          <motion.div
+          <m.div
             key="sheet-overlay"
             className="fixed inset-0 z-50"
             style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', opacity: overlayOpacity }}
@@ -77,7 +77,7 @@ export function Sheet({
           />
 
           {/* Sheet */}
-          <motion.div
+          <m.div
             key="sheet-panel"
             className={cn(
               'fixed bottom-0 left-0 right-0',
@@ -111,7 +111,7 @@ export function Sheet({
             </div>
 
             {children}
-          </motion.div>
+          </m.div>
         </>
       )}
     </AnimatePresence>

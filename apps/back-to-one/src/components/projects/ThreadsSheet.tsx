@@ -11,7 +11,7 @@
 // useAllThreads + ThreadRow — so promoting between the two is one swap
 // rather than a rewrite.
 
-import { motion, AnimatePresence } from 'framer-motion'
+import { m, AnimatePresence } from 'framer-motion'
 import { useProjects, useAllThreads } from '@/lib/hooks/useOriginOne'
 import { ThreadRow } from '@/components/threads/ThreadRow'
 import type { Thread } from '@/types'
@@ -29,7 +29,7 @@ export function ThreadsSheet({ open }: ThreadsSheetProps) {
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
+        <m.div
           key="threads-sheet"
           initial={{ y: '110%' }}
           animate={{ y: 0 }}
@@ -81,7 +81,7 @@ export function ThreadsSheet({ open }: ThreadsSheetProps) {
               ))
             )}
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   )
