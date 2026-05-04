@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, memo, useCallback } from 'react'
+import { EMPTY_ARRAY } from '@/lib/empty-collections'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import {
@@ -650,12 +651,12 @@ function LineRow({
 
 // ── AccountCard ─────────────────────────────────────────────────────────
 
-function AccountCard({
-  account, lines, amountsByLine, computedByLine, subtotal, expanded, onToggle, onLineTap,
+const AccountCard = memo(function AccountCard({
+  account, accountLines, amountsByLine, computedByLine, subtotal, expanded, onToggle, onLineTap,
   visibleLineIds, onFormulaTap,
 }: {
   account: BudgetAccount
-  lines: BudgetLineWithAmounts[]
+  accountLines: BudgetLineWithAmounts[]
   amountsByLine: Map<string, BudgetLineAmount | undefined>
   computedByLine: Map<string, ComputedLine>
   subtotal: AccountSubtotal | undefined
@@ -668,7 +669,6 @@ function AccountCard({
   visibleLineIds: Set<string> | null
   onFormulaTap?: (lineId: string) => void
 }) {
-  const accountLines = lines.filter(l => l.accountId === account.id)
   const visibleAccountLines = visibleLineIds
     ? accountLines.filter(l => visibleLineIds.has(l.id))
     : accountLines
@@ -763,7 +763,7 @@ function AccountCard({
       )}
     </div>
   )
-}
+})
 
 // PR 12 — header overflow menu. Sits inline between the variables
 // strip and the body. Replace-in-place; NOT a nested modal.
@@ -941,6 +941,30 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
     return m
   }, [budget, activeVersionId])
 
+  // Group lines by accountId once so each AccountCard render skips the
+  // O(lines) filter pass that previously ran per card.
+  const linesByAccountId = useMemo(() => {
+    const m = new Map<string, BudgetLineWithAmounts[]>()
+    if (!budget) return m
+    for (const line of budget.lines) {
+      const arr = m.get(line.accountId)
+      if (arr) arr.push(line)
+      else m.set(line.accountId, [line])
+    }
+    return m
+  }, [budget])
+
+  // Flat (lineId|versionId) → amount map for topsheet. Replaces a
+  // .find() inside the per-(line × version) loop below.
+  const amountByLineVersion = useMemo(() => {
+    const m = new Map<string, BudgetLineAmount>()
+    if (!budget) return m
+    for (const line of budget.lines) {
+      for (const a of line.amounts) m.set(`${line.id}|${a.versionId}`, a)
+    }
+    return m
+  }, [budget])
+
   const rollup = useMemo<BudgetRollup | null>(() => {
     if (!budget || !evalCtx || !activeVersionId) return null
     return rollUpBudget({
@@ -969,7 +993,7 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
       const ctx = buildEvalContext(budget.variables, shootDays, v.id)
       const amountsByLine = new Map<string, BudgetLineAmount | undefined>()
       for (const line of budget.lines) {
-        amountsByLine.set(line.id, line.amounts.find(a => a.versionId === v.id))
+        amountsByLine.set(line.id, amountByLineVersion.get(`${line.id}|${v.id}`))
       }
       const r = rollUpBudget({
         lines: budget.lines,
@@ -1025,7 +1049,7 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
       sectionActuals: { atl: atlActuals, btl: btlActuals },
       actualsByAccountId,
     }
-  }, [budget, shootDays, rollup])
+  }, [budget, shootDays, rollup, amountByLineVersion])
 
   const accountsSorted = useMemo<BudgetAccount[]>(() => {
     if (!budget) return []
@@ -1182,6 +1206,16 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
 
   // PR 12 — formula-chip inspect tooltip state.
   const [tooltipLineId, setTooltipLineId] = useState<string | null>(null)
+
+  // Stable callbacks passed to memoized AccountCard. Inline arrow versions
+  // would force every card to re-render on each parent render.
+  const onAccountLineTap = useCallback((lineId: string) => {
+    setActiveLineId(lineId)
+    setLayer('detail')
+  }, [])
+  const onFormulaTap = useCallback((lineId: string) => {
+    setTooltipLineId(lineId)
+  }, [])
 
   // PR 12 — clone-source label resolution. Look up the source project
   // name from the projects list (already loaded for nav). When the
@@ -1486,15 +1520,15 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
                     <AccountCard
                       key={a.id}
                       account={a}
-                      lines={budget.lines}
+                      accountLines={linesByAccountId.get(a.id) ?? (EMPTY_ARRAY as readonly BudgetLineWithAmounts[]) as BudgetLineWithAmounts[]}
                       amountsByLine={amountsByActiveLine}
                       computedByLine={rollup.computedByLine}
                       subtotal={sub}
                       expanded={expandedSet.has(a.id)}
                       onToggle={() => toggleExpand(a.id)}
-                      onLineTap={(lineId) => { setActiveLineId(lineId); setLayer('detail') }}
+                      onLineTap={onAccountLineTap}
                       visibleLineIds={visibleLineIds}
-                      onFormulaTap={(lineId) => setTooltipLineId(lineId)}
+                      onFormulaTap={onFormulaTap}
                     />
                   )
                 })}
