@@ -48,27 +48,27 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const db = getCallSheetAdminClient()
 
-  // Load call sheet + shoot day + schedule + recipients + location
-  const [cs, sd, schedule, recipients] = await Promise.all([
-    db.from('CallSheet').select('*').eq('id', callSheetId).single(),
-    db.from('CallSheet').select('shootDayId').eq('id', callSheetId).single().then(async (r) => {
-      const shootDayId = r.data?.shootDayId
-      if (!shootDayId) return { data: null, error: r.error }
-      return db.from('ShootDay').select('*, Location(id, name, address)').eq('id', shootDayId).single()
-    }),
-    db.from('CallSheet').select('shootDayId').eq('id', callSheetId).single().then(async (r) => {
-      const shootDayId = r.data?.shootDayId
-      if (!shootDayId) return { data: [], error: null }
-      return db.from('ScheduleBlock').select('id, startTime, kind, talentIds, crewMemberIds').eq('shootDayId', shootDayId)
-    }),
+  // Single CallSheet fetch — previously we ran .single() three times to
+  // pull shootDayId for the dependent joins. Fetch the row once, then run
+  // ShootDay + ScheduleBlock + recipients in parallel.
+  const cs = await db.from('CallSheet').select('*').eq('id', callSheetId).single()
+  if (cs.error || !cs.data) {
+    return NextResponse.json({ ok: false, error: cs.error?.message ?? 'call sheet not found' }, { status: 404 })
+  }
+  const shootDayId = (cs.data as { shootDayId: string | null }).shootDayId
+
+  const [sd, schedule, recipients] = await Promise.all([
+    shootDayId
+      ? db.from('ShootDay').select('*, Location(id, name, address)').eq('id', shootDayId).single()
+      : Promise.resolve({ data: null, error: null }),
+    shootDayId
+      ? db.from('ScheduleBlock').select('id, startTime, kind, talentIds, crewMemberIds').eq('shootDayId', shootDayId)
+      : Promise.resolve({ data: [], error: null }),
     body.recipientIds && body.recipientIds.length > 0
       ? db.from('CallSheetRecipient').select('*').eq('callSheetId', callSheetId).in('id', body.recipientIds)
       : db.from('CallSheetRecipient').select('*').eq('callSheetId', callSheetId).eq('excluded', false),
   ])
 
-  if (cs.error || !cs.data) {
-    return NextResponse.json({ ok: false, error: cs.error?.message ?? 'call sheet not found' }, { status: 404 })
-  }
   if (sd.error || !sd.data) {
     return NextResponse.json({ ok: false, error: sd.error?.message ?? 'shoot day not found' }, { status: 404 })
   }
