@@ -31,6 +31,7 @@ import { SwipePanel } from '@/components/hub/SwipePanel'
 import { GanttChart } from '@/components/hub/GanttChart'
 import { AIDetailSheet, MSDetailSheet, CrewDetailSheet } from '@/components/hub/sheets'
 import { CreateTaskSheet, CreateMilestoneSheet, CreateCreativeSheet } from '@/components/create'
+import { InviteCrewSheet } from '@/components/crew/InviteCrewSheet'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
 import { Sheet } from '@/components/ui/Sheet'
@@ -353,6 +354,7 @@ export function HubContent({ projectId }: { projectId: string }) {
   const [showCreateTask, setShowCreateTask] = useState(false)
   const [showCreateMilestone, setShowCreateMilestone] = useState(false)
   const [showCreateCreative, setShowCreateCreative] = useState(false)
+  const [showInviteCrew, setShowInviteCrew] = useState(false)
 
   // ── Hub split mode (?hub=split URL gate, per docs/superpowers/specs/2026-05-03-hub-production-creative-toggle-design.md) ──
   // When the gate is absent, behavior is identical to the stacked layout
@@ -365,15 +367,52 @@ export function HubContent({ projectId }: { projectId: string }) {
   // (per spec: navigation aid, not a mode). Defaults to 'script'.
   const [arcMode, setArcMode] = useState<ArcMode>('script')
 
-  // Hub registers a 3-branch + with the global ActionBar. Branches fan out
-  // from the +. Project accent flows through the milestone branch's icon —
-  // re-register when accent changes (project switch).
-  // When splitEnabled + mode === 'creative', the third branch's onAction
-  // deep-links to /scenemaker?mode=script directly instead of opening the
-  // CreateCreativeSheet picker (1 tap instead of 2). Production-mode
-  // branches stay identical to today; un-gated branches stay identical too.
+  // Hub registers a 3-branch + with the global ActionBar. The branch set
+  // depends on the gate + mode:
+  //   • un-gated (default Hub) → Action / Milestone / Creative — UNCHANGED today.
+  //   • split + production → Action / Milestone / Crew (per spec — Creative
+  //     branch swaps for Crew because creative belongs on the other surface).
+  //   • split + creative → Scene / Shot / Tone (deep-link directly into
+  //     each creation flow; CreateCreativeSheet picker becomes redundant).
   useFabAction({
-    branches: [
+    branches: splitEnabled && mode === 'creative' ? [
+      {
+        label: 'Scene',
+        color: '#6470f3',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="2" y="3" width="14" height="12" rx="1.5" stroke="#6470f3" strokeWidth="1.3" />
+            <path d="M2 7.5H16" stroke="#6470f3" strokeWidth="1.3" />
+            <path d="M6.5 3V7.5M11.5 3V7.5" stroke="#6470f3" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        ),
+        action: () => router.push(`/projects/${projectId}/scenemaker?mode=script`),
+      },
+      {
+        label: 'Shot',
+        color: '#6470f3',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="2.5" y="4.5" width="13" height="9" rx="1" stroke="#6470f3" strokeWidth="1.3" />
+            <path d="M5.5 7.5L9 10L12.5 7.5" stroke="#6470f3" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ),
+        action: () => router.push(`/projects/${projectId}/scenemaker?mode=shotlist`),
+      },
+      {
+        label: 'Tone',
+        color: '#6470f3',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="6" cy="7" r="3" stroke="#6470f3" strokeWidth="1.3" />
+            <circle cx="11" cy="9.5" r="3" stroke="#6470f3" strokeWidth="1.3" />
+            <circle cx="8" cy="12" r="3" stroke="#6470f3" strokeWidth="1.3" />
+          </svg>
+        ),
+        action: () => router.push(`/projects/${projectId}/moodboard`),
+      },
+    ] : splitEnabled ? [
+      // Split + production: Action / Milestone / Crew (Crew replaces Creative)
       {
         label: 'Action',
         color: '#e8a020',
@@ -398,7 +437,43 @@ export function HubContent({ projectId }: { projectId: string }) {
         action: () => setShowCreateMilestone(true),
       },
       {
-        label: splitEnabled && mode === 'creative' ? 'Scene' : 'Creative',
+        label: 'Crew',
+        color: '#00b894',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="6" r="2.8" stroke="#00b894" strokeWidth="1.3" />
+            <path d="M3 15.5c0-3 2.7-5 6-5s6 2 6 5" stroke="#00b894" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        ),
+        action: () => setShowInviteCrew(true),
+      },
+    ] : [
+      // Default un-gated Hub: Action / Milestone / Creative — UNCHANGED today.
+      {
+        label: 'Action',
+        color: '#e8a020',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="9" r="7" stroke="#e8a020" strokeWidth="1.3" />
+            <path d="M5.5 9L8 11.5L12.5 6.5" stroke="#e8a020" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ),
+        action: () => setShowCreateTask(true),
+      },
+      {
+        label: 'Milestone',
+        color: projectColor,
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <line x1="2" y1="9" x2="16" y2="9" stroke={projectColor} strokeWidth="1.3" />
+            <circle cx="6" cy="9" r="2.5" fill={projectColor} />
+            <circle cx="12" cy="9" r="2.5" fill={projectColor} />
+          </svg>
+        ),
+        action: () => setShowCreateMilestone(true),
+      },
+      {
+        label: 'Creative',
         color: '#6470f3',
         icon: (
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -407,9 +482,7 @@ export function HubContent({ projectId }: { projectId: string }) {
             <path d="M6.5 3V7.5M11.5 3V7.5" stroke="#6470f3" strokeWidth="1.3" strokeLinecap="round" />
           </svg>
         ),
-        action: splitEnabled && mode === 'creative'
-          ? () => router.push(`/projects/${projectId}/scenemaker?mode=script`)
-          : () => setShowCreateCreative(true),
+        action: () => setShowCreateCreative(true),
       },
     ],
   }, [splitEnabled, mode, projectColor, projectId, router])
@@ -1347,6 +1420,12 @@ export function HubContent({ projectId }: { projectId: string }) {
         onSelectShot={() => router.push(`/projects/${projectId}/scenemaker`)}
         onSelectTone={() => router.push(`/projects/${projectId}/moodboard`)}
         onClose={() => setShowCreateCreative(false)}
+      />
+      {/* InviteCrewSheet — triggered by the Crew FAB branch in split + production mode */}
+      <InviteCrewSheet
+        projectId={projectId}
+        open={showInviteCrew}
+        onClose={() => setShowInviteCrew(false)}
       />
 
       {/* ══ CREW PANEL ══ */}
