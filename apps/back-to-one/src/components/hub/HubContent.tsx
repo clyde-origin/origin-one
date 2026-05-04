@@ -669,7 +669,7 @@ export function HubContent({ projectId }: { projectId: string }) {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: isProducer ? '1fr 1fr' : '1fr',
+              gridTemplateColumns: (isProducer && !splitEnabled) ? '1fr 1fr' : '1fr',
               gap: 12,
               alignItems: 'stretch',
             }}
@@ -717,7 +717,7 @@ export function HubContent({ projectId }: { projectId: string }) {
                 spent/total mono row; bgt-version-pill anchors top-right
                 with the working version label. Variance chip remains
                 below the dial as a tinted info row. */}
-            {isProducer && (
+            {isProducer && !splitEnabled && (
               <div
                 className="cursor-pointer"
                 onClick={() => { haptic('light'); router.push(`/projects/${projectId}/budget`) }}
@@ -1383,6 +1383,89 @@ export function HubContent({ projectId }: { projectId: string }) {
             )}
           </div>
           </>}
+
+{splitEnabled && mode === 'production' && isProducer && <>
+          {/* 6. BUDGET — full-width row at the bottom of Production surface
+                 (split mode only). Producer-only via existing useViewerRole
+                 gate. Lifts the same dial / version pill / variance chrome
+                 from Section 1's Budget tile but laid out as a full-width row
+                 instead of a 1fr peer of Timeline. */}
+          <div
+            className="cursor-pointer"
+            onClick={() => { haptic('light'); router.push(`/projects/${projectId}/budget`) }}
+          >
+            <ModuleHeader name="Budget" />
+            {budgetPreview && budgetPreview.workingTotal > 0 ? (() => {
+              const pct = Math.min(100, Math.round((budgetPreview.actuals / budgetPreview.workingTotal) * 100))
+              const CIRC = 163.36
+              const dashOffset = CIRC * (1 - pct / 100)
+              const fmt = (n: number) => n >= 1000
+                ? `$${Math.round(n / 1000)}K`
+                : `$${Math.round(n).toLocaleString('en-US')}`
+              return (
+                <div
+                  className="glass-tile bgt-card"
+                  style={{
+                    position: 'relative', height: 130,
+                    display: 'flex', flexDirection: 'row', alignItems: 'center',
+                    gap: 16, padding: '10px 18px',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <span className="bgt-version-pill">{budgetPreview.versionLabel || 'Working'}</span>
+                  <div className="bgt-dial" style={{ flexShrink: 0 }}>
+                    <svg viewBox="0 0 64 64" fill="none">
+                      <circle className="bgt-dial-bg" cx="32" cy="32" r="26" strokeWidth="3" />
+                      <circle className="bgt-dial-fg" cx="32" cy="32" r="26" strokeWidth="3" strokeDasharray={CIRC} strokeDashoffset={dashOffset} />
+                    </svg>
+                    <span className="bgt-dial-pct">{pct}%</span>
+                  </div>
+                  <div className="bgt-meta" style={{ flex: 1, alignItems: 'flex-start' }}>
+                    <span className="bgt-meta-spent">{fmt(budgetPreview.actuals)}</span>
+                    <span className="bgt-meta-sep">/</span>
+                    <span className="bgt-meta-total">{fmt(budgetPreview.workingTotal)}</span>
+                  </div>
+                  {budgetPreview.overCount > 0 && (
+                    <span
+                      className="font-mono uppercase"
+                      style={{
+                        fontSize: '0.40rem', letterSpacing: '0.08em',
+                        padding: '3px 8px', borderRadius: 999,
+                        background: 'rgba(232,86,74,0.10)',
+                        border: '1px solid rgba(232,86,74,0.30)',
+                        color: '#e8564a',
+                        flexShrink: 0,
+                      }}
+                    >
+                      ⚠ {budgetPreview.overCount} over
+                    </span>
+                  )}
+                </div>
+              )
+            })() : (
+              <div
+                className="glass-tile bgt-card"
+                style={{
+                  position: 'relative', height: 100,
+                  display: 'flex', flexDirection: 'row', alignItems: 'center',
+                  justifyContent: 'center', gap: 12, padding: '10px 18px',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <span className="bgt-version-pill bgt-version-pill-empty">—</span>
+                <div className="bgt-dial" style={{ flexShrink: 0, opacity: 0.4 }}>
+                  <svg viewBox="0 0 64 64" fill="none">
+                    <circle className="bgt-dial-bg" cx="32" cy="32" r="26" strokeWidth="3" />
+                  </svg>
+                  <span className="bgt-dial-pct">—</span>
+                </div>
+                <span className="font-mono uppercase" style={{ fontSize: '0.46rem', letterSpacing: '0.10em', color: 'var(--fg-mono)' }}>
+                  Set up budget →
+                </span>
+              </div>
+            )}
+          </div>
+</>}
 
         </div>
       </div>
