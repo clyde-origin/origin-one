@@ -1182,37 +1182,44 @@ export function HubContent({ projectId }: { projectId: string }) {
             )}
           </div>
 
-          {/* LCA row — sacred shapes per memory rule. Lifted verbatim
-              from the non-split Creative section (Locations + Casting + Art). */}
-          <div className="lca-row" style={{ marginTop: 12 }}>
-            <SwipePanel
-              items={allLocations}
-              label="Locations"
-              labelColor="#e8a020"
-              emptyIcon="📍"
-              href={`/projects/${projectId}/locations`}
-              renderItem={(loc: any) => (
-                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                  <EntityAttachmentCover
-                    projectId={projectId}
-                    attachedToType="location"
-                    attachedToId={loc.id}
-                    size="100%"
-                    alt={loc.name}
-                  />
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '4px 6px', background: 'linear-gradient(transparent, rgba(0,0,0,0.7))' }}>
-                    <span style={{ fontSize: '0.38rem', fontWeight: 600, color: '#dddde8' }}>{loc.name}</span>
+          {/* LCA — Locations / Casting / Art each get a Tone-style external
+              ModuleHeader above their (sacred) SwipePanel. Header shows count
+              meta for at-a-glance status; the SwipePanel's inside colored
+              label stays as the per-tile identifier chip. */}
+          <div className="lca-row" style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <ModuleHeader name="Locations" meta={allLocations.length > 0 ? `${allLocations.length} loc${allLocations.length === 1 ? '' : 's'}` : undefined} />
+              <SwipePanel
+                items={allLocations}
+                label="Locations"
+                labelColor="#e8a020"
+                emptyIcon="📍"
+                href={`/projects/${projectId}/locations`}
+                renderItem={(loc: any) => (
+                  <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                    <EntityAttachmentCover
+                      projectId={projectId}
+                      attachedToType="location"
+                      attachedToId={loc.id}
+                      size="100%"
+                      alt={loc.name}
+                    />
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '4px 6px', background: 'linear-gradient(transparent, rgba(0,0,0,0.7))' }}>
+                      <span style={{ fontSize: '0.38rem', fontWeight: 600, color: '#dddde8' }}>{loc.name}</span>
+                    </div>
                   </div>
-                </div>
-              )}
-            />
-            <SwipePanel
-              items={allCast.length > 0 ? [allCast] : []}
-              label="Casting"
-              labelColor="#00b894"
-              emptyIcon="🎭"
-              href={`/projects/${projectId}/casting`}
-              renderItem={(roles: any[]) => {
+                )}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <ModuleHeader name="Casting" meta={allCast.length > 0 ? `${allCast.length} role${allCast.length === 1 ? '' : 's'}` : undefined} />
+              <SwipePanel
+                items={allCast.length > 0 ? [allCast] : []}
+                label="Casting"
+                labelColor="#00b894"
+                emptyIcon="🎭"
+                href={`/projects/${projectId}/casting`}
+                renderItem={(roles: any[]) => {
                 const sorted = [...roles].sort((a, b) => Number(b.cast) - Number(a.cast))
                 const visible = sorted.slice(0, 6)
                 const remaining = sorted.length - visible.length
@@ -1246,33 +1253,37 @@ export function HubContent({ projectId }: { projectId: string }) {
                   </div>
                 )
               }}
-            />
-            <SwipePanel
-              items={['wardrobe', 'props', 'hmu'] as const}
-              label="Art"
-              labelColor="#6470f3"
-              emptyIcon="🎨"
-              href={`/projects/${projectId}/art`}
-              renderItem={(cat: string) => {
-                const entityType = cat === 'props' ? 'prop' : cat
-                const catItems = allArt.filter(a => a.type === entityType)
-                const first = catItems[0]
-                const imgUrl = (first?.metadata as { imageUrl?: string } | null)?.imageUrl
-                const catLabel = cat === 'hmu' ? 'HMU' : cat === 'wardrobe' ? 'Wardrobe' : 'Props'
-                return (
-                  <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 6 }}>
-                    {imgUrl ? (
-                      <StorageImage url={imgUrl} alt={catLabel} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
-                    ) : (
-                      <>
-                        <span className="font-mono uppercase" style={{ fontSize: '0.38rem', color: '#6470f3', letterSpacing: '0.06em' }}>{catLabel}</span>
-                        <span className="font-mono" style={{ fontSize: '0.30rem', color: '#62627a', marginTop: 2 }}>{catItems.length > 0 ? `${catItems.length} items` : 'Empty'}</span>
-                      </>
-                    )}
-                  </div>
-                )
-              }}
-            />
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <ModuleHeader name="Art" meta={allArt.length > 0 ? `${allArt.length} item${allArt.length === 1 ? '' : 's'}` : undefined} />
+              <SwipePanel
+                items={['wardrobe', 'props', 'hmu'] as const}
+                label="Art"
+                labelColor="#6470f3"
+                emptyIcon="🎨"
+                href={`/projects/${projectId}/art`}
+                renderItem={(cat: string) => {
+                  const entityType = cat === 'props' ? 'prop' : cat
+                  const catItems = allArt.filter(a => a.type === entityType)
+                  const first = catItems[0]
+                  const imgUrl = (first?.metadata as { imageUrl?: string } | null)?.imageUrl
+                  const catLabel = cat === 'hmu' ? 'HMU' : cat === 'wardrobe' ? 'Wardrobe' : 'Props'
+                  return (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 6 }}>
+                      {imgUrl ? (
+                        <StorageImage url={imgUrl} alt={catLabel} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
+                      ) : (
+                        <>
+                          <span className="font-mono uppercase" style={{ fontSize: '0.38rem', color: '#6470f3', letterSpacing: '0.06em' }}>{catLabel}</span>
+                          <span className="font-mono" style={{ fontSize: '0.30rem', color: '#62627a', marginTop: 2 }}>{catItems.length > 0 ? `${catItems.length} items` : 'Empty'}</span>
+                        </>
+                      )}
+                    </div>
+                  )
+                }}
+              />
+            </div>
           </div>
 </>}
 
