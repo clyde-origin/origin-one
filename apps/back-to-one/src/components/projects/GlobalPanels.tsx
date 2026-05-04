@@ -72,10 +72,6 @@ function isToday(dateStr: string): boolean {
   return daysUntil(dateStr) === 0
 }
 
-function projectName(projects: Project[], projectId: string): string {
-  return projects.find(p => p.id === projectId)?.name ?? 'Project'
-}
-
 // ── SECTION HEADER ───────────────────────────────────────────
 
 function Sec({ label, count, countColor }: { label: string; count?: number; countColor?: string }) {
@@ -147,6 +143,7 @@ function EmptyPanelRows() {
 // ══════════════════════════════════════════════════════════════
 
 function ActionItemsPanel({ items, projects, onSelect }: { items: ActionItem[]; projects: Project[]; onSelect: (item: ActionItem) => void }) {
+  const projectsById = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects])
   const overdue  = items.filter(i => i.status !== 'done' && i.dueDate && daysUntil(i.dueDate) < 0)
   const today    = items.filter(i => i.status !== 'done' && i.dueDate && isToday(i.dueDate))
   const upcoming = items.filter(i => i.status !== 'done' && i.dueDate && daysUntil(i.dueDate) > 0)
@@ -165,7 +162,7 @@ function ActionItemsPanel({ items, projects, onSelect }: { items: ActionItem[]; 
         <>
           <Sec label="Overdue" count={overdue.length} countColor="#e8564a" />
           {overdue.map(item => (
-            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="overdue" onSelect={onSelect} />
+            <ActionRow key={item.id} item={item} pName={projectsById.get(item.projectId)?.name ?? 'Project'} variant="overdue" onSelect={onSelect} />
           ))}
         </>
       )}
@@ -173,7 +170,7 @@ function ActionItemsPanel({ items, projects, onSelect }: { items: ActionItem[]; 
         <>
           <Sec label="Today" count={today.length} />
           {today.map(item => (
-            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="today" onSelect={onSelect} />
+            <ActionRow key={item.id} item={item} pName={projectsById.get(item.projectId)?.name ?? 'Project'} variant="today" onSelect={onSelect} />
           ))}
         </>
       )}
@@ -181,10 +178,10 @@ function ActionItemsPanel({ items, projects, onSelect }: { items: ActionItem[]; 
         <>
           <Sec label="Upcoming" count={upcoming.length + undated.length} />
           {upcoming.map(item => (
-            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="upcoming" onSelect={onSelect} />
+            <ActionRow key={item.id} item={item} pName={projectsById.get(item.projectId)?.name ?? 'Project'} variant="upcoming" onSelect={onSelect} />
           ))}
           {undated.map(item => (
-            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="upcoming" onSelect={onSelect} />
+            <ActionRow key={item.id} item={item} pName={projectsById.get(item.projectId)?.name ?? 'Project'} variant="upcoming" onSelect={onSelect} />
           ))}
         </>
       )}
@@ -192,7 +189,7 @@ function ActionItemsPanel({ items, projects, onSelect }: { items: ActionItem[]; 
         <>
           <Sec label="Done" />
           {done.slice(0, 5).map(item => (
-            <ActionRow key={item.id} item={item} pName={projectName(projects, item.projectId)} variant="done" onSelect={onSelect} />
+            <ActionRow key={item.id} item={item} pName={projectsById.get(item.projectId)?.name ?? 'Project'} variant="done" onSelect={onSelect} />
           ))}
         </>
       )}
@@ -262,6 +259,7 @@ function ActionRow({ item, pName, variant, onSelect }: { item: ActionItem; pName
 // ══════════════════════════════════════════════════════════════
 
 function MilestonesPanel({ milestones, projects, onSelect }: { milestones: Milestone[]; projects: Project[]; onSelect: (m: Milestone) => void }) {
+  const projectsById = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects])
   const upcoming = milestones.filter(m => daysUntil(m.date) >= 0).sort((a, b) => daysUntil(a.date) - daysUntil(b.date))
   const past = milestones.filter(m => daysUntil(m.date) < 0)
 
@@ -290,7 +288,7 @@ function MilestonesPanel({ milestones, projects, onSelect }: { milestones: Miles
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: 13, color: '#dddde8' }}>{ms.title}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                    <ProjPill name={projectName(projects, ms.projectId)} />
+                    <ProjPill name={projectsById.get(ms.projectId)?.name ?? 'Project'} />
                     <span className="font-mono" style={{ fontSize: 9, color: days <= 14 ? '#e8a020' : '#62627a' }}>{formatDate(ms.date)}</span>
                   </div>
                 </div>
@@ -316,7 +314,7 @@ function MilestonesPanel({ milestones, projects, onSelect }: { milestones: Miles
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 13, color: '#62627a' }}>{ms.title}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                  <ProjPill name={projectName(projects, ms.projectId)} />
+                  <ProjPill name={projectsById.get(ms.projectId)?.name ?? 'Project'} />
                 </div>
               </div>
               <span className="font-mono" style={{ fontSize: 10, color: '#00b894', flexShrink: 0 }}>Done</span>
@@ -333,6 +331,7 @@ function MilestonesPanel({ milestones, projects, onSelect }: { milestones: Miles
 // ══════════════════════════════════════════════════════════════
 
 function SchedulePanel({ milestones, projects, onSelectMilestone }: { milestones: Milestone[]; projects: Project[]; onSelectMilestone: (m: Milestone) => void }) {
+  const projectsById = useMemo(() => new Map(projects.map(p => [p.id, p])), [projects])
   const today = new Date()
   const [viewMonth, setViewMonth] = useState(today.getMonth())
   const [viewYear, setViewYear] = useState(today.getFullYear())
@@ -345,13 +344,14 @@ function SchedulePanel({ milestones, projects, onSelectMilestone }: { milestones
     const evts: { date: string; title: string; sub: string; type: string; color: string; projectName: string; time: string; milestone?: Milestone }[] = []
     // Milestones as events
     milestones.forEach(ms => {
+      const pName = projectsById.get(ms.projectId)?.name ?? 'Project'
       evts.push({
         date: ms.date,
         title: `Milestone: ${ms.title}`,
-        sub: `${projectName(projects, ms.projectId)} · ${ms.status}`,
+        sub: `${pName} · ${ms.status}`,
         type: 'Milestone',
         color: '#e8564a',
-        projectName: projectName(projects, ms.projectId),
+        projectName: pName,
         time: '—',
         milestone: ms,
       })
@@ -379,7 +379,7 @@ function SchedulePanel({ milestones, projects, onSelectMilestone }: { milestones
       }
     })
     return evts
-  }, [milestones, projects])
+  }, [milestones, projects, projectsById])
 
   // Calendar data
   const firstDay = new Date(viewYear, viewMonth, 1).getDay()
