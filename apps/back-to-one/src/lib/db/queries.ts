@@ -4042,6 +4042,39 @@ export async function bulkReorderHomeGrid(
   if (error) { console.error('bulkReorderHomeGrid rpc failed:', error); throw error }
 }
 
+export type OnboardExternalProductionInput = {
+  callerUserId: string
+  companyName: string
+  projectName: string
+  producers: { name: string; email: string }[]
+  originTeamId: string
+}
+
+export type OnboardExternalProductionResult = {
+  teamId: string
+  projectId: string
+  producerIds: string[]
+  folderIds: string[]
+}
+
+export async function onboardExternalProduction(
+  input: OnboardExternalProductionInput
+): Promise<OnboardExternalProductionResult> {
+  const db = createClient()
+  const { data, error } = await db.rpc('onboard_external_production', {
+    p_caller_user_id: input.callerUserId,
+    p_company_name: input.companyName,
+    p_project_name: input.projectName,
+    p_producers: input.producers,
+    p_origin_team_id: input.originTeamId,
+  })
+  if (error) {
+    console.error('onboardExternalProduction failed:', error)
+    throw error
+  }
+  return data as OnboardExternalProductionResult
+}
+
 /**
  * Update the team's name. RLS enforces the viewer must be a TeamMember
  * (policy `team_update` in migration 20260428005845_rls_helpers_and_policies).

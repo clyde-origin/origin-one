@@ -7,6 +7,7 @@ import { CrewAvatar } from '@/components/ui/client'
 import { useMe, useUploadAvatar } from '@/lib/hooks/useOriginOne'
 import { createBrowserAuthClient } from '@origin-one/auth'
 import { haptic } from '@/lib/utils/haptics'
+import { OnboardProductionSheet } from './OnboardProductionSheet'
 
 type ThemeChoice = 'light' | 'dark'
 const THEME_STORAGE_KEY = 'theme-preference'
@@ -26,6 +27,11 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
   const [theme, setTheme] = useState<ThemeChoice>(() => readStoredTheme())
   const [confirmingSignOut, setConfirmingSignOut] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [onboardOpen, setOnboardOpen] = useState(false)
+
+  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? '')
+    .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+  const isAdmin = !!me?.email && adminEmails.includes(me.email.toLowerCase())
 
   function pickAvatar() {
     if (!me) return
@@ -61,9 +67,35 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   return (
+    <>
     <Sheet open={open} onClose={onClose}>
       <SheetHeader title="Settings" onClose={onClose} />
       <SheetBody>
+        {isAdmin && (
+          <div style={{ paddingBottom: 18, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <button
+              onClick={() => { haptic('light'); setOnboardOpen(true) }}
+              style={{
+                width: '100%',
+                background: 'rgba(100,112,243,0.1)',
+                border: '1px solid rgba(100,112,243,0.3)',
+                borderRadius: 14,
+                color: '#a8b0ff',
+                padding: '14px 18px',
+                fontSize: 15,
+                fontWeight: 500,
+                cursor: 'pointer',
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
+              Onboard external production
+            </button>
+          </div>
+        )}
         {/* Avatar block */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '4px 0 18px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <button
@@ -175,5 +207,7 @@ export function SettingsSheet({ open, onClose }: { open: boolean; onClose: () =>
         </div>
       </SheetBody>
     </Sheet>
+    <OnboardProductionSheet open={onboardOpen} onClose={() => setOnboardOpen(false)} />
+    </>
   )
 }
