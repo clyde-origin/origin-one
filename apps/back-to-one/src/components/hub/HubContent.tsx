@@ -7,7 +7,7 @@ import { useHubMode } from '@/lib/hooks/useHubMode'
 import { HubModeToggle } from './HubModeToggle'
 import { HubArcToggle, type ArcMode } from './HubArcToggle'
 import { useQuery } from '@tanstack/react-query'
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, m } from 'framer-motion'
 import { getShotsByProject, listEntityAttachmentsBatch, type EntityAttachmentRow } from '@/lib/db/queries'
 import { EntityAttachmentCoverPresentational } from '@/components/attachments/EntityAttachmentGallery'
 import { EMPTY_ARRAY } from '@/lib/empty-collections'
@@ -128,6 +128,34 @@ function ModuleHeader({ name, meta }: { name: string; meta?: string }) {
 // (allShots / allScenes / allMoodRefs / shuffledMood), so re-renders only
 // fire when an actual data input changes.
 
+// Empty-state CTA shared by all three SwipeableSceneMaker pages when the
+// project has no scenes / shots / boards yet. Always sends the user to the
+// Script tab — that's the genesis surface for everything else in One Arc.
+// stopPropagation prevents the parent panel's tap handler from firing too.
+function MakeASceneEmpty({
+  projectId, pr, pg, pb, router,
+}: {
+  projectId: string; pr: number; pg: number; pb: number;
+  router: ReturnType<typeof useRouter>;
+}) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center" style={{ gap: 7 }}>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); haptic('light'); router.push(`/projects/${projectId}/scenemaker?mode=script`) }}
+        className="flex items-center justify-center rounded-full"
+        style={{ width: 30, height: 30, border: `1.5px dashed rgba(${pr},${pg},${pb},0.4)`, background: 'transparent', cursor: 'pointer', padding: 0 }}
+        aria-label="Make a scene"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M5 1V9M1 5H9" stroke={`rgba(${pr},${pg},${pb},0.6)`} strokeWidth="1.4" strokeLinecap="round" />
+        </svg>
+      </button>
+      <span className="font-mono uppercase" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.08em' }}>Make a Scene</span>
+    </div>
+  )
+}
+
 const SwipeableSceneMaker = memo(function SwipeableSceneMaker({
   projectId, projectColor, pr, pg, pb,
   allShots, allScenes, allMoodRefs, shuffledMood,
@@ -219,9 +247,7 @@ const SwipeableSceneMaker = memo(function SwipeableSceneMaker({
               ))}
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a' }}>No script yet</span>
-            </div>
+            <MakeASceneEmpty projectId={projectId} pr={pr} pg={pg} pb={pb} router={router} />
           )}
         </div>
 
@@ -238,12 +264,7 @@ const SwipeableSceneMaker = memo(function SwipeableSceneMaker({
               ))}
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center" style={{ gap: 6 }}>
-              <div className="flex items-center justify-center rounded-full" style={{ width: 28, height: 28, border: `1.5px dashed rgba(${pr},${pg},${pb},0.35)` }}>
-                <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M5 1V9M1 5H9" stroke={`rgba(${pr},${pg},${pb},0.5)`} strokeWidth="1.3" strokeLinecap="round" /></svg>
-              </div>
-              <span className="font-mono" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em' }}>No shots yet</span>
-            </div>
+            <MakeASceneEmpty projectId={projectId} pr={pr} pg={pg} pb={pb} router={router} />
           )}
         </div>
 
@@ -267,9 +288,7 @@ const SwipeableSceneMaker = memo(function SwipeableSceneMaker({
               </div>
             )
           })() : (
-            <div className="flex-1 flex items-center justify-center">
-              <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a' }}>No boards yet</span>
-            </div>
+            <MakeASceneEmpty projectId={projectId} pr={pr} pg={pg} pb={pb} router={router} />
           )}
         </div>
       </div>
@@ -1044,7 +1063,7 @@ export function HubContent({ projectId }: { projectId: string }) {
                         <circle cx="8" cy="10" r="2" stroke="#62627a" strokeWidth="1.2" />
                         <path d="M2 16l5-4 3 2 4-5 8 7" stroke="#62627a" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                      <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a' }}>Set the tone</span>
+                      <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a' }}>Set the Tone</span>
                     </div>
                   }
                   renderItem={(ref) => (
@@ -1251,35 +1270,47 @@ export function HubContent({ projectId }: { projectId: string }) {
 
           {/* Tone — full-width strip of multiple refs side-by-side (NOT a
               swipe panel). Tap any tile or the label → navigate to the
-              moodboard page. Empty state collapses to a "Set the tone" CTA. */}
+              moodboard page. Empty state collapses to a "Set the Tone" CTA. */}
           <div style={{ marginTop: 12 }} {...clickableProps(() => router.push(`/projects/${projectId}/moodboard`))} aria-label="Open tone / moodboard">
             <ModuleHeader name="Tone" meta={allMoodRefs.length > 0 ? `${allMoodRefs.length} ref${allMoodRefs.length === 1 ? '' : 's'}` : undefined} />
             {allMoodRefs.length > 0 ? (
-              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
-                {allMoodRefs.slice(0, 8).map((ref: any) => (
-                  <div
-                    key={ref.id}
-                    style={{
-                      flex: '0 0 auto',
-                      width: 84,
-                      height: 110,
-                      borderRadius: 6,
-                      overflow: 'hidden',
-                      background: ref.gradient || '#0a0a12',
-                      border: '1px solid rgba(255,255,255,0.06)',
-                      position: 'relative',
-                    }}
-                  >
-                    {ref.imageUrl && (
-                      <StorageImage
-                        url={ref.imageUrl}
-                        alt={ref.title}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        placeholder={<div style={{ width: '100%', height: '100%', background: ref.gradient || '#0a0a12', opacity: 0.7 }} />}
-                      />
-                    )}
-                  </div>
-                ))}
+              // Center-anchored layout — refs grow outward from the middle as
+              // they're added. AnimatePresence + m.div drives a scale-in entry
+              // (centered "pop") and `layout` slides existing refs aside as new
+              // ones appear. Falls back to overflowX: auto if the strip exceeds
+              // the viewport width.
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'center', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
+                <AnimatePresence initial={false}>
+                  {allMoodRefs.slice(0, 8).map((ref: any) => (
+                    <m.div
+                      key={ref.id}
+                      layout
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      transition={{ type: 'spring', stiffness: 240, damping: 22 }}
+                      style={{
+                        flex: '0 0 auto',
+                        width: 84,
+                        height: 110,
+                        borderRadius: 6,
+                        overflow: 'hidden',
+                        background: ref.gradient || '#0a0a12',
+                        border: '1px solid rgba(255,255,255,0.06)',
+                        position: 'relative',
+                      }}
+                    >
+                      {ref.imageUrl && (
+                        <StorageImage
+                          url={ref.imageUrl}
+                          alt={ref.title}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          placeholder={<div style={{ width: '100%', height: '100%', background: ref.gradient || '#0a0a12', opacity: 0.7 }} />}
+                        />
+                      )}
+                    </m.div>
+                  ))}
+                </AnimatePresence>
               </div>
             ) : (
               <div className="glass-tile" style={{ height: 110, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: 0.45 }}>
@@ -1288,7 +1319,7 @@ export function HubContent({ projectId }: { projectId: string }) {
                   <circle cx="8" cy="10" r="2" stroke="#62627a" strokeWidth="1.2" />
                   <path d="M2 16l5-4 3 2 4-5 8 7" stroke="#62627a" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                <span className="font-mono" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em' }}>Set the tone</span>
+                <span className="font-mono" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em' }}>Set the Tone</span>
               </div>
             )}
           </div>
