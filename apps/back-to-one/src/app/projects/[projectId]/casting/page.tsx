@@ -14,6 +14,7 @@ import {
   useDeleteCastRole,
 } from '@/lib/hooks/useOriginOne'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
+import { CastingSkeleton } from '@/components/casting/CastingSkeleton'
 import { StorageImage } from '@/components/ui/StorageImage'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
@@ -1154,26 +1155,12 @@ export default function CastingPage({ params }: { params: { projectId: string } 
 
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', padding: '8px 20px 100px' }}>
         {isLoading ? (
-          // V2: in-page React-Query loading state. Mirrors the SSR Suspense
+          // In-page React-Query loading state. Mirrors the SSR Suspense
           // fallback in `loading.tsx` so the route reads identically whether
-          // it's the suspense fallback or a stale-data refetch. Uses the new
-          // `.sk-grid-3` + `.sk-pill` + `.sk-line` cinema-glass primitives.
-          <>
-            <div style={{ display: 'flex', gap: 8, marginTop: 4, marginBottom: 14 }}>
-              <div className="sk sk-pill" />
-              <div className="sk sk-pill" style={{ width: 70 }} />
-              <div className="sk sk-pill" style={{ width: 90 }} />
-              <div className="sk sk-pill" style={{ width: 80 }} />
-            </div>
-            <div className="sk-grid-3">
-              {[0, 1, 2, 3, 4, 5].map(i => (
-                <div key={i}>
-                  <div className="sk" style={{ aspectRatio: '3 / 4', borderRadius: 8, marginBottom: 6 }} />
-                  <div className={`sk sk-line ${i % 3 === 0 ? 'short' : i % 3 === 1 ? 'long' : 'med'}`} />
-                </div>
-              ))}
-            </div>
-          </>
+          // it's the suspense fallback or a stale-data refetch. CastingSkeleton
+          // is a panel-accurate ghost of the loaded body (count row + filter
+          // pills + section divider + 2-col cast-card grid).
+          <CastingSkeleton />
         ) : (
           roles.length === 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 14, padding: 40 }}>

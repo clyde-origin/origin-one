@@ -16,6 +16,7 @@ import { MentionText } from '@/components/ui/MentionText'
 import { LoadingState, EmptyState, SkeletonLine } from '@/components/ui'
 import { CrewAvatar } from '@/components/ui/client'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { TimelineSkeleton } from '@/components/timeline/TimelineSkeleton'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { CreateMilestoneSheet } from '@/components/create'
@@ -745,6 +746,13 @@ export default function TimelinePage({ params }: { params: { projectId: string }
           setEditing={setEditingDay}
           setShowCreate={setShowCreateDay}
         />
+      ) : isLoading ? (
+        // In-page React-Query loading state for the Milestones tab. Mirrors
+        // the SSR Suspense fallback in `loading.tsx` so the route reads
+        // identically whether it's the suspense fallback or a stale-data
+        // refetch. The page's PageHeader + primary tab strip sit above the
+        // skeleton so withTabStrip stays false here.
+        <TimelineSkeleton />
       ) : (
       <>
       {/* Calendar — anchored, does not scroll */}
@@ -756,9 +764,7 @@ export default function TimelinePage({ params }: { params: { projectId: string }
 
       {/* Milestone list — scrollable */}
       <div ref={msListRef} className="flex-1 overflow-y-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch', padding: '0 16px 100px' }}>
-        {isLoading ? (
-          <div className="py-8"><LoadingState /></div>
-        ) : mode === 'master' && !selectedDate ? (
+        {mode === 'master' && !selectedDate ? (
           /* Master default: "Tap a date" */
           <div className="flex flex-col items-center justify-center text-center" style={{ padding: '40px 24px', gap: 8 }}>
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style={{ opacity: 0.15, marginBottom: 4 }}>
