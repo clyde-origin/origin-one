@@ -15,8 +15,8 @@ import {
 } from '@/lib/hooks/useOriginOne'
 import { MentionInput } from '@/components/ui/MentionInput'
 import { MentionText } from '@/components/ui/MentionText'
-import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { ChatSkeleton } from '@/components/chat/ChatSkeleton'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
@@ -440,6 +440,10 @@ export default function ChatPage({ params }: { params: { projectId: string } }) 
         </div>
       ) : ''} />
 
+      {channelsLoading ? (
+        <ChatSkeleton />
+      ) : (
+      <>
       {/* Team / Direct tabs — cinema-glass active treatment: sheen on
           active label + accent underline. Inactive uses var(--fg-mono)
           so light mode flips correctly. */}
@@ -485,12 +489,7 @@ export default function ChatPage({ params }: { params: { projectId: string } }) 
             borderBottom: '1px solid rgba(255,255,255,0.05)',
             overflowX: 'auto',
           }}>
-            {channelsLoading ? (
-              // Cinema-glass shimmer pill placeholders match channel pill silhouette.
-              Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="sk-block flex-shrink-0" style={{ width: 78, height: 22, borderRadius: 20 }} />
-              ))
-            ) : activeChannels.map(c => {
+            {activeChannels.map(c => {
               const active = c.id === activeChannelId
               return (
                 <div
@@ -526,12 +525,8 @@ export default function ChatPage({ params }: { params: { projectId: string } }) 
             </div>
           </div>
 
-          {channelsLoading ? <LoadingState /> : (
-            <>
-              <MessageList messages={channelMessages ?? []} meId={meId} accent={accent} />
-              <InputBar projectId={projectId} accent={accent} placeholder="Message the team…" onSend={handleSendTeam} />
-            </>
-          )}
+          <MessageList messages={channelMessages ?? []} meId={meId} accent={accent} />
+          <InputBar projectId={projectId} accent={accent} placeholder="Message the team…" onSend={handleSendTeam} />
         </>
       ) : (
         dmPartner && meId ? (
@@ -551,6 +546,8 @@ export default function ChatPage({ params }: { params: { projectId: string } }) 
             onOpen={setDmPartnerId}
           />
         )
+      )}
+      </>
       )}
 
       <Sheet open={creatingChannel} onClose={() => setCreatingChannel(false)}>

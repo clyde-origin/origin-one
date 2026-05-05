@@ -13,6 +13,7 @@ import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { DEPARTMENTS, getProjectColor, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
+import { InventorySkeleton } from '@/components/inventory/InventorySkeleton'
 import type { InventoryItem, InventoryItemStatus, TeamMember } from '@/types'
 
 // ── Status palette (BRAND_TOKENS § Inventory Item Status) ─────────────
@@ -677,11 +678,7 @@ export default function InventoryPage({ params }: { params: { projectId: string 
         style={{ WebkitOverflowScrolling: 'touch', padding: '4px 16px 100px' }}
       >
         {isLoading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 10 }}>
-            {[0, 1, 2].map(i => (
-              <div key={i} className="inv-row sk-block" style={{ height: 68 }} />
-            ))}
-          </div>
+          <InventorySkeleton />
         ) : tabItems.length === 0 ? (
           <div
             className="flex flex-col items-center justify-center text-center"
