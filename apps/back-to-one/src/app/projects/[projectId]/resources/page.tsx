@@ -3,8 +3,9 @@
 import { useMemo, useState } from 'react'
 import { useProject, useResources, useCreateResource, useMeId } from '@/lib/hooks/useOriginOne'
 
-import { LoadingState, EmptyState } from '@/components/ui'
+import { EmptyState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { ResourcesSkeleton } from '@/components/resources/ResourcesSkeleton'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
@@ -262,6 +263,12 @@ export default function ResourcesPage({ params }: { params: { projectId: string 
         </div>
       ) : ''} />
 
+      {/* Loading — render the panel-accurate skeleton (filter row + body)
+          ahead of the live filter row + body. ResourcesSkeleton mirrors
+          this page's .ai-dept-filters + .res-list chrome so route +
+          data-fetch fallbacks stay visually identical. */}
+      {isLoading && <ResourcesSkeleton />}
+
       {/* Filter pill row — gallery #45 All / Templates / Docs / Links / Media */}
       {!isLoading && allResources.length > 0 && (
         <div className="ai-dept-filters">
@@ -279,8 +286,9 @@ export default function ResourcesPage({ params }: { params: { projectId: string 
         </div>
       )}
 
+      {!isLoading && (
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 80, padding: '0 14px 80px' }}>
-        {isLoading ? <LoadingState /> : (
+        {(
           allResources.length === 0 ? <EmptyState text="No resources yet" /> : (
             sections.length === 0 ? (
               <div className="font-mono uppercase" style={{
@@ -306,6 +314,7 @@ export default function ResourcesPage({ params }: { params: { projectId: string 
           )
         )}
       </div>
+      )}
 
       {/* + handler registered above via useFabAction. ActionBar is mounted globally. */}
 
