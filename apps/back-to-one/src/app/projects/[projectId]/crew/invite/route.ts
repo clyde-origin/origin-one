@@ -39,13 +39,28 @@ export async function POST(
     .from('Project').select('id, teamId').eq('id', projectId).maybeSingle()
   if (!project) return NextResponse.json({ error: 'project not found' }, { status: 404 })
 
+  // Authorize: caller is either a TeamMember of the project's team (broad
+  // team-level producer access) OR a producer/director ProjectMember of this
+  // specific project with canEdit=true (project-level path — used by the admin
+  // onboarding flow when the admin is scoped to one external project, not the
+  // whole external team).
   const { data: tm } = await supabase
     .from('TeamMember')
     .select('id, User!inner(authId)')
     .eq('teamId', project.teamId)
     .eq('User.authId', user.id)
     .maybeSingle()
-  if (!tm) return NextResponse.json({ error: 'not a producer on this team' }, { status: 403 })
+  if (!tm) {
+    const { data: pm } = await supabase
+      .from('ProjectMember')
+      .select('id, role, canEdit, User!inner(authId)')
+      .eq('projectId', projectId)
+      .eq('User.authId', user.id)
+      .in('role', ['producer', 'director'])
+      .eq('canEdit', true)
+      .maybeSingle()
+    if (!pm) return NextResponse.json({ error: 'not a producer on this project' }, { status: 403 })
+  }
 
   // Issue invite via service role.
   const admin = createClient(
