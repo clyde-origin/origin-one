@@ -9,6 +9,7 @@ import { CrewAvatar } from '@/components/ui/client'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { InviteCrewSheet } from '@/components/crew/InviteCrewSheet'
+import { CrewSkeleton } from '@/components/crew/CrewSkeleton'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusLabel, DEPT_COLORS } from '@/lib/utils/phase'
 import type { TeamMember, Role } from '@/types'
@@ -354,20 +355,14 @@ export default function CrewPage({ params }: { params: { projectId: string } }) 
         </div>
       </div>
 
+      {isLoading ? (
+        <CrewSkeleton />
+      ) : (
+        <>
       <RolePillRow active={tab} onChange={setTab} counts={counts} accent={accent} />
 
       <div className="flex-1 overflow-y-auto" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: 200 }}>
-        {isLoading ? (
-          <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="glass-tile" style={{ padding: '12px 8px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <div className="sk-block" style={{ width: 44, height: 44, borderRadius: '50%' }} />
-                <div className="sk-block" style={{ width: '70%', height: 10 }} />
-                <div className="sk-block" style={{ width: '50%', height: 8 }} />
-              </div>
-            ))}
-          </div>
-        ) : allCrew.length === 0 ? (
+        {allCrew.length === 0 ? (
           <CrewEmpty accent={accent} onAdd={() => { haptic('light'); setShowNewSheet(true) }} />
         ) : filtered.length === 0 ? (
           <div className="font-mono text-center py-12" style={{ fontSize: 11, color: 'var(--fg-mono)' }}>No crew with role {tab}</div>
@@ -398,6 +393,8 @@ export default function CrewPage({ params }: { params: { projectId: string } }) 
           })
         )}
       </div>
+        </>
+      )}
 
       {allCrew.length > 0 && (
         <AvatarStrip crew={allCrew} selectedId={selectedMember?.id ?? null} accent={accent} onSelect={handleSelectFromStrip} />

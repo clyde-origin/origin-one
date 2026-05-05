@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { CreateTaskSheet } from '@/components/create'
+import { ActionItemsSkeleton } from '@/components/action-items/ActionItemsSkeleton'
 import { haptic } from '@/lib/utils/haptics'
 import { formatDate, isLate, getProjectColor, statusLabel, statusHex, DEPT_COLORS, DEPT_SHORT as DEPT_SHORT_MAP } from '@/lib/utils/phase'
 import { Sheet, SheetHeader, SheetBody } from '@/components/ui/Sheet'
@@ -397,6 +398,10 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
         ) : ''}
       />
 
+      {loadingItems || loadingCrew ? (
+        <ActionItemsSkeleton />
+      ) : (
+        <>
       {/* Tabs — cinema-glass: active label gets `.sheen-title` (gradient
           driven by the inline accent vars set on the screen root); active
           tab has an accent underline below. Inactive label uses var(--fg-mono)
@@ -436,22 +441,7 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
 
       {/* Panels */}
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 100 }}>
-        {loadingItems || loadingCrew ? (
-          <div className="flex flex-col" style={{ padding: '14px 16px 0', gap: 8 }}>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="glass-tile glass-tile-xs flex items-start" style={{ gap: 11, padding: '12px 13px' }}>
-                <div className="sk-block flex-shrink-0" style={{ width: 16, height: 16, borderRadius: '50%', marginTop: 1 }} />
-                <div className="flex-1 flex flex-col" style={{ gap: 6 }}>
-                  <div className="sk-block" style={{ width: '80%', height: 10 }} />
-                  <div className="flex" style={{ gap: 8 }}>
-                    <div className="sk-block" style={{ width: 48, height: 7 }} />
-                    <div className="sk-block" style={{ width: 36, height: 7 }} />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
+        {(
           <>
             {/* ME TAB — V2: bucketed by time inside a single .card .ai-list
                 glass wrapper. Today bucket label gets the accent treatment. */}
@@ -614,6 +604,8 @@ export default function ActionItemsPage({ params }: { params: { projectId: strin
           </>
         )}
       </div>
+        </>
+      )}
 
       {/* + handler registered above via useFabAction. ActionBar is mounted globally. */}
 

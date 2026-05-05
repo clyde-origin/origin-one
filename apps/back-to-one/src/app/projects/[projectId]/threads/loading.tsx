@@ -1,49 +1,32 @@
-// Threads route — Suspense fallback. Mirrors the design's "Threads ·
-// Loading" mockup (apps/back-to-one/reference/hub-full-preview-v2.html
-// @ ~10883): section divider + thread rows (circle thumb + title + meta).
+// Threads route — Suspense fallback. Mirrors the loaded Threads panel
+// layout exactly (apps/back-to-one/src/app/projects/[projectId]/threads/
+// page.tsx):
+//   PageHeader (Threads title + project meta-name + active/unread line)
+//   .threads-section dividers (rule | label · count | rule)
+//   .threads-row glass-tile-sm rows (52px thumb + chip + snippet + meta)
+//
+// Re-uses the page's own chrome (.glass-tile.sk-tile + .glass-tile-sm so
+// the row chrome is identical) so the skeleton inherits the loaded layout's
+// borders and spacing — only inner content swaps for .sk shimmer
+// rectangles.
+import { PageHeader } from '@/components/ui/PageHeader'
+import { ThreadsSkeleton } from '@/components/threads/ThreadsSkeleton'
+
 export default function ThreadsLoading() {
   return (
     <div className="screen" style={{ display: 'flex', flexDirection: 'column' }}>
-      <div
-        className="hub-topbar relative flex flex-col items-center justify-end px-5 flex-shrink-0 sticky top-0 z-20"
-        style={{
-          minHeight: 100,
-          paddingTop: 'calc(var(--safe-top) + 10px)',
-          paddingBottom: 12,
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          overflow: 'hidden',
-        }}
-      >
-        <div className="flex flex-col items-center" style={{ width: '70%' }}>
-          <div className="sk sk-line short" style={{ marginBottom: 10 }} />
-          <div className="sk sk-title" />
-          <div className="sk sk-line med" style={{ marginTop: 10 }} />
-        </div>
-      </div>
-
-      <div style={{ padding: '14px 16px 24px' }}>
-        {/* Section divider */}
-        <div className="sk sk-section-header" />
-
-        {/* Thread rows — circle thumb + content + meta */}
-        {[
-          ['long', 'med'],
-          ['med', 'long'],
-          ['long', 'short'],
-          ['med', 'med'],
-          ['long', 'short'],
-          ['med', 'long'],
-        ].map(([a, b], i) => (
-          <div key={i} className="sk-row">
-            <div className="sk sk-circle" style={{ width: 36 }} />
-            <div className="sk-stack">
-              <div className={`sk sk-line ${a}`} />
-              <div className={`sk sk-line ${b}`} />
-            </div>
+      <PageHeader
+        projectId=""
+        title="Threads"
+        meta={
+          <div className="flex flex-col items-center" style={{ gap: 6 }}>
+            <div className="sk sk-line" style={{ width: 110, height: 11 }} />
+            <div className="sk sk-line" style={{ width: 90, height: 9 }} />
           </div>
-        ))}
-      </div>
+        }
+        noBorder
+      />
+      <ThreadsSkeleton />
     </div>
   )
 }
