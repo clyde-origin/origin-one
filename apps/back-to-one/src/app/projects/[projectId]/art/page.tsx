@@ -14,6 +14,7 @@ import {
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { StorageImage } from '@/components/ui/StorageImage'
+import { ArtSkeleton } from '@/components/art/ArtSkeleton'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
 import { getProjectColor, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
@@ -665,18 +666,7 @@ export default function ArtPage({ params }: { params: { projectId: string } }) {
         style={{ WebkitOverflowScrolling: 'touch', padding: '14px 16px 100px', position: 'relative', zIndex: 1 }}
       >
         {isLoading ? (
-          <div className="art-section">
-            <h2 className="art-section-header">{SECTION_HEADER[activeTab]}</h2>
-            <div className="art-grid">
-              {[0, 1, 2, 3].map(i => (
-                <div key={i} className="art-card">
-                  <div className="sk-block" style={{ width: '100%', aspectRatio: '1 / 1', borderRadius: 8 }} />
-                  <div className="sk-block" style={{ width: '70%', height: 9, margin: '4px auto 0', borderRadius: 4 }} />
-                  <div className="sk-block" style={{ width: '50%', height: 7, margin: '4px auto 0', borderRadius: 4 }} />
-                </div>
-              ))}
-            </div>
-          </div>
+          <ArtSkeleton />
         ) : tabItems.length === 0 ? (
           <ArtEmptyState />
         ) : (
