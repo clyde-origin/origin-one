@@ -13,6 +13,7 @@ import { EmptyCTA } from '@/components/ui/EmptyState'
 import { useDetailSheetThreads } from '@/components/threads/useDetailSheetThreads'
 import { ThreadRowBadge, type ThreadRowBadgeEntry } from '@/components/threads/ThreadRowBadge'
 import { useThreadsByEntity } from '@/components/threads/useThreadsByEntity'
+import { LocationsSkeleton } from '@/components/locations/LocationsSkeleton'
 import dynamic from 'next/dynamic'
 import {
   ENTITY_COLORS,
@@ -746,18 +747,7 @@ export default function LocationsPage({ params }: { params: { projectId: string 
       {/* Content */}
       <div className="flex-1 overflow-y-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch', padding: '12px 16px 120px' }}>
         {isLoading ? (
-          <div className="loc-grid">
-            {[0, 1, 2, 3].map(i => (
-              <div key={i} className="loc-card" style={{ padding: 0 }}>
-                <div className="sk-block" style={{ width: '60%', height: 11, margin: '10px auto 8px', borderRadius: 4 }} />
-                <div className="sk-block" style={{ width: '100%', aspectRatio: '16 / 9', borderRadius: 0 }} />
-                <div style={{ padding: '8px 8px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                  <div className="sk-block" style={{ width: '70%', height: 7 }} />
-                  <div className="sk-block" style={{ width: '50%', height: 8 }} />
-                </div>
-              </div>
-            ))}
-          </div>
+          <LocationsSkeleton />
         ) : filtered.length === 0 ? (
           <EmptyCTA
             icon="📍"

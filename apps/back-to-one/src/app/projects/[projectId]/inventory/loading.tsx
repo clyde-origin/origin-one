@@ -1,60 +1,74 @@
-// Inventory route — Suspense fallback. Mirrors the design's "Inventory ·
-// Loading" mockup (apps/back-to-one/reference/hub-full-preview-v2.html
-// @ ~14647): dept-pill row + status section headers + .inv-row list
-// skeletons with 38px thumb + title + meta.
+// Inventory route — Suspense fallback. Mirrors the loaded Inventory panel
+// layout exactly (apps/back-to-one/src/app/projects/[projectId]/inventory/page.tsx):
+//   PageHeader (Inventory title + project meta)
+//   import action row (disabled "Import PDF / Excel" affordance)
+//   department tab strip (per-dept pills with count chips)
+//   .inv-section / .inv-section-header / .inv-rows (status-grouped rows)
+//   .inv-row (52px thumb + name/meta column + status pill)
+//
+// Re-uses the page's own chrome (.inv-section / .inv-rows / .inv-row /
+// .inv-thumb / .inv-info / .inv-status-pill) so the skeleton inherits the
+// loaded layout's grid, gaps, and borders — only inner content swaps for
+// .sk shimmer rectangles.
+import { PageHeader } from '@/components/ui/PageHeader'
+import { InventorySkeleton } from '@/components/inventory/InventorySkeleton'
+
 export default function InventoryLoading() {
   return (
     <div className="screen" style={{ display: 'flex', flexDirection: 'column' }}>
+      <PageHeader
+        projectId=""
+        title="Inventory"
+        meta={
+          <div className="flex flex-col items-center" style={{ gap: 6 }}>
+            <div className="sk sk-line" style={{ width: 110, height: 11 }} />
+            <div className="sk sk-pill" style={{ width: 70, height: 14 }} />
+          </div>
+        }
+        noBorder
+      />
+
+      {/* Import action row */}
       <div
-        className="hub-topbar relative flex flex-col items-center justify-end px-5 flex-shrink-0 sticky top-0 z-20"
-        style={{
-          minHeight: 100,
-          paddingTop: 'calc(var(--safe-top) + 10px)',
-          paddingBottom: 12,
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          overflow: 'hidden',
-        }}
+        className="flex flex-shrink-0"
+        style={{ gap: 8, padding: '0 16px 12px' }}
       >
-        <div className="flex flex-col items-center" style={{ width: '70%' }}>
-          <div className="sk sk-line short" style={{ marginBottom: 10 }} />
-          <div className="sk sk-title" />
-          <div className="sk sk-line med" style={{ marginTop: 10 }} />
+        <div
+          className="flex-1 flex items-center justify-center"
+          style={{
+            gap: 7,
+            padding: '11px 14px',
+            borderRadius: 10,
+            background: 'rgba(255,255,255,0.025)',
+            border: '1px solid rgba(255,255,255,0.06)',
+          }}
+        >
+          <div className="sk sk-line" style={{ width: 140, height: 11 }} />
         </div>
       </div>
 
-      {/* Dept-pill row */}
-      <div style={{ display: 'flex', gap: 8, padding: '14px 16px 6px' }}>
-        <div className="sk sk-pill" />
-        <div className="sk sk-pill" style={{ width: 70 }} />
-        <div className="sk sk-pill" style={{ width: 60 }} />
-        <div className="sk sk-pill" style={{ width: 80 }} />
+      {/* Department tab strip — 6 pills (varied widths to feel real) */}
+      <div
+        className="flex-shrink-0 overflow-x-auto no-scrollbar"
+        style={{ borderBottom: '1px solid var(--border)' }}
+      >
+        <div className="flex" style={{ gap: 6, padding: '0 16px 12px' }}>
+          {[70, 60, 84, 64, 76, 72].map((w, i) => (
+            <div
+              key={i}
+              className="sk sk-pill flex-shrink-0"
+              style={{ width: w, height: 26 }}
+            />
+          ))}
+        </div>
       </div>
 
-      <div style={{ padding: '0 16px 24px' }}>
-        {/* Status section: In stock */}
-        <div className="sk sk-section-header" />
-        {[0, 1, 2, 3].map((i) => (
-          <div key={`s1-${i}`} className="sk-row">
-            <div className="sk sk-thumb" style={{ width: 38, height: 38 }} />
-            <div className="sk-stack">
-              <div className={`sk sk-line ${i % 2 === 0 ? 'long' : 'med'}`} />
-              <div className="sk sk-line short" />
-            </div>
-          </div>
-        ))}
-
-        {/* Status section: Out for use */}
-        <div className="sk sk-section-header" />
-        {[0, 1].map((i) => (
-          <div key={`s2-${i}`} className="sk-row">
-            <div className="sk sk-thumb" style={{ width: 38, height: 38 }} />
-            <div className="sk-stack">
-              <div className={`sk sk-line ${i === 0 ? 'long' : 'med'}`} />
-              <div className="sk sk-line short" />
-            </div>
-          </div>
-        ))}
+      {/* Body — same scroll container the page uses */}
+      <div
+        className="flex-1 overflow-hidden"
+        style={{ padding: '4px 16px 100px' }}
+      >
+        <InventorySkeleton />
       </div>
     </div>
   )
