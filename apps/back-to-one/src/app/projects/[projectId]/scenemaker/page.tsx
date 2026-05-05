@@ -2212,7 +2212,12 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           projectId={projectId}
           title=""
           meta={project ? (
-            <div className="flex flex-col items-center gap-1.5">
+            // Reset font-family + text-transform — PageHeader wraps `meta` in
+            // .font-mono uppercase (intended for short labels). Without this
+            // reset, ProjectSwitcher's project name inherits Geist Mono +
+            // ALL CAPS and diverges from the Hub's project-name treatment.
+            // The "One Arc" pill below re-applies font-mono uppercase locally.
+            <div className="flex flex-col items-center gap-1.5" style={{ fontFamily: 'var(--font-geist-sans), system-ui, sans-serif', textTransform: 'none' }}>
               <span className="font-mono uppercase" style={{ fontSize: 11, letterSpacing: '0.12em', color: accent }}>One Arc</span>
               <ProjectSwitcher projectId={projectId} projectName={project.name} accentColor={accent} variant="hub" />
               <span className={`ai-meta-pill ${statusToPhase(project.status)}`}>
