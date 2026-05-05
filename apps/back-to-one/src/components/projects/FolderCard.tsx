@@ -106,7 +106,6 @@ export function FolderCard({
           <rect width="200" height="125" fill="rgba(14, 14, 20, 0.70)" />
           <rect width="200" height="125" fill={`url(#folderBody-${folder.id})`} />
           <rect width="200" height="125" fill={`url(#folderHilite-${folder.id})`} />
-          <rect className="folder-stripe" x="0" y="24" width="200" height="1.5" />
         </g>
         <path
           className="folder-path"
