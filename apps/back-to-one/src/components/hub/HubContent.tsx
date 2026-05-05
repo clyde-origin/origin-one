@@ -128,10 +128,11 @@ function ModuleHeader({ name, meta }: { name: string; meta?: string }) {
 // (allShots / allScenes / allMoodRefs / shuffledMood), so re-renders only
 // fire when an actual data input changes.
 
-// Empty-state CTA shared by all three SwipeableSceneMaker pages when the
-// project has no scenes / shots / boards yet. Always sends the user to the
-// Script tab — that's the genesis surface for everything else in One Arc.
-// stopPropagation prevents the parent panel's tap handler from firing too.
+// Full-tile empty state for the One Arc SceneMaker card — used in place of
+// SwipeableSceneMaker when the project has zero scenes. Mirrors the
+// "All clear, boss." / "The time is now." treatment elsewhere on the Hub:
+// glass-tile letterbox, big bold tagline, mono subtitle, animated accent
+// hint. The whole tile taps through to /scenemaker?mode=script.
 function MakeASceneEmpty({
   projectId, pr, pg, pb, router,
 }: {
@@ -139,19 +140,62 @@ function MakeASceneEmpty({
   router: ReturnType<typeof useRouter>;
 }) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center" style={{ gap: 7 }}>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); haptic('light'); router.push(`/projects/${projectId}/scenemaker?mode=script`) }}
-        className="flex items-center justify-center rounded-full"
-        style={{ width: 30, height: 30, border: `1.5px dashed rgba(${pr},${pg},${pb},0.4)`, background: 'transparent', cursor: 'pointer', padding: 0 }}
-        aria-label="Make a scene"
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d="M5 1V9M1 5H9" stroke={`rgba(${pr},${pg},${pb},0.6)`} strokeWidth="1.4" strokeLinecap="round" />
-        </svg>
-      </button>
-      <span className="font-mono uppercase" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.08em' }}>Make a Scene</span>
+    <div
+      className="cursor-pointer"
+      style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+      onClick={() => { haptic('light'); router.push(`/projects/${projectId}/scenemaker?mode=script`) }}
+      role="button"
+      aria-label="Start your script"
+    >
+      <div className="letterbox-top" />
+      <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-4">
+        <div className="relative flex-shrink-0" style={{ width: 34, height: 34 }}>
+          <div className="absolute inset-0 rounded-full" style={{ border: `1px solid rgba(${pr},${pg},${pb},0.3)`, animation: 'ring-pulse 2.4s ease-out infinite' }} />
+          <div className="absolute inset-0 rounded-full" style={{ background: `rgba(${pr},${pg},${pb},0.08)`, border: `1px solid rgba(${pr},${pg},${pb},0.15)` }} />
+          <svg className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <path d="M6.5 2V11M2 6.5H11" stroke={`rgb(${pr},${pg},${pb})`} strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </div>
+        <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--fg)', letterSpacing: '-0.01em' }}>Make a Scene.</div>
+        <div className="font-mono" style={{ fontSize: '0.48rem', color: 'var(--fg-mono)', letterSpacing: '0.03em', lineHeight: 1.6 }}>Start with the script.<br />Shots and boards follow.</div>
+      </div>
+      <div className="letterbox-bottom" />
+    </div>
+  )
+}
+
+// Tone empty — same voice as MakeASceneEmpty + the Hub's other production
+// empties. Used by both the split-mode SwipePanel emptyContent and the
+// full-width Tone strip below.
+function SetTheToneEmpty({
+  projectId, pr, pg, pb, router,
+}: {
+  projectId: string; pr: number; pg: number; pb: number;
+  router: ReturnType<typeof useRouter>;
+}) {
+  return (
+    <div
+      className="cursor-pointer"
+      style={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%' }}
+      onClick={() => { haptic('light'); router.push(`/projects/${projectId}/moodboard`) }}
+      role="button"
+      aria-label="Set the tone"
+    >
+      <div className="letterbox-top" />
+      <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-4">
+        <div className="relative flex-shrink-0" style={{ width: 34, height: 34 }}>
+          <div className="absolute inset-0 rounded-full" style={{ border: `1px solid rgba(${pr},${pg},${pb},0.3)`, animation: 'ring-pulse 2.4s ease-out infinite' }} />
+          <div className="absolute inset-0 rounded-full" style={{ background: `rgba(${pr},${pg},${pb},0.08)`, border: `1px solid rgba(${pr},${pg},${pb},0.15)` }} />
+          <svg className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="2" y="3" width="10" height="8" rx="1.2" stroke={`rgb(${pr},${pg},${pb})`} strokeWidth="1.2" />
+            <circle cx="5" cy="6" r="1" fill={`rgb(${pr},${pg},${pb})`} />
+            <path d="M2 9.5l3-2 2 1.4 3-3 2 1.6" stroke={`rgb(${pr},${pg},${pb})`} strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <div style={{ fontWeight: 800, fontSize: '0.8rem', color: 'var(--fg)', letterSpacing: '-0.01em' }}>Set the Tone.</div>
+        <div className="font-mono" style={{ fontSize: '0.48rem', color: 'var(--fg-mono)', letterSpacing: '0.03em', lineHeight: 1.6 }}>Pull references.<br />They&rsquo;ll shape every shot.</div>
+      </div>
+      <div className="letterbox-bottom" />
     </div>
   )
 }
@@ -247,7 +291,9 @@ const SwipeableSceneMaker = memo(function SwipeableSceneMaker({
               ))}
             </div>
           ) : (
-            <MakeASceneEmpty projectId={projectId} pr={pr} pg={pg} pb={pb} router={router} />
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a' }}>No script yet</span>
+            </div>
           )}
         </div>
 
@@ -264,7 +310,12 @@ const SwipeableSceneMaker = memo(function SwipeableSceneMaker({
               ))}
             </div>
           ) : (
-            <MakeASceneEmpty projectId={projectId} pr={pr} pg={pg} pb={pb} router={router} />
+            <div className="flex-1 flex flex-col items-center justify-center" style={{ gap: 6 }}>
+              <div className="flex items-center justify-center rounded-full" style={{ width: 28, height: 28, border: `1.5px dashed rgba(${pr},${pg},${pb},0.35)` }}>
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M5 1V9M1 5H9" stroke={`rgba(${pr},${pg},${pb},0.5)`} strokeWidth="1.3" strokeLinecap="round" /></svg>
+              </div>
+              <span className="font-mono" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em' }}>No shots yet</span>
+            </div>
           )}
         </div>
 
@@ -288,7 +339,9 @@ const SwipeableSceneMaker = memo(function SwipeableSceneMaker({
               </div>
             )
           })() : (
-            <MakeASceneEmpty projectId={projectId} pr={pr} pg={pg} pb={pb} router={router} />
+            <div className="flex-1 flex items-center justify-center">
+              <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a' }}>No boards yet</span>
+            </div>
           )}
         </div>
       </div>
@@ -1036,18 +1089,24 @@ export function HubContent({ projectId }: { projectId: string }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {/* SceneMaker + Tone 50/50 — item 8: labels moved INSIDE panels */}
               <div className="flex" style={{ gap: 8, height: 148 }}>
-                {/* SceneMaker card — item 12: swipeable */}
-                <div className="glass-tile flex-1 min-w-0 cursor-pointer" style={{ display: 'flex', flexDirection: 'column' }}>
-                  <SwipeableSceneMaker
-                    projectId={projectId}
-                    projectColor={projectColor}
-                    pr={pr} pg={pg} pb={pb}
-                    allShots={allShots}
-                    allScenes={allScenes}
-                    allMoodRefs={allMoodRefs}
-                    shuffledMood={shuffledMood}
-                    router={router}
-                  />
+                {/* SceneMaker card — item 12: swipeable. When the project has
+                    no scenes yet, swap the swiper for a Hub-voice empty CTA
+                    that taps through to the script editor. */}
+                <div className="glass-tile flex-1 min-w-0" style={{ display: 'flex', flexDirection: 'column' }}>
+                  {allScenes.length > 0 ? (
+                    <SwipeableSceneMaker
+                      projectId={projectId}
+                      projectColor={projectColor}
+                      pr={pr} pg={pg} pb={pb}
+                      allShots={allShots}
+                      allScenes={allScenes}
+                      allMoodRefs={allMoodRefs}
+                      shuffledMood={shuffledMood}
+                      router={router}
+                    />
+                  ) : (
+                    <MakeASceneEmpty projectId={projectId} pr={pr} pg={pg} pb={pb} router={router} />
+                  )}
                 </div>
 
                 {/* Tone panel — swipeable moodboard images */}
@@ -1057,14 +1116,7 @@ export function HubContent({ projectId }: { projectId: string }) {
                   labelColor={projectColor}
                   href={`/projects/${projectId}/moodboard`}
                   emptyContent={
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: 0.35 }}>
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                        <rect x="2" y="4" width="20" height="16" rx="2" stroke="#62627a" strokeWidth="1.3" />
-                        <circle cx="8" cy="10" r="2" stroke="#62627a" strokeWidth="1.2" />
-                        <path d="M2 16l5-4 3 2 4-5 8 7" stroke="#62627a" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                      <span className="font-mono" style={{ fontSize: '0.38rem', color: '#62627a' }}>Set the Tone</span>
-                    </div>
+                    <SetTheToneEmpty projectId={projectId} pr={pr} pg={pg} pb={pb} router={router} />
                   }
                   renderItem={(ref) => (
                     ref.imageUrl ? (
@@ -1313,13 +1365,8 @@ export function HubContent({ projectId }: { projectId: string }) {
                 </AnimatePresence>
               </div>
             ) : (
-              <div className="glass-tile" style={{ height: 110, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: 0.45 }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                  <rect x="2" y="4" width="20" height="16" rx="2" stroke="#62627a" strokeWidth="1.3" />
-                  <circle cx="8" cy="10" r="2" stroke="#62627a" strokeWidth="1.2" />
-                  <path d="M2 16l5-4 3 2 4-5 8 7" stroke="#62627a" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <span className="font-mono" style={{ fontSize: '0.42rem', color: '#62627a', letterSpacing: '0.06em' }}>Set the Tone</span>
+              <div className="glass-tile" style={{ height: 130, display: 'flex', flexDirection: 'column' }}>
+                <SetTheToneEmpty projectId={projectId} pr={pr} pg={pg} pb={pb} router={router} />
               </div>
             )}
           </div>
