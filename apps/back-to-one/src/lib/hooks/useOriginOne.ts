@@ -1712,3 +1712,39 @@ export function useMentionRoster(projectId: string | null) {
     enabled:  projectId !== null || !!meId,
   })
 }
+
+export type OnboardProductionInput = {
+  companyName: string
+  projectName: string
+  producers: { name: string; email: string }[]
+}
+
+export type OnboardProductionResult = {
+  teamId: string
+  projectId: string
+  producerIds: string[]
+  folderIds: string[]
+  emails: Array<{ email: string; ok: boolean; reason?: string }>
+}
+
+export function useOnboardProduction() {
+  const queryClient = useQueryClient()
+  return useMutation<OnboardProductionResult, Error, OnboardProductionInput>({
+    mutationFn: async (input) => {
+      const res = await fetch('/api/admin/external-production', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.error ?? `request failed: ${res.status}`)
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      // New project + memberships landed; force a fresh project list.
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
