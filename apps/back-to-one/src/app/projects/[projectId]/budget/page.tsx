@@ -10,6 +10,7 @@ import {
   useDuplicateBudgetVersion, useDeleteBudgetVersion,
 } from '@/lib/hooks/useOriginOne'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { BudgetSkeleton } from '@/components/budget/BudgetSkeleton'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { getProjectColor, statusHex, statusLabel as projectStatusLabel } from '@/lib/utils/phase'
 import { deriveProjectColors, DEFAULT_PROJECT_HEX } from '@origin-one/ui'
@@ -1369,10 +1370,7 @@ export default function BudgetPage({ params }: { params: { projectId: string } }
         }}
       >
         {isLoading ? (
-          <div
-            className="font-mono uppercase text-center"
-            style={{ fontSize: '0.42rem', letterSpacing: '0.1em', color: '#62627a', padding: '32px 0' }}
-          >Loading…</div>
+          <BudgetSkeleton />
         ) : !budget ? (
           // Empty state — TemplatePicker swaps in on tap. Replace-in-place;
           // not a nested modal.
