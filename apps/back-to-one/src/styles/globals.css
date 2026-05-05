@@ -2383,10 +2383,6 @@ html.light-mode body .wf-node-deliverable-row {
   stroke-width: 1.0;
   vector-effect: non-scaling-stroke;
 }
-.slate-folder-card .folder-stripe {
-  fill: rgb(var(--proj-rgb));
-  fill-opacity: 0.85;
-}
 .slate-folder-card.drop-target .folder-path {
   stroke: rgba(var(--proj-rgb), 0.95);
   stroke-width: 1.5;
