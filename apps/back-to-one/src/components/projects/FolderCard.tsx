@@ -88,6 +88,26 @@ export function FolderCard({
       }}
     >
       <svg className="slate-folder-svg" preserveAspectRatio="none" viewBox="0 0 200 125">
+        <defs>
+          <clipPath id={`folderClip-${folder.id}`}>
+            <path d="M 8 0 L 132 0 Q 140 0 140 8 L 140 16 Q 140 24 148 24 L 192 24 Q 200 24 200 32 L 200 117 Q 200 125 192 125 L 8 125 Q 0 125 0 117 L 0 8 Q 0 0 8 0 Z" />
+          </clipPath>
+          <linearGradient id={`folderBody-${folder.id}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   style={{ stopColor: 'rgb(var(--proj-rgb))', stopOpacity: 0.10 }} />
+            <stop offset="50%"  style={{ stopColor: 'rgb(var(--proj-rgb))', stopOpacity: 0.06 }} />
+            <stop offset="100%" style={{ stopColor: 'rgb(var(--proj-rgb))', stopOpacity: 0.04 }} />
+          </linearGradient>
+          <radialGradient id={`folderHilite-${folder.id}`} cx="0.5" cy="-0.05" r="0.7">
+            <stop offset="0%"  style={{ stopColor: 'rgb(var(--proj-rgb))', stopOpacity: 0.28 }} />
+            <stop offset="65%" style={{ stopColor: 'rgb(var(--proj-rgb))', stopOpacity: 0 }} />
+          </radialGradient>
+        </defs>
+        <g clipPath={`url(#folderClip-${folder.id})`}>
+          <rect width="200" height="125" fill="rgba(14, 14, 20, 0.70)" />
+          <rect width="200" height="125" fill={`url(#folderBody-${folder.id})`} />
+          <rect width="200" height="125" fill={`url(#folderHilite-${folder.id})`} />
+          <rect className="folder-stripe" x="0" y="24" width="200" height="1.5" />
+        </g>
         <path
           className="folder-path"
           d="M 8 0 L 132 0 Q 140 0 140 8 L 140 16 Q 140 24 148 24 L 192 24 Q 200 24 200 32 L 200 117 Q 200 125 192 125 L 8 125 Q 0 125 0 117 L 0 8 Q 0 0 8 0 Z"

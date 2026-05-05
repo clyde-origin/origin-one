@@ -2374,18 +2374,21 @@ html.light-mode body .wf-node-deliverable-row {
   height: 100%;
   pointer-events: none;
   filter:
-    drop-shadow(0 0 22px rgba(var(--proj-rgb), 0.32))
+    drop-shadow(0 0 22px rgba(var(--proj-rgb), 0.40))
     drop-shadow(0 4px 18px rgba(0, 0, 0, 0.55));
 }
 .slate-folder-card .folder-path {
-  fill: rgba(var(--proj-rgb), 0.18);
-  stroke: rgba(var(--proj-rgb), 0.30);
+  fill: none;
+  stroke: rgba(var(--proj-rgb), 0.45);
   stroke-width: 1.0;
   vector-effect: non-scaling-stroke;
 }
+.slate-folder-card .folder-stripe {
+  fill: rgb(var(--proj-rgb));
+  fill-opacity: 0.85;
+}
 .slate-folder-card.drop-target .folder-path {
-  fill: rgba(var(--proj-rgb), 0.32);
-  stroke: rgba(var(--proj-rgb), 0.85);
+  stroke: rgba(var(--proj-rgb), 0.95);
   stroke-width: 1.5;
 }
 .slate-folder-card.drop-target {
