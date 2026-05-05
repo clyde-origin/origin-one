@@ -18,9 +18,9 @@ import {
 } from '@/lib/hooks/useOriginOne'
 import { EMPTY_ARRAY } from '@/lib/empty-collections'
 
-import { LoadingState } from '@/components/ui'
 import { GhostCircle, GhostRect, GhostPill, SectionLabel, EmptyCTA } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { WorkflowSkeleton } from '@/components/workflow/WorkflowSkeleton'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
 import { haptic } from '@/lib/utils/haptics'
@@ -841,7 +841,7 @@ export default function WorkflowPage({ params }: { params: { projectId: string }
       )}
 
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 100 }}>
-        {isLoading ? <LoadingState /> : (
+        {isLoading ? <WorkflowSkeleton /> : (
           nodes.length === 0 ? (
             /* ── Empty state ── */
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 14, padding: 40 }}>

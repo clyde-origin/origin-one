@@ -14,9 +14,9 @@ import {
   useDeleteMoodboardTab,
 } from '@/lib/hooks/useOriginOne'
 import { uploadMoodboardImage } from '@/lib/db/queries'
-import { LoadingState } from '@/components/ui'
 import { EmptyCTA } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { MoodboardSkeleton } from '@/components/moodboard/MoodboardSkeleton'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { StorageImage } from '@/components/ui/StorageImage'
 import { useFabAction } from '@/lib/contexts/FabActionContext'
@@ -691,6 +691,13 @@ export default function MoodboardPage({ params }: { params: { projectId: string 
         ) : ''}
       />
 
+      {/* Loading — render the panel-accurate skeleton (tab bar + divider
+          + mosaic) ahead of the live tab bar + body so route +
+          data-fetch fallbacks stay visually identical. */}
+      {isLoading && <MoodboardSkeleton />}
+
+      {!isLoading && (
+        <>
       {/* Tab Bar */}
       <TabBar
         tabs={allTabs}
@@ -706,7 +713,7 @@ export default function MoodboardPage({ params }: { params: { projectId: string 
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 80 }}>
-        {isLoading ? <LoadingState /> : (
+        {(
           filtered.length === 0 ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
               <EmptyCTA
@@ -727,6 +734,8 @@ export default function MoodboardPage({ params }: { params: { projectId: string 
           )
         )}
       </div>
+        </>
+      )}
 
       {/* + handler registered above via useFabAction. ActionBar is mounted globally. */}
 
