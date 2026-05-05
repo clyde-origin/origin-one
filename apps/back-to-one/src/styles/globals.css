@@ -425,6 +425,36 @@ body.light-mode .sk, html.light-mode body .sk {
   100% { background-position: -200% 0; }
 }
 
+/* Shimmer overlay on a .glass-tile — keeps the cinema-glass chrome
+   (border, blur, background gradient) and animates a translucent
+   highlight sweep across the surface so the panel reads as
+   "data pending" rather than "empty". Used by per-page loading
+   skeletons that mirror the loaded layout exactly. */
+.glass-tile.sk-tile {
+  position: relative;
+  overflow: hidden;
+}
+.glass-tile.sk-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 50%,
+    transparent 100%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 2.2s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+body.light-mode .glass-tile.sk-tile::after {
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(60, 38, 14, 0.08) 50%,
+    transparent 100%);
+  background-size: 200% 100%;
+}
+
 /* ────────────────────────────────────────────────────────────
    Scenemaker (One Arc) — route-namespaced V2 chrome.
    Reuses cinema-glass primitives (.glass-tile, .sheen-title,
