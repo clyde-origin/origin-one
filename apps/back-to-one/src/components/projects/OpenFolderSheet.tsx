@@ -62,6 +62,11 @@ interface OpenFolderSheetProps {
   // deterministic per-id hash fallback. Defaults to a fixed indigo
   // when the parent doesn't pass one (e.g. archive variant).
   getColor?: (projectId: string) => string
+
+  // When provided, renders a settings gear in the header. Tap opens the
+  // FolderActionSheet (rename / recolor / delete). Omitted for the
+  // synthetic Archive folder and archived folders.
+  onSettingsClick?: () => void
 }
 
 // Compact folder tile — visual cue (folder icon + count) in the same 4:3 slot
@@ -117,6 +122,7 @@ export function OpenFolderSheet({
   editMode, draggingProjectId, dragTargetId, archivedCount, onProjectTouchStart, onArchiveTap,
   onExitEditMode,
   getColor,
+  onSettingsClick,
 }: OpenFolderSheetProps) {
   const router = useRouter()
   const accent = folder?.color ?? '#6470f3'
@@ -167,12 +173,36 @@ export function OpenFolderSheet({
           }} />
 
           {/* Header */}
-          <div style={{ padding: '14px 18px 12px', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <div className="font-mono" style={{ fontSize: 9, color: hexToRgba(accent, 0.6), textTransform: 'uppercase', letterSpacing: '0.12em' }}>{kicker ?? 'Folder'}</div>
-            <div style={{ fontWeight: 800, fontSize: 18, color: '#dddde8', letterSpacing: '-0.02em', marginTop: 2 }}>{folder.name}</div>
-            <div className="font-mono" style={{ fontSize: 10, color: '#62627a', marginTop: 4 }}>
-              {totalCount} item{totalCount !== 1 ? 's' : ''}
+          <div style={{ padding: '14px 18px 12px', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="font-mono" style={{ fontSize: 9, color: hexToRgba(accent, 0.6), textTransform: 'uppercase', letterSpacing: '0.12em' }}>{kicker ?? 'Folder'}</div>
+              <div style={{ fontWeight: 800, fontSize: 18, color: '#dddde8', letterSpacing: '-0.02em', marginTop: 2 }}>{folder.name}</div>
+              <div className="font-mono" style={{ fontSize: 10, color: '#62627a', marginTop: 4 }}>
+                {totalCount} item{totalCount !== 1 ? 's' : ''}
+              </div>
             </div>
+            {onSettingsClick && (
+              <button
+                onClick={() => { haptic('light'); onSettingsClick() }}
+                aria-label="Folder settings"
+                className="active:scale-95"
+                style={{
+                  flexShrink: 0,
+                  width: 32, height: 32, borderRadius: 16,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: hexToRgba(accent, 0.10),
+                  border: `1px solid ${hexToRgba(accent, 0.32)}`,
+                  color: hexToRgba(accent, 0.85),
+                  cursor: 'pointer',
+                  transition: 'transform 120ms ease, background 180ms ease',
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              </button>
+            )}
           </div>
 
           {/* Grid */}

@@ -1134,6 +1134,14 @@ export default function ProjectsPage() {
         onArchiveTap={() => { haptic('light'); openFolder(ARCHIVE_FOLDER_ID) }}
         onExitEditMode={() => { setEditMode(false); setDragProjectId(null) }}
         getColor={getColor}
+        onSettingsClick={
+          openFolderId && openFolderId !== ARCHIVE_FOLDER_ID && !archivedFolderIds.has(openFolderId)
+            ? () => {
+                const f = allFolders.find(x => x.id === openFolderId)
+                if (f) setActionFolder({ id: f.id, name: f.name, color: f.color })
+              }
+            : undefined
+        }
       />
 
       {/* Restore confirm — appears when tapping a project inside the Archive folder */}
