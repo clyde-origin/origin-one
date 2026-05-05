@@ -2235,26 +2235,28 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
           noBorder
         />
 
-        {/* Mode tabs — DESIGN_LANGUAGE.md tab nav: active text uses
-            sheen+extrusion (var --accent-rgb set on .screen root), accent
-            underline at the bottom, low glow from below. */}
-        <div className="flex">
-          {(['script', 'shotlist', 'storyboard'] as SceneMakerMode[]).map(m => {
-            const active = mode === m
-            return (
-              <button key={m} className="flex-1 text-center uppercase cursor-pointer select-none relative transition-colors"
-                style={{
-                  fontFamily: "'Geist', sans-serif", fontWeight: 700, padding: '11px 0',
-                  fontSize: '0.52rem', letterSpacing: '0.08em',
-                  color: active ? undefined : '#62627a',
-                  boxShadow: active ? `0 -2px 12px -4px rgba(${pr},${pg},${pb},0.45)` : undefined,
-                }}
-                onClick={() => { if (mode === 'script') scriptRef.current?.flush(); setMode(m) }}>
-                <span className={active ? 'sheen-title' : undefined}>{m}</span>
-                {active && <div className="absolute bottom-0" style={{ left: '10%', right: '10%', height: 1, background: accent, borderRadius: '1px 1px 0 0' }} />}
-              </button>
-            )
-          })}
+        {/* Mode tabs — Hub-style segmented pill (.hub-toggle / -btn).
+            Active segment widens, picks up the project accent tint + soft
+            glow, with smooth flex-grow transition. Matches HubModeToggle
+            so the two surfaces feel like the same control. */}
+        <div style={{ width: '100%', padding: '0 14px 8px' }}>
+          <div className="hub-toggle" role="tablist" aria-label="One Arc mode">
+            {(['script', 'shotlist', 'storyboard'] as SceneMakerMode[]).map(m => {
+              const active = mode === m
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`hub-toggle-btn${active ? ' active' : ''}`}
+                  onClick={() => { if (mode === 'script') scriptRef.current?.flush(); setMode(m) }}
+                >
+                  {m}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
