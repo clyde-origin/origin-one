@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { onboardRequestSchema } from './onboard-validation'
+import { onboardRequestSchema, isAdminEmail } from './onboard-validation'
 
 describe('onboardRequestSchema', () => {
   const valid = {
@@ -60,5 +60,36 @@ describe('onboardRequestSchema', () => {
     expect(r.companyName).toBe('THNK Elephant')
     expect(r.projectName).toBe('Office Pool')
     expect(r.producers[0]).toEqual({ name: 'Chris', email: 'a@b.com' })
+  })
+})
+
+describe('isAdminEmail', () => {
+  it('returns true for an exact match in the allowlist', () => {
+    expect(isAdminEmail('clyde@originpoint.io', 'clyde@originpoint.io')).toBe(true)
+  })
+
+  it('returns true when allowlist has multiple entries', () => {
+    expect(isAdminEmail('tyler@originpoint.io', 'clyde@originpoint.io,tyler@originpoint.io')).toBe(true)
+  })
+
+  it('is case-insensitive', () => {
+    expect(isAdminEmail('Clyde@Originpoint.IO', 'clyde@originpoint.io')).toBe(true)
+  })
+
+  it('handles whitespace around entries', () => {
+    expect(isAdminEmail('clyde@originpoint.io', ' clyde@originpoint.io , tyler@originpoint.io ')).toBe(true)
+  })
+
+  it('returns false when email not in allowlist', () => {
+    expect(isAdminEmail('intruder@example.com', 'clyde@originpoint.io')).toBe(false)
+  })
+
+  it('returns false when allowlist is empty or undefined', () => {
+    expect(isAdminEmail('clyde@originpoint.io', '')).toBe(false)
+    expect(isAdminEmail('clyde@originpoint.io', undefined)).toBe(false)
+  })
+
+  it('returns false when email is empty', () => {
+    expect(isAdminEmail('', 'clyde@originpoint.io')).toBe(false)
   })
 })

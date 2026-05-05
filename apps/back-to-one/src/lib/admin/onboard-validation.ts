@@ -18,3 +18,15 @@ export const onboardRequestSchema = z.object({
 
 export type OnboardRequest = z.infer<typeof onboardRequestSchema>
 export type Producer = z.infer<typeof producerSchema>
+
+export function isAdminEmail(email: string | null | undefined, allowlistEnv: string | undefined): boolean {
+  if (!email) return false
+  if (!allowlistEnv) return false
+  const target = email.trim().toLowerCase()
+  if (!target) return false
+  const allowed = allowlistEnv
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean)
+  return allowed.includes(target)
+}
