@@ -9,8 +9,8 @@ import { m } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import { useProject, useShotlistVersions, useCreateShotlistVersion, useUpdateShotlistVersionLabel, useThreadPreviews } from '@/lib/hooks/useOriginOne'
 import { getShotsByProject, updateShotOrder, updateShootOrder, createShot, createScene, createSceneAtPosition, uploadStoryboardImage, updateShot, updateScene, deleteScene } from '@/lib/db/queries'
-import { LoadingState } from '@/components/ui'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { ScenemakerSkeleton } from '@/components/scenemaker/ScenemakerSkeleton'
 import { ProjectSwitcher } from '@/components/ProjectSwitcher'
 import { StorageImage } from '@/components/ui/StorageImage'
 import { Sheet } from '@/components/ui/Sheet'
@@ -2384,7 +2384,7 @@ export default function SceneMakerPage({ params }: { params: { projectId: string
       <div className="flex flex-1 overflow-hidden" style={{ position: 'relative' }}>
         {/* Main content */}
         <div className="flex-1 overflow-y-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 100 }}>
-          {loading ? <LoadingState /> : (
+          {loading ? <ScenemakerSkeleton /> : (
             <>
               {mode === 'script' && <ScriptView ref={scriptRef} scenes={allScenes} accent={accent} onUpdateScene={handleUpdateScene} />}
               {mode === 'shotlist' && !previewVersion && <ShotlistView scenes={allScenes} shots={allShots} accent={accent} sortMode={shotOrder} threadByShotId={threadByShotId} onTapShot={setSelectedShot} onTapThumbnail={handleThumbnailTap} onInsert={(index, sceneId) => setNewShotAt({ index, sceneId })} onReorder={handleReorder} onReorderToScene={handleReorderToScene} onRenameScene={(sceneId, title) => handleUpdateScene(sceneId, { title })} onDeleteScene={handleDeleteScene} onUpdateShot={(shotId, fields) => { updateShot(shotId, fields).then(() => qc.invalidateQueries({ queryKey: ['shotsByProject', projectId] })).catch(err => console.error('Failed to update shot:', err)) }} onShootReorder={handleShootReorder} />}
