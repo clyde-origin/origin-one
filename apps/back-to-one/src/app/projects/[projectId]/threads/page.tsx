@@ -15,6 +15,7 @@ const TV_RGB = '124, 58, 237'         // #7C3AED
 const TV_GLOW_RGB = '160, 100, 252'   // brighter apex for sheen-title gradient
 import { MentionInput } from '@/components/ui/MentionInput'
 import { MentionText } from '@/components/ui/MentionText'
+import { ThreadsSkeleton } from '@/components/threads/ThreadsSkeleton'
 import type { Thread, ThreadMessage, TeamMember } from '@/types'
 
 function initialsOf(name: string): string {
@@ -539,27 +540,7 @@ export default function ThreadsPage({ params }: { params: { projectId: string } 
       {/* Scroll area */}
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 32 }}>
         {loadingThreads || loadingCrew ? (
-          // Cinema-glass loading: sk-block shimmer silhouette matching the
-          // loaded thread-card silhouette (thumb + chip + snippet + meta col).
-          // DESIGN_LANGUAGE.md: skeleton matches the loaded UI's bones.
-          <div style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="glass-tile glass-tile-sm" style={{
-                padding: '10px 12px 10px 10px', display: 'flex', gap: 10, alignItems: 'flex-start',
-              }}>
-                <div className="sk-block flex-shrink-0" style={{ width: 52, height: 52, borderRadius: 7 }} />
-                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div className="sk-block" style={{ width: 92, height: 12, borderRadius: 20 }} />
-                  <div className="sk-block" style={{ width: '88%', height: 10 }} />
-                  <div className="sk-block" style={{ width: '64%', height: 10 }} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                    <div className="sk-block" style={{ width: 56, height: 8 }} />
-                    <div className="sk-block" style={{ width: 36, height: 8 }} />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ThreadsSkeleton />
         ) : allThreads.length === 0 ? (
           <div style={{ padding: '40px 24px', textAlign: 'center' }}>
             <div style={{ fontSize: 14, color: 'var(--fg)', opacity: 0.5, marginBottom: 8 }}>No threads yet</div>
