@@ -429,10 +429,17 @@ body.light-mode .sk, html.light-mode body .sk {
    (border, blur, background gradient) and animates a translucent
    highlight sweep across the surface so the panel reads as
    "data pending" rather than "empty". Used by per-page loading
-   skeletons that mirror the loaded layout exactly. */
+   skeletons that mirror the loaded layout exactly.
+
+   Force --tile-rgb to a neutral grey triplet so the panel reads as
+   data-loading, not as a tinted-by-project-accent surface. Without
+   this, the .glass-tile rule inherits whatever --tile-rgb the screen
+   root sets (or the 196,90,220 default), which painted skeleton
+   tiles a faint pink on every project. */
 .glass-tile.sk-tile {
   position: relative;
   overflow: hidden;
+  --tile-rgb: 130, 130, 145;
 }
 .glass-tile.sk-tile::after {
   content: '';
