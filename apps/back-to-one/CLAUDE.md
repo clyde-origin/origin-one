@@ -148,3 +148,13 @@ Schema columns persisting Storage URLs: `User.avatarUrl`, `Shot.imageUrl`, `Mood
 - `apps/one-arc`
 - `apps/one-lore`
 - `apps/api` (direct — goes through shared backend only)
+
+## Admin tools
+
+`/api/admin/external-production` — POST endpoint, gated by `ADMIN_EMAILS`
+allowlist (server) + `NEXT_PUBLIC_ADMIN_EMAILS` (UI gate, not security).
+Triggered from a button at the top of `SettingsSheet`. Creates Team + N
+producers + starter project + DEMO PROJECTS folder + auto-sends branded
+magic-link emails. Requires `ORIGIN_TEAM_ID` env (UUID of the Team whose
+`is_demo=true` projects become the demo seeds).
+Spec: `docs/superpowers/specs/2026-05-04-external-production-onboarding-design.md`
